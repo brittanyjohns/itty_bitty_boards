@@ -296,7 +296,18 @@ module API
           })
         end
 
-        render json: { token: user.authentication_token, user: user.api_view }
+        # This one endpoint both signs up and signs in, so the client cannot
+        # otherwise tell a brand-new account from a returning customer — and it
+        # matters: the frontend sends new accounts to /onboarding, which is the
+        # plan picker, where selecting Free (or the "Maybe later" skip) posts
+        # plan_key: "free". Landing a returning customer there was one click
+        # from a downgrade. Without this flag the frontend has to infer it from
+        # plan/board/communicator counts.
+        render json: {
+          token: user.authentication_token,
+          user: user.api_view,
+          is_new_user: is_new_user,
+        }
       end
 
       def forgot_password

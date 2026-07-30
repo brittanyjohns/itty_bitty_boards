@@ -5,6 +5,31 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — selecting the Free plan can no longer downgrade a paying subscriber
+- `POST /api/stripe/checkout_sessions` with `plan_key: "free"` applied
+  `plan_type: "free", plan_status: "active"` to anyone who asked, with no
+  guard. That endpoint is also how the frontend's onboarding **"Maybe later"**
+  skip is wired, so it fired for people who never intended a plan change —
+  observed on staging after a Google sign-in routed an existing customer into
+  the onboarding plan picker.
+- Worse than a wrong label: it rewrote `plan_type` locally while the Stripe
+  subscription kept billing, desyncing the two.
+- Entitled accounts (`paid_plan?`, which also covers admins) are now a logged
+  no-op. Real downgrades already have a home in `subscriptions#billing_portal`
+  / `#change_plan` / `#cancel_subscription`, which cancel in Stripe properly,
+  so nobody is stranded. A cancelled subscriber still resolves to free, so
+  stranded-plan healing is unaffected.
+- Companion to #549, which closed the same hole for *unrecognized* plan keys
+  but deliberately left this explicit `"free"` branch alone.
+
+### Added — `POST /api/v1/auths/google` returns `is_new_user`
+- The endpoint both signs up and signs in, so the client could not tell a
+  brand-new account from a returning customer. That mattered: the frontend
+  sends new accounts to `/onboarding` (the plan picker) and returning
+  customers to their dashboard, and getting it wrong was the route into the
+  downgrade above. The flag is already computed internally; it is now returned
+  alongside `token` and `user`.
+
 ### Fixed — `POST /api/docs` returns the created doc instead of a 500
 - The JSON branch rendered `render :show, location: @doc`. `location: @doc`
   resolves to `doc_url`, but the route is declared inside `namespace :api`, so

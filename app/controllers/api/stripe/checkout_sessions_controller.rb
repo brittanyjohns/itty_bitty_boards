@@ -66,6 +66,28 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     source = params[:source].to_s.strip.presence || "web_checkout"
 
     if plan_key == "free"
+      # Selecting Free is also how the onboarding "Maybe later" skip is wired,
+      # so this fires for people who never intended a plan change at all.
+      # Applying it to someone already entitled is a silent downgrade — and
+      # worse than it looks: it rewrites plan_type locally while the Stripe
+      # subscription keeps billing, desyncing the two.
+      #
+      # A real downgrade goes through Stripe (subscriptions#billing_portal /
+      # #change_plan / #cancel_subscription), which cancels the subscription
+      # properly, so no-oping here strands nobody. paid_plan? is also true for
+      # admins, who must never be downgraded by a stray click.
+      #
+      # Companion to #549, which closed this hole for *unrecognized* plan keys
+      # but deliberately left the explicit "free" branch alone.
+      if current_user.paid_plan?
+        Rails.logger.info(
+          "[checkout_sessions#create] ignoring plan_key=free for entitled user=#{current_user.id} " \
+          "(plan_type=#{current_user.plan_type} status=#{current_user.plan_status}); " \
+          "downgrades must go through Stripe"
+        )
+        render json: { url: "#{frontend_base_url}/home" } and return
+      end
+
       current_user.update!(plan_type: "free", plan_status: "active")
       render json: { url: "#{frontend_base_url}/home" } and return
     end
