@@ -119,11 +119,30 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       get "/api/boards/#{board.id}/download_obf", headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
       expect(response.media_type).to eq("application/json")
-      expect(response.headers["Content-Disposition"]).to include('filename="board.obf"')
       body = JSON.parse(response.body)
       expect(body["format"]).to eq("open-board-0.1")
       expect(body["name"]).to eq("Exportable Board")
       expect(body["buttons"].size).to eq(1)
+    end
+
+    it "names the file after the board" do
+      get "/api/boards/#{board.id}/download_obf", headers: auth_headers(user)
+      expect(response.headers["Content-Disposition"]).to include('filename="exportable-board.obf"')
+    end
+
+    it "inlines image data rather than only linking to it" do
+      get "/api/boards/#{board.id}/download_obf", headers: auth_headers(user)
+      image = JSON.parse(response.body)["images"].first
+      expect(image.key?("data") || image.key?("url")).to be true
+    end
+
+    context "when the board belongs to someone else and is not published" do
+      let!(:stranger) { create(:user) }
+
+      it "returns 404 without confirming the board exists" do
+        get "/api/boards/#{board.id}/download_obf", headers: auth_headers(stranger)
+        expect(response).to have_http_status(:not_found)
+      end
     end
   end
 end

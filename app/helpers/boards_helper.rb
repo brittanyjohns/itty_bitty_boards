@@ -1,25 +1,4 @@
-require "obf"
-
 module BoardsHelper
-  def to_obf(viewing_user = nil)
-    viewing_user ||= user
-    images = self.board_images.to_a
-
-    obf_board = OBF::Utils.obf_shell.with_indifferent_access
-    obf_board[:id] = self.id.to_s
-    obf_board[:locale] = (respond_to?(:language) && language.presence) || "en"
-    obf_board[:name] = self.name
-    obf_board[:format] = OBF::OBF::FORMAT
-    obf_board[:default_layout] = "landscape"
-    obf_board[:description_html] = self.description_html
-    obf_board[:license] = self.license if self.license.present?
-    obf_board[:grid] = self.format_grid
-    obf_board[:images] = images.map { |bi| bi.to_obf_image_format(viewing_user) }
-    obf_board[:sounds] = images.map(&:to_obf_sound_format).compact
-    obf_board[:buttons] = images.map(&:to_obf_button_format)
-    obf_board
-  end
-
   def get_number_of_columns(screen_size = "lg")
     # Use the explicit per-screen count when set; otherwise derive md/sm from
     # the authored lg count (Boards::ScreenColumns) so the fallback scales with
@@ -35,34 +14,44 @@ module BoardsHelper
     end
   end
 
+  # Builds the OBF `grid` block. Cell ids are STRINGS so they match the
+  # `id` emitted by BoardImage#to_obf_button_format — the OBF spec matches
+  # grid order against button ids by value, and a third-party importer will
+  # not coerce integers for us.
+  #
+  # Falls back to position ordering when the stored layout is missing or
+  # unusable, so an unlaid-out board still exports a valid grid.
   def format_grid
-    new_grid = Hash.new { |hash, key| hash[key] = [] }
-    screen_size = "lg"
-    columns = large_screen_columns
-    board_image_count = board_images_count
-    og_grid = print_grid_layout_for_screen_size(screen_size)
-    grid = self.layout[screen_size] || []
-    rows = og_grid.map { |cell| cell["y"] + cell["h"] }.max || 0
-    new_grid = []
-    rows.times do |y|
-      new_grid << Array.new(columns, nil)
-    end
-    og_grid.each do |cell|
-      x = cell["x"]
-      y = cell["y"]
-      w = cell["w"]
-      h = cell["h"]
-      new_grid[y] ||= []
-      new_grid[y][x] = cell["i"].to_i
+    columns = get_number_of_columns("lg")
+    columns = 1 if columns.to_i < 1
+    cells = print_grid_layout_for_screen_size("lg")
+
+    return position_ordered_grid(columns) if cells.blank?
+
+    rows = cells.filter_map { |cell| cell["y"].to_i + [cell["h"].to_i, 1].max }.max.to_i
+    return position_ordered_grid(columns) if rows < 1
+
+    order = Array.new(rows) { Array.new(columns, nil) }
+    cells.each do |cell|
+      x = cell["x"].to_i
+      y = cell["y"].to_i
+      next if x.negative? || y.negative? || x >= columns || y >= rows
+
+      order[y][x] = cell["i"].to_s
     end
 
-    result = {}
-    result = {
-      "rows" => rows,
-      "columns" => columns,
-      "order" => new_grid,
-    }
-    result
+    { "rows" => rows, "columns" => columns, "order" => order }
+  end
+
+  # Last-resort grid: fill left-to-right, top-to-bottom in tile position order.
+  def position_ordered_grid(columns)
+    ids = board_images.sort_by { |bi| bi.position.to_i }.map { |bi| bi.id.to_s }
+    rows = [(ids.size.to_f / columns).ceil, 1].max
+
+    order = Array.new(rows) { Array.new(columns, nil) }
+    ids.each_with_index { |id, index| order[index / columns][index % columns] = id }
+
+    { "rows" => rows, "columns" => columns, "order" => order }
   end
 
   def description_html

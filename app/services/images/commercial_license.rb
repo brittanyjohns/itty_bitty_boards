@@ -42,11 +42,11 @@ module Images
     class << self
       def for(doc, include_share_alike: false)
         # Resolved once — for OpenSymbol docs this hits the DB.
-        license = resolve_license(doc)
+        license = LicenseResolution.resolve(doc)
         protected_symbol = license == :protected
         license = nil if protected_symbol
 
-        type = normalize_type(license.is_a?(Hash) ? license["type"] : license)
+        type = LicenseResolution.normalize_type(license.is_a?(Hash) ? license["type"] : license)
 
         share_alike    = type.present? && type.include?("sa")
         non_commercial = type.present? && type.include?("nc")
@@ -68,29 +68,6 @@ module Images
 
       private
 
-      # OpenSymbol docs keep their license on the symbol row, not the doc.
-      # search_string has no uniqueness constraint and is a label match, NOT
-      # provenance — more than one symbol can share it with different
-      # licenses (e.g. "family - family, ,": one CC BY-SA, one public
-      # domain). We cannot know which symbol this doc actually came from, so
-      # only trust the license when every matching row agrees (after
-      # normalization); otherwise treat the doc as having no usable license,
-      # which the caller already renders as not commercial-safe.
-      # Returns the jsonb hash, a license string, :protected, or nil.
-      def resolve_license(doc)
-        return doc.license if doc.license.present?
-        return nil unless doc.source_type == "OpenSymbol"
-
-        symbols = doc.matching_open_symbols.order(:id).to_a
-        return nil if symbols.empty?
-        return :protected if symbols.any? { |symbol| truthy?(symbol.protected_symbol) }
-
-        normalized_licenses = symbols.map { |symbol| normalize_type(symbol.license) }.uniq
-        return nil unless normalized_licenses.size == 1
-
-        symbols.first.license
-      end
-
       def safe?(doc:, type:, protected_symbol:, share_alike:, non_commercial:, no_derivatives:, include_share_alike:)
         return false if protected_symbol
         return true  if doc.source_type == OWNED_SOURCE_TYPE
@@ -103,16 +80,6 @@ module Images
         # once the caller has opted into share-alike.
         base = type.sub(/-sa\b/, "").strip
         COMMERCIAL_TYPES.any? { |allowed| base == allowed || base.start_with?("#{allowed} ") }
-      end
-
-      # "CC By-SA 3.0" -> "cc by-sa 3.0"; collapses whitespace so version
-      # suffixes and casing inconsistencies in the library don't matter.
-      def normalize_type(value)
-        value.to_s.strip.downcase.gsub(/\s+/, " ")
-      end
-
-      def truthy?(value)
-        ["true", "t", "1", true].include?(value.is_a?(String) ? value.downcase : value)
       end
     end
   end

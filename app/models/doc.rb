@@ -20,6 +20,18 @@
 #  license            :jsonb
 #
 class Doc < ApplicationRecord
+  # A doc uploaded by a person through a user-facing endpoint, as opposed to a
+  # generated, imported or scraped one ("OpenAI", "OpenSymbol", "ObfImport",
+  # "GoogleSearch").
+  #
+  # `source_type` is provenance, and provenance decides what we may do with the
+  # bytes — see `Images::CommercialLicense`. Assign it EXPLICITLY at each
+  # creation site; never default it on the model. A blank source_type means
+  # "unknown", which fails closed; labelling unknown provenance as USER would
+  # assert that a user owns content they may not, which is the one direction
+  # that fails unsafely.
+  SOURCE_TYPE_USER = "User".freeze
+
   default_scope { where(deleted_at: nil) }
   belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true, touch: true
@@ -39,6 +51,7 @@ class Doc < ApplicationRecord
   scope :not_hidden, -> { where(deleted_at: nil) }
   scope :symbols, -> { where(source_type: "OpenSymbol") }
   scope :ai_generated, -> { where(source_type: "OpenAI") }
+  scope :user_uploaded, -> { where(source_type: SOURCE_TYPE_USER) }
   scope :without_attached_image, -> { where.missing(:image_attachment) }
   scope :no_user, -> { where(user_id: nil) }
   scope :with_user, -> { where.not(user_id: nil) }

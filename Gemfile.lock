@@ -671,6 +671,7 @@ DEPENDENCIES
   rqrcode
   rspec-rails
   ruby-openai (~> 8.0)
+  rubyzip (~> 2.3)
   selenium-webdriver
   sidekiq (~> 7.3.10)
   sidekiq-cron (~> 2.0)

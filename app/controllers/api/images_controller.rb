@@ -337,6 +337,7 @@ class API::ImagesController < API::ApplicationController
       doc = @image.docs.new(image_params[:docs])
       doc.user = @current_user
       doc.processed = true
+      doc.source_type = Doc::SOURCE_TYPE_USER
       if doc.save
         @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.tile_url })
         render json: @image.with_display_doc(@current_user), status: :created
@@ -360,6 +361,7 @@ class API::ImagesController < API::ApplicationController
     @doc = @image.docs.new(image_params[:docs])
     @doc.user = current_user
     @doc.processed = true
+    @doc.source_type = Doc::SOURCE_TYPE_USER
     if @doc.save
       render json: @image, status: :created
     else
@@ -851,6 +853,7 @@ class API::ImagesController < API::ApplicationController
     doc = image.docs.new
     doc.user = user
     doc.processed = true
+    doc.source_type = Doc::SOURCE_TYPE_USER
     doc.image.attach(io: StringIO.new(Base64.decode64(image_data)),
                      filename: "img_#{image.label}_#{image.id}_doc_#{doc.id}.#{file_extension}",
                      content_type: "image/#{file_extension}")

@@ -231,6 +231,114 @@ image pool:
   Signature: `from_obf(data, current_user, board_group = nil, board_id = nil,
   import_options: {})` — don't swap `current_user` and `board_group`.
 
+## OBF/OBZ export
+
+`GET /api/boards/:id/download_obf` exports one board inline (synchronous).
+`POST /api/boards/:id/export_package` (a board plus its predictive-link
+reachable set) and `POST /api/board_groups/:id/export_package` (an explicit
+Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
+`GET /api/board_exports/:id` (`show`) and `GET /api/board_exports/:id/download`
+(`download`) serve the result.
+
+- **Bundling and the declared license are independent decisions**, and both
+  live in `Boards::ObfExporter`. `Images::RedistributionLicense.for` decides,
+  per image doc, whether its bytes may be bundled into the zip.
+  `ObfExporter#derived_license` decides, per board, what `"license"` the OBF
+  document declares. A board of the user's own photos bundles every asset
+  AND declares `"private"` — SpeakAnyWay has no standing to license a user's
+  family photos under an open license on their behalf.
+- **`Images::RedistributionLicense` is deliberately NOT `Images::CommercialLicense`.**
+  `CommercialLicense` answers "may SpeakAnyWay SELL a product containing
+  this" and fails closed hard: NC/ND licenses are excluded (they permit
+  redistribution but not the specific rights a sale needs) and a blank
+  `source_type` is untrusted. `RedistributionLicense` answers a narrower
+  question — "may this be copied into a *user's own* export" — so it relaxes
+  both: NC/ND don't forbid redistribution, so they're bundlable here; and a
+  blank `source_type` is how uploads *predating* `Doc::SOURCE_TYPE_USER` are
+  stored, so treating it as untrusted would strip a user's own photos out of
+  their own export. `RedistributionLicense.for` resolves in this order —
+  ownership before license, because a user's own content is theirs and its
+  license is not ours to evaluate:
+  1. `LicenseResolution.resolve(doc) == :protected` → not bundlable
+     (proprietary symbol set), regardless of everything else.
+  2. Owned by the exporting user (`source_type` in `[nil, "", "User"]` and
+     the doc's or its parent `Image`'s `user_id` matches) → bundlable,
+     `owned_by_user: true`, no license check at all.
+  3. `source_type == "OpenAI"`, or owned by `User::DEFAULT_ADMIN_ID`
+     (SpeakAnyWay-authored) → bundlable.
+  4. `source_type == "GoogleSearch"` (scraped, no license of record) → not
+     bundlable.
+  5. Otherwise, normalize the resolved license type and check it against
+     `REDISTRIBUTABLE_FAMILIES` (`public domain`, `cc0`, `cc by` — matched
+     after stripping `-sa`/`-nc`/`-nd` suffixes, so `cc by-nc-sa` still
+     matches `cc by`) → bundlable if it matches.
+  6. Anything else (no license on record, unrecognized type) → not
+     bundlable. The predicate fails closed.
+  A stamped `user_id` alone is not authorship: `Board.from_obf` writes
+  `ObfImport` docs with the importing user's id, so step 2 additionally
+  requires a user-authored `source_type` — without that an import of
+  someone else's proprietary symbols would re-export as the importer's own.
+- **`ObfExporter#derived_license`** (there is no `Board#license` method —
+  license is derived per export, not stored):
+  - Any bundled asset with `owned_by_user? == true` → `"private"`. The
+    user's own content overrides everything else in the board.
+  - No asset was ever positively evaluated as bundlable — either every
+    asset was skipped, or licensing never ran at all because the export
+    used `asset_mode: :url` — → `"private"`. Absence of evidence of an open
+    license is not evidence of openness; this only fires open when at least
+    one non-user-owned asset was actually confirmed bundlable.
+  - At least one non-user-owned bundlable asset, and none carried a
+    recognized license type → the default open license
+    (`CC BY-SA 4.0`).
+  - Otherwise, the board declares the **most restrictive** license type
+    among the bundled assets' types, chosen by `restrictiveness_score`
+    (NC/ND/SA add weight), not by sorting the type strings — a board
+    containing one `cc by-nc-sa` image and one `public domain` image must
+    declare the former, not whichever type happens to sort last.
+- **`Boards::ExportScope::MAX_BOARDS` (200) is the only board-count cap.**
+  `Boards::PredictiveLinkSet.collect` (used for the single-board + linked-set
+  export) is bounded by `max_depth` (`ExportScope::MAX_DEPTH`, 6) only — it
+  has no count limit of its own, so a wide, shallow link graph relies
+  entirely on `ExportScope` to keep the package bounded.
+  `Boards::ObzPackager::MAX_BYTES` (200MB) is a second, independent cap on
+  total package size, since a small number of boards can still carry large
+  images.
+- **The `.obz` layout is dictated by `ObzImporter`, not chosen freely.**
+  `spec/services/boards/obz_round_trip_spec.rb` is the contract between
+  `ObzPackager` and `ObzImporter` — changing the manifest/paths layout in one
+  without the other breaks that spec.
+- **Known limitation: a packaging-time read failure can leave a dangling
+  `path:` reference.** `ObfExporter#attach_asset` already rescues a read
+  failure at OBF-build time and degrades that image to a `url:` reference.
+  But `ObzPackager#write_assets` reads asset bytes again, later, when
+  actually writing zip entries — at that point the board's `.obf` entry has
+  already been written into the zip with a `path:` reference to the asset.
+  If the read fails here (e.g. Active Storage says a blob is attached but
+  the underlying S3 object is missing or corrupt), the failure is caught and
+  recorded in `summary["packaging_failures"]` and `README.txt`, but the
+  already-written `.obf` entry's `path:` reference is left dangling rather
+  than rewritten to `url:`. A two-pass rewrite (verify every asset is
+  readable before writing any `.obf` entry) would close this but was
+  deliberately not built for this rare a failure mode — see the comment
+  above `read_asset_bytes` in `app/services/boards/obz_packager.rb`.
+- **Known, deliberate inconsistency: existence disclosure differs across the
+  three export authorization surfaces.**
+  `Api::BoardGroupsController#export_package` reuses the existing
+  `authorize_board_group_read!` helper, which renders **403** for a Board
+  Set the user isn't allowed to read — confirming to the caller that a
+  Board Set with that id exists. `Api::BoardsController#export_package` and
+  `Api::BoardExportsController#show`/`#download` both render a generic
+  **404** for the equivalent case (`@board.viewable_by?(current_user)`
+  false; `BoardExport` looked up scoped to `user_id: current_user&.id`) and
+  never confirm existence. This was not reconciled as part of this feature —
+  it's a pre-existing controller-authorization pattern difference, not
+  something new export code introduced.
+- **Known follow-up: `ObfExporter` has no eager loading.** `board.board_images.to_a`
+  plus each tile's `export_doc`/`image_entry` call is one query per tile for
+  its doc/image; there is no `includes`/`preload` in
+  `app/services/boards/obf_exporter.rb`. Fine at current board sizes, worth
+  revisiting if export is used on very large boards.
+
 ## Board deletion safety (warn + confirm)
 
 `DELETE /api/boards/:id` is a **warn+confirm** flow. `Boards::UsageCheck`

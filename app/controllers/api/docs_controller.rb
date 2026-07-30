@@ -63,6 +63,11 @@ class API::DocsController < API::ApplicationController
   def create
     @doc = Doc.new(doc_params)
     @doc.user = current_user
+    # This endpoint is reached by a person uploading their own file, so record
+    # that provenance. Only filled when blank: doc_params permits :source_type,
+    # and an explicit value (e.g. an admin recording a symbol source) is a
+    # deliberate claim we shouldn't silently overwrite.
+    @doc.source_type = Doc::SOURCE_TYPE_USER if @doc.source_type.blank?
     @documentable = @doc.documentable if @doc.documentable
 
     respond_to do |format|

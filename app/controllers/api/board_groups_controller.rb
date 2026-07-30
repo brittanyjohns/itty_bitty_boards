@@ -56,6 +56,20 @@ class API::BoardGroupsController < API::ApplicationController
     render json: Boards::SetGraphBuilder.new(board_group, viewing_user: current_user).call
   end
 
+  def export_package
+    board_group = BoardGroup.find_by(id: params[:id])
+    unless board_group
+      render json: { error: "Board Group not found" }, status: :not_found
+      return
+    end
+    return unless authorize_board_group_read!(board_group)
+
+    record = BoardExport.create!(user: current_user, exportable: board_group, file_format: "obz")
+    ExportBoardPackageJob.perform_async(record.id)
+
+    render json: record.api_view, status: :created
+  end
+
   def create
     if current_user.at_board_group_limit?
       render json: {

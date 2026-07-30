@@ -93,6 +93,7 @@ class User < ApplicationRecord
   has_one :profile, as: :profileable, dependent: :destroy
   belongs_to :vendor, optional: true
   has_many :board_screenshot_imports, dependent: :destroy
+  has_many :board_exports, dependent: :destroy
   has_many :communicator_accounts,
            class_name: "ChildAccount",
            foreign_key: "owner_id",
