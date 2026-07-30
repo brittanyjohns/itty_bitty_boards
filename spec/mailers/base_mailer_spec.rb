@@ -22,7 +22,7 @@ RSpec.describe BaseMailer, type: :mailer do
 
     it "renders the team name, invitee name, and an invitation link in the body" do
       mail = described_class.team_invitation_email(invitee, inviter, team).deliver_now
-      body = mail.html_part.body.decoded
+      body = (mail.html_part || mail).body.decoded
 
       expect(body).to include("Speech Crew")
       expect(body).to include("Sam Carter")
@@ -40,7 +40,7 @@ RSpec.describe BaseMailer, type: :mailer do
 
       it "renders the Spanish subject and body" do
         mail = described_class.team_invitation_email(invitee, inviter, team).deliver_now
-        body = mail.html_part.body.decoded
+        body = (mail.html_part || mail).body.decoded
 
         expect(mail.subject).to eq("¡Te han invitado a unirte a un equipo en SpeakAnyWay AAC!")
         expect(body).to include("Hola Sam Carter")
@@ -64,7 +64,7 @@ RSpec.describe BaseMailer, type: :mailer do
 
       it "renders a generic greeting" do
         mail = described_class.team_invitation_email(invitee, inviter, team).deliver_now
-        expect(mail.html_part.body.decoded).to include("Hi there,")
+        expect((mail.html_part || mail).body.decoded).to include("Hi there,")
       end
     end
   end

@@ -72,7 +72,14 @@ one-off handoff/scratch files stay untracked and local.
   `smtp-relay.gmail.com` IP-allowlisted relay when no credentials are present.
   `SMTP_ADDRESS` overrides the SMTP host. The `mailgun-ruby` gem is in the
   Gemfile but is not the active delivery transport. Diagnose delivery with
-  `bin/rails 'mail:test[you@example.com]'`.
+  `bin/rails 'mail:test[you@example.com]'`. **No mail ever carries an
+  attachment.** Templates render the header logo as `@logo.url`, which
+  `ApplicationMailer.email_logo_url` resolves to an absolute URL for
+  `public/email-logo.png` on the mailer's own host (override with
+  `EMAIL_LOGO_URL`). Inline `cid` attachments are not an option: clients list
+  every attachment part — inline ones included — so the logo showed up as a
+  downloadable file. Transactional mail is therefore single-part `text/html`,
+  so specs must read bodies as `(mail.html_part || mail).body`.
 - **TTS/Audio:** AWS Polly
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder,
   image generation. Every text-to-image prompt is composed by

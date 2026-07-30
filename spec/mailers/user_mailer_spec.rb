@@ -16,9 +16,9 @@ RSpec.describe UserMailer, type: :mailer do
       it "renders the English subject and body" do
         mail = described_class.welcome_email(user).deliver_now
         expect(mail.subject).to eq("Welcome to SpeakAnyWay AAC!")
-        expect(mail.html_part.body.decoded).to include("Welcome to SpeakAnyWay")
-        expect(mail.html_part.body.decoded).to include("Hi Pat")
-        expect(mail.html_part.body.decoded).to include("Go to Your Dashboard")
+        expect((mail.html_part || mail).body.decoded).to include("Welcome to SpeakAnyWay")
+        expect((mail.html_part || mail).body.decoded).to include("Hi Pat")
+        expect((mail.html_part || mail).body.decoded).to include("Go to Your Dashboard")
       end
     end
 
@@ -28,9 +28,9 @@ RSpec.describe UserMailer, type: :mailer do
       it "renders the Spanish subject and body" do
         mail = described_class.welcome_email(user).deliver_now
         expect(mail.subject).to eq("¡Bienvenido a SpeakAnyWay AAC!")
-        expect(mail.html_part.body.decoded).to include("Bienvenido a SpeakAnyWay")
-        expect(mail.html_part.body.decoded).to include("Hola Pat")
-        expect(mail.html_part.body.decoded).to include("Ir a tu Panel")
+        expect((mail.html_part || mail).body.decoded).to include("Bienvenido a SpeakAnyWay")
+        expect((mail.html_part || mail).body.decoded).to include("Hola Pat")
+        expect((mail.html_part || mail).body.decoded).to include("Ir a tu Panel")
       end
     end
 
@@ -51,16 +51,16 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.welcome_free_email(user).deliver_now
       expect(mail.subject).to eq("Welcome to SpeakAnyWay AAC!")
-      expect(mail.html_part.body.decoded).to include("Free plan")
-      expect(mail.html_part.body.decoded).to include("Log In &amp; Start Exploring")
+      expect((mail.html_part || mail).body.decoded).to include("Free plan")
+      expect((mail.html_part || mail).body.decoded).to include("Log In &amp; Start Exploring")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.welcome_free_email(user).deliver_now
       expect(mail.subject).to eq("¡Bienvenido a SpeakAnyWay AAC!")
-      expect(mail.html_part.body.decoded).to include("Plan Gratis")
-      expect(mail.html_part.body.decoded).to include("Inicia sesión y empieza a explorar")
+      expect((mail.html_part || mail).body.decoded).to include("Plan Gratis")
+      expect((mail.html_part || mail).body.decoded).to include("Inicia sesión y empieza a explorar")
     end
 
     # The raw invitation token must travel as an explicit argument — the
@@ -69,13 +69,13 @@ RSpec.describe UserMailer, type: :mailer do
     it "links to the magic-link welcome page when a raw invitation token is passed" do
       use_locale(user, "en-US")
       mail = described_class.welcome_free_email(user, "RAWTOKEN123").deliver_now
-      expect(mail.html_part.body.decoded).to include("/welcome/token/RAWTOKEN123")
+      expect((mail.html_part || mail).body.decoded).to include("/welcome/token/RAWTOKEN123")
     end
 
     it "falls back to the sign-in link without a token (pins current behavior)" do
       use_locale(user, "en-US")
       mail = described_class.welcome_free_email(user).deliver_now
-      body = mail.html_part.body.decoded
+      body = (mail.html_part || mail).body.decoded
       expect(body).to include("/users/sign-in")
       expect(body).not_to include("/welcome/token/")
     end
@@ -88,23 +88,24 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.welcome_basic_email(user).deliver_now
       expect(mail.subject).to eq("Welcome to SpeakAnyWay AAC — Basic plan")
-      expect(mail.html_part.body.decoded).to include("Basic plan")
-      expect(mail.html_part.body.decoded).to include("Open Your Dashboard")
-      expect(mail.html_part.body.decoded).to include("Hi Pat")
+      expect((mail.html_part || mail).body.decoded).to include("Basic plan")
+      expect((mail.html_part || mail).body.decoded).to include("Open Your Dashboard")
+      expect((mail.html_part || mail).body.decoded).to include("Hi Pat")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.welcome_basic_email(user).deliver_now
       expect(mail.subject).to eq("Bienvenido a SpeakAnyWay AAC — plan Basic")
-      expect(mail.html_part.body.decoded).to include("Plan Basic")
-      expect(mail.html_part.body.decoded).to include("Abre tu Panel")
-      expect(mail.html_part.body.decoded).to include("Hola Pat")
+      expect((mail.html_part || mail).body.decoded).to include("Plan Basic")
+      expect((mail.html_part || mail).body.decoded).to include("Abre tu Panel")
+      expect((mail.html_part || mail).body.decoded).to include("Hola Pat")
     end
 
     it "does not promise a supporter cap" do
       use_locale(user, "en-US")
-      body = described_class.welcome_basic_email(user).deliver_now.html_part.body.decoded
+      message = described_class.welcome_basic_email(user).deliver_now
+      body = (message.html_part || message).body.decoded
 
       expect(body).to include("Invite <strong>Supporters</strong>")
       expect(body).not_to match(/Invite up to <strong>\d+<\/strong> Supporter/)
@@ -119,16 +120,16 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.welcome_pro_email(user).deliver_now
       expect(mail.subject).to eq("Welcome to SpeakAnyWay AAC — Pro plan")
-      expect(mail.html_part.body.decoded).to include("Welcome to SpeakAnyWay Pro")
-      expect(mail.html_part.body.decoded).to include("Open Your Pro Dashboard")
+      expect((mail.html_part || mail).body.decoded).to include("Welcome to SpeakAnyWay Pro")
+      expect((mail.html_part || mail).body.decoded).to include("Open Your Pro Dashboard")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.welcome_pro_email(user).deliver_now
       expect(mail.subject).to eq("Bienvenido a SpeakAnyWay AAC — plan Pro")
-      expect(mail.html_part.body.decoded).to include("Bienvenido a SpeakAnyWay Pro")
-      expect(mail.html_part.body.decoded).to include("Abre tu Panel Pro")
+      expect((mail.html_part || mail).body.decoded).to include("Bienvenido a SpeakAnyWay Pro")
+      expect((mail.html_part || mail).body.decoded).to include("Abre tu Panel Pro")
     end
   end
 
@@ -142,18 +143,18 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(invitee, "en-US")
       mail = described_class.welcome_invitation_email(invitee, inviter.id).deliver_now
       expect(mail.subject).to eq("You have been invited to join SpeakAnyWay AAC!")
-      expect(mail.html_part.body.decoded).to include("You&#39;ve Been Invited")
-      expect(mail.html_part.body.decoded).to include("Sam")
-      expect(mail.html_part.body.decoded).to include("Finish Setting Up Your Account")
+      expect((mail.html_part || mail).body.decoded).to include("You&#39;ve Been Invited")
+      expect((mail.html_part || mail).body.decoded).to include("Sam")
+      expect((mail.html_part || mail).body.decoded).to include("Finish Setting Up Your Account")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(invitee, "es-US")
       mail = described_class.welcome_invitation_email(invitee, inviter.id).deliver_now
       expect(mail.subject).to eq("¡Te han invitado a unirte a SpeakAnyWay AAC!")
-      expect(mail.html_part.body.decoded).to include("¡Te han invitado!")
-      expect(mail.html_part.body.decoded).to include("Sam")
-      expect(mail.html_part.body.decoded).to include("Termina de configurar tu cuenta")
+      expect((mail.html_part || mail).body.decoded).to include("¡Te han invitado!")
+      expect((mail.html_part || mail).body.decoded).to include("Sam")
+      expect((mail.html_part || mail).body.decoded).to include("Termina de configurar tu cuenta")
     end
   end
 
@@ -165,16 +166,16 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.welcome_new_vendor_email(user, vendor).deliver_now
       expect(mail.subject).to eq("Welcome to SpeakAnyWay AAC - Cafe Acme!")
-      expect(mail.html_part.body.decoded).to include("Welcome to SpeakAnyWay, Cafe Acme")
-      expect(mail.html_part.body.decoded).to include("View Your Setup Guide to Get Started")
+      expect((mail.html_part || mail).body.decoded).to include("Welcome to SpeakAnyWay, Cafe Acme")
+      expect((mail.html_part || mail).body.decoded).to include("View Your Setup Guide to Get Started")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.welcome_new_vendor_email(user, vendor).deliver_now
       expect(mail.subject).to eq("¡Bienvenido a SpeakAnyWay AAC - Cafe Acme!")
-      expect(mail.html_part.body.decoded).to include("¡Bienvenido a SpeakAnyWay, Cafe Acme")
-      expect(mail.html_part.body.decoded).to include("Ver la Guía de Configuración para Empezar")
+      expect((mail.html_part || mail).body.decoded).to include("¡Bienvenido a SpeakAnyWay, Cafe Acme")
+      expect((mail.html_part || mail).body.decoded).to include("Ver la Guía de Configuración para Empezar")
     end
   end
 
@@ -187,18 +188,18 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.welcome_to_organization_email(user, organization).deliver_now
       expect(mail.subject).to eq("You have been invited to join Acme Org on SpeakAnyWay AAC!")
-      expect(mail.html_part.body.decoded).to include("Acme Org")
-      expect(mail.html_part.body.decoded).to include("Admin Alex")
-      expect(mail.html_part.body.decoded).to include("Finish Setting Up Your Account")
+      expect((mail.html_part || mail).body.decoded).to include("Acme Org")
+      expect((mail.html_part || mail).body.decoded).to include("Admin Alex")
+      expect((mail.html_part || mail).body.decoded).to include("Finish Setting Up Your Account")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.welcome_to_organization_email(user, organization).deliver_now
       expect(mail.subject).to eq("¡Te han invitado a unirte a Acme Org en SpeakAnyWay AAC!")
-      expect(mail.html_part.body.decoded).to include("Acme Org")
-      expect(mail.html_part.body.decoded).to include("Admin Alex")
-      expect(mail.html_part.body.decoded).to include("Termina de configurar tu cuenta")
+      expect((mail.html_part || mail).body.decoded).to include("Acme Org")
+      expect((mail.html_part || mail).body.decoded).to include("Admin Alex")
+      expect((mail.html_part || mail).body.decoded).to include("Termina de configurar tu cuenta")
     end
   end
 
@@ -211,16 +212,16 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.welcome_with_claim_link_email(user, "demo-slug").deliver_now
       expect(mail.subject).to eq("Welcome to MySpeak - Claim your profile!")
-      expect(mail.html_part.body.decoded).to include("Welcome to MySpeak")
-      expect(mail.html_part.body.decoded).to include("Open MySpeak")
+      expect((mail.html_part || mail).body.decoded).to include("Welcome to MySpeak")
+      expect((mail.html_part || mail).body.decoded).to include("Open MySpeak")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.welcome_with_claim_link_email(user, "demo-slug").deliver_now
       expect(mail.subject).to eq("Bienvenido a MySpeak: ¡reclama tu perfil!")
-      expect(mail.html_part.body.decoded).to include("Bienvenido a MySpeak")
-      expect(mail.html_part.body.decoded).to include("Abrir MySpeak")
+      expect((mail.html_part || mail).body.decoded).to include("Bienvenido a MySpeak")
+      expect((mail.html_part || mail).body.decoded).to include("Abrir MySpeak")
     end
   end
 
@@ -231,16 +232,16 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.delete_account_email(user).deliver_now
       expect(mail.subject).to eq("Confirm Your SpeakAnyWay AAC Account Deletion")
-      expect(mail.html_part.body.decoded).to include("Hi Pat")
-      expect(mail.html_part.body.decoded).to include("Confirm account deletion")
+      expect((mail.html_part || mail).body.decoded).to include("Hi Pat")
+      expect((mail.html_part || mail).body.decoded).to include("Confirm account deletion")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.delete_account_email(user).deliver_now
       expect(mail.subject).to eq("Confirma la eliminación de tu cuenta de SpeakAnyWay AAC")
-      expect(mail.html_part.body.decoded).to include("Hola Pat")
-      expect(mail.html_part.body.decoded).to include("Confirmar la eliminación de la cuenta")
+      expect((mail.html_part || mail).body.decoded).to include("Hola Pat")
+      expect((mail.html_part || mail).body.decoded).to include("Confirmar la eliminación de la cuenta")
     end
   end
 
@@ -281,18 +282,18 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(user, "en-US")
       mail = described_class.temporary_login_email(user, 24).deliver_now
       expect(mail.subject).to eq("Your Temporary Login Link for SpeakAnyWay AAC")
-      expect(mail.html_part.body.decoded).to include("Temporary login to SpeakAnyWay")
-      expect(mail.html_part.body.decoded).to include("Log in to SpeakAnyWay")
-      expect(mail.html_part.body.decoded).to include("Expires in 24 hours")
+      expect((mail.html_part || mail).body.decoded).to include("Temporary login to SpeakAnyWay")
+      expect((mail.html_part || mail).body.decoded).to include("Log in to SpeakAnyWay")
+      expect((mail.html_part || mail).body.decoded).to include("Expires in 24 hours")
     end
 
     it "renders the Spanish subject and body" do
       use_locale(user, "es-US")
       mail = described_class.temporary_login_email(user, 24).deliver_now
       expect(mail.subject).to eq("Tu enlace de inicio de sesión temporal para SpeakAnyWay AAC")
-      expect(mail.html_part.body.decoded).to include("Inicio de sesión temporal en SpeakAnyWay")
-      expect(mail.html_part.body.decoded).to include("Iniciar sesión en SpeakAnyWay")
-      expect(mail.html_part.body.decoded).to include("Caduca en 24 horas")
+      expect((mail.html_part || mail).body.decoded).to include("Inicio de sesión temporal en SpeakAnyWay")
+      expect((mail.html_part || mail).body.decoded).to include("Iniciar sesión en SpeakAnyWay")
+      expect((mail.html_part || mail).body.decoded).to include("Caduca en 24 horas")
     end
   end
 
@@ -308,8 +309,8 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(sender, "es-US") # sender locale should NOT be used
       mail = described_class.message_notification_email(message).deliver_now
       expect(mail.subject).to eq("New message from Sam")
-      expect(mail.html_part.body.decoded).to include("You&#39;ve Got Mail")
-      expect(mail.html_part.body.decoded).to include("View Message")
+      expect((mail.html_part || mail).body.decoded).to include("You&#39;ve Got Mail")
+      expect((mail.html_part || mail).body.decoded).to include("View Message")
     end
 
     it "renders the Spanish subject and body using recipient's locale" do
@@ -317,8 +318,8 @@ RSpec.describe UserMailer, type: :mailer do
       use_locale(sender, "en-US") # sender locale should NOT be used
       mail = described_class.message_notification_email(message).deliver_now
       expect(mail.subject).to eq("Nuevo mensaje de Sam")
-      expect(mail.html_part.body.decoded).to include("¡Tienes correo!")
-      expect(mail.html_part.body.decoded).to include("Ver mensaje")
+      expect((mail.html_part || mail).body.decoded).to include("¡Tienes correo!")
+      expect((mail.html_part || mail).body.decoded).to include("Ver mensaje")
     end
   end
 
@@ -349,6 +350,29 @@ RSpec.describe UserMailer, type: :mailer do
       user.update!(email_verification_token: nil)
       mail = described_class.verify_email(user)
       expect(mail.message).to be_a(ActionMailer::Base::NullMail)
+    end
+  end
+
+  describe "#subscription_canceled_email" do
+    let(:user) { FactoryBot.create(:user, name: "Rae") }
+
+    it "sends the cancellation confirmation to the user" do
+      mail = described_class.subscription_canceled_email(user)
+
+      expect(mail.to).to eq([user.email])
+      expect((mail.html_part || mail).body.decoded).to include("Rae")
+    end
+
+    it "carries no attachments and loads the logo over HTTP" do
+      mail = described_class.subscription_canceled_email(user)
+      body = (mail.html_part || mail).body.decoded
+
+      # Regression: the logo used to be an inline cid attachment, which mail
+      # clients still list in the attachment strip.
+      expect(mail.attachments).to be_empty
+      expect(mail.message.content_type).to start_with("text/html")
+      expect(body).to include(ApplicationMailer.email_logo_url)
+      expect(body).not_to include("cid:")
     end
   end
 end

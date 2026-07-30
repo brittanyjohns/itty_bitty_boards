@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — The SpeakAnyWay logo no longer shows up as an email attachment
+- Every transactional email attached the logo as an inline (`cid`) image.
+  Referencing an inline part from the HTML is legal MIME, but mail clients
+  still list *any* attachment part in the attachment strip, so messages —
+  "Your subscription was canceled" among them — arrived looking like they
+  carried a downloadable `logo.png`.
+- The logo is now loaded over HTTPS from `public/email-logo.png` (a 240px
+  version of the bubble mark) instead of being attached, so no email carries
+  an attachment at all. Set `EMAIL_LOGO_URL` to serve it from a CDN or a
+  different domain; by default it resolves against the same host Action Mailer
+  already builds links against.
+
 ### Added — Google sign-in, backend (Phase 1 of social sign-in)
 - New `POST /api/v1/auths/google` endpoint verifies a Google ID token and
   signs in (auto-linking by email to an existing account, or creating a new

@@ -41,23 +41,16 @@ RSpec.describe SafetyProfileMailer, type: :mailer do
       expect(body).not_to include("/dashboard/myspeak")
     end
 
-    it "embeds the SpeakAnyWay logo inline rather than as a file attachment" do
+    it "loads the SpeakAnyWay logo over HTTP instead of attaching it" do
       view = profile.profile_views.create!(viewed_at: Time.utc(2026, 6, 24, 15, 5))
       mail = described_class.viewed_alert(profile, view)
 
-      logo = mail.attachments["logo.png"]
-      expect(logo).to be_present
-      expect(logo.inline?).to be(true)
-      # The HTML references the logo by its content-id so clients render it in
-      # the body instead of listing it as a downloadable attachment.
-      expect(mail.html_part.body.encoded).to include(logo.cid)
-    end
-
-    it "does not attach the MySpeak logo" do
-      view = profile.profile_views.create!(viewed_at: Time.utc(2026, 6, 24, 15, 5))
-      mail = described_class.viewed_alert(profile, view)
-
-      expect(mail.attachments.map(&:filename)).not_to include("myspeak_logo.png")
+      # Any attachment part — even an inline one the HTML references by cid —
+      # gets listed in the client's attachment strip, so there must be none.
+      expect(mail.attachments).to be_empty
+      body = mail.body.encoded
+      expect(body).to include(ApplicationMailer::EMAIL_LOGO_FILENAME)
+      expect(body).not_to include("cid:")
     end
 
     it "does not deliver when the profile has no owner" do
