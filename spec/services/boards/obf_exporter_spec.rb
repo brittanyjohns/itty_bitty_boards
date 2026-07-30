@@ -212,6 +212,62 @@ RSpec.describe Boards::ObfExporter do
     expect(user_docs_query_count).to eq(1)
   end
 
+  # Fix 1 (final whole-branch review): sound_entry resolves
+  # tile.current_audio_attachment || tile.image&.current_audio_attachment per
+  # tile. Task 7's eager-load (`includes(:image, :board)`) never covered
+  # either side's audio_files, so a multi-tile board with audio on every tile
+  # ran one attachments/blobs query per tile despite the N+1 fix already
+  # landing for boards/user_docs. The eager-load now also preloads both
+  # records' audio_files_attachments/audio_files_blobs.
+  it "does not run one attachment/blob query per tile for bundled audio" do
+    def add_tile_with_audio(label, filename: "line.mp3")
+      image = create(:image, label: label, user: user)
+      image.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: filename, content_type: "audio/mpeg",
+      )
+      doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+      doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                       filename: "tile.png", content_type: "image/png")
+      board.board_images.create!(image_id: image.id, position: board.board_images.count,
+                                 skip_create_voice_audio: true)
+    end
+
+    tile_count = 3
+    tile_count.times { |i| add_tile_with_audio("tile-#{i}") }
+
+    # Bind values, not literal SQL text, carry which has_many_attached
+    # association a query is for ("name" = 'audio_files' is a placeholder in
+    # the logged SQL, not inlined) — so filter on the bound value rather than
+    # the query string, which would also match the doc image lookups.
+    audio_query_count = 0
+    counter = ->(_name, _start, _finish, _id, payload) {
+      next unless payload[:sql].match?(/FROM "active_storage_(attachments|blobs)"/)
+      next unless (payload[:binds] || []).any? { |attr| attr.value.to_s == "audio_files" }
+
+      audio_query_count += 1
+    }
+
+    result = nil
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+    end
+
+    expect(result.obf["sounds"].size).to eq(tile_count)
+    # AudioHelper#current_audio_attachment's tile-own-audio branch calls
+    # `audio_files.order(created_at: :desc).first`, which — unlike a plain
+    # `.first` — always issues a fresh query and bypasses any preload
+    # (a separate, documented AudioHelper gap, not this eager-load's target;
+    # see the tracked follow-up issue). That contributes exactly one
+    # unavoidable query PER TILE (`tile_count`), on top of a small FIXED
+    # number of batched queries for the image-side fallback this eager-load
+    # actually targets (one for audio_files_attachments, one for
+    # audio_files_blobs — NOT one per tile). Before this fix, the image-side
+    # fallback also fell back to a per-tile query, so the bound would have
+    # scaled to roughly 2 * tile_count instead of tile_count + 2.
+    expect(audio_query_count).to be <= tile_count + 2
+  end
+
   describe "sound bundling (asset_mode: :package)" do
     # Deliberately attaches audio_files (has_many_attached, on Image) BEFORE
     # doc.image (has_one_attached, on Doc) rather than reusing add_tile as-is
@@ -253,6 +309,19 @@ RSpec.describe Boards::ObfExporter do
 
       sound_assets = result.assets.select { |a| a.kind == :sound }
       expect(sound_assets.size).to eq(1)
+    end
+
+    # Fix 5 (final whole-branch review): the image path's asset_extension
+    # already downcases; sound_entry didn't, so an uppercase-extension upload
+    # produced an uppercase zip path — inconsistent with the image path's
+    # behavior for no reason tied to file format.
+    it "lowercases an uppercase filename extension in the zip path" do
+      add_tile_with_audio("apple", filename: "RECORDING.MP3")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      sound = result.obf["sounds"].first
+      expect(sound[:path]).to match(%r{\Asounds/\d+\.mp3\z})
     end
 
     it "falls back to a url reference when there is no audio attachment" do

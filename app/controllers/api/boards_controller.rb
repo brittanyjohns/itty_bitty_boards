@@ -666,7 +666,7 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
-    if current_user.board_exports.where(status: %w[queued processing]).exists?
+    if current_user.board_exports.in_flight.exists?
       render json: { error: "export_in_progress" }, status: :conflict
       return
     end

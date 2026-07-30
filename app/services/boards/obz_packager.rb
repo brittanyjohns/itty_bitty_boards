@@ -169,7 +169,7 @@ module Boards
       end
 
       if packaging_failures.any?
-        lines << "Some images could not be included due to a read error:"
+        lines << "Some files could not be included due to a read error:"
         packaging_failures.each { |f| lines << "  - #{f[:path]}: #{f[:reason]}" }
         lines << ""
       end

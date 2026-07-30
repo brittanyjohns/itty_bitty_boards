@@ -45,6 +45,26 @@ RSpec.describe "API::BoardExports", type: :request do
       post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
       expect(response).to have_http_status(:created)
     end
+
+    # Fix 4 (final whole-branch review): the 409 guard had no staleness bound,
+    # so a BoardExport stuck in "processing" (job died mid-run without
+    # reaching its rescue blocks) permanently locked the user out with no
+    # recovery route. BoardExport::IN_FLIGHT_STALENESS (30 minutes) bounds it.
+    it "returns 409 when the in-flight export is still within the staleness window (existing behavior)" do
+      BoardExport.create!(user: user, exportable: board, status: "processing",
+                          created_at: 10.minutes.ago)
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:conflict)
+    end
+
+    it "allows a new export once the stuck in-flight export is older than the staleness window" do
+      BoardExport.create!(user: user, exportable: board, status: "processing",
+                          created_at: 31.minutes.ago)
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+    end
   end
 
   describe "POST /api/board_groups/:id/export_package" do

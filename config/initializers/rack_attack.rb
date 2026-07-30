@@ -87,7 +87,13 @@ class Rack::Attack
   AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images].freeze
 
   # POST export-package surfaces: single board (+ linked set) and Board Set.
-  EXPORT_PATHS = %r{\A/api/(boards/\d+|board_groups/\d+)/export_package(\.\w+)?\z}
+  EXPORT_PACKAGE_PATHS = %r{\A/api/(boards/\d+|board_groups/\d+)/export_package(\.\w+)?\z}
+
+  # GET synchronous single-board .obf download surface. Task 1 caps this
+  # per-request (200 tiles / 20MB) but that alone doesn't bound repeated
+  # requests — shares the same per-user throttle bucket as export_package
+  # below.
+  EXPORT_DOWNLOAD_PATHS = %r{\A/api/boards/\d+/download_obf(\.\w+)?\z}
 
   # --- Discriminator helpers ------------------------------------------------
 
@@ -188,7 +194,10 @@ class Rack::Attack
   # --- Throttles: export (per user) -----------------------------------------
 
   throttle("export/user", limit: EXPORT_LIMIT, period: EXPORT_PERIOD) do |req|
-    user_discriminator(req) if req.post? && req.path.match?(EXPORT_PATHS)
+    is_export_package = req.post? && req.path.match?(EXPORT_PACKAGE_PATHS)
+    is_download_obf   = req.get? && req.path.match?(EXPORT_DOWNLOAD_PATHS)
+
+    user_discriminator(req) if is_export_package || is_download_obf
   end
 
   # --- Throttles: public profile enumeration (existing) --------------------

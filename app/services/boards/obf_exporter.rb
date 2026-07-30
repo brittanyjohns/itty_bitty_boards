@@ -51,7 +51,16 @@ module Boards
     end
 
     def call
-      tiles = board.board_images.includes(:image, :board).to_a
+      # sound_entry resolves audio off BOTH the tile's own audio_files and
+      # (as a fallback) the image's audio_files — preload both sides'
+      # attachments/blobs or each tile falls back to its own per-tile query
+      # (mirrors the :audio_files_attachments/:audio_files_blobs pairing
+      # already used for `image:` eager-loads elsewhere, e.g. Board's
+      # includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, ...] })).
+      tiles = board.board_images.includes(
+        :board, :audio_files_attachments, :audio_files_blobs,
+        image: [:audio_files_attachments, :audio_files_blobs]
+      ).to_a
 
       if asset_mode == :inline && tiles.size > MAX_INLINE_TILES
         raise TooLarge, "Board has #{tiles.size} tiles, over the #{MAX_INLINE_TILES}-tile sync export limit"
@@ -64,7 +73,7 @@ module Boards
       @preloaded_user_docs = if exporting_user
           exporting_user.user_docs.includes(:doc).where(image_id: image_ids).group_by(&:image_id)
         else
-          {}
+          nil
         end
 
       images = tiles.map { |tile| image_entry(tile) }
@@ -171,7 +180,7 @@ module Boards
       # it straight through — see the comment on BoardImage#to_obf_sound_format
       # for why re-deriving it independently there would be wrong.
       content_type = attachment.blob.content_type
-      ext = attachment.blob.filename.extension.presence || "mp3"
+      ext = attachment.blob.filename.extension.presence&.downcase || "mp3"
       # Keyed on the ATTACHMENT's id, not the tile's, so two tiles sharing the
       # same underlying audio attachment (e.g. both fall back to the same
       # Image's TTS audio) get the SAME zip path — matching how image_entry
@@ -195,6 +204,8 @@ module Boards
 
       assets << Asset.new(:sound, attachment.id.to_s, path, attachment)
       tile.to_obf_sound_format(mode: :package, path: path, content_type: content_type)
+    rescue TooLarge
+      raise
     rescue StandardError => e
       Rails.logger.warn "[ObfExporter] audio unreadable for board_image #{tile.id}: #{e.class}: #{e.message}"
       tile.to_obf_sound_format
