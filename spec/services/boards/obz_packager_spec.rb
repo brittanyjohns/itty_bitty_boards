@@ -80,4 +80,40 @@ RSpec.describe Boards::ObzPackager do
     expect(files).to have_key("README.txt")
     expect(files["README.txt"]).to include("not readable")
   end
+
+  # doc.image.attached? (checked by ObfExporter#attach_asset) is a DB-level
+  # check — it can be true while the underlying S3 object is missing,
+  # corrupted, or transiently unreachable. The actual byte read happens later,
+  # inside ObzPackager itself, and must not be allowed to crash the whole
+  # package over one bad blob.
+  it "does not crash the whole package when one asset's blob is unreadable, and records the failure" do
+    broken_board = board_with_tile("Broken")
+    healthy_board = board_with_tile("Healthy")
+    broken_doc = broken_board.board_images.first.export_doc(user)
+    broken_doc_id = broken_doc.id
+    broken_blob_id = broken_doc.image.blob.id
+
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
+      raise StandardError, "S3 unavailable" if original.receiver.id == broken_blob_id
+
+      original.call(*args, &block)
+    end
+
+    scope = Boards::ExportScope::Result.new([broken_board, healthy_board], broken_board, [])
+
+    result = nil
+    expect {
+      result = described_class.new(scope, exporting_user: user).call
+    }.not_to raise_error
+
+    files = entries_in(result.bytes)
+    expect(files.keys).to include("boards/#{broken_board.id}.obf", "boards/#{healthy_board.id}.obf")
+
+    failures = result.summary["packaging_failures"]
+    expect(failures.size).to eq(1)
+    expect(failures.first[:doc_id]).to eq(broken_doc_id)
+
+    expect(files).to have_key("README.txt")
+    expect(files["README.txt"]).to include("could not be included")
+  end
 end
