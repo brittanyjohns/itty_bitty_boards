@@ -74,7 +74,16 @@ class API::DocsController < API::ApplicationController
           UserDoc.create(user_id: current_user.id, doc_id: @doc.id, image_id: @image.id)
         end
         format.html { redirect_to @doc.documentable, notice: "Doc was successfully created." }
-        format.json { render :show, status: :created, location: @doc }
+        # `location: @doc` would resolve to `doc_url`, but the route lives under
+        # `namespace :api`, so the helper is `api_doc_url`. There is also no
+        # app/views/api/docs/show template — `render :show` raises. Both faults
+        # fired only after the Doc was saved, so the record was created and the
+        # client still got a 500. Render the same api_view #update does.
+        format.json do
+          render json: @doc.api_view(current_user),
+                 status: :created,
+                 location: api_doc_url(@doc)
+        end
       else
         format.html { render :new, status: :unprocessable_content }
         format.json { render json: @doc.errors, status: :unprocessable_content }
@@ -96,7 +105,7 @@ class API::DocsController < API::ApplicationController
 
     respond_to do |format|
       if @doc.update(doc_params)
-        format.html { redirect_to doc_url(@doc), notice: "Doc was successfully updated." }
+        format.html { redirect_to api_doc_url(@doc), notice: "Doc was successfully updated." }
         format.json { render json: @doc.api_view(current_user), status: :ok }
       else
         format.html { render :edit, status: :unprocessable_content }
