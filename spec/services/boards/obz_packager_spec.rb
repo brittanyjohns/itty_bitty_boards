@@ -64,6 +64,59 @@ RSpec.describe Boards::ObzPackager do
     }.to raise_error(Boards::ObzPackager::TooLarge, /limit/)
   end
 
+  it "bails out mid-write once the running total crosses the cap, without finishing the zip" do
+    stub_const("Boards::ObzPackager::MAX_BYTES", 10)
+    board = board_with_tile("Root")
+    scope = Boards::ExportScope::Result.new([board], board, [])
+
+    read_count_after_raise = nil
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
+      result = original.call(*args, &block)
+      read_count_after_raise ||= 0
+      read_count_after_raise += 1
+      result
+    end
+
+    expect {
+      described_class.new(scope, exporting_user: user).call
+    }.to raise_error(Boards::ObzPackager::TooLarge, /limit/)
+
+    # One board, one asset — the incremental check must fire on the first
+    # (only) asset read, not after the whole zip (obf entries + manifest +
+    # readme) was already built.
+    expect(read_count_after_raise).to eq(1)
+  end
+
+  # write_assets previously deduped by asset.path only in the "seen" map that
+  # gates zip writes — a FAILING asset was never added to "seen", so the same
+  # broken doc backing tiles on two boards triggered two S3 reads and two
+  # packaging_failures entries for what is, to the user, one broken image.
+  it "reads a shared failing asset only once and records one failure, not one per board" do
+    board_a = board_with_tile("A")
+    board_b = board_with_tile("B")
+    shared_doc = board_a.board_images.first.export_doc(user)
+
+    # Re-point board_b's tile at the same doc/image as board_a so both boards
+    # reference the identical asset path.
+    board_b.board_images.first.update!(image_id: board_a.board_images.first.image_id)
+
+    broken_blob_id = shared_doc.image.blob.id
+    read_attempts = 0
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
+      if original.receiver.id == broken_blob_id
+        read_attempts += 1
+        raise StandardError, "S3 unavailable"
+      end
+      original.call(*args, &block)
+    end
+
+    scope = Boards::ExportScope::Result.new([board_a, board_b], board_a, [])
+    result = described_class.new(scope, exporting_user: user).call
+
+    expect(read_attempts).to eq(1)
+    expect(result.summary["packaging_failures"].size).to eq(1)
+  end
+
   it "includes a README only when something was left out" do
     board = board_with_tile("Root")
 

@@ -34,7 +34,6 @@ module Boards
       end
 
       bytes = build_zip(exports, board_paths)
-      raise TooLarge, "Package exceeds the #{MAX_BYTES / 1024 / 1024}MB limit" if bytes.bytesize > MAX_BYTES
 
       Result.new(bytes, summarize(exports))
     end
@@ -66,24 +65,37 @@ module Boards
     end
 
     # Assets are deduplicated by path: the same doc can back tiles on several
-    # boards, and a zip must not contain the same entry twice.
+    # boards, and a zip must not contain the same entry twice. Failing assets
+    # are ALSO tracked in `seen` (mapped to nil) so a shared broken asset is
+    # read and recorded only once, not once per board that references it.
+    #
+    # The MAX_BYTES check runs HERE, incrementally, rather than after the
+    # whole zip is built — bailing out as soon as the running total is
+    # exceeded, rather than after full construction, is the entire point of
+    # having the cap: memory pressure must never build past it.
     def write_assets(zip, exports)
       seen = {}
+      total_bytes = 0
 
       exports.each do |_board, result|
         result.assets.each do |asset|
           next if seen.key?(asset.path)
 
           bytes = read_asset_bytes(asset)
+          seen[asset.path] = bytes ? asset.id : nil
           next unless bytes
 
-          seen[asset.path] = asset.id
+          total_bytes += bytes.bytesize
+          if total_bytes > MAX_BYTES
+            raise TooLarge, "Package exceeds the #{MAX_BYTES / 1024 / 1024}MB limit"
+          end
+
           zip.put_next_entry(asset.path)
           zip.write(bytes)
         end
       end
 
-      seen
+      seen.compact
     end
 
     # ObfExporter#attach_asset already rescues read failures for :inline mode,
