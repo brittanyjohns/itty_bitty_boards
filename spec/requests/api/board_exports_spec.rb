@@ -148,15 +148,15 @@ RSpec.describe "API::BoardExports", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "returns the .obz bytes for a completed, attached export" do
+    it "redirects to the file's storage URL for a completed, attached export" do
       record = BoardExport.create!(user: user, exportable: board)
       ExportBoardPackageJob.new.perform(record.id)
       record.reload
 
       get "/api/board_exports/#{record.id}/download", headers: auth_headers(user)
 
-      expect(response).to have_http_status(:ok)
-      expect(response.content_type).to eq("application/zip")
+      expect(response).to have_http_status(:found)
+      expect(response.headers["Location"]).to be_present
     end
 
     it "404s a stranger's attempt to download someone else's completed export" do
