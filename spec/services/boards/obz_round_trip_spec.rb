@@ -17,6 +17,25 @@ RSpec.describe "OBZ export/import round trip" do
                                predictive_board_id: links_to&.id, skip_create_voice_audio: true)
   end
 
+  # Maps each tile's label to its [x, y] grid cell, resolved the same way the
+  # OBF exporter/importer resolve it: via board.format_grid's "order" array
+  # (grid cell id -> board_image id) rather than DB position/index. This is
+  # what would go red if a coordinate swap bug (e.g. Board.build_coords_index
+  # flipping x/y) crept into the export or import side.
+  def grid_positions(board)
+    grid = board.format_grid
+    images_by_cell_id = board.board_images.index_by { |bi| bi.id.to_s }
+    positions = {}
+    grid["order"].each_with_index do |row, y|
+      Array(row).each_with_index do |cell_id, x|
+        next if cell_id.blank?
+        bi = images_by_cell_id[cell_id.to_s]
+        positions[bi.label] = [x, y] if bi
+      end
+    end
+    positions
+  end
+
   it "preserves boards, labels, grid positions and links" do
     root  = create(:board, user: exporter_user, name: "Home", large_screen_columns: 2)
     child = create(:board, user: exporter_user, name: "Drinks", large_screen_columns: 2)
@@ -24,6 +43,12 @@ RSpec.describe "OBZ export/import round trip" do
     tile(root, "hello")
     tile(root, "drinks", links_to: child)
     root.reload.set_layouts_for_screen_sizes
+
+    original_positions = grid_positions(root.reload)
+    # Sanity: the two root tiles must actually occupy different cells, or the
+    # position assertion below couldn't distinguish a real regression from a
+    # no-op.
+    expect(original_positions.values.uniq.size).to eq(2)
 
     scope = Boards::ExportScope.for_board(root.reload, exporting_user: exporter_user)
     expect(scope.boards.map(&:name)).to match_array(["Home", "Drinks"])
@@ -40,6 +65,13 @@ RSpec.describe "OBZ export/import round trip" do
     imported_root = result[:root_board]
     expect(imported_root.name).to eq("Home")
     expect(imported_root.board_images.map(&:label)).to match_array(%w[hello drinks])
+
+    # Grid position (not just tile presence) must survive the trip. Compared
+    # by label, not by raw grid-cell id, since re-import assigns fresh
+    # board_image ids -- what must hold is that "hello" and "drinks" land in
+    # the same [x, y] cells on the reimported board as they occupied on the
+    # original.
+    expect(grid_positions(imported_root)).to eq(original_positions)
 
     # The folder tile must still open a board after the trip.
     folder = imported_root.board_images.find { |bi| bi.label == "drinks" }
