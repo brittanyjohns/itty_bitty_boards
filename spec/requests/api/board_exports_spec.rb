@@ -29,6 +29,42 @@ RSpec.describe "API::BoardExports", type: :request do
       post "/api/boards/#{board.id}/export_package", headers: auth_headers(stranger)
       expect(response).to have_http_status(:not_found)
     end
+
+    it "returns 409 when the user already has a queued export in flight" do
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:conflict)
+      expect(JSON.parse(response.body)["error"]).to eq("export_in_progress")
+    end
+
+    it "allows a new export once the prior one has completed" do
+      first = BoardExport.create!(user: user, exportable: board, status: "completed")
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+    end
+
+    # Fix 4 (final whole-branch review): the 409 guard had no staleness bound,
+    # so a BoardExport stuck in "processing" (job died mid-run without
+    # reaching its rescue blocks) permanently locked the user out with no
+    # recovery route. BoardExport::IN_FLIGHT_STALENESS (30 minutes) bounds it.
+    it "returns 409 when the in-flight export is still within the staleness window (existing behavior)" do
+      BoardExport.create!(user: user, exportable: board, status: "processing",
+                          created_at: 10.minutes.ago)
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:conflict)
+    end
+
+    it "allows a new export once the stuck in-flight export is older than the staleness window" do
+      BoardExport.create!(user: user, exportable: board, status: "processing",
+                          created_at: 31.minutes.ago)
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+    end
   end
 
   describe "POST /api/board_groups/:id/export_package" do
@@ -45,12 +81,21 @@ RSpec.describe "API::BoardExports", type: :request do
       expect(BoardExport.last.exportable).to eq(board_group)
     end
 
-    it "does not create an export for a user not authorized to read the board group" do
+    it "returns 404, not 403, for a user not authorized to read the board group" do
       expect {
         post "/api/board_groups/#{board_group.id}/export_package", headers: auth_headers(stranger)
       }.not_to change(BoardExport, :count)
 
-      expect(response).not_to have_http_status(:success)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 409 when the user already has a queued export for a different board group" do
+      post "/api/board_groups/#{board_group.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+
+      other_group = create(:board_group, user: user)
+      post "/api/board_groups/#{other_group.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:conflict)
     end
   end
 
@@ -123,15 +168,15 @@ RSpec.describe "API::BoardExports", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "returns the .obz bytes for a completed, attached export" do
+    it "redirects to the file's storage URL for a completed, attached export" do
       record = BoardExport.create!(user: user, exportable: board)
       ExportBoardPackageJob.new.perform(record.id)
       record.reload
 
       get "/api/board_exports/#{record.id}/download", headers: auth_headers(user)
 
-      expect(response).to have_http_status(:ok)
-      expect(response.content_type).to eq("application/zip")
+      expect(response).to have_http_status(:found)
+      expect(response.headers["Location"]).to be_present
     end
 
     it "404s a stranger's attempt to download someone else's completed export" do

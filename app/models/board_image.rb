@@ -326,11 +326,20 @@ class BoardImage < ApplicationRecord
   #   :package — zip-relative `path`, for .obz
   # Falls back to :url when the caller could not supply a path/data, so a
   # single unreadable asset degrades instead of breaking the export.
-  def to_obf_image_format(viewing_user = nil, mode: :url, path: nil, data: nil)
+  #
+  # `content_type:` mirrors the same parameter on #to_obf_sound_format (see
+  # that method's comment): when ObfExporter#image_entry / #attach_asset has
+  # already resolved this tile's doc (via #export_doc, which honors
+  # preloaded_user_docs), it passes that doc's real blob content_type in
+  # explicitly. Without it, this method falls back to `image.content_type`,
+  # which calls Image#display_doc with NO viewing_user/preload — a second,
+  # unbatched route into the same per-image user_docs query Task 8 batches.
+  # Every existing caller omits it and gets the exact prior behavior.
+  def to_obf_image_format(viewing_user = nil, mode: :url, path: nil, data: nil, content_type: nil)
     viewing_user ||= user
     base = {
       id: id.to_s,
-      content_type: image.content_type,
+      content_type: content_type.presence || image.content_type,
       ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
@@ -348,27 +357,59 @@ class BoardImage < ApplicationRecord
 
   # The doc whose bytes back this tile. Licensing and packaging both key on
   # this, so they must agree on which doc was used.
-  def export_doc(viewing_user = nil)
+  def export_doc(viewing_user = nil, preloaded_user_docs: nil)
     viewing_user ||= user
-    image&.display_doc(viewing_user)
+    image&.display_doc(viewing_user, preloaded_user_docs: preloaded_user_docs)
   end
 
   # Returns nil when there's no audio file to point at — caller compacts these.
   # OBF requires each sound to have a unique id, so emitting an empty id is invalid.
-  def to_obf_sound_format
-    return nil if audio_url.blank?
-    {
+  #
+  #   :url     — the default; content_type is a hardcoded guess ("audio/aac")
+  #              unless the caller passes one explicitly, since there's
+  #              normally no resolved attachment to read a real one from.
+  #   :package — zip-relative `path`, for .obz.
+  #   :inline  — base64 in `data`, for a standalone .obf with no package.
+  #
+  # For :package and :inline, ObfExporter#sound_entry has already resolved the
+  # actual attachment backing this sound (which may be the tile's own custom
+  # audio, not just the shared Image's) and passes its real blob content_type
+  # in explicitly — that's what `content_type:` is for. Re-deriving it here
+  # via `audio_content_type` would silently describe the wrong file whenever
+  # the tile's own audio differs from the Image's, so it's only used as a
+  # fallback (mainly relevant to :url, where no attachment was resolved).
+  #
+  # The blank? guard covers absence for all three modes: for :url it's
+  # audio_url itself; for :package/:inline the caller only supplies a
+  # non-nil path/data once it has confirmed an attachment exists, so a
+  # present path/data is its own evidence of an audio file to point at even
+  # when the cached audio_url column happens to be stale/blank.
+  def to_obf_sound_format(mode: :url, path: nil, data: nil, content_type: nil)
+    return nil if audio_url.blank? && path.blank? && data.blank?
+    base = {
       id: id.to_s,
-      url: audio_url,
-      content_type: "audio/aac",
       ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
       ext_saw_image_id: id.to_s,
     }
+
+    if mode == :package && path.present?
+      return base.merge(path: path, content_type: content_type.presence || audio_content_type).compact
+    end
+
+    if mode == :inline && data.present?
+      return base.merge(data: data, content_type: content_type.presence || audio_content_type).compact
+    end
+
+    base.merge(url: audio_url, content_type: content_type.presence || "audio/aac").compact
   end
 
-  def to_obf_button_format(load_board_path: nil)
+  def audio_content_type
+    image&.current_audio_attachment&.blob&.content_type.presence || "audio/mpeg"
+  end
+
+  def to_obf_button_format(load_board_path: nil, boards_by_id: nil)
     btn = {
       id: id.to_s,
       label: label,
@@ -385,7 +426,7 @@ class BoardImage < ApplicationRecord
       btn[:ext_saw_video_url] = video["url"] if video["url"].present?
     end
     if predictive_board_id
-      target = Board.find_by(id: predictive_board_id)
+      target = boards_by_id ? boards_by_id[predictive_board_id] : Board.find_by(id: predictive_board_id)
       if target
         btn[:load_board] = {
           id: (target.obf_id.presence || target.id.to_s),

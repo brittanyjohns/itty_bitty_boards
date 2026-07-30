@@ -1144,15 +1144,29 @@ class Image < ApplicationRecord
     display_doc&.image_blob&.metadata&.dig("height")
   end
 
-  def display_doc(viewing_user = nil)
+  # `preloaded_user_docs` is an optional { image_id => [UserDoc, ...] } hash
+  # (each UserDoc with :doc preloaded), batched by a caller that's about to
+  # call this once per image for the same viewing_user (e.g. ObfExporter).
+  # When supplied and the viewing_user isn't the DEFAULT_ADMIN_ID special
+  # case, it replaces the per-image `viewing_user.user_docs.includes(:doc)
+  # .where(image_id: id)` query below — this image's UserDocs are sorted the
+  # same way (by UserDoc#updated_at, matching the original `.order(:updated_at)`
+  # SQL) before mapping to their docs, so the resolved doc is identical to
+  # what the per-image query would have produced. Every other branch is
+  # untouched, and default nil preserves exact existing behavior.
+  def display_doc(viewing_user = nil, preloaded_user_docs: nil)
     viewing_user ||= self.user
     if viewing_user
       if viewing_user.id == User::DEFAULT_ADMIN_ID
         return docs.last if docs.any?
       end
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
-      user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
-      docs = user_docs.order(:updated_at).map(&:doc)
+      user_docs = if preloaded_user_docs
+          Array(preloaded_user_docs[id])
+        else
+          viewing_user.user_docs.includes(:doc).where(image_id: id)
+        end
+      docs = user_docs.sort_by(&:updated_at).map(&:doc)
       return docs.last if docs.any?
       # if viewing_user.id == self.user_id
       #   return nil

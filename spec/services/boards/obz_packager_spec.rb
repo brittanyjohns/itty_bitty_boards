@@ -64,6 +64,59 @@ RSpec.describe Boards::ObzPackager do
     }.to raise_error(Boards::ObzPackager::TooLarge, /limit/)
   end
 
+  it "bails out mid-write once the running total crosses the cap, without finishing the zip" do
+    stub_const("Boards::ObzPackager::MAX_BYTES", 10)
+    board = board_with_tile("Root")
+    scope = Boards::ExportScope::Result.new([board], board, [])
+
+    read_count_after_raise = nil
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
+      result = original.call(*args, &block)
+      read_count_after_raise ||= 0
+      read_count_after_raise += 1
+      result
+    end
+
+    expect {
+      described_class.new(scope, exporting_user: user).call
+    }.to raise_error(Boards::ObzPackager::TooLarge, /limit/)
+
+    # One board, one asset — the incremental check must fire on the first
+    # (only) asset read, not after the whole zip (obf entries + manifest +
+    # readme) was already built.
+    expect(read_count_after_raise).to eq(1)
+  end
+
+  # write_assets previously deduped by asset.path only in the "seen" map that
+  # gates zip writes — a FAILING asset was never added to "seen", so the same
+  # broken doc backing tiles on two boards triggered two S3 reads and two
+  # packaging_failures entries for what is, to the user, one broken image.
+  it "reads a shared failing asset only once and records one failure, not one per board" do
+    board_a = board_with_tile("A")
+    board_b = board_with_tile("B")
+    shared_doc = board_a.board_images.first.export_doc(user)
+
+    # Re-point board_b's tile at the same doc/image as board_a so both boards
+    # reference the identical asset path.
+    board_b.board_images.first.update!(image_id: board_a.board_images.first.image_id)
+
+    broken_blob_id = shared_doc.image.blob.id
+    read_attempts = 0
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
+      if original.receiver.id == broken_blob_id
+        read_attempts += 1
+        raise StandardError, "S3 unavailable"
+      end
+      original.call(*args, &block)
+    end
+
+    scope = Boards::ExportScope::Result.new([board_a, board_b], board_a, [])
+    result = described_class.new(scope, exporting_user: user).call
+
+    expect(read_attempts).to eq(1)
+    expect(result.summary["packaging_failures"].size).to eq(1)
+  end
+
   it "includes a README only when something was left out" do
     board = board_with_tile("Root")
 
@@ -79,6 +132,24 @@ RSpec.describe Boards::ObzPackager do
     files = entries_in(with_skips.bytes)
     expect(files).to have_key("README.txt")
     expect(files["README.txt"]).to include("not readable")
+  end
+
+  it "surfaces attribution-required assets in the summary and README" do
+    OpenSymbol.create!(search_string: "sun", license: "CC BY 4.0")
+    image = create(:image, label: "sun", user: user)
+    create(:doc, documentable: image, user: user, source_type: "OpenSymbol", raw: "sun", current: true)
+    board = create(:board, user: user, name: "Attributed")
+    board.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board.reload
+
+    scope = Boards::ExportScope::Result.new([board], board, [])
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    expect(result.summary["attribution"].size).to eq(1)
+    expect(result.summary["attribution"].first[:label]).to eq("sun")
+    expect(files["README.txt"]).to include("attribution")
+    expect(files["README.txt"]).to include("sun")
   end
 
   # doc.image.attached? (checked by ObfExporter#attach_asset) is a DB-level
@@ -140,5 +211,72 @@ RSpec.describe Boards::ObzPackager do
 
     image_entries = files.keys.select { |k| k.start_with?("images/") }
     expect(image_entries).to eq(["images/#{doc.id}.png"])
+  end
+
+  # Attaches audio_files (has_many_attached, on Image) BEFORE doc.image
+  # (has_one_attached, on Doc) rather than reusing board_with_tile as-is plus
+  # a separate audio attach — see the comment on add_tile_with_audio in
+  # obf_exporter_spec.rb for why the order matters (an ActiveStorage/Rails-8
+  # test-transaction quirk, not a bug in the feature under test).
+  it "bundles a board's audio into the sounds/ path and wires the manifest" do
+    board = create(:board, user: user, name: "Audio Board")
+    image = create(:image, label: "tile", user: user)
+    image.audio_files.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+      filename: "line.mp3", content_type: "audio/mpeg",
+    )
+    doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+    doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                      filename: "tile.png", content_type: "image/png")
+    board.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board.reload
+
+    scope = Boards::ExportScope::Result.new([board], board, [])
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    sound_entries = files.keys.select { |k| k.start_with?("sounds/") }
+    expect(sound_entries.size).to eq(1)
+
+    manifest = JSON.parse(files["manifest.json"])
+    expect(manifest["paths"]["sounds"]).not_to be_empty
+  end
+
+  # sound_entry's zip path used to key on tile.id while the Asset id keyed on
+  # attachment.id — a mismatch vs. the image pattern, where both key on
+  # doc.id. Two tiles that resolve to the SAME underlying audio attachment
+  # (both fall back to the same shared Image's audio, since neither tile has
+  # its own custom recording) got two DIFFERENT zip paths for identical
+  # bytes, defeating write_assets' path-based dedup — the same bytes were
+  # written to the zip twice — and manifest["paths"]["sounds"] (keyed
+  # {attachment_id => path}) silently dropped one of the two paths for that
+  # id. Mirrors "writes a shared asset's bytes only once..." above, for audio.
+  it "writes a shared audio attachment's bytes only once when two tiles' boards reference the same underlying attachment" do
+    image = create(:image, label: "shared audio", user: user)
+    image.audio_files.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+      filename: "line.mp3", content_type: "audio/mpeg",
+    )
+    doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+    doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                      filename: "tile.png", content_type: "image/png")
+
+    board_a = create(:board, user: user, name: "A")
+    board_a.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board_a.reload
+
+    board_b = create(:board, user: user, name: "B")
+    board_b.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board_b.reload
+
+    scope = Boards::ExportScope::Result.new([board_a, board_b], board_a, [])
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    sound_entries = files.keys.select { |k| k.start_with?("sounds/") }
+    expect(sound_entries.size).to eq(1)
+
+    manifest = JSON.parse(files["manifest.json"])
+    expect(manifest["paths"]["sounds"].size).to eq(1)
   end
 end

@@ -51,6 +51,12 @@ class Rack::Attack
   AI_LIMIT              = env_int("RACK_ATTACK_AI_LIMIT", 30)
   AI_PERIOD             = env_int("RACK_ATTACK_AI_PERIOD", 60)
 
+  # Export (per user) — enqueues a job that can read hundreds of S3 objects
+  # and write up to a 200MB attachment. The most expensive unthrottled
+  # endpoint on the API before this.
+  EXPORT_LIMIT           = env_int("RACK_ATTACK_EXPORT_LIMIT", 10)
+  EXPORT_PERIOD          = env_int("RACK_ATTACK_EXPORT_PERIOD", 3600)
+
   # Public profile lookups (per IP) — existing anti-enumeration limits.
   PROFILE_PUBLIC_LIMIT  = env_int("RACK_ATTACK_PROFILE_PUBLIC_LIMIT", 30)
   PROFILE_SLUG_LIMIT    = env_int("RACK_ATTACK_PROFILE_SLUG_LIMIT", 10)
@@ -79,6 +85,15 @@ class Rack::Attack
 
   # AI-generation path suffixes (the issue's `/generate*` + audio generation).
   AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images].freeze
+
+  # POST export-package surfaces: single board (+ linked set) and Board Set.
+  EXPORT_PACKAGE_PATHS = %r{\A/api/(boards/\d+|board_groups/\d+)/export_package(\.\w+)?\z}
+
+  # GET synchronous single-board .obf download surface. Task 1 caps this
+  # per-request (200 tiles / 20MB) but that alone doesn't bound repeated
+  # requests — shares the same per-user throttle bucket as export_package
+  # below.
+  EXPORT_DOWNLOAD_PATHS = %r{\A/api/boards/\d+/download_obf(\.\w+)?\z}
 
   # --- Discriminator helpers ------------------------------------------------
 
@@ -174,6 +189,15 @@ class Rack::Attack
 
   throttle("ai_generation/user", limit: AI_LIMIT, period: AI_PERIOD) do |req|
     user_discriminator(req) if ai_generation_request?(req)
+  end
+
+  # --- Throttles: export (per user) -----------------------------------------
+
+  throttle("export/user", limit: EXPORT_LIMIT, period: EXPORT_PERIOD) do |req|
+    is_export_package = req.post? && req.path.match?(EXPORT_PACKAGE_PATHS)
+    is_download_obf   = req.get? && req.path.match?(EXPORT_DOWNLOAD_PATHS)
+
+    user_discriminator(req) if is_export_package || is_download_obf
   end
 
   # --- Throttles: public profile enumeration (existing) --------------------

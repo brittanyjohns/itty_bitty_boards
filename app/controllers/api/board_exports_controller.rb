@@ -11,10 +11,10 @@ class API::BoardExportsController < API::ApplicationController
       return
     end
 
-    send_data @board_export.file.download,
-              filename: @board_export.file.filename.to_s,
-              type: "application/zip",
-              disposition: "attachment"
+    # Redirect to the storage URL instead of buffering the whole (up to
+    # 200MB) .obz through this Puma worker via send_data.
+    redirect_to @board_export.file.url(disposition: "attachment", filename: @board_export.file.filename.to_s),
+                allow_other_host: true
   end
 
   private

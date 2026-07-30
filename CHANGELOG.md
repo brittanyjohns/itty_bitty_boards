@@ -5,6 +5,57 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — OBF/OBZ export hardening
+- Tile audio is now bundled into `.obz` packages (previously silent on
+  export — only images were included). No change to `.obf` structure for
+  imports; `ObzImporter`/`Board.from_obf` still don't consume the bundled
+  sounds, so a round-tripped package loses its audio (a separate, tracked
+  gap).
+- The export summary and a new `README.txt` section now list which bundled
+  images require attribution under their (CC BY family) license.
+- `GET /api/boards/:id/download_obf` (the synchronous path) is now capped at
+  200 tiles / 20MB of inlined image bytes; going over either returns a 422
+  pointing at the async `.obz` export (`export_package`) instead. The async
+  path's own 200MB package-size cap (`ObzPackager::MAX_BYTES`) is now
+  checked incrementally as the zip is built, not after the fact.
+- `POST /api/boards/:id/export_package`, `POST
+  /api/board_groups/:id/export_package`, and `GET
+  /api/boards/:id/download_obf` are now rate-limited together under one
+  per-user bucket (`RACK_ATTACK_EXPORT_LIMIT`, default 10/hour) and the two
+  `export_package` endpoints refuse a second in-flight export per user (409
+  `export_in_progress`).
+
+### Fixed — export authorization and performance
+- `board_groups#export_package` now returns a generic 404 for an
+  unauthorized or nonexistent Board Set instead of a 403 that confirmed the
+  id existed, matching the other three export-adjacent endpoints.
+- Fixed two N+1 query sources in `Boards::ObfExporter` (per-tile board
+  lookups for predictive links, and per-tile `display_doc` lookups) —
+  benefits the async `.obz` export path, which is where export volume
+  actually lives.
+- `GET /api/board_exports/:id/download` now redirects to the file's storage
+  URL instead of buffering the whole `.obz` through the app server.
+
+### Fixed — cross-task interactions from the export hardening pass
+- `GET /api/boards/:id/download_obf` could bypass the `export/user`
+  Rack::Attack throttle entirely (it never created a `BoardExport`, so it
+  never tripped the in-flight guard either) — it now shares the same
+  throttle bucket as the two `export_package` endpoints.
+- The in-flight export guard (`current_user.board_exports...exists?`) used
+  to match any `queued`/`processing` `BoardExport` forever, so a job that
+  died without reaching its rescue block (OOM, hard kill) permanently
+  409-locked that user out of exporting. It now goes through
+  `BoardExport.in_flight`, which adds a 30-minute staleness bound
+  (`IN_FLIGHT_STALENESS`) — a stale `queued`/`processing` record stops
+  gating new exports after 30 minutes, though it doesn't cancel or affect
+  an already-running job.
+- `BoardExport#file` now attaches to a new private `amazon_private` Active
+  Storage service in production (`config/storage.yml`) instead of the
+  default `amazon` service, which is `public: true`. Exported `.obz`/`.obf`
+  files can bundle a family's own audio recordings, so `file.url` now
+  resolves to a signed, expiring URL rather than a permanent unauthenticated
+  one.
+
 ### Fixed — selecting the Free plan can no longer downgrade a paying subscriber
 - `POST /api/stripe/checkout_sessions` with `plan_key: "free"` applied
   `plan_type: "free", plan_status: "active"` to anyone who asked, with no

@@ -13,6 +13,19 @@ amazon:
   region: <%= ENV.fetch("AWS_REGION", "us-east-1") %>
   bucket: <%= ENV.fetch("AWS_BUCKET") { "itty-bitty-boards-#{ENV.fetch("RAILS_ENV", "development")}" } %>
   public: true
+
+# Same bucket/credentials as `amazon`, but WITHOUT public: true (defaults to
+# public: false). That's what routes ActiveStorage's `.url` through the
+# presigned/expiring path instead of a plain public URL. Used by BoardExport
+# (see app/models/board_export.rb) so its downloadable .obz/.obf files —
+# which can bundle a family's own audio recordings — stay behind a per-request
+# signed URL rather than a permanent, unauthenticated public link.
+amazon_private:
+  service: S3
+  access_key_id: <%= ENV.fetch("AWS_ACCESS_KEY_ID", "") %>
+  secret_access_key: <%= ENV.fetch("AWS_SECRET_ACCESS_KEY", "") %>
+  region: <%= ENV.fetch("AWS_REGION", "us-east-1") %>
+  bucket: <%= ENV.fetch("AWS_BUCKET") { "itty-bitty-boards-#{ENV.fetch("RAILS_ENV", "development")}" } %>
 # Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
 # amazon:
 #   service: S3

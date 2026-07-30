@@ -650,6 +650,11 @@ class API::BoardsController < API::ApplicationController
 
     send_data result.obf.to_json, filename: filename,
                                   type: "application/json", disposition: "attachment"
+  rescue Boards::ObfExporter::TooLarge
+    render json: {
+      error: "Board is too large to export synchronously",
+      export_package_url: export_package_api_board_path(@board),
+    }, status: :unprocessable_content
   end
 
   def export_package
@@ -658,6 +663,11 @@ class API::BoardsController < API::ApplicationController
 
     unless @board.viewable_by?(current_user)
       render json: { error: "Board not found" }, status: :not_found
+      return
+    end
+
+    if current_user.board_exports.in_flight.exists?
+      render json: { error: "export_in_progress" }, status: :conflict
       return
     end
 

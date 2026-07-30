@@ -144,5 +144,16 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
         expect(response).to have_http_status(:not_found)
       end
     end
+
+    it "returns 422 pointing at the .obz path when the board exceeds the sync export cap" do
+      stub_const("Boards::ObfExporter::MAX_INLINE_TILES", 0)
+
+      get "/api/boards/#{board.id}/download_obf", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      body = JSON.parse(response.body)
+      expect(body["error"]).to match(/too large/i)
+      expect(body["export_package_url"]).to be_present
+    end
   end
 end

@@ -211,4 +211,55 @@ RSpec.describe "Rack::Attack rate limiting", type: :request do
       expect(response).to have_http_status(:ok)
     end
   end
+
+  describe "export throttle (per user)" do
+    let(:user) { create(:user) }
+    let!(:board) { create(:board, user: user) }
+    let(:limit) { Rack::Attack::EXPORT_LIMIT }
+
+    before do
+      allow_any_instance_of(BoardImage).to receive(:tile_image_url).and_return("https://example.test/i.png")
+      allow_any_instance_of(BoardImage).to receive(:audio_url).and_return(nil)
+    end
+
+    def request_export
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+    end
+
+    def request_download
+      get "/api/boards/#{board.id}/download_obf", headers: auth_headers(user)
+    end
+
+    it "lets a normal request rate through" do
+      3.times { request_export }
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
+    it "returns 429 once the burst passes the per-user limit" do
+      limit.times { request_export }
+      expect(response).not_to have_http_status(:too_many_requests)
+
+      request_export
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    # GET download_obf (the synchronous .obf path) previously matched no
+    # throttle at all — Task 1 capped it per-request (200 tiles/20MB) but
+    # never bounded repeated requests. It now shares the export/user bucket.
+    it "throttles GET download_obf the same way as POST export_package" do
+      limit.times { request_download }
+      expect(response).not_to have_http_status(:too_many_requests)
+
+      request_download
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "counts download_obf and export_package against the same shared bucket" do
+      limit.times { request_download }
+      expect(response).not_to have_http_status(:too_many_requests)
+
+      request_export
+      expect(response).to have_http_status(:too_many_requests)
+    end
+  end
 end

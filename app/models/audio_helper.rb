@@ -234,27 +234,30 @@ module AudioHelper
     default_audio_url(audio_file) if audio_file
   end
 
-  def default_audio_url(audio_file = nil)
+  # The specific ActiveStorage::Attachment that default_audio_url resolves to
+  # for this record (a BoardImage or an Image) — same resolution order
+  # default_audio_url already used internally, just returning the attachment
+  # object instead of a URL string. Exporter code needs the attachment itself
+  # to read bytes and content_type; nothing about the resolution changes.
+  def current_audio_attachment(audio_file = nil)
     if self.class.name == "BoardImage"
-      if audio_file.nil?
-        audio_file = find_audio_for_voice(self.voice, self.language, create_if_missing: false)
-        audio_file = audio_files.order(created_at: :desc).first if audio_file.nil? # fallback to most recent audio file
-        # return audio_url
-      end
-      audio_blob = audio_file&.blob if audio_file
-      if audio_blob.nil?
-        return nil
-      end
+      audio_file ||= find_audio_for_voice(self.voice, self.language, create_if_missing: false)
+      audio_file ||= audio_files.order(created_at: :desc).first
     else
       audio_file ||= audio_files.first
-      audio_blob = audio_file&.blob
     end
-    # first_audio_file = audio_files_attachments.first&.blob
+    audio_file
+  end
+
+  def default_audio_url(audio_file = nil)
+    audio_file = current_audio_attachment(audio_file)
+    audio_blob = audio_file&.blob
+    return nil if audio_blob.nil?
+
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
-      url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
+      "#{ENV["CDN_HOST"]}/#{audio_blob.key}"
     else
-      url = audio_file&.url
+      audio_file.url
     end
-    url
   end
 end
