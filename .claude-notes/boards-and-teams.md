@@ -338,6 +338,17 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   its doc/image; there is no `includes`/`preload` in
   `app/services/boards/obf_exporter.rb`. Fine at current board sizes, worth
   revisiting if export is used on very large boards.
+- **Known limitation: a cropped image's `source_type` does not reflect the
+  crop's actual provenance.** When a user crops an image whose source was a
+  proprietary symbol set (e.g. SymbolStix), the resulting crop gets
+  `source_type: Doc::SOURCE_TYPE_USER` stamped on it — `RedistributionLicense`
+  then treats it as user-owned and bundles it, even though the crop's
+  provenance is actually proprietary. This is the same accepted "can't detect
+  a user's own upload" limitation the ownership check already lives with, but
+  differs in one respect: for a crop, provenance IS actually available (the
+  parent `Image`/source `Doc`) — a future fix could trace a crop back to its
+  source and inherit that `source_type` instead of stamping `User`
+  unconditionally. Not fixed here; tracked as issue #555.
 
 ## Board deletion safety (warn + confirm)
 
