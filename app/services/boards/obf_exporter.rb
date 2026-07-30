@@ -36,6 +36,7 @@ module Boards
       @skipped_assets = []
       @owned_by_user = false
       @license_types = []
+      @evaluated_bundlable = false
     end
 
     def call
@@ -117,18 +118,42 @@ module Boards
     end
 
     def record_license(verdict)
+      @evaluated_bundlable = true
       @owned_by_user ||= verdict.owned_by_user?
       @license_types << verdict.type if verdict.type.present?
     end
 
     # Any content the user owns makes the board theirs, not ours to license.
-    # Otherwise fall back to the open license only when nothing carried a more
-    # restrictive one.
+    # A board where nothing was ever positively evaluated as bundlable — every
+    # asset skipped, or licensing never ran at all (asset_mode: :url) — has no
+    # evidence to license openly on. Absence of evidence is not evidence of
+    # openness: fail closed to "private", the same way
+    # Images::RedistributionLicense fails closed per asset. Only declare the
+    # open license when at least one non-user-owned asset was bundlable and
+    # carried no more restrictive type.
     def derived_license
       return PRIVATE_LICENSE if @owned_by_user
+      return PRIVATE_LICENSE unless @evaluated_bundlable
       return OPEN_LICENSE if @license_types.empty?
 
-      { "type" => @license_types.uniq.sort.last }
+      { "type" => most_restrictive_type }
+    end
+
+    # The board must declare the MOST restrictive of the recognized types
+    # present, not the alphabetically last one — "cc by-nc-sa" carries more
+    # obligations than "public domain" and must not be dropped just because
+    # "public domain" sorts later.
+    def most_restrictive_type
+      @license_types.uniq.max_by { |type| restrictiveness_score(type) }
+    end
+
+    def restrictiveness_score(type)
+      score = 0
+      score += 1 if type.include?("cc by")
+      score += 2 if type.include?("-nc")
+      score += 2 if type.include?("-nd")
+      score += 1 if type.include?("-sa")
+      score
     end
   end
 end

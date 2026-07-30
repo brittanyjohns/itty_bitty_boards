@@ -7,12 +7,12 @@ RSpec.describe Boards::ObfExporter do
   # The doc MUST have an attached blob: ObfExporter only bundles bytes it can
   # actually read, so a doc with no attachment degrades to a url reference and
   # contributes no asset.
-  def add_tile(label, doc_source_type: Doc::SOURCE_TYPE_USER, doc_user: user)
+  def add_tile(label, doc_source_type: Doc::SOURCE_TYPE_USER, doc_user: user, target_board: board)
     image = create(:image, label: label, user: user)
     doc = create(:doc, documentable: image, user: doc_user, source_type: doc_source_type, current: true)
     doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
                      filename: "tile.png", content_type: "image/png")
-    board.board_images.create!(image_id: image.id, position: board.board_images.count,
+    target_board.board_images.create!(image_id: image.id, position: target_board.board_images.count,
                                skip_create_voice_audio: true)
   end
 
@@ -74,6 +74,71 @@ RSpec.describe Boards::ObfExporter do
       expect(result.obf["buttons"].size).to eq(1)
       expect(result.obf["images"].first[:url]).to be_present
     end
+
+    # Regression: the empty-license fallback used to fall into the same
+    # branch as "everything bundled was open," declaring CC BY-SA 4.0 over
+    # content nobody ever evaluated as licensable. Absence of evidence is not
+    # evidence of openness — a board where every tile was skipped must stay
+    # private.
+    it "declares private, not an open license, when every asset was skipped" do
+      OpenSymbol.create!(search_string: "cup", license: "CC BY", protected_symbol: "true")
+      image = create(:image, label: "cup", user: user)
+      create(:doc, documentable: image, user: user, source_type: "OpenSymbol", raw: "cup", current: true)
+      board.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      expect(result.obf["license"]["type"]).to eq("private")
+    end
+
+    # Regression: `.sort.last` on license type strings is alphabetical, not by
+    # restrictiveness — "public domain" sorts after "cc by-nc-sa 4.0" and used
+    # to win, silently dropping the NC-SA obligations the other asset carries.
+    it "declares the most restrictive recognized type, not the alphabetically last one" do
+      OpenSymbol.create!(search_string: "nc-sa-thing", license: "CC BY-NC-SA 4.0")
+      OpenSymbol.create!(search_string: "pd-thing", license: "Public Domain")
+
+      restrictive_image = create(:image, label: "nc-sa-thing", user: user)
+      create(:doc, documentable: restrictive_image, user: user, source_type: "OpenSymbol",
+                   raw: "nc-sa-thing", current: true)
+      board.board_images.create!(image_id: restrictive_image.id, position: 0, skip_create_voice_audio: true)
+
+      open_image = create(:image, label: "pd-thing", user: user)
+      create(:doc, documentable: open_image, user: user, source_type: "OpenSymbol",
+                   raw: "pd-thing", current: true)
+      board.board_images.create!(image_id: open_image.id, position: 1, skip_create_voice_audio: true)
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      type = result.obf["license"]["type"]
+      expect(type).to include("nc")
+      expect(type).to include("sa")
+    end
+  end
+
+  it "uses the board's language for locale (regression: was hardcoded 'en')" do
+    es_board = create(:board, user: user, name: "Casa", language: "es")
+    add_tile("manzana", target_board: es_board)
+
+    result = described_class.new(es_board.reload, exporting_user: user).call
+
+    expect(result.obf["locale"]).to eq("es")
+  end
+
+  it "drops sound entries when there's no audio file (regression: emitted id='')" do
+    add_tile("apple")
+
+    result = described_class.new(board.reload, exporting_user: user).call
+
+    expect(result.obf["sounds"]).to be_empty
+  end
+
+  it "omits load_board on a button whose tile has no predictive_board_id at all" do
+    add_tile("apple")
+
+    result = described_class.new(board.reload, exporting_user: user).call
+
+    expect(result.obf["buttons"].first).not_to have_key(:load_board)
   end
 
   it "wires load_board paths for linked boards" do
