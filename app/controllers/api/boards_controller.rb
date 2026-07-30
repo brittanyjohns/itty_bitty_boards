@@ -637,8 +637,19 @@ class API::BoardsController < API::ApplicationController
 
   def download_obf
     set_board
-    obf_board = @board.to_obf(current_user)
-    send_data obf_board.to_json, filename: "board.obf", type: "application/json", disposition: "attachment"
+    return if performed?
+
+    # Same generic 404 as #show: never confirm a private board exists.
+    unless @board.viewable_by?(current_user)
+      render json: { error: "Board not found" }, status: :not_found
+      return
+    end
+
+    result = Boards::ObfExporter.new(@board, exporting_user: current_user, asset_mode: :inline).call
+    filename = "#{@board.name.to_s.parameterize.presence || "board"}.obf"
+
+    send_data result.obf.to_json, filename: filename,
+                                  type: "application/json", disposition: "attachment"
   end
 
   def analyze_obz
