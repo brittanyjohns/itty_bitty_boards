@@ -863,6 +863,7 @@ class API::BoardsController < API::ApplicationController
       new_doc = @image.docs.new(image_params[:docs])
       new_doc.user = current_user
       new_doc.processed = true
+      new_doc.source_type = Doc::SOURCE_TYPE_USER
       new_doc.current = true if owns_image
       new_doc.save
     end
