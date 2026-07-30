@@ -295,6 +295,18 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
     (NC/ND/SA add weight), not by sorting the type strings — a board
     containing one `cc by-nc-sa` image and one `public domain` image must
     declare the former, not whichever type happens to sort last.
+- **`ObfExporter::Result` carries a fourth field, `attribution`** — an array
+  of `{board_image_id, label, license_type}` entries, one per bundled asset
+  whose `Images::RedistributionLicense::Result#attribution_required?` is
+  true. That predicate is only ever true for the `"cc by"` license family
+  (`type.start_with?("cc by")`, inside the redistributable branch of
+  `RedistributionLicense.for`) — it is unconditionally `false` for a user's
+  own content, SpeakAnyWay/OpenAI-authored content, protected (proprietary
+  symbol set), and untrusted (web-scraped) content, since those branches
+  return early with `attribution_required: false`. `ObzPackager#summarize`
+  flattens every board's attribution list into `summary["attribution"]`, and
+  `#readme_text` adds a `README.txt` section naming each attributed image and
+  its license type whenever that list is non-empty.
 - **`Boards::ExportScope::MAX_BOARDS` (200) is the only board-count cap.**
   `Boards::PredictiveLinkSet.collect` (used for the single-board + linked-set
   export) is bounded by `max_depth` (`ExportScope::MAX_DEPTH`, 6) only — it
@@ -303,10 +315,65 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   `Boards::ObzPackager::MAX_BYTES` (200MB) is a second, independent cap on
   total package size, since a small number of boards can still carry large
   images.
+- **`asset_mode: :inline` (the synchronous `GET /download_obf` path) has its
+  own, separate caps.** `ObfExporter::MAX_INLINE_TILES` (200) is checked
+  against the board's tile count up front, before any work starts.
+  `MAX_INLINE_BYTES` (20MB) accumulates as each image's bytes are read and
+  base64-encoded and is checked per-image inside `attach_asset`, so an export
+  can still raise partway through a board on one oversized image. Either cap
+  raises `Boards::ObfExporter::TooLarge`, which `BoardsController#download_obf`
+  rescues into a **422** whose body's `export_package_url` points the caller
+  at the async `.obz` path (`export_package`) instead. Neither cap applies to
+  `asset_mode: :package` (the `.obz` path), which relies entirely on
+  `ObzPackager::MAX_BYTES` above — and `MAX_INLINE_BYTES` itself only counts
+  image bytes: audio base64-encoded for `:inline` sound entries is a known,
+  accepted gap, not counted against it (audio is small relative to images).
+- **`ObzPackager#write_assets`'s `MAX_BYTES` check is incremental, not
+  post-hoc.** The running byte total is checked as each asset is read and
+  written, raising `ObzPackager::TooLarge` as soon as the package would
+  exceed 200MB rather than after the whole zip has already been built in
+  memory — checking early is the entire point of the cap, since the goal is
+  bounding memory pressure, not just refusing to upload an oversized file.
+  Assets are deduplicated by zip path via a `seen` hash (the same doc can
+  back tiles on several boards); a **failed** read is recorded in `seen` too
+  (mapped to `nil`, then `seen.compact` strips it before the manifest is
+  built), so a shared broken asset referenced by multiple boards is read —
+  and its failure logged to `packaging_failures` — exactly once, not once
+  per referencing board.
 - **The `.obz` layout is dictated by `ObzImporter`, not chosen freely.**
   `spec/services/boards/obz_round_trip_spec.rb` is the contract between
   `ObzPackager` and `ObzImporter` — changing the manifest/paths layout in one
   without the other breaks that spec.
+- **Tile audio is bundled into `.obz` packages** (`asset_mode: :package` and
+  `:inline`; `:url` mode still emits only a `url:`/`audio_url` reference,
+  unchanged). `ObfExporter#sound_entry` resolves the actual attachment
+  backing each tile's sound — the tile's own custom recording
+  (`current_audio_attachment`) if it has one, else the shared `Image`'s
+  TTS/upload audio — and reads the real `content_type` off that attachment's
+  blob instead of guessing. **Zip paths key on the resolved audio
+  ATTACHMENT's id** (`sounds/<attachment_id>.<ext>`), not the tile's or
+  `BoardImage`'s id, mirroring how image paths key on `doc.id`: two tiles
+  that fall back to the same shared `Image` audio land on the same path,
+  which is what lets `ObzPackager#write_assets`'s `seen`-hash dedupe collapse
+  them into one zip entry instead of writing the same bytes twice under
+  different tile ids. The OBF sound object's own `id:` field is a separate
+  concern and stays per-tile (the `BoardImage` id) — an OBF-schema
+  requirement (unique sound ids), not the zip path. **A known, accepted
+  asymmetry:** `to_obf_sound_format` emits a sound entry whenever bundled
+  bytes exist, but `to_obf_button_format` only emits a button's `sound_id`
+  when the tile's cached `audio_url` column is present — so a sound could in
+  theory be bundled with no button referencing it, if `audio_url` were stale
+  relative to the actual attachment. Rare in practice: all three production
+  call sites that attach tile audio keep `audio_url` in sync with the
+  attachment. **No `RedistributionLicense`-style licensing gate exists for
+  audio** — bundling is unconditional — because no code path today attaches
+  third-party audio to `audio_files`; every attachment is either
+  SpeakAnyWay's own Polly/OpenAI synthesis or the user's own
+  recording/upload. **Import does not consume this.** `ObzImporter` /
+  `Board.from_obf` still ignore `obf["sounds"]` entirely, so a
+  round-tripped (export-then-reimport) package loses its bundled audio —
+  this task was export-only; the import gap is separate and pre-existing,
+  not newly introduced.
 - **Known limitation: a packaging-time read failure can leave a dangling
   `path:` reference.** `ObfExporter#attach_asset` already rescues a read
   failure at OBF-build time and degrades that image to a `url:` reference.
@@ -321,23 +388,68 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   readable before writing any `.obf` entry) would close this but was
   deliberately not built for this rare a failure mode — see the comment
   above `read_asset_bytes` in `app/services/boards/obz_packager.rb`.
-- **Known, deliberate inconsistency: existence disclosure differs across the
-  three export authorization surfaces.**
-  `Api::BoardGroupsController#export_package` reuses the existing
-  `authorize_board_group_read!` helper, which renders **403** for a Board
-  Set the user isn't allowed to read — confirming to the caller that a
-  Board Set with that id exists. `Api::BoardsController#export_package` and
-  `Api::BoardExportsController#show`/`#download` both render a generic
-  **404** for the equivalent case (`@board.viewable_by?(current_user)`
-  false; `BoardExport` looked up scoped to `user_id: current_user&.id`) and
-  never confirm existence. This was not reconciled as part of this feature —
-  it's a pre-existing controller-authorization pattern difference, not
-  something new export code introduced.
-- **Known follow-up: `ObfExporter` has no eager loading.** `board.board_images.to_a`
-  plus each tile's `export_doc`/`image_entry` call is one query per tile for
-  its doc/image; there is no `includes`/`preload` in
-  `app/services/boards/obf_exporter.rb`. Fine at current board sizes, worth
-  revisiting if export is used on very large boards.
+- **Existence disclosure is now consistent 404 across all four export
+  authorization surfaces.** `Api::BoardGroupsController#export_package` no
+  longer reuses `authorize_board_group_read!` (which still renders 403,
+  confirming existence, for its other callers, e.g. `#graph`) — it now
+  inlines its own check (`board_group && (current_user&.admin? ||
+  board_group.user_id == current_user&.id)`) and renders a generic 404 on
+  failure, matching `Api::BoardsController#export_package`/`#download_obf`
+  and `Api::BoardExportsController#show`/`#download`. Scoped to
+  `export_package` only — every other `authorize_board_group_read!` caller
+  is untouched and still returns 403.
+- **`ObfExporter#call` batches its dominant per-tile queries**, though the
+  benefit only lands for `asset_mode: :package` (the async `.obz` path — the
+  actual volume driver, since `Boards::ExportScope::MAX_BOARDS` caps a
+  single package at 200 boards); `asset_mode: :url` barely touches these
+  paths to begin with, so it sees no real change. Three fixes:
+  - `board.board_images` is now loaded with `.includes(:image, :board)`
+    instead of a bare `.to_a`, avoiding a query per tile for its image and
+    (for predictive-link buttons) the linked board.
+  - Every tile's `predictive_board_id` is resolved in one
+    `Board.where(id: predictive_ids).index_by(&:id)` call (`boards_by_id`)
+    instead of one `Board.find`/`find_by` per linked tile, threaded into
+    `BoardImage#to_obf_button_format(boards_by_id:)`.
+  - The exporting user's `user_docs` are preloaded once into
+    `@preloaded_user_docs` (grouped by `image_id`) and threaded through
+    `BoardImage#export_doc(preloaded_user_docs:)` →
+    `Image#display_doc(preloaded_user_docs:)`, replacing what was one
+    `user_docs.includes(:doc).where(image_id: id)` query per tile.
+    `display_doc`'s `preloaded_user_docs:` keyword defaults to `nil`, so its
+    ~15 other callers are byte-identical. The preloaded path still sorts by
+    **`UserDoc#updated_at`**, not `Doc#updated_at` (the field that would be
+    the obvious/simpler sort key) — because `Doc` has no uniqueness
+    constraint on `(user_id, image_id)` and the two timestamps can diverge
+    in normal use, so switching sort keys would silently change which doc
+    wins a tie.
+  - `BoardImage#to_obf_image_format` also gained an optional `content_type:`
+    keyword: when the exporter has already resolved a tile's doc via
+    `export_doc` (which honors `preloaded_user_docs`), it passes that doc's
+    real blob `content_type` straight through instead of falling back to
+    `image.content_type`, which calls `Image#display_doc` again with no
+    preload — a second, unbatched query. This is a correctness fix as much
+    as a perf one: for a user with their own replacement doc for a shared
+    library image, the declared `content_type` now matches the bytes
+    actually bundled, rather than the shared `Image`'s default doc's type.
+- **Export endpoints are rate-limited and refuse a second in-flight
+  export.** Rack::Attack throttles `POST /api/boards/:id/export_package` and
+  `POST /api/board_groups/:id/export_package` together under `export/user` —
+  `RACK_ATTACK_EXPORT_LIMIT` (default 10) per `RACK_ATTACK_EXPORT_PERIOD`
+  (default 3600s), ENV-tunable like the app's other throttles. Independently,
+  both controllers check `current_user.board_exports.where(status: %w[queued
+  processing]).exists?` before creating a new `BoardExport`, returning
+  **409 `export_in_progress`** if one is already outstanding. **Known,
+  accepted gap:** that guard is check-then-create with no DB-level lock (no
+  unique index, no `SELECT ... FOR UPDATE`), so two genuinely simultaneous
+  requests could both pass the check and both create a `BoardExport` — a
+  rare, low-consequence race (worst case: two exports run instead of one),
+  bounded by the rate limit above and accepted rather than fixed.
+- **`GET /api/board_exports/:id/download` redirects instead of buffering.**
+  It now `redirect_to`s the attachment's storage URL
+  (`@board_export.file.url(disposition: "attachment", filename: ...)`,
+  `allow_other_host: true`) rather than streaming the whole `.obz` (up to
+  `ObzPackager::MAX_BYTES`, 200MB) through the Puma worker via `send_data`.
+  `#show` and the 404-for-unowned-or-missing-export behavior are unchanged.
 - **Known limitation: a cropped image's `source_type` does not reflect the
   crop's actual provenance.** When a user crops an image whose source was a
   proprietary symbol set (e.g. SymbolStix), the resulting crop gets

@@ -5,6 +5,35 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — OBF/OBZ export hardening
+- Tile audio is now bundled into `.obz` packages (previously silent on
+  export — only images were included). No change to `.obf` structure for
+  imports; `ObzImporter`/`Board.from_obf` still don't consume the bundled
+  sounds, so a round-tripped package loses its audio (a separate, tracked
+  gap).
+- The export summary and a new `README.txt` section now list which bundled
+  images require attribution under their (CC BY family) license.
+- `GET /api/boards/:id/download_obf` (the synchronous path) is now capped at
+  200 tiles / 20MB of inlined image bytes; going over either returns a 422
+  pointing at the async `.obz` export (`export_package`) instead. The async
+  path's own 200MB package-size cap (`ObzPackager::MAX_BYTES`) is now
+  checked incrementally as the zip is built, not after the fact.
+- `POST /api/boards/:id/export_package` and
+  `POST /api/board_groups/:id/export_package` are now rate-limited
+  (`RACK_ATTACK_EXPORT_LIMIT`, default 10/hour) and refuse a second
+  in-flight export per user (409 `export_in_progress`).
+
+### Fixed — export authorization and performance
+- `board_groups#export_package` now returns a generic 404 for an
+  unauthorized or nonexistent Board Set instead of a 403 that confirmed the
+  id existed, matching the other three export-adjacent endpoints.
+- Fixed two N+1 query sources in `Boards::ObfExporter` (per-tile board
+  lookups for predictive links, and per-tile `display_doc` lookups) —
+  benefits the async `.obz` export path, which is where export volume
+  actually lives.
+- `GET /api/board_exports/:id/download` now redirects to the file's storage
+  URL instead of buffering the whole `.obz` through the app server.
+
 ### Fixed — selecting the Free plan can no longer downgrade a paying subscriber
 - `POST /api/stripe/checkout_sessions` with `plan_key: "free"` applied
   `plan_type: "free", plan_status: "active"` to anyone who asked, with no
