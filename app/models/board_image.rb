@@ -400,7 +400,7 @@ class BoardImage < ApplicationRecord
     image&.current_audio_attachment&.blob&.content_type.presence || "audio/mpeg"
   end
 
-  def to_obf_button_format(load_board_path: nil)
+  def to_obf_button_format(load_board_path: nil, boards_by_id: nil)
     btn = {
       id: id.to_s,
       label: label,
@@ -417,7 +417,7 @@ class BoardImage < ApplicationRecord
       btn[:ext_saw_video_url] = video["url"] if video["url"].present?
     end
     if predictive_board_id
-      target = Board.find_by(id: predictive_board_id)
+      target = boards_by_id ? boards_by_id[predictive_board_id] : Board.find_by(id: predictive_board_id)
       if target
         btn[:load_board] = {
           id: (target.obf_id.presence || target.id.to_s),

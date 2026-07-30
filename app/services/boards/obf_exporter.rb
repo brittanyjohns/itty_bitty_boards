@@ -51,14 +51,17 @@ module Boards
     end
 
     def call
-      tiles = board.board_images.to_a
+      tiles = board.board_images.includes(:image, :board).to_a
 
       if asset_mode == :inline && tiles.size > MAX_INLINE_TILES
         raise TooLarge, "Board has #{tiles.size} tiles, over the #{MAX_INLINE_TILES}-tile sync export limit"
       end
 
+      predictive_ids = tiles.filter_map(&:predictive_board_id).uniq
+      boards_by_id = Board.where(id: predictive_ids).index_by(&:id)
+
       images = tiles.map { |tile| image_entry(tile) }
-      buttons = tiles.map { |tile| button_entry(tile) }
+      buttons = tiles.map { |tile| button_entry(tile, boards_by_id) }
 
       obf = {
         "format" => FORMAT,
@@ -81,8 +84,8 @@ module Boards
 
     attr_reader :board, :exporting_user, :asset_mode, :board_paths, :assets, :skipped_assets, :attribution
 
-    def button_entry(tile)
-      tile.to_obf_button_format(load_board_path: board_paths[tile.predictive_board_id])
+    def button_entry(tile, boards_by_id)
+      tile.to_obf_button_format(load_board_path: board_paths[tile.predictive_board_id], boards_by_id: boards_by_id)
     end
 
     def image_entry(tile)

@@ -173,6 +173,28 @@ RSpec.describe Boards::ObfExporter do
     expect(result.obf["buttons"].first[:load_board][:path]).to eq("boards/#{target.id}.obf")
   end
 
+  it "does not run one Board query per linked tile" do
+    target_a = create(:board, user: user, name: "Drinks")
+    target_b = create(:board, user: user, name: "Snacks")
+    tile_a = add_tile("more")
+    tile_a.update!(predictive_board_id: target_a.id)
+    tile_b = add_tile("food")
+    tile_b.update!(predictive_board_id: target_b.id)
+
+    board_query_count = 0
+    counter = ->(_name, _start, _finish, _id, payload) {
+      board_query_count += 1 if payload[:sql].match?(/FROM "boards"/) && payload[:sql].match?(/WHERE "boards"."id" = /)
+    }
+
+    result = nil
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      result = described_class.new(board.reload, exporting_user: user).call
+    end
+
+    expect(board_query_count).to be <= 1
+    expect(result.obf["buttons"].map { |b| b[:load_board][:name] }).to contain_exactly("Drinks", "Snacks")
+  end
+
   describe "sound bundling (asset_mode: :package)" do
     # Deliberately attaches audio_files (has_many_attached, on Image) BEFORE
     # doc.image (has_one_attached, on Doc) rather than reusing add_tile as-is
