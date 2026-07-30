@@ -355,17 +355,36 @@ class BoardImage < ApplicationRecord
 
   # Returns nil when there's no audio file to point at — caller compacts these.
   # OBF requires each sound to have a unique id, so emitting an empty id is invalid.
-  def to_obf_sound_format
-    return nil if audio_url.blank?
-    {
+  #
+  #   :url     — the default; content_type is a hardcoded guess ("audio/aac")
+  #              since there's no resolved attachment to read a real one from.
+  #   :package — zip-relative `path`, for .obz. content_type comes from the
+  #              actual attached blob.
+  #
+  # The blank? guard covers absence for BOTH modes: for :url it's audio_url
+  # itself; for :package the caller (ObfExporter#sound_entry) only supplies a
+  # non-nil path once it has confirmed an attachment exists, so a present
+  # path is its own evidence of an audio file to point at even when the
+  # cached audio_url column happens to be stale/blank.
+  def to_obf_sound_format(mode: :url, path: nil)
+    return nil if audio_url.blank? && path.blank?
+    base = {
       id: id.to_s,
-      url: audio_url,
-      content_type: "audio/aac",
       ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
       ext_saw_image_id: id.to_s,
     }
+
+    if mode == :package && path.present?
+      return base.merge(path: path, content_type: audio_content_type).compact
+    end
+
+    base.merge(url: audio_url, content_type: "audio/aac").compact
+  end
+
+  def audio_content_type
+    image&.current_audio_attachment&.blob&.content_type.presence || "audio/mpeg"
   end
 
   def to_obf_button_format(load_board_path: nil)

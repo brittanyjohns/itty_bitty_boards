@@ -212,4 +212,33 @@ RSpec.describe Boards::ObzPackager do
     image_entries = files.keys.select { |k| k.start_with?("images/") }
     expect(image_entries).to eq(["images/#{doc.id}.png"])
   end
+
+  # Attaches audio_files (has_many_attached, on Image) BEFORE doc.image
+  # (has_one_attached, on Doc) rather than reusing board_with_tile as-is plus
+  # a separate audio attach — see the comment on add_tile_with_audio in
+  # obf_exporter_spec.rb for why the order matters (an ActiveStorage/Rails-8
+  # test-transaction quirk, not a bug in the feature under test).
+  it "bundles a board's audio into the sounds/ path and wires the manifest" do
+    board = create(:board, user: user, name: "Audio Board")
+    image = create(:image, label: "tile", user: user)
+    image.audio_files.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+      filename: "line.mp3", content_type: "audio/mpeg",
+    )
+    doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+    doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                      filename: "tile.png", content_type: "image/png")
+    board.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board.reload
+
+    scope = Boards::ExportScope::Result.new([board], board, [])
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    sound_entries = files.keys.select { |k| k.start_with?("sounds/") }
+    expect(sound_entries.size).to eq(1)
+
+    manifest = JSON.parse(files["manifest.json"])
+    expect(manifest["paths"]["sounds"]).not_to be_empty
+  end
 end

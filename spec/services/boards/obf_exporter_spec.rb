@@ -173,6 +173,82 @@ RSpec.describe Boards::ObfExporter do
     expect(result.obf["buttons"].first[:load_board][:path]).to eq("boards/#{target.id}.obf")
   end
 
+  describe "sound bundling (asset_mode: :package)" do
+    # Deliberately attaches audio_files (has_many_attached, on Image) BEFORE
+    # doc.image (has_one_attached, on Doc) rather than reusing add_tile as-is
+    # + a separate attach_audio call. Attaching a has_one_attached AFTER
+    # another real attach already happened earlier in the same example trips
+    # an ActiveStorage/Rails-8 test-transaction quirk unrelated to this
+    # feature: the earlier has_one_attached's deferred after_commit upload
+    # re-reads its io once the later attach's transaction flushes, and that
+    # io is by then exhausted, raising IOError "closed stream". Attaching the
+    # has_many_attached first avoids ever triggering it. See task-6-report.md.
+    def add_tile_with_audio(label, filename: "line.mp3")
+      image = create(:image, label: label, user: user)
+      image.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: filename, content_type: "audio/mpeg",
+      )
+      doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+      doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                       filename: "tile.png", content_type: "image/png")
+      board.board_images.create!(image_id: image.id, position: board.board_images.count,
+                                 skip_create_voice_audio: true)
+    end
+
+    it "bundles audio bytes and references them by path, not url" do
+      add_tile_with_audio("apple")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      sound = result.obf["sounds"].first
+      expect(sound[:path]).to match(%r{\Asounds/.+\.mp3\z})
+      expect(sound).not_to have_key(:url)
+      expect(sound[:content_type]).to eq("audio/mpeg")
+    end
+
+    it "adds a :sound asset for the packager to write" do
+      add_tile_with_audio("apple")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      sound_assets = result.assets.select { |a| a.kind == :sound }
+      expect(sound_assets.size).to eq(1)
+    end
+
+    it "falls back to a url reference when there is no audio attachment" do
+      tile = add_tile("apple")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      expect(result.obf["sounds"]).to be_empty
+    end
+
+    # A per-tile custom recording (BoardImage#has_custom_audio?, attached via
+    # BoardImagesController#upload_audio to the TILE's own audio_files) lives
+    # in a different place than the shared Image's TTS audio. sound_entry
+    # must check the tile's own attachment, not only image.audio_files, or a
+    # parent's recorded custom audio would silently never get bundled.
+    it "bundles the tile's own custom audio, not just the shared image's" do
+      image = create(:image, label: "apple", user: user)
+      doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+      tile = board.board_images.create!(image_id: image.id, position: board.board_images.count,
+                                        skip_create_voice_audio: true)
+      tile.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: "apple-custom.mp3", content_type: "audio/mpeg",
+      )
+      doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                       filename: "tile.png", content_type: "image/png")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      sound_assets = result.assets.select { |a| a.kind == :sound }
+      expect(sound_assets.size).to eq(1)
+      expect(result.obf["sounds"].first[:path]).to match(%r{\Asounds/.+\.mp3\z})
+    end
+  end
+
   describe "inline-mode caps (sync .obf download path)" do
     it "raises TooLarge before doing any work when the board has more tiles than the cap" do
       stub_const("Boards::ObfExporter::MAX_INLINE_TILES", 1)

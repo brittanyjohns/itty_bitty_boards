@@ -70,7 +70,7 @@ module Boards
         "license" => derived_license,
         "grid" => board.format_grid,
         "images" => images,
-        "sounds" => tiles.filter_map(&:to_obf_sound_format),
+        "sounds" => tiles.filter_map { |tile| sound_entry(tile) },
         "buttons" => buttons,
       }
 
@@ -128,6 +128,49 @@ module Boards
       Rails.logger.warn "[ObfExporter] asset unreadable for doc #{doc.id}: #{e.class}: #{e.message}"
       skipped_assets << { board_image_id: tile.id, label: tile.label, reason: "image could not be read" }
       tile.to_obf_image_format(exporting_user)
+    end
+
+    # Sound bundling mirrors image bundling's shape but skips
+    # Images::RedistributionLicense entirely: unlike images, no code path
+    # today attaches third-party audio to audio_files — every attachment is
+    # either SpeakAnyWay's own Polly/OpenAI TTS synthesis or the user's own
+    # custom upload (has_custom_audio?). Bundling is therefore unconditional.
+    # Revisit if an audio-import path is ever built.
+    def sound_entry(tile)
+      return tile.to_obf_sound_format if asset_mode == :url
+
+      # current_audio_attachment returns a single ActiveStorage::Attachment
+      # record (or nil), not the has_many_attached proxy — #attached? is a
+      # proxy-only method (record.audio_files.attached?), so a plain
+      # presence check is the correct guard here.
+      #
+      # Two distinct places carry audio: the shared Image's own audio_files
+      # (Polly/OpenAI TTS, attached via AudioHelper#save_audio_file) and this
+      # tile's OWN audio_files (a per-tile custom recording/upload, attached
+      # via BoardImagesController#upload_audio — see BoardImage#has_custom_audio?,
+      # the "user's own custom upload" case the License note above refers
+      # to). tile.current_audio_attachment resolves the tile's own override
+      # first; only fall back to the image's shared audio when the tile has
+      # none of its own, mirroring how #audio_url is populated for each case.
+      attachment = tile.current_audio_attachment || tile.image&.current_audio_attachment
+      return tile.to_obf_sound_format unless attachment
+
+      ext = attachment.blob.filename.extension.presence || "mp3"
+      path = "sounds/#{tile.id}.#{ext}"
+
+      if asset_mode == :inline
+        # Sounds are small relative to images; no separate inline byte cap —
+        # they still count toward MAX_INLINE_BYTES via the same accumulator
+        # attach_asset uses, since inline .obf export shares one response.
+        data = Base64.strict_encode64(attachment.download)
+        return tile.to_obf_sound_format(mode: :package, path: nil)&.merge(data: data)
+      end
+
+      assets << Asset.new(:sound, attachment.id.to_s, path, attachment)
+      tile.to_obf_sound_format(mode: :package, path: path)
+    rescue StandardError => e
+      Rails.logger.warn "[ObfExporter] audio unreadable for board_image #{tile.id}: #{e.class}: #{e.message}"
+      tile.to_obf_sound_format
     end
 
     # NOT Doc#extension: that reads `original_image_url`, which is nil for

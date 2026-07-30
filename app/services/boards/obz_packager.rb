@@ -82,7 +82,7 @@ module Boards
           next if seen.key?(asset.path)
 
           bytes = read_asset_bytes(asset)
-          seen[asset.path] = bytes ? asset.id : nil
+          seen[asset.path] = bytes ? [asset.kind, asset.id] : nil
           next unless bytes
 
           total_bytes += bytes.bytesize
@@ -98,12 +98,13 @@ module Boards
       seen.compact
     end
 
-    # ObfExporter#attach_asset already rescues read failures for :inline mode,
-    # but for :package mode it only checks doc.image.attached? — a DB-level
-    # check that can be true while the underlying S3 object is missing,
-    # corrupted, or transiently unreachable. That read happens here, so it
-    # must be isolated the same way: one bad blob must never crash the whole
-    # package. Reading before put_next_entry (rather than rescuing around the
+    # ObfExporter#attach_asset/#sound_entry already rescue read failures for
+    # :inline mode, but for :package mode they only check attached? — a
+    # DB-level check that can be true while the underlying S3 object is
+    # missing, corrupted, or transiently unreachable. That read happens here,
+    # so it must be isolated the same way for both images (asset.doc.image)
+    # and sounds (asset.doc is the ActiveStorage::Attachment itself for
+    # :sound). Reading before put_next_entry (rather than rescuing around the
     # write) means a failed asset never occupies a zip entry at all. Trade-off
     # accepted, not solved: this board's .obf entry was already written
     # earlier in build_zip with a `path:` reference to this asset, so on
@@ -114,22 +115,29 @@ module Boards
     # failure mode warrants; the dangling reference is surfaced instead, via
     # packaging_failures / README.txt, so it's visible rather than silent.
     def read_asset_bytes(asset)
-      asset.doc.image.download
+      if asset.kind == :sound
+        asset.doc.download
+      else
+        asset.doc.image.download
+      end
     rescue StandardError => e
-      Rails.logger.warn "[ObzPackager] asset unreadable for doc #{asset.doc.id}: #{e.class}: #{e.message}"
-      packaging_failures << { asset_id: asset.id, doc_id: asset.doc.id, path: asset.path,
-                              reason: "image could not be read while packaging" }
+      Rails.logger.warn "[ObzPackager] asset unreadable for #{asset.kind} #{asset.id}: #{e.class}: #{e.message}"
+      failure = { asset_id: asset.id, path: asset.path,
+                 reason: "#{asset.kind == :sound ? "audio" : "image"} could not be read while packaging" }
+      failure[:doc_id] = asset.doc.id if asset.kind == :image
+      packaging_failures << failure
       nil
     end
 
     def manifest(exports, board_paths, written_assets)
       boards = exports.to_h { |board, _| [board.id.to_s, board_paths[board.id]] }
-      images = written_assets.to_h { |path, id| [id, path] }
+      images = written_assets.filter_map { |path, (kind, id)| [id, path] if kind == :image }.to_h
+      sounds = written_assets.filter_map { |path, (kind, id)| [id, path] if kind == :sound }.to_h
 
       {
         "format" => FORMAT,
         "root" => board_paths[scope.root&.id] || board_paths.values.first,
-        "paths" => { "boards" => boards, "images" => images, "sounds" => {} },
+        "paths" => { "boards" => boards, "images" => images, "sounds" => sounds },
       }
     end
 
