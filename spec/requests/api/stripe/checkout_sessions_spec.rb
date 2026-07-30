@@ -96,6 +96,42 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
       expect(user.plan_status).to eq("active")
     end
 
+    # plan_key=free is also how the onboarding "Maybe later" skip is wired, so
+    # it fires for people who never intended a plan change at all. Applying it
+    # to an entitled account downgrades plan_type locally while the Stripe
+    # subscription keeps billing. Real downgrades go through
+    # subscriptions#cancel_subscription / #billing_portal.
+    it "does not downgrade an active paid subscriber who lands on plan_key=free" do
+      user.update!(plan_type: "pro", plan_status: "active")
+      expect(Stripe::Checkout::Session).not_to receive(:create)
+
+      do_post.call({ plan_key: "free" })
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["url"]).to end_with("/home")
+      expect(user.reload.plan_type).to eq("pro")
+      expect(user.plan_status).to eq("active")
+    end
+
+    it "does not downgrade an admin who lands on plan_key=free" do
+      user.update!(role: "admin", plan_type: "pro", plan_status: "active")
+
+      do_post.call({ plan_key: "free" })
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.plan_type).to eq("pro")
+    end
+
+    it "still applies free for a cancelled subscriber, so stranded accounts heal" do
+      user.update!(plan_type: "pro", plan_status: "canceled")
+
+      do_post.call({ plan_key: "free" })
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.plan_type).to eq("free")
+      expect(user.plan_status).to eq("active")
+    end
+
     it "rejects an unrecognized plan_key with a 400 instead of downgrading the user to free" do
       user.update!(plan_type: "pro", plan_status: "active")
       expect(Stripe::Checkout::Session).not_to receive(:create)

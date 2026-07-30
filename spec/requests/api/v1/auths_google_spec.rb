@@ -44,6 +44,10 @@ RSpec.describe "POST /api/v1/auths/google", type: :request do
       body = JSON.parse(response.body)
       expect(body["token"]).to eq(user.authentication_token)
       expect(body["user"]["id"]).to eq(user.id)
+      # The frontend routes new accounts to /onboarding (the plan picker) and
+      # returning customers to their dashboard. Sending a returning customer to
+      # the picker was one click from a downgrade, so this flag is load-bearing.
+      expect(body["is_new_user"]).to be(true)
     end
 
     it "runs signup side effects (Stripe customer, Mailchimp, PostHog)" do
@@ -83,6 +87,17 @@ RSpec.describe "POST /api/v1/auths/google", type: :request do
 
       body = JSON.parse(response.body)
       expect(body["token"]).to eq(existing.authentication_token)
+      # Auto-linked an account that already existed — not a signup.
+      expect(body["is_new_user"]).to be(false)
+    end
+
+    it "does not touch the plan of the account it links to" do
+      existing.update!(plan_type: "pro", plan_status: "active")
+
+      do_post(id_token: "valid-id-token")
+
+      expect(existing.reload.plan_type).to eq("pro")
+      expect(existing.plan_status).to eq("active")
     end
 
     it "does not run signup side effects for an auto-linked account" do
@@ -109,6 +124,7 @@ RSpec.describe "POST /api/v1/auths/google", type: :request do
 
       body = JSON.parse(response.body)
       expect(body["token"]).to eq(existing.reload.authentication_token)
+      expect(body["is_new_user"]).to be(false)
     end
   end
 
