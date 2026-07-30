@@ -650,6 +650,11 @@ class API::BoardsController < API::ApplicationController
 
     send_data result.obf.to_json, filename: filename,
                                   type: "application/json", disposition: "attachment"
+  rescue Boards::ObfExporter::TooLarge
+    render json: {
+      error: "Board is too large to export synchronously",
+      export_package_url: export_package_api_board_path(@board),
+    }, status: :unprocessable_content
   end
 
   def export_package

@@ -11,10 +11,20 @@ module Boards
   # because SpeakAnyWay has no standing to license a user's family photos
   # under an open license on their behalf.
   class ObfExporter
+    class TooLarge < StandardError; end
+
     FORMAT = "open-board-0.1".freeze
     OPEN_LICENSE = { "type" => "CC BY-SA 4.0",
                      "url" => "https://creativecommons.org/licenses/by-sa/4.0/" }.freeze
     PRIVATE_LICENSE = { "type" => "private" }.freeze
+
+    # Only enforced for asset_mode: :inline (the synchronous GET /download_obf
+    # path, which base64-encodes every image into one in-memory response
+    # inside a Puma worker). :package and :url modes are unaffected — :package
+    # goes through the async ExportBoardPackageJob + Boards::ObzPackager,
+    # which has its own MAX_BYTES cap on the whole .obz.
+    MAX_INLINE_TILES = 200
+    MAX_INLINE_BYTES = 20 * 1024 * 1024
 
     EXTENSIONS_BY_CONTENT_TYPE = {
       "image/png" => "png",
@@ -41,6 +51,11 @@ module Boards
 
     def call
       tiles = board.board_images.to_a
+
+      if asset_mode == :inline && tiles.size > MAX_INLINE_TILES
+        raise TooLarge, "Board has #{tiles.size} tiles, over the #{MAX_INLINE_TILES}-tile sync export limit"
+      end
+
       images = tiles.map { |tile| image_entry(tile) }
       buttons = tiles.map { |tile| button_entry(tile) }
 
@@ -94,12 +109,20 @@ module Boards
       path = "images/#{doc.id}.#{asset_extension(doc)}"
 
       if asset_mode == :inline
-        data = Base64.strict_encode64(doc.image.download)
+        bytes = doc.image.download
+        @inline_bytes_total = (@inline_bytes_total || 0) + bytes.bytesize
+        if @inline_bytes_total > MAX_INLINE_BYTES
+          raise TooLarge, "Inline export exceeds #{MAX_INLINE_BYTES / 1024 / 1024}MB, over the sync export size limit"
+        end
+
+        data = Base64.strict_encode64(bytes)
         return tile.to_obf_image_format(exporting_user, mode: :inline, data: data)
       end
 
       assets << Asset.new(:image, doc.id.to_s, path, doc)
       tile.to_obf_image_format(exporting_user, mode: :package, path: path)
+    rescue TooLarge
+      raise
     rescue StandardError => e
       Rails.logger.warn "[ObfExporter] asset unreadable for doc #{doc.id}: #{e.class}: #{e.message}"
       skipped_assets << { board_image_id: tile.id, label: tile.label, reason: "image could not be read" }

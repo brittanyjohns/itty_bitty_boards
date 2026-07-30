@@ -153,4 +153,38 @@ RSpec.describe Boards::ObfExporter do
 
     expect(result.obf["buttons"].first[:load_board][:path]).to eq("boards/#{target.id}.obf")
   end
+
+  describe "inline-mode caps (sync .obf download path)" do
+    it "raises TooLarge before doing any work when the board has more tiles than the cap" do
+      stub_const("Boards::ObfExporter::MAX_INLINE_TILES", 1)
+      add_tile("apple")
+      add_tile("banana")
+
+      expect {
+        described_class.new(board.reload, exporting_user: user, asset_mode: :inline).call
+      }.to raise_error(Boards::ObfExporter::TooLarge, /tile/i)
+    end
+
+    it "does not apply the tile cap to the :package or :url asset modes" do
+      stub_const("Boards::ObfExporter::MAX_INLINE_TILES", 1)
+      add_tile("apple")
+      add_tile("banana")
+
+      expect {
+        described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+      }.not_to raise_error
+      expect {
+        described_class.new(board.reload, exporting_user: user, asset_mode: :url).call
+      }.not_to raise_error
+    end
+
+    it "raises TooLarge when accumulated inline bytes exceed the cap" do
+      stub_const("Boards::ObfExporter::MAX_INLINE_BYTES", 10)
+      add_tile("apple")
+
+      expect {
+        described_class.new(board.reload, exporting_user: user, asset_mode: :inline).call
+      }.to raise_error(Boards::ObfExporter::TooLarge, /size/i)
+    end
+  end
 end
