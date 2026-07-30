@@ -260,7 +260,7 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   license is not ours to evaluate:
   1. `LicenseResolution.resolve(doc) == :protected` → not bundlable
      (proprietary symbol set), regardless of everything else.
-  2. Owned by the exporting user (`source_type` in `[nil, "", "user"]` and
+  2. Owned by the exporting user (`source_type` in `[nil, "", "User"]` and
      the doc's or its parent `Image`'s `user_id` matches) → bundlable,
      `owned_by_user: true`, no license check at all.
   3. `source_type == "OpenAI"`, or owned by `User::DEFAULT_ADMIN_ID`
