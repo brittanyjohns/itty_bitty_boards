@@ -375,10 +375,12 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   this task was export-only; the import gap is separate and pre-existing,
   not newly introduced.
 - **Known limitation: a packaging-time read failure can leave a dangling
-  `path:` reference.** `ObfExporter#attach_asset` already rescues a read
-  failure at OBF-build time and degrades that image to a `url:` reference.
-  But `ObzPackager#write_assets` reads asset bytes again, later, when
-  actually writing zip entries — at that point the board's `.obf` entry has
+  `path:` reference.** `ObfExporter#attach_asset` and `#sound_entry` already
+  rescue read failures at OBF-build time and degrade images to `url:` and audio
+  to sound entries without bundled bytes. But `ObzPackager#write_assets` reads
+  asset bytes again, later, when actually writing zip entries via
+  `read_asset_bytes` (which handles both images and bundled audio via
+  `asset.kind == :sound`) — at that point the board's `.obf` entry has
   already been written into the zip with a `path:` reference to the asset.
   If the read fails here (e.g. Active Storage says a blob is attached but
   the underlying S3 object is missing or corrupt), the failure is caught and
