@@ -61,12 +61,12 @@ RSpec.describe "API::BoardExports", type: :request do
       expect(BoardExport.last.exportable).to eq(board_group)
     end
 
-    it "does not create an export for a user not authorized to read the board group" do
+    it "returns 404, not 403, for a user not authorized to read the board group" do
       expect {
         post "/api/board_groups/#{board_group.id}/export_package", headers: auth_headers(stranger)
       }.not_to change(BoardExport, :count)
 
-      expect(response).not_to have_http_status(:success)
+      expect(response).to have_http_status(:not_found)
     end
 
     it "returns 409 when the user already has a queued export for a different board group" do

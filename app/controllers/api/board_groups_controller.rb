@@ -58,11 +58,16 @@ class API::BoardGroupsController < API::ApplicationController
 
   def export_package
     board_group = BoardGroup.find_by(id: params[:id])
-    unless board_group
+
+    # Deliberately NOT authorize_board_group_read! (403, confirms existence) —
+    # export follows the same generic-404 pattern as boards#export_package,
+    # boards#download_obf, and board_exports#show/#download. This is scoped to
+    # export_package only; authorize_board_group_read!'s other callers (e.g.
+    # #graph) are unchanged.
+    unless board_group && (current_user&.admin? || board_group.user_id == current_user&.id)
       render json: { error: "Board Group not found" }, status: :not_found
       return
     end
-    return unless authorize_board_group_read!(board_group)
 
     if current_user.board_exports.where(status: %w[queued processing]).exists?
       render json: { error: "export_in_progress" }, status: :conflict
