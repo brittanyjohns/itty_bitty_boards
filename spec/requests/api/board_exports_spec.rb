@@ -31,6 +31,29 @@ RSpec.describe "API::BoardExports", type: :request do
     end
   end
 
+  describe "POST /api/board_groups/:id/export_package" do
+    let!(:board_group) { create(:board_group, user: user) }
+
+    it "creates a queued export and enqueues the job for the owner" do
+      expect {
+        post "/api/board_groups/#{board_group.id}/export_package", headers: auth_headers(user)
+      }.to change(BoardExport, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["status"]).to eq("queued")
+      expect(BoardExport.last.exportable).to eq(board_group)
+    end
+
+    it "does not create an export for a user not authorized to read the board group" do
+      expect {
+        post "/api/board_groups/#{board_group.id}/export_package", headers: auth_headers(stranger)
+      }.not_to change(BoardExport, :count)
+
+      expect(response).not_to have_http_status(:success)
+    end
+  end
+
   describe "GET /api/board_exports/:id" do
     let!(:record) { BoardExport.create!(user: user, exportable: board) }
 
@@ -64,6 +87,51 @@ RSpec.describe "API::BoardExports", type: :request do
       expect { ExportBoardPackageJob.new.perform(record.id) }.not_to raise_error
       expect(record.reload.status).to eq("failed")
       expect(record.error_message).to be_present
+    end
+
+    it "surfaces the packager's own message on TooLarge, not the generic failure text" do
+      allow_any_instance_of(Boards::ObzPackager).to receive(:call)
+        .and_raise(Boards::ObzPackager::TooLarge, "too big")
+
+      expect { ExportBoardPackageJob.new.perform(record.id) }.not_to raise_error
+      record.reload
+      expect(record.status).to eq("failed")
+      expect(record.error_message).to eq("too big")
+    end
+  end
+
+  describe "GET /api/board_exports/:id/download" do
+    it "404s a queued (not yet completed) export" do
+      record = BoardExport.create!(user: user, exportable: board)
+      get "/api/board_exports/#{record.id}/download", headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s a completed export with no file attached" do
+      record = BoardExport.create!(user: user, exportable: board, status: "completed")
+      get "/api/board_exports/#{record.id}/download", headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns the .obz bytes for a completed, attached export" do
+      record = BoardExport.create!(user: user, exportable: board)
+      ExportBoardPackageJob.new.perform(record.id)
+      record.reload
+
+      get "/api/board_exports/#{record.id}/download", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to eq("application/zip")
+    end
+
+    it "404s a stranger's attempt to download someone else's completed export" do
+      record = BoardExport.create!(user: user, exportable: board)
+      ExportBoardPackageJob.new.perform(record.id)
+      record.reload
+
+      get "/api/board_exports/#{record.id}/download", headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 end
