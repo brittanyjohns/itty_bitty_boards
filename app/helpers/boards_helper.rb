@@ -1,25 +1,4 @@
-require "obf"
-
 module BoardsHelper
-  def to_obf(viewing_user = nil)
-    viewing_user ||= user
-    images = self.board_images.to_a
-
-    obf_board = OBF::Utils.obf_shell.with_indifferent_access
-    obf_board[:id] = self.id.to_s
-    obf_board[:locale] = (respond_to?(:language) && language.presence) || "en"
-    obf_board[:name] = self.name
-    obf_board[:format] = OBF::OBF::FORMAT
-    obf_board[:default_layout] = "landscape"
-    obf_board[:description_html] = self.description_html
-    obf_board[:license] = self.license if self.license.present?
-    obf_board[:grid] = self.format_grid
-    obf_board[:images] = images.map { |bi| bi.to_obf_image_format(viewing_user) }
-    obf_board[:sounds] = images.map(&:to_obf_sound_format).compact
-    obf_board[:buttons] = images.map(&:to_obf_button_format)
-    obf_board
-  end
-
   def get_number_of_columns(screen_size = "lg")
     # Use the explicit per-screen count when set; otherwise derive md/sm from
     # the authored lg count (Boards::ScreenColumns) so the fallback scales with

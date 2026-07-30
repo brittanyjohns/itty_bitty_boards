@@ -576,10 +576,6 @@ class Board < ApplicationRecord
     "#{base_url}/api/boards/#{id}"
   end
 
-  def license
-    { "name" => "CC BY-SA 4.0", "url" => "https://creativecommons.org/licenses/by-sa/4.0/" }
-  end
-
   def background
     bg_color
   end

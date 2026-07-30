@@ -1057,53 +1057,8 @@ RSpec.describe Board, type: :model do
     end
   end
 
-  describe "#to_obf (export)" do
-    let(:user) { create(:user) }
-    let(:linked_board) { create(:board, user: user, name: "Drinks", obf_id: "drinks-123") }
-    let(:board) { create(:board, user: user, name: "Home", language: "es") }
-    let!(:plain_image) do
-      img = create(:image, label: "hello", user: user)
-      bi = board.board_images.create!(image_id: img.id, voice: "polly:kevin",
-                                      position: 0, skip_create_voice_audio: true)
-      bi
-    end
-    let!(:linked_image) do
-      img = create(:image, label: "drinks", user: user)
-      bi = board.board_images.create!(image_id: img.id, voice: "polly:kevin",
-                                      position: 1, skip_create_voice_audio: true)
-      bi.update_columns(predictive_board_id: linked_board.id)
-      bi
-    end
-
-    before do
-      allow_any_instance_of(BoardImage).to receive(:tile_image_url).and_return("https://example.test/img.png")
-      allow_any_instance_of(BoardImage).to receive(:audio_url).and_return(nil)
-    end
-
-    subject(:obf) { board.to_obf(user) }
-
-    it "matches the OBF spec shape with the expected top-level keys" do
-      expect(obf["format"]).to eq(OBF::OBF::FORMAT)
-      %w[id locale name grid images buttons sounds].each do |key|
-        expect(obf).to have_key(key), "expected exported obf to include #{key}"
-      end
-    end
-
-    it "uses the board's language for locale (regression: was hardcoded 'en')" do
-      expect(obf["locale"]).to eq("es")
-    end
-
-    it "emits a load_board on buttons whose BoardImage has a predictive_board_id (regression: links were dropped)" do
-      linked_btn = obf["buttons"].find { |b| b["id"] == linked_image.id.to_s }
-      expect(linked_btn).to be_present
-      expect(linked_btn["load_board"]).to include("id" => "drinks-123", "name" => "Drinks")
-
-      unlinked_btn = obf["buttons"].find { |b| b["id"] == plain_image.id.to_s }
-      expect(unlinked_btn["load_board"]).to be_nil
-    end
-
-    it "drops sound entries when there's no audio file (regression: emitted id='')" do
-      expect(obf["sounds"]).to be_empty
-    end
-  end
+  # NOTE: the old "#to_obf (export)" spec block lived here. Board#to_obf was
+  # deleted in favor of Boards::ObfExporter (see
+  # spec/services/boards/obf_exporter_spec.rb), which covers the same ground:
+  # spec-shaped output, load_board linking, and sound omission.
 end
