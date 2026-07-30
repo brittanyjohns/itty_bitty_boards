@@ -652,6 +652,21 @@ class API::BoardsController < API::ApplicationController
                                   type: "application/json", disposition: "attachment"
   end
 
+  def export_package
+    set_board
+    return if performed?
+
+    unless @board.viewable_by?(current_user)
+      render json: { error: "Board not found" }, status: :not_found
+      return
+    end
+
+    record = BoardExport.create!(user: current_user, exportable: @board, file_format: "obz")
+    ExportBoardPackageJob.perform_async(record.id)
+
+    render json: record.api_view, status: :created
+  end
+
   def analyze_obz
     uploaded_file = params[:file]
     report = ObzAnalyzer.analyze(uploaded_file.read)

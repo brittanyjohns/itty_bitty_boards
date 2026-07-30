@@ -250,6 +250,7 @@ Rails.application.routes.draw do
         post "save_layout"
         post "add_board/:board_id", to: "board_groups#add_board"
         post "remove_board/:board_id", to: "board_groups#remove_board"
+        post "export_package"
       end
     end
     # Back-compat alias: the board-set map handoff documented the graph endpoint
@@ -300,6 +301,7 @@ Rails.application.routes.draw do
         get "additional_words"
         get "get_description"
         get "download_obf"
+        post "export_package"
         put "update_preset_display_image"
         put "set_display_image"
         put "recategorize_images"
@@ -307,6 +309,11 @@ Rails.application.routes.draw do
         put "set_colors"
         post "regenerate_images"
         patch "make_editable"
+      end
+    end
+    resources :board_exports, only: [:show] do
+      member do
+        get "download"
       end
     end
     resources :board_images do
