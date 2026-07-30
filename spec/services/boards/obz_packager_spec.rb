@@ -241,4 +241,42 @@ RSpec.describe Boards::ObzPackager do
     manifest = JSON.parse(files["manifest.json"])
     expect(manifest["paths"]["sounds"]).not_to be_empty
   end
+
+  # sound_entry's zip path used to key on tile.id while the Asset id keyed on
+  # attachment.id — a mismatch vs. the image pattern, where both key on
+  # doc.id. Two tiles that resolve to the SAME underlying audio attachment
+  # (both fall back to the same shared Image's audio, since neither tile has
+  # its own custom recording) got two DIFFERENT zip paths for identical
+  # bytes, defeating write_assets' path-based dedup — the same bytes were
+  # written to the zip twice — and manifest["paths"]["sounds"] (keyed
+  # {attachment_id => path}) silently dropped one of the two paths for that
+  # id. Mirrors "writes a shared asset's bytes only once..." above, for audio.
+  it "writes a shared audio attachment's bytes only once when two tiles' boards reference the same underlying attachment" do
+    image = create(:image, label: "shared audio", user: user)
+    image.audio_files.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+      filename: "line.mp3", content_type: "audio/mpeg",
+    )
+    doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+    doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                      filename: "tile.png", content_type: "image/png")
+
+    board_a = create(:board, user: user, name: "A")
+    board_a.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board_a.reload
+
+    board_b = create(:board, user: user, name: "B")
+    board_b.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board_b.reload
+
+    scope = Boards::ExportScope::Result.new([board_a, board_b], board_a, [])
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    sound_entries = files.keys.select { |k| k.start_with?("sounds/") }
+    expect(sound_entries.size).to eq(1)
+
+    manifest = JSON.parse(files["manifest.json"])
+    expect(manifest["paths"]["sounds"].size).to eq(1)
+  end
 end

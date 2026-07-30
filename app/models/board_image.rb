@@ -357,17 +357,26 @@ class BoardImage < ApplicationRecord
   # OBF requires each sound to have a unique id, so emitting an empty id is invalid.
   #
   #   :url     — the default; content_type is a hardcoded guess ("audio/aac")
-  #              since there's no resolved attachment to read a real one from.
-  #   :package — zip-relative `path`, for .obz. content_type comes from the
-  #              actual attached blob.
+  #              unless the caller passes one explicitly, since there's
+  #              normally no resolved attachment to read a real one from.
+  #   :package — zip-relative `path`, for .obz.
+  #   :inline  — base64 in `data`, for a standalone .obf with no package.
   #
-  # The blank? guard covers absence for BOTH modes: for :url it's audio_url
-  # itself; for :package the caller (ObfExporter#sound_entry) only supplies a
-  # non-nil path once it has confirmed an attachment exists, so a present
-  # path is its own evidence of an audio file to point at even when the
-  # cached audio_url column happens to be stale/blank.
-  def to_obf_sound_format(mode: :url, path: nil)
-    return nil if audio_url.blank? && path.blank?
+  # For :package and :inline, ObfExporter#sound_entry has already resolved the
+  # actual attachment backing this sound (which may be the tile's own custom
+  # audio, not just the shared Image's) and passes its real blob content_type
+  # in explicitly — that's what `content_type:` is for. Re-deriving it here
+  # via `audio_content_type` would silently describe the wrong file whenever
+  # the tile's own audio differs from the Image's, so it's only used as a
+  # fallback (mainly relevant to :url, where no attachment was resolved).
+  #
+  # The blank? guard covers absence for all three modes: for :url it's
+  # audio_url itself; for :package/:inline the caller only supplies a
+  # non-nil path/data once it has confirmed an attachment exists, so a
+  # present path/data is its own evidence of an audio file to point at even
+  # when the cached audio_url column happens to be stale/blank.
+  def to_obf_sound_format(mode: :url, path: nil, data: nil, content_type: nil)
+    return nil if audio_url.blank? && path.blank? && data.blank?
     base = {
       id: id.to_s,
       ext_saw_label: label,
@@ -377,10 +386,14 @@ class BoardImage < ApplicationRecord
     }
 
     if mode == :package && path.present?
-      return base.merge(path: path, content_type: audio_content_type).compact
+      return base.merge(path: path, content_type: content_type.presence || audio_content_type).compact
     end
 
-    base.merge(url: audio_url, content_type: "audio/aac").compact
+    if mode == :inline && data.present?
+      return base.merge(data: data, content_type: content_type.presence || audio_content_type).compact
+    end
+
+    base.merge(url: audio_url, content_type: content_type.presence || "audio/aac").compact
   end
 
   def audio_content_type

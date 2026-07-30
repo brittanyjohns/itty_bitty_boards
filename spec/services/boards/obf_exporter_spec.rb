@@ -229,14 +229,26 @@ RSpec.describe Boards::ObfExporter do
     # in a different place than the shared Image's TTS audio. sound_entry
     # must check the tile's own attachment, not only image.audio_files, or a
     # parent's recorded custom audio would silently never get bundled.
-    it "bundles the tile's own custom audio, not just the shared image's" do
+    #
+    # The Image's own audio and the tile's custom audio are attached here
+    # with DELIBERATELY DIFFERENT, non-default content_types (identify: false
+    # so ActiveStorage keeps exactly what's passed instead of sniffing the
+    # actual mp3 bytes) so the assertion below can prove the emitted
+    # content_type is the tile's own ("audio/mp4"), not the shared Image's
+    # ("audio/wav") and not a hardcoded "audio/mpeg" default that happens to
+    # match by accident.
+    it "bundles the tile's own custom audio, not just the shared image's, with its own content_type" do
       image = create(:image, label: "apple", user: user)
+      image.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: "apple-tts.wav", content_type: "audio/wav", identify: false,
+      )
       doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
       tile = board.board_images.create!(image_id: image.id, position: board.board_images.count,
                                         skip_create_voice_audio: true)
       tile.audio_files.attach(
         io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
-        filename: "apple-custom.mp3", content_type: "audio/mpeg",
+        filename: "apple-custom.m4a", content_type: "audio/mp4", identify: false,
       )
       doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
                        filename: "tile.png", content_type: "image/png")
@@ -245,7 +257,64 @@ RSpec.describe Boards::ObfExporter do
 
       sound_assets = result.assets.select { |a| a.kind == :sound }
       expect(sound_assets.size).to eq(1)
-      expect(result.obf["sounds"].first[:path]).to match(%r{\Asounds/.+\.mp3\z})
+      sound = result.obf["sounds"].first
+      expect(sound[:path]).to match(%r{\Asounds/.+\.m4a\z})
+      expect(sound[:content_type]).to eq("audio/mp4")
+    end
+
+    # Regression: to_obf_button_format only emits btn[:sound_id] when
+    # audio_url.present?, but every other spec in this describe block stubs
+    # audio_url to nil via the top-level `before` block — so a bundled sound
+    # with NO button pointing at it would sail through every other test here
+    # undetected. This test overrides the stub with a genuinely present
+    # audio_url (any_instance_of, not the local `tile` var, since
+    # `board.reload` fetches fresh BoardImage instances that the exporter
+    # actually iterates) and proves end-to-end that a bundled sound is
+    # reachable from its button's sound_id.
+    it "wires a bundled sound to its button's sound_id when audio_url is genuinely present" do
+      allow_any_instance_of(BoardImage).to receive(:audio_url).and_return("https://example.test/apple.mp3")
+      tile = add_tile_with_audio("apple")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      button = result.obf["buttons"].find { |b| b[:id] == tile.id.to_s }
+      expect(button[:sound_id]).to be_present
+
+      sound = result.obf["sounds"].find { |s| s[:id] == button[:sound_id] }
+      expect(sound).to be_present
+    end
+  end
+
+  describe "sound bundling (asset_mode: :inline)" do
+    def add_tile_with_audio(label, filename: "line.mp3")
+      image = create(:image, label: label, user: user)
+      image.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: filename, content_type: "audio/mpeg",
+      )
+      doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+      doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                       filename: "tile.png", content_type: "image/png")
+      board.board_images.create!(image_id: image.id, position: board.board_images.count,
+                                 skip_create_voice_audio: true)
+    end
+
+    # Regression: the :inline branch used to call to_obf_sound_format(mode:
+    # :package, path: nil), which never took the package branch (it requires
+    # path.present?) and fell through to the plain :url branch instead —
+    # producing a self-contradictory entry with url + a hardcoded
+    # content_type ("audio/aac") + a merged-in data field all at once. A
+    # proper :inline mode must emit ONLY data (no url) with the real
+    # content_type.
+    it "emits data only (no url) with the real content_type, not the hardcoded audio/aac default" do
+      add_tile_with_audio("apple")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :inline).call
+
+      sound = result.obf["sounds"].first
+      expect(sound[:data]).to be_present
+      expect(sound).not_to have_key(:url)
+      expect(sound[:content_type]).to eq("audio/mpeg")
     end
   end
 

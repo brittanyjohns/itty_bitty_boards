@@ -155,19 +155,35 @@ module Boards
       attachment = tile.current_audio_attachment || tile.image&.current_audio_attachment
       return tile.to_obf_sound_format unless attachment
 
+      # Read the real content_type off the resolved attachment's blob (which
+      # may be the tile's own custom audio, not the shared Image's) and pass
+      # it straight through — see the comment on BoardImage#to_obf_sound_format
+      # for why re-deriving it independently there would be wrong.
+      content_type = attachment.blob.content_type
       ext = attachment.blob.filename.extension.presence || "mp3"
-      path = "sounds/#{tile.id}.#{ext}"
+      # Keyed on the ATTACHMENT's id, not the tile's, so two tiles sharing the
+      # same underlying audio attachment (e.g. both fall back to the same
+      # Image's TTS audio) get the SAME zip path — matching how image_entry
+      # keys both the path and the Asset id on doc.id. That agreement is what
+      # lets ObzPackager#write_assets dedupe shared bytes by path; keying on
+      # tile.id here (as before) produced two different paths for identical
+      # bytes, defeating the dedupe and corrupting manifest["paths"]["sounds"]
+      # (which is built as {attachment_id => path} and would silently drop
+      # one of the two paths for the same id).
+      path = "sounds/#{attachment.id}.#{ext}"
 
       if asset_mode == :inline
-        # Sounds are small relative to images; no separate inline byte cap —
-        # they still count toward MAX_INLINE_BYTES via the same accumulator
-        # attach_asset uses, since inline .obf export shares one response.
+        # Sounds are small relative to images, so there is no separate inline
+        # byte cap for them — but unlike images, inline audio bytes are NOT
+        # currently counted against @inline_bytes_total / MAX_INLINE_BYTES;
+        # that accumulator is only touched by attach_asset (images). This is
+        # a known, accepted gap rather than an enforced limit.
         data = Base64.strict_encode64(attachment.download)
-        return tile.to_obf_sound_format(mode: :package, path: nil)&.merge(data: data)
+        return tile.to_obf_sound_format(mode: :inline, data: data, content_type: content_type)
       end
 
       assets << Asset.new(:sound, attachment.id.to_s, path, attachment)
-      tile.to_obf_sound_format(mode: :package, path: path)
+      tile.to_obf_sound_format(mode: :package, path: path, content_type: content_type)
     rescue StandardError => e
       Rails.logger.warn "[ObfExporter] audio unreadable for board_image #{tile.id}: #{e.class}: #{e.message}"
       tile.to_obf_sound_format
