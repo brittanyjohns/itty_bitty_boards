@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_29_192742) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_30_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -75,6 +75,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_29_192742) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "details", default: {}
+  end
+
+  create_table "board_exports", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "exportable_type", null: false
+    t.bigint "exportable_id", null: false
+    t.string "status", default: "queued", null: false
+    t.string "file_format", default: "obz", null: false
+    t.text "error_message"
+    t.jsonb "settings", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["exportable_type", "exportable_id"], name: "index_board_exports_on_exportable"
+    t.index ["user_id", "created_at"], name: "index_board_exports_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_board_exports_on_user_id"
   end
 
   create_table "board_gallery_listings", force: :cascade do |t|
@@ -1074,6 +1089,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_29_192742) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "board_exports", "users"
   add_foreign_key "board_gallery_listings", "boards"
   add_foreign_key "board_gallery_reports", "board_gallery_listings"
   add_foreign_key "board_gallery_reports", "users", column: "reporter_id"
