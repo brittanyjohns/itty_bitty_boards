@@ -64,6 +64,11 @@ class API::BoardGroupsController < API::ApplicationController
     end
     return unless authorize_board_group_read!(board_group)
 
+    if current_user.board_exports.where(status: %w[queued processing]).exists?
+      render json: { error: "export_in_progress" }, status: :conflict
+      return
+    end
+
     record = BoardExport.create!(user: current_user, exportable: board_group, file_format: "obz")
     ExportBoardPackageJob.perform_async(record.id)
 

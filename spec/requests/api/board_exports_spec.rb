@@ -29,6 +29,22 @@ RSpec.describe "API::BoardExports", type: :request do
       post "/api/boards/#{board.id}/export_package", headers: auth_headers(stranger)
       expect(response).to have_http_status(:not_found)
     end
+
+    it "returns 409 when the user already has a queued export in flight" do
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:conflict)
+      expect(JSON.parse(response.body)["error"]).to eq("export_in_progress")
+    end
+
+    it "allows a new export once the prior one has completed" do
+      first = BoardExport.create!(user: user, exportable: board, status: "completed")
+
+      post "/api/boards/#{board.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+    end
   end
 
   describe "POST /api/board_groups/:id/export_package" do
@@ -51,6 +67,15 @@ RSpec.describe "API::BoardExports", type: :request do
       }.not_to change(BoardExport, :count)
 
       expect(response).not_to have_http_status(:success)
+    end
+
+    it "returns 409 when the user already has a queued export for a different board group" do
+      post "/api/board_groups/#{board_group.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:created)
+
+      other_group = create(:board_group, user: user)
+      post "/api/board_groups/#{other_group.id}/export_package", headers: auth_headers(user)
+      expect(response).to have_http_status(:conflict)
     end
   end
 
