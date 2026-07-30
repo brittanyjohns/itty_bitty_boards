@@ -41,6 +41,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `api_doc_url`. The same `doc_url` typo in `#update`'s HTML redirect is fixed
   too. No frontend change: the app only calls `docs/:id/mark_as_current`.
 
+### Added — Export a board as `.obf`, or a Board Set / linked-board tree as `.obz`
+- `GET /api/boards/:id/download_obf` downloads a single board as an OBF
+  document with images inlined. `POST /api/boards/:id/export_package` (a
+  board plus everything it reaches via predictive links) and
+  `POST /api/board_groups/:id/export_package` (an explicit Board Set) queue
+  an async job and return a `BoardExport` record; poll
+  `GET /api/board_exports/:id` and fetch the finished `.obz` from
+  `GET /api/board_exports/:id/download`.
+- Packages bundle image files SpeakAnyWay may lawfully redistribute on the
+  user's behalf and fall back to a `url:` reference otherwise, with a
+  `README.txt` inside the package listing anything left out (unbundlable
+  images, boards excluded by the read check or the package size cap, and any
+  image that could not be read at packaging time).
+
+### Fixed — `download_obf` / OBF export correctness
+- `download_obf` now checks read permission before exporting a board (was
+  exportable by anyone with the id), and names the downloaded file after the
+  board instead of a generic name.
+- OBF grid `order` cell ids are emitted as strings so they match the `id`
+  emitted for each button, per spec, instead of integers that a
+  spec-strict importer won't coerce.
+
 ### Fixed — The SpeakAnyWay logo no longer shows up as an email attachment
 - Every transactional email attached the logo as an inline (`cid`) image.
   Referencing an inline part from the HTML is legal MIME, but mail clients
