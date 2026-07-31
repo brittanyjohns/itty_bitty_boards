@@ -24,6 +24,94 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       expect(body["root_board_id"]).to be_present
     end
 
+    # A bare .obf is a single JSON board document. It used to fall through to
+    # the "unsupported format" branch, which made every .obf export in the
+    # app un-importable by the app itself.
+    context "with a bare .obf upload" do
+      let(:obf_path) { Rails.root.join("spec/data/test_internal.obf") }
+
+      def obf_upload
+        Rack::Test::UploadedFile.new(obf_path, "application/json")
+      end
+
+      # Sidekiq::Testing.fake! queues are process-global and nothing in the
+      # suite clears them between examples, so a job enqueued by a previous
+      # example would otherwise drain into this one's assertions.
+      before { ImportFromObfJob.jobs.clear }
+
+      it "accepts the file and queues the import" do
+        expect {
+          post "/api/boards/import_obf",
+               params: { file: obf_upload },
+               headers: auth_headers(user)
+        }.to change { ImportFromObfJob.jobs.size }.by(1)
+
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        expect(body["status"]).to eq("ok")
+        expect(body["include_images"]).to eq(false)
+      end
+
+      it "creates the board once the queued job runs" do
+        post "/api/boards/import_obf",
+             params: { file: obf_upload },
+             headers: auth_headers(user)
+
+        expect { ImportFromObfJob.drain }.to change { user.boards.count }.by(1)
+        expect(user.boards.last.status).to eq("active")
+      end
+
+      it "passes the image opt-in through to the job" do
+        post "/api/boards/import_obf",
+             params: {
+               file: obf_upload,
+               include_images: "true",
+               image_license_acknowledged: "true",
+             },
+             headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)["include_images"]).to eq(true)
+        options = ImportFromObfJob.jobs.last["args"].last
+        expect(options).to include("include_images" => true, "license_acknowledged" => true)
+      end
+
+      it "returns 400 image_license_required when include_images=true without ack" do
+        post "/api/boards/import_obf",
+             params: { file: obf_upload, include_images: "true" },
+             headers: auth_headers(user)
+        expect(response).to have_http_status(:bad_request)
+        expect(JSON.parse(response.body)["error"]).to eq("image_license_required")
+      end
+
+      it "returns 422 without queuing anything when the .obf is not valid JSON" do
+        garbage = Rack::Test::UploadedFile.new(
+          StringIO.new("{ not json"), "application/json",
+          original_filename: "broken.obf",
+        )
+
+        expect {
+          post "/api/boards/import_obf",
+               params: { file: garbage },
+               headers: auth_headers(user)
+        }.not_to change { ImportFromObfJob.jobs.size }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to match(/invalid obf/i)
+      end
+
+      it "returns 422 when the .obf parses but isn't a board document" do
+        array_doc = Rack::Test::UploadedFile.new(
+          StringIO.new("[1, 2, 3]"), "application/json",
+          original_filename: "array.obf",
+        )
+        post "/api/boards/import_obf",
+             params: { file: array_doc },
+             headers: auth_headers(user)
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+    end
+
     it "returns 422 for an unsupported extension" do
       txt = Rack::Test::UploadedFile.new(
         StringIO.new("not a board"), "text/plain",

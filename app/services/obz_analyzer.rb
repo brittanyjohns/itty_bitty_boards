@@ -16,19 +16,37 @@ module ObzAnalyzer
   #
   # file_or_bytes: Pathname | IO | StringIO | String (raw bytes; never probed as a path)
   #
+  # Handles BOTH container formats, dispatching on the bytes rather than on a
+  # filename: an .obz is a zip of .obf documents, a bare .obf is one JSON
+  # document. `package[:format]` tells the caller which it got.
+  #
   # Returns a Hash:
   # {
-  #   package: {...},        # package-level overview and checks
+  #   package: {...},        # package-level overview and checks (incl. :format)
   #   manifest: {...},       # manifest presence and resolution results
   #   root_board: {...},     # how root was determined
   #   totals: {...},         # aggregate counts across all boards
   #   boards: [ {...}, ...], # per-board stats
-  #   warnings: [ ... ]      # any non-fatal issues
+  #   warnings: [ ... ],     # any non-fatal issues
+  #   error: "..."           # present ONLY when the file could not be read
   # }
   #
+  # A report without :error is a report we stand behind — callers may treat
+  # its absence as "this file is importable". Never return a zeroed-out
+  # report for an unreadable file; that reads as "valid but empty".
   def analyze(file_or_bytes)
+    bytes = to_bytes(file_or_bytes)
+    zip_bytes?(bytes) ? analyze_obz(bytes) : analyze_obf(bytes)
+  rescue => e
+    Rails.logger.error "[ObzAnalyzer] analyze error: #{e.class}: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    unreadable_report
+  end
+
+  # An OBZ (zip) package: many .obf documents plus an optional manifest.
+  def analyze_obz(bytes)
     # --- Read ZIP into memory (bytes), build path index (normalized) ---
-    entries, index = read_zip_to_hash(file_or_bytes) # {orig_path => bytes}, {norm => orig}
+    entries, index = read_zip_to_hash(bytes) # {orig_path => bytes}, {norm => orig}
 
     # --- Find manifest anywhere (prefer root-level) ---
     manifest_raw, manifest_path = find_manifest(entries)
@@ -63,6 +81,7 @@ module ObzAnalyzer
                root_board: { resolved: false, method: nil, path: nil },
                totals: empty_totals,
                boards: [],
+               error: "no_boards_found",
                warnings: warnings + ["No .obf files found in archive"],
              }
     end
@@ -111,42 +130,7 @@ module ObzAnalyzer
       # Merge into aggregate
       merge_aggregate!(aggregate, board_stats, asset_stats, non_string_ids)
 
-      # Missing image/sound references (by id) within this OBF
-      missing = find_missing_media_refs(obj)
-
-      boards << {
-        path: p,
-        id: safe_s(obj["id"]),
-        name: safe_s(obj["name"]),
-        grid: board_stats[:grid],
-        counts: {
-          buttons: board_stats[:buttons],
-          dynamic_buttons: board_stats[:dynamic_buttons],
-          actions_total: board_stats[:actions_total],
-          actions_breakdown: board_stats[:actions_breakdown],
-          vocalizations: board_stats[:vocalizations],
-          absolute_positioned_buttons: board_stats[:absolute_buttons],
-        },
-        strings_locales: board_stats[:strings_locales],
-        license_present: !!obj["license"],
-        media: {
-          images_defined: asset_stats[:images_defined],
-          images_referenced: asset_stats[:images_referenced],
-          images_inline_data: asset_stats[:images_inline],
-          images_path: asset_stats[:images_path],
-          images_url: asset_stats[:images_url],
-          images_symbol: asset_stats[:images_symbol],
-          image_content_types: asset_stats[:image_content_types].to_a.sort,
-          sounds_defined: asset_stats[:sounds_defined],
-          sounds_referenced: asset_stats[:sounds_referenced],
-          sounds_inline_data: asset_stats[:sounds_inline],
-          sounds_path: asset_stats[:sounds_path],
-          sounds_url: asset_stats[:sounds_url],
-          sound_content_types: asset_stats[:sound_content_types].to_a.sort,
-        },
-        missing_media_refs: missing,
-        non_string_ids_detected: non_string_ids, # true/false
-      }
+      boards << build_board_entry(p, obj, board_stats, asset_stats, non_string_ids)
     end
 
     # Package-level checks: duplicates across package (images/sounds ids in OBZ must be unique)
@@ -169,17 +153,104 @@ module ObzAnalyzer
       boards: boards,
       warnings: warnings + pkg_dups,
     }
-  rescue => e
-    Rails.logger.error "[ObzAnalyzer] analyze error: #{e.class}: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
+  end
+
+  # A bare .obf document: exactly one board, no manifest, no zip entries.
+  # Shares the per-board and totals machinery with the OBZ path so the two
+  # reports stay comparable field for field.
+  def analyze_obf(bytes)
+    obj, warnings, non_string_ids = parse_obf_with_checks(bytes)
+    return unreadable_report unless obj.is_a?(Hash) && obj.any?
+
+    board_stats = per_board_stats(obj)
+    asset_stats = per_board_asset_stats(obj)
+
+    aggregate = init_aggregate
+    merge_aggregate!(aggregate, board_stats, asset_stats, non_string_ids)
+
     {
-      package: {},
+      package: { format: "obf", zip_entries: 0, total_bytes: bytes.bytesize },
+      manifest: {
+        found: false,
+        path: nil,
+        dir: "",
+        declared_board_count: 0,
+        unresolved_manifest_board_paths: [],
+        resolved_board_paths: [],
+        total_boards_listed_or_found: 1,
+      },
+      root_board: { resolved: true, method: "single_obf", manifest_root: nil, path: nil },
+      totals: finalize_totals(aggregate).merge({ dynamic_target_boards: 0 }),
+      boards: [build_board_entry(nil, obj, board_stats, asset_stats, non_string_ids)],
+      warnings: warnings,
+    }
+  end
+
+  def build_board_entry(path, obj, board_stats, asset_stats, non_string_ids)
+    {
+      path: path,
+      id: safe_s(obj["id"]),
+      name: safe_s(obj["name"]),
+      grid: board_stats[:grid],
+      counts: {
+        buttons: board_stats[:buttons],
+        dynamic_buttons: board_stats[:dynamic_buttons],
+        actions_total: board_stats[:actions_total],
+        actions_breakdown: board_stats[:actions_breakdown],
+        vocalizations: board_stats[:vocalizations],
+        absolute_positioned_buttons: board_stats[:absolute_buttons],
+      },
+      strings_locales: board_stats[:strings_locales],
+      license_present: !!obj["license"],
+      media: {
+        images_defined: asset_stats[:images_defined],
+        images_referenced: asset_stats[:images_referenced],
+        images_inline_data: asset_stats[:images_inline],
+        images_path: asset_stats[:images_path],
+        images_url: asset_stats[:images_url],
+        images_symbol: asset_stats[:images_symbol],
+        image_content_types: asset_stats[:image_content_types].to_a.sort,
+        sounds_defined: asset_stats[:sounds_defined],
+        sounds_referenced: asset_stats[:sounds_referenced],
+        sounds_inline_data: asset_stats[:sounds_inline],
+        sounds_path: asset_stats[:sounds_path],
+        sounds_url: asset_stats[:sounds_url],
+        sound_content_types: asset_stats[:sound_content_types].to_a.sort,
+      },
+      missing_media_refs: find_missing_media_refs(obj),
+      non_string_ids_detected: non_string_ids, # true/false
+    }
+  end
+
+  # The file is neither a readable zip nor a parseable OBF document. Carries
+  # an :error so callers can tell this apart from a valid-but-empty package;
+  # the underlying exception stays in the log, never in the response.
+  def unreadable_report
+    {
+      package: { format: "unknown", zip_entries: 0, total_bytes: 0 },
       manifest: { found: false },
       root_board: { resolved: false },
       totals: empty_totals,
       boards: [],
-      warnings: ["Analyzer error: #{e.class}: #{e.message}"],
+      error: "unreadable_file",
+      warnings: ["This file could not be read as an OBF or OBZ document."],
     }
+  end
+
+  def to_bytes(file_or_bytes)
+    bytes = case file_or_bytes
+      when Pathname then File.binread(file_or_bytes.to_s)
+      when IO, StringIO then file_or_bytes.read
+      when String then file_or_bytes # treat as raw bytes
+      else file_or_bytes.to_s
+      end
+    bytes.dup.force_encoding(Encoding::BINARY)
+  end
+
+  # Local-file-header / central-directory / end-of-central-directory magic.
+  # An empty zip has no local header, so all three are worth accepting.
+  def zip_bytes?(bytes)
+    bytes.start_with?("PK\x03\x04".b, "PK\x05\x06".b, "PK\x07\x08".b)
   end
 
   # Convenience: a quick high-level count (compat with your earlier helper)
@@ -192,17 +263,7 @@ module ObzAnalyzer
   # ----------------------------------------------------------------------------
 
   def read_zip_to_hash(file_or_bytes)
-    bytes = case file_or_bytes
-      when Pathname
-        File.binread(file_or_bytes.to_s)
-      when IO, StringIO
-        file_or_bytes.read
-      when String
-        file_or_bytes # treat as raw bytes
-      else
-        file_or_bytes.to_s
-      end
-    bytes = bytes.dup.force_encoding(Encoding::BINARY)
+    bytes = to_bytes(file_or_bytes)
 
     entries = {}
     index = {} # normalized_path => original_path
@@ -489,6 +550,7 @@ module ObzAnalyzer
 
   def package_meta(entries)
     {
+      format: "obz",
       zip_entries: entries.size,
       total_bytes: entries.values.map(&:bytesize).sum,
     }

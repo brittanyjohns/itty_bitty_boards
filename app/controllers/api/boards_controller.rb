@@ -726,6 +726,21 @@ class API::BoardsController < API::ApplicationController
           root_board_id: result[:root_board]&.id,
           include_images: import_options[:include_images],
         }
+      elsif file_extension == ".obf"
+        json_data = parse_obf_upload(uploaded_file)
+        unless json_data
+          render json: { error: "Invalid OBF file: expected a JSON board document" },
+                 status: :unprocessable_content
+          return
+        end
+
+        # Sidekiq serializes args to JSON — pass string-keyed hash.
+        ImportFromObfJob.perform_async(json_data, current_user.id, nil, import_options.stringify_keys)
+        render json: {
+          status: "ok",
+          message: "Importing OBF file #{file_name}",
+          include_images: import_options[:include_images],
+        }
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_content
       end
@@ -733,9 +748,6 @@ class API::BoardsController < API::ApplicationController
       boardData = params[:data]&.to_json
       params[:board_group_id] = params[:board_group_id].to_i
       board_group = BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
-      if board_group
-        boardData = board_group.merge({ board_group: board_group })
-      end
 
       json_data = JSON.parse(boardData) rescue nil
       unless json_data
@@ -754,6 +766,18 @@ class API::BoardsController < API::ApplicationController
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_content
     end
+  end
+
+  # A bare .obf upload is a single JSON board document (an .obz is a zip of
+  # them). Returns the parsed Hash, or nil if the upload isn't one — the
+  # caller turns nil into a 422 rather than letting the job fail silently in
+  # the background.
+  def parse_obf_upload(uploaded_file)
+    parsed = JSON.parse(uploaded_file.read)
+    parsed.is_a?(Hash) ? parsed : nil
+  rescue JSON::ParserError => e
+    Rails.logger.error "OBF import: unparseable upload: #{e.message}"
+    nil
   end
 
   # Pulls the three opt-in params off the request and validates that
