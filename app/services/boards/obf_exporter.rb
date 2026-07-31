@@ -11,7 +11,20 @@ module Boards
   # because SpeakAnyWay has no standing to license a user's family photos
   # under an open license on their behalf.
   class ObfExporter
-    class TooLarge < StandardError; end
+    # Carries a stable machine-readable code so a client can tell the two
+    # inline caps apart (the rendered 422 is otherwise identical for both) —
+    # and so neither cap has to leak the exception message to the API.
+    class TooLarge < StandardError
+      TILE_LIMIT = "too_many_tiles".freeze
+      SIZE_LIMIT = "export_too_large".freeze
+
+      attr_reader :code
+
+      def initialize(message = nil, code: SIZE_LIMIT)
+        super(message)
+        @code = code
+      end
+    end
 
     FORMAT = "open-board-0.1".freeze
     OPEN_LICENSE = { "type" => "CC BY-SA 4.0",
@@ -23,6 +36,11 @@ module Boards
     # inside a Puma worker). :package and :url modes are unaffected — :package
     # goes through the async ExportBoardPackageJob + Boards::ObzPackager,
     # which has its own MAX_BYTES cap on the whole .obz.
+    #
+    # These bound the DISPLAY-SIZE bytes inline mode actually bundles (see
+    # #inline_bytes_for), not the originals. Against originals a wholly
+    # ordinary 60-tile board ran to tens of MB and 422'd here, which made the
+    # sync .obf path unusable for real boards rather than only for outliers.
     MAX_INLINE_TILES = 200
     MAX_INLINE_BYTES = 20 * 1024 * 1024
 
@@ -63,7 +81,10 @@ module Boards
       ).to_a
 
       if asset_mode == :inline && tiles.size > MAX_INLINE_TILES
-        raise TooLarge, "Board has #{tiles.size} tiles, over the #{MAX_INLINE_TILES}-tile sync export limit"
+        raise TooLarge.new(
+          "Board has #{tiles.size} tiles, over the #{MAX_INLINE_TILES}-tile sync export limit",
+          code: TooLarge::TILE_LIMIT,
+        )
       end
 
       predictive_ids = tiles.filter_map(&:predictive_board_id).uniq
@@ -130,14 +151,28 @@ module Boards
       path = "images/#{doc.id}.#{asset_extension(doc)}"
 
       if asset_mode == :inline
-        bytes = doc.image.download
-        @inline_bytes_total = (@inline_bytes_total || 0) + bytes.bytesize
-        if @inline_bytes_total > MAX_INLINE_BYTES
-          raise TooLarge, "Inline export exceeds #{MAX_INLINE_BYTES / 1024 / 1024}MB, over the sync export size limit"
+        # Two tiles can point at the same doc (the same symbol used twice on a
+        # board, or a shared Image resolving to one doc for both). :package
+        # dedupes those downstream by zip path; inline mode has no such
+        # downstream, so it dedupes here — otherwise identical bytes are
+        # downloaded, encoded, and counted against MAX_INLINE_BYTES once per
+        # referencing tile.
+        cached = inline_cache[doc.id]
+        unless cached
+          bytes, content_type = inline_bytes_for(doc)
+          @inline_bytes_total = (@inline_bytes_total || 0) + bytes.bytesize
+          if @inline_bytes_total > MAX_INLINE_BYTES
+            raise TooLarge.new(
+              "Inline export exceeds #{MAX_INLINE_BYTES / 1024 / 1024}MB, over the sync export size limit",
+              code: TooLarge::SIZE_LIMIT,
+            )
+          end
+
+          cached = inline_cache[doc.id] = { data: Base64.strict_encode64(bytes), content_type: content_type }
         end
 
-        data = Base64.strict_encode64(bytes)
-        return tile.to_obf_image_format(exporting_user, mode: :inline, data: data, content_type: doc.image.content_type)
+        return tile.to_obf_image_format(exporting_user, mode: :inline,
+                                                        data: cached[:data], content_type: cached[:content_type])
       end
 
       assets << Asset.new(:image, doc.id.to_s, path, doc)
@@ -148,6 +183,47 @@ module Boards
       Rails.logger.warn "[ObfExporter] asset unreadable for doc #{doc.id}: #{e.class}: #{e.message}"
       skipped_assets << { board_image_id: tile.id, label: tile.label, reason: "image could not be read" }
       tile.to_obf_image_format(exporting_user)
+    end
+
+    def inline_cache
+      @inline_cache ||= {}
+    end
+
+    # The bytes inline mode bundles, and the content_type describing THEM.
+    #
+    # Prefers the 288px webp tile variant — the same rendition the app itself
+    # displays — over the full-resolution original. An original is routinely
+    # 30-50x the variant's size, so bundling originals meant an ordinary board
+    # blew MAX_INLINE_BYTES and had no working sync export at all. A single
+    # .obf is a display-fidelity artifact; the async .obz path (asset_mode:
+    # :package) is the one that still carries originals.
+    #
+    # Only an ALREADY-PROCESSED variant is used. Calling #processed on an
+    # unprocessed variant would transcode it right here inside the Puma
+    # worker, once per tile — exactly the kind of in-request work the caps
+    # exist to prevent. Unprocessed (and non-variable blobs, e.g. SVG) fall
+    # back to the original, which is correct if larger.
+    def inline_bytes_for(doc)
+      variant = doc.tile_variant if doc.tile_variant_processed?
+      if variant
+        return [variant.processed.download, variant_content_type]
+      end
+
+      [doc.image.download, doc.image.content_type]
+    rescue StandardError => e
+      # A missing/corrupt variant record must not cost the tile its bytes —
+      # the original is still right here. A failure reading the ORIGINAL is a
+      # real read failure and propagates to attach_asset's rescue, which
+      # degrades the tile to a url reference.
+      Rails.logger.warn "[ObfExporter] tile variant unreadable for doc #{doc.id}: #{e.class}: #{e.message}"
+      [doc.image.download, doc.image.content_type]
+    end
+
+    # Derived from the transformation Doc#tile_variant actually applies rather
+    # than hardcoded, so an OBF can never describe variant bytes with a format
+    # they stopped being written in.
+    def variant_content_type
+      "image/#{Doc::TILE_VARIANT_TRANSFORMATIONS.fetch(:format)}"
     end
 
     # Sound bundling mirrors image bundling's shape but skips

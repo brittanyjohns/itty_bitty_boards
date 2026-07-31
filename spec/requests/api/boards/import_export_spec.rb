@@ -153,7 +153,21 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
       body = JSON.parse(response.body)
       expect(body["error"]).to match(/too large/i)
+      expect(body["error_code"]).to eq("too_many_tiles")
       expect(body["export_package_url"]).to be_present
+    end
+
+    # Which cap raises which code is the exporter spec's job; this asserts the
+    # controller surfaces whatever code it was handed rather than a constant.
+    it "reports the size cap with its own error_code" do
+      allow_any_instance_of(Boards::ObfExporter).to receive(:call).and_raise(
+        Boards::ObfExporter::TooLarge.new("too big", code: Boards::ObfExporter::TooLarge::SIZE_LIMIT),
+      )
+
+      get "/api/boards/#{board.id}/download_obf", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error_code"]).to eq("export_too_large")
     end
   end
 end

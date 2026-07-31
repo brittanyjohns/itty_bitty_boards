@@ -650,9 +650,14 @@ class API::BoardsController < API::ApplicationController
 
     send_data result.obf.to_json, filename: filename,
                                   type: "application/json", disposition: "attachment"
-  rescue Boards::ObfExporter::TooLarge
+  rescue Boards::ObfExporter::TooLarge => e
+    # error_code (not the exception message, which stays internal) is what
+    # lets a client distinguish "too many tiles" from "too many bytes" — and
+    # what makes the cause visible in logs when a user reports a failed
+    # export.
     render json: {
       error: "Board is too large to export synchronously",
+      error_code: e.code,
       export_package_url: export_package_api_board_path(@board),
     }, status: :unprocessable_content
   end
