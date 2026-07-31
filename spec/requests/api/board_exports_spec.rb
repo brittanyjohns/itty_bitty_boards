@@ -189,4 +189,41 @@ RSpec.describe "API::BoardExports", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "GET /api/board_exports/:id/download_url" do
+    it "404s a queued (not yet completed) export" do
+      record = BoardExport.create!(user: user, exportable: board)
+      get "/api/board_exports/#{record.id}/download_url", headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s a completed export with no file attached" do
+      record = BoardExport.create!(user: user, exportable: board, status: "completed")
+      get "/api/board_exports/#{record.id}/download_url", headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    # The whole point of this action: the browser gets a URL to navigate to,
+    # so no cross-origin redirect (and no S3 preflight) is ever involved.
+    it "returns the storage URL as JSON for a completed, attached export" do
+      record = BoardExport.create!(user: user, exportable: board)
+      ExportBoardPackageJob.new.perform(record.id)
+      record.reload
+
+      get "/api/board_exports/#{record.id}/download_url", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["url"]).to be_present
+    end
+
+    it "404s a stranger's attempt to read someone else's download URL" do
+      record = BoardExport.create!(user: user, exportable: board)
+      ExportBoardPackageJob.new.perform(record.id)
+      record.reload
+
+      get "/api/board_exports/#{record.id}/download_url", headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

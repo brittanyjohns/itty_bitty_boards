@@ -18,6 +18,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The `download_obf` 422 now carries an `error_code` (`too_many_tiles` vs
   `export_too_large`) so clients and logs can tell the two caps apart.
 
+### Fixed — `.obz` downloads were blocked in production
+- Added `GET /api/board_exports/:id/download_url`, which returns the export's
+  storage URL as JSON instead of redirecting to it. The existing `#download`
+  redirect can't serve a browser: the web app's requests carry an
+  `Authorization` header, so they're preflighted, and a preflighted request
+  that redirects cross-origin re-preflights against the new origin — S3,
+  which has no CORS rule for our origins and answers 403. Every `.obz`
+  download failed in production (single boards and Board Sets alike) while
+  the modal reported it as a failed *export*. Only reproducible against S3;
+  dev/test use the Disk service, whose URL is same-origin. `#download` is
+  unchanged and still serves non-browser callers.
+
 ### Added — OBF/OBZ export hardening
 - Tile audio is now bundled into `.obz` packages (previously silent on
   export — only images were included). No change to `.obf` structure for
