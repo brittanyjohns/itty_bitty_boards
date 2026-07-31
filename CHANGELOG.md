@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — `.obf` export of ordinary boards
+- **Exporting a single board as `.obf` no longer fails on normal boards.**
+  The synchronous path base64-encoded each tile's full-resolution original,
+  so a routine 60-tile board ran to tens of MB and tripped the 20MB cap with
+  a generic "Export failed". It now bundles the same 288px webp tile variant
+  the app displays (falling back to the original when that variant hasn't
+  been generated yet, and never generating one mid-request). `.obz` packages
+  are unchanged and still carry full-resolution originals.
+- Inline export now dedupes by doc, so two tiles sharing one image encode
+  and count those bytes once rather than once per tile.
+- The `download_obf` 422 now carries an `error_code` (`too_many_tiles` vs
+  `export_too_large`) so clients and logs can tell the two caps apart.
+
 ### Added — OBF/OBZ export hardening
 - Tile audio is now bundled into `.obz` packages (previously silent on
   export — only images were included). No change to `.obf` structure for

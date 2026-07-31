@@ -458,5 +458,103 @@ RSpec.describe Boards::ObfExporter do
         described_class.new(board.reload, exporting_user: user, asset_mode: :inline).call
       }.to raise_error(Boards::ObfExporter::TooLarge, /size/i)
     end
+
+    # The rendered 422 is identical for both caps, so the code is the only
+    # thing that says which one fired.
+    it "codes the two caps distinctly" do
+      stub_const("Boards::ObfExporter::MAX_INLINE_TILES", 0)
+      add_tile("apple")
+
+      expect {
+        described_class.new(board.reload, exporting_user: user, asset_mode: :inline).call
+      }.to raise_error(an_object_having_attributes(code: "too_many_tiles"))
+
+      stub_const("Boards::ObfExporter::MAX_INLINE_TILES", 200)
+      stub_const("Boards::ObfExporter::MAX_INLINE_BYTES", 10)
+
+      expect {
+        described_class.new(board.reload, exporting_user: user, asset_mode: :inline).call
+      }.to raise_error(an_object_having_attributes(code: "export_too_large"))
+    end
+  end
+
+  describe "inline mode bundles display-size bytes" do
+    def doc_for(label)
+      Image.find_by(label: label).docs.last
+    end
+
+    def inline_images(exporter_user = user)
+      described_class.new(board.reload, exporting_user: exporter_user, asset_mode: :inline).call.obf["images"]
+    end
+
+    it "bundles the processed tile variant rather than the full-resolution original" do
+      add_tile("apple")
+      doc = doc_for("apple")
+      doc.tile_variant.processed
+
+      entry = inline_images.first
+
+      expect(entry[:content_type]).to eq("image/webp")
+      expect(Base64.strict_decode64(entry[:data]).bytesize).to be < doc.image.download.bytesize
+    end
+
+    # Processing on demand would transcode inside the Puma worker, once per
+    # tile — the original is the cheaper honest answer until the variant
+    # exists.
+    it "falls back to the original when the variant has not been processed yet" do
+      add_tile("apple")
+      doc = doc_for("apple")
+
+      entry = inline_images.first
+
+      expect(entry[:content_type]).to eq("image/png")
+      expect(Base64.strict_decode64(entry[:data]).bytesize).to eq(doc.image.download.bytesize)
+    end
+
+    it "does not process the variant as a side effect of exporting" do
+      add_tile("apple")
+
+      expect { inline_images }.not_to change { doc_for("apple").tile_variant_processed? }.from(false)
+    end
+
+    it "still bundles the original when the variant record is unreadable" do
+      add_tile("apple")
+      allow_any_instance_of(Doc).to receive(:tile_variant_processed?).and_return(true)
+      allow_any_instance_of(Doc).to receive(:tile_variant).and_raise(StandardError, "boom")
+
+      entry = inline_images.first
+
+      expect(entry[:content_type]).to eq("image/png")
+      expect(entry[:data]).to be_present
+    end
+
+    context "when two tiles share one doc" do
+      let!(:shared_doc) do
+        image = create(:image, label: "apple", user: user)
+        doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+        doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                         filename: "tile.png", content_type: "image/png")
+        2.times do |i|
+          board.board_images.create!(image_id: image.id, position: i, skip_create_voice_audio: true)
+        end
+        doc
+      end
+
+      it "counts the shared bytes once against the size cap" do
+        # Room for exactly one copy: without the dedupe the second tile's
+        # identical bytes push the running total past the cap and 422 a board
+        # that is well inside it.
+        stub_const("Boards::ObfExporter::MAX_INLINE_BYTES", shared_doc.image.download.bytesize + 10)
+
+        expect { inline_images }.not_to raise_error
+      end
+
+      it "encodes the shared bytes once and reuses them for both tiles" do
+        entries = inline_images
+
+        expect(entries.size).to eq(2)
+        expect(entries.first[:data]).to eq(entries.last[:data])
+      end
+    end
   end
 end
