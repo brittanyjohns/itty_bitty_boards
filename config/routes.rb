@@ -314,6 +314,7 @@ Rails.application.routes.draw do
     resources :board_exports, only: [:show] do
       member do
         get "download"
+        get "download_url"
       end
     end
     resources :board_images do

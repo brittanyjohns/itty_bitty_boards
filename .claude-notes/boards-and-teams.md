@@ -467,11 +467,27 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   low-consequence race (worst case: two exports run instead of one),
   bounded by the rate limit above and accepted rather than fixed.
 - **`GET /api/board_exports/:id/download` redirects instead of buffering.**
-  It now `redirect_to`s the attachment's storage URL
+  It `redirect_to`s the attachment's storage URL
   (`@board_export.file.url(disposition: "attachment", filename: ...)`,
   `allow_other_host: true`) rather than streaming the whole `.obz` (up to
   `ObzPackager::MAX_BYTES`, 200MB) through the Puma worker via `send_data`.
   `#show` and the 404-for-unowned-or-missing-export behavior are unchanged.
+- **A browser must never `fetch()` `#download` — that redirect is
+  unreachable cross-origin.** The frontend's API calls carry an
+  `Authorization` header, which makes every one of them a *preflighted* CORS
+  request, and a preflighted request that redirects to another origin forces
+  a **second preflight against that origin**. In production the redirect
+  target is S3, which has no CORS rule for our origins and answers the
+  `OPTIONS` with 403 — so the download failed for every user while looking
+  like a failed export. This is invisible in dev/test, where the Disk
+  service's `file.url` is a *same-origin* Rails path and the redirect never
+  crosses an origin. `GET /api/board_exports/:id/download_url` exists for
+  browsers: same owner scoping and completed/attached guard, but it returns
+  `{ url: <storage URL> }` as JSON so the client can **navigate** to it
+  (navigation isn't a CORS request at all). Keep `#download` for
+  non-browser callers. The presigned URL's own attachment disposition
+  supplies the filename, which `ExportBoardPackageJob` already sets to
+  `<board-name>.obz`.
 - **`BoardExport#file` uses a dedicated private storage service in
   production.** `has_one_attached :file, service: Rails.env.production? ?
   :amazon_private : Rails.application.config.active_storage.service`. The
