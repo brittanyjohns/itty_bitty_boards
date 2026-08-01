@@ -200,6 +200,35 @@ burned — mirroring the image-generation placeholder short-circuit. (The vision
 call is **not** gated in real production.)
 
 
+## OBF/OBZ import — accepted shapes
+
+`POST /api/boards/import_obf` takes three mutually exclusive inputs, and
+**all three must keep working** — dropping one silently breaks a client:
+
+- `file` with a `.obz` extension → `ObzImporter`, synchronous, creates a
+  `BoardGroup`.
+- `file` with a `.obf` extension → parsed to a Hash and handed to
+  `ImportFromObfJob`. Anything that isn't a JSON object is a 422 at the
+  controller, never a job that fails in the background where the user can't
+  see it.
+- `data` (a JSON body) → same job, no `BoardGroup` unless `board_group_id`
+  is supplied.
+
+The app's own `download_obf` produces a bare `.obf`, so the `.obf` file
+branch is what makes export→import round-trip. It was missing until
+2026-07-31, which made every exported `.obf` un-importable by the app that
+wrote it.
+
+`ObzAnalyzer.analyze` (behind `POST /api/boards/analyze_obz`, which despite
+its name analyzes both) **detects the container from the bytes**, not the
+filename: `PK` magic → zip, otherwise a bare OBF document. It reports which
+it found in `package[:format]` (`"obz"` / `"obf"` / `"unknown"`). It never
+raises — but a report it could not produce carries an `error`
+(`unreadable_file` / `no_boards_found`). **The absence of `error` is the
+only signal a caller may treat as "this file is good."** A zeroed-out report
+without that flag is indistinguishable from a valid empty package, which is
+exactly how a garbage upload once rendered as "Looks good" in the UI.
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently

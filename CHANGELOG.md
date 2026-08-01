@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — importing a `.obf` file
+- **Uploading a `.obf` file now imports.** `POST /api/boards/import_obf`
+  only handled `.obz` uploads; a `.obf` fell through to
+  422 "Unsupported file format". Since the app's own export produces a bare
+  `.obf`, nothing exported from SpeakAnyWay could be imported back into it.
+  A malformed `.obf` now returns 422 up front rather than enqueuing a job
+  that fails out of sight.
+- **File analysis no longer reports a garbage file as valid.** `ObzAnalyzer`
+  read every upload as a zip, so a `.obf` (or any non-zip) raised internally,
+  got swallowed, and returned an all-zero report with HTTP 200 — which the
+  import screen rendered as "Looks good — we found everything we need."
+  The analyzer now detects the container from the bytes, reports
+  `package.format`, produces a real single-board report for a `.obf`, and
+  flags files it genuinely could not read with an `error` field.
+- Fixed a latent 500 in the JSON-body import path: passing `board_group_id`
+  alongside `data` called `merge` on an ActiveRecord model.
+
 ### Fixed — `.obf` export of ordinary boards
 - **Exporting a single board as `.obf` no longer fails on normal boards.**
   The synchronous path base64-encoded each tile's full-resolution original,
