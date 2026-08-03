@@ -52,7 +52,13 @@ module Boards
       "image/webp" => "webp",
     }.freeze
 
-    Asset  = Struct.new(:kind, :id, :path, :doc)
+    # `variant` is the resolved display-size variant whose bytes back this
+    # asset, or nil to mean "download the original". It exists because the
+    # `path` extension and the OBF entry's `content_type` are decided HERE
+    # while the bytes are downloaded later, in ObzPackager#read_asset_bytes.
+    # Letting the packager re-decide independently is how a manifest ends up
+    # promising `images/12.webp` while carrying the original's PNG bytes.
+    Asset  = Struct.new(:kind, :id, :path, :doc, :variant)
     Result = Struct.new(:obf, :assets, :skipped_assets, :attribution)
 
     def initialize(board, exporting_user:, asset_mode: :url, board_paths: {})
@@ -148,8 +154,6 @@ module Boards
     def attach_asset(tile, doc)
       return tile.to_obf_image_format(exporting_user) unless doc.image.attached?
 
-      path = "images/#{doc.id}.#{asset_extension(doc)}"
-
       if asset_mode == :inline
         # Two tiles can point at the same doc (the same symbol used twice on a
         # board, or a shared Image resolving to one doc for both). :package
@@ -175,8 +179,11 @@ module Boards
                                                         data: cached[:data], content_type: cached[:content_type])
       end
 
-      assets << Asset.new(:image, doc.id.to_s, path, doc)
-      tile.to_obf_image_format(exporting_user, mode: :package, path: path, content_type: doc.image.content_type)
+      variant, content_type, extension = package_source_for(doc)
+      path = "images/#{doc.id}.#{extension}"
+
+      assets << Asset.new(:image, doc.id.to_s, path, doc, variant)
+      tile.to_obf_image_format(exporting_user, mode: :package, path: path, content_type: content_type)
     rescue TooLarge
       raise
     rescue StandardError => e
@@ -195,14 +202,16 @@ module Boards
     # displays — over the full-resolution original. An original is routinely
     # 30-50x the variant's size, so bundling originals meant an ordinary board
     # blew MAX_INLINE_BYTES and had no working sync export at all. A single
-    # .obf is a display-fidelity artifact; the async .obz path (asset_mode:
-    # :package) is the one that still carries originals.
+    # .obf is a display-fidelity artifact. So is the async .obz — both bundle
+    # display-size bytes; see #package_source_for.
     #
     # Only an ALREADY-PROCESSED variant is used. Calling #processed on an
     # unprocessed variant would transcode it right here inside the Puma
     # worker, once per tile — exactly the kind of in-request work the caps
     # exist to prevent. Unprocessed (and non-variable blobs, e.g. SVG) fall
-    # back to the original, which is correct if larger.
+    # back to the original, which is correct if larger. #package_source_for
+    # makes the opposite call for the same reason inverted: it runs in
+    # Sidekiq, where transcoding is just background work.
     def inline_bytes_for(doc)
       variant = doc.tile_variant if doc.tile_variant_processed?
       if variant
@@ -217,6 +226,33 @@ module Boards
       # degrades the tile to a url reference.
       Rails.logger.warn "[ObfExporter] tile variant unreadable for doc #{doc.id}: #{e.class}: #{e.message}"
       [doc.image.download, doc.image.content_type]
+    end
+
+    # The display-size source :package bundles: the resolved variant (or nil
+    # for "use the original"), plus the content_type and path extension that
+    # describe THOSE bytes. Returned together precisely so the three can never
+    # disagree.
+    #
+    # Unlike #inline_bytes_for, this calls #processed on an UNPROCESSED
+    # variant, transcoding it here. That inversion is deliberate and safe:
+    # :package is only ever reached from ExportBoardPackageJob, a Sidekiq
+    # worker, where the in-request work that MAX_INLINE_* exists to keep out
+    # of a Puma worker is simply background work. Skipping unprocessed
+    # variants instead would leave the originals in the package, and on a real
+    # board those fallbacks dominate the total (665MB of originals vs 86MB
+    # with fallbacks vs ~25MB fully variant-backed) — i.e. it would leave the
+    # size cap reachable, which is the bug this path is fixing.
+    #
+    # Non-variable blobs (SVG) and any processing failure fall back to the
+    # original, which stays correct — just larger.
+    def package_source_for(doc)
+      variant = doc.tile_variant
+      return [nil, doc.image.content_type, asset_extension(doc)] unless variant
+
+      [variant.processed, variant_content_type, Doc::TILE_VARIANT_TRANSFORMATIONS.fetch(:format).to_s]
+    rescue StandardError => e
+      Rails.logger.warn "[ObfExporter] tile variant unusable for doc #{doc.id}: #{e.class}: #{e.message}"
+      [nil, doc.image.content_type, asset_extension(doc)]
     end
 
     # Derived from the transformation Doc#tile_variant actually applies rather

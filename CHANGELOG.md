@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — exporting a large board as `.obz`
+
+- **Exporting a board with many linked boards no longer fails with "Package
+  exceeds the 200MB limit."** The `.obz` package bundled full-resolution
+  original images, so an ordinary board's predictive-link tree ran to
+  hundreds of megabytes and hit the size cap before finishing — one real
+  board's 23-board tree carried 665MB of originals. Packages now bundle the
+  same display-size tile images the app itself renders (288px webp), which
+  brings that board to roughly 25MB. Exported images are described as `webp`
+  in the package manifest and re-import cleanly.
+
 ### Fixed — importing a `.obf` file
 - **Uploading a `.obf` file now imports.** `POST /api/boards/import_obf`
   only handled `.obz` uploads; a `.obf` fell through to

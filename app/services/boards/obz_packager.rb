@@ -15,6 +15,13 @@ module Boards
     # Belt to ExportScope::MAX_BOARDS' braces: a small number of boards can
     # still carry very large images. Fails with an explicit error rather than
     # letting the job die on memory or the upload time out.
+    #
+    # This is a backstop, not the working constraint. Packages bundle
+    # display-size tile variants (ObfExporter#package_source_for), which is
+    # what keeps a realistic tree well under it — a 23-board export measured
+    # 665MB of originals against ~25MB of variants. Reaching this cap again
+    # means variant resolution stopped working, not that the cap is too low;
+    # raising it would trade an explicit failure for an OOM in Sidekiq.
     MAX_BYTES = 200 * 1024 * 1024
 
     Result = Struct.new(:bytes, :summary)
@@ -114,9 +121,16 @@ module Boards
     # writing any board .obf entry — a bigger restructure than this rare
     # failure mode warrants; the dangling reference is surfaced instead, via
     # packaging_failures / README.txt, so it's visible rather than silent.
+    # Downloads exactly the bytes ObfExporter's Asset promised — the resolved
+    # display-size variant when there is one, the original otherwise. This
+    # must never re-decide which rendition to read: the board's .obf entry has
+    # already declared this asset's path extension and content_type from the
+    # exporter's choice.
     def read_asset_bytes(asset)
       if asset.kind == :sound
         asset.doc.download
+      elsif asset.variant
+        asset.variant.download
       else
         asset.doc.image.download
       end

@@ -343,7 +343,34 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   entirely on `ExportScope` to keep the package bounded.
   `Boards::ObzPackager::MAX_BYTES` (200MB) is a second, independent cap on
   total package size, since a small number of boards can still carry large
-  images.
+  images. It is a backstop, not the working constraint — display-size
+  bundling (below) is what keeps a realistic tree an order of magnitude under
+  it. Hitting it again means variant resolution stopped working; raising it
+  would trade an explicit, actionable failure for an OOM in Sidekiq.
+- **Both bundling modes ship display-size bytes, never originals.** `:inline`
+  and `:package` each resolve `Doc#tile_variant` (288px webp, q65 — see
+  `ApplicationRecord::TILE_VARIANT_TRANSFORMATIONS`) and fall back to the
+  original only when there is no usable variant (non-variable blobs like SVG,
+  or a processing failure). Originals routinely run 30-50x the variant, which
+  is enough on its own to blow both size caps: a single board's 23-board
+  predictive tree measured **665MB of originals against ~25MB of variants**.
+  Two rails hold this together:
+  - **The rendition, its path extension, and its `content_type` are decided
+    together**, in `ObfExporter#package_source_for`, and the chosen variant
+    rides along on `ObfExporter::Asset#variant`. `ObzPackager#read_asset_bytes`
+    downloads exactly that and must never re-decide — the board's `.obf` entry
+    has already declared the path as `.webp`, so a packager that
+    independently reads the original yields a manifest promising webp while
+    carrying PNG bytes.
+  - **The two modes make opposite calls on *unprocessed* variants, on
+    purpose.** `:inline` uses an already-processed variant only, because
+    `#processed` would transcode inside the Puma worker once per tile.
+    `:package` is only ever reached from `ExportBoardPackageJob`, so it calls
+    `#processed` and transcodes — there, it is ordinary background work. That
+    difference is load-bearing rather than cosmetic: unprocessed docs falling
+    back to originals dominated the total on a real board (86MB with
+    fallbacks vs ~25MB fully variant-backed), i.e. skipping them would leave
+    `MAX_BYTES` reachable.
 - **`asset_mode: :inline` (the synchronous `GET /download_obf` path) has its
   own, separate caps.** `ObfExporter::MAX_INLINE_TILES` (200) is checked
   against the board's tile count up front, before any work starts.

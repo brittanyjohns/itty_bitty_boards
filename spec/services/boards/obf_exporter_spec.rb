@@ -53,12 +53,18 @@ RSpec.describe Boards::ObfExporter do
     end
 
     # Doc#extension reads original_image_url, which is nil for user uploads.
-    # The zip path must come from the blob or it ends in a bare dot.
-    it "derives the asset extension from the attached blob" do
+    # The zip path must come from the blob or it ends in a bare dot. Only
+    # reachable now when there's no usable variant, since a variant-backed
+    # asset takes its extension from the variant format instead.
+    it "derives the asset extension from the attached blob when there is no usable variant" do
       add_tile("grandma")
+      allow_any_instance_of(Doc).to receive(:tile_variant).and_return(nil)
+
       result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
 
       expect(result.assets.first.path).to match(%r{\Aimages/\d+\.png\z})
+      expect(result.assets.first.variant).to be_nil
+      expect(result.obf["images"].first[:content_type]).to eq("image/png")
     end
 
     it "records an attribution entry for a bundled CC BY asset" do
@@ -266,6 +272,64 @@ RSpec.describe Boards::ObfExporter do
     # fallback also fell back to a per-tile query, so the bound would have
     # scaled to roughly 2 * tile_count instead of tile_count + 2.
     expect(audio_query_count).to be <= tile_count + 2
+  end
+
+  # Board 5776's export failed at ObzPackager's 200MB cap: the package path
+  # bundled full-resolution originals (665MB across its 23-board tree, vs
+  # ~25MB of display-size variants). :package now resolves the same
+  # display-size rendition :inline does.
+  describe "display-size bundling (asset_mode: :package)" do
+    it "bundles the webp tile variant, and describes it as webp everywhere" do
+      add_tile("grandma")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+      asset = result.assets.first
+
+      expect(asset.path).to match(%r{\Aimages/\d+\.webp\z})
+      expect(asset.variant).to be_present
+      expect(result.obf["images"].first[:content_type]).to eq("image/webp")
+      expect(result.obf["images"].first[:path]).to eq(asset.path)
+    end
+
+    # The variant bytes are what actually shrink the package. Asserting the
+    # asset carries a variant is not enough — a variant that resolves to the
+    # original's bytes would pass that and still blow the cap.
+    it "carries bytes materially smaller than the original" do
+      add_tile("grandma")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+      asset = result.assets.first
+
+      expect(asset.variant.download.bytesize).to be < asset.doc.image.download.bytesize
+    end
+
+    # The inverse of #inline_bytes_for's rule. :package runs in Sidekiq, so
+    # transcoding an unprocessed variant here is background work — and it is
+    # what keeps unprocessed docs from silently reintroducing originals.
+    it "processes an unprocessed variant rather than falling back to the original" do
+      add_tile("grandma")
+      doc = board.reload.board_images.first.export_doc(user)
+      expect(doc.tile_variant_processed?).to be(false)
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      expect(result.assets.first.path).to end_with(".webp")
+      expect(doc.reload.tile_variant_processed?).to be(true)
+    end
+
+    it "falls back to the original when variant processing fails" do
+      add_tile("grandma")
+      allow_any_instance_of(ActiveStorage::Variant).to receive(:processed).and_raise(StandardError, "vips exploded")
+      allow_any_instance_of(ActiveStorage::VariantWithRecord).to receive(:processed)
+        .and_raise(StandardError, "vips exploded")
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+      asset = result.assets.first
+
+      expect(asset.variant).to be_nil
+      expect(asset.path).to end_with(".png")
+      expect(result.obf["images"].first[:content_type]).to eq("image/png")
+    end
   end
 
   describe "sound bundling (asset_mode: :package)" do
