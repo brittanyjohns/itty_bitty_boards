@@ -25,6 +25,20 @@ RSpec.describe Boards::ObzPackager do
     board.reload
   end
 
+  # Every blob whose bytes could back this doc's zip entry: the original AND
+  # the display-size variant the packager actually downloads
+  # (ObfExporter#package_source_for). A test simulating an unreadable asset
+  # must break the rendition that is really read, or it silently stops
+  # simulating anything — which is exactly what happened when :package moved
+  # off originals.
+  def asset_blob_ids(doc)
+    ids = [doc.image.blob.id]
+    variant = doc.tile_variant
+    processed = variant&.processed
+    ids << processed.image.blob.id if processed.respond_to?(:image)
+    ids
+  end
+
   before do
     allow_any_instance_of(BoardImage).to receive(:tile_image_url).and_return("https://example.test/i.png")
     allow_any_instance_of(BoardImage).to receive(:audio_url).and_return(nil)
@@ -52,6 +66,33 @@ RSpec.describe Boards::ObzPackager do
     files = entries_in(described_class.new(scope, exporting_user: user).call.bytes)
 
     expect(files.keys).to include("boards/#{a.id}.obf", "boards/#{b.id}.obf")
+  end
+
+  # The packager downloads bytes for an asset whose path/content_type were
+  # decided upstream in ObfExporter. If it re-decides which rendition to read,
+  # the zip ends up promising webp and carrying PNG — so assert the entry the
+  # manifest names actually holds the smaller variant bytes.
+  it "writes the display-size variant bytes under the path the manifest names" do
+    board = board_with_tile("Root")
+    doc = board.board_images.first.export_doc(user)
+    original_size = doc.image.download.bytesize
+    scope = Boards::ExportScope::Result.new([board], board, [])
+
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    manifest = JSON.parse(files["manifest.json"])
+    path = manifest["paths"]["images"][doc.id.to_s]
+
+    expect(path).to end_with(".webp")
+    expect(files).to have_key(path)
+    expect(files[path].bytesize).to be < original_size
+    # RIFF....WEBP — the bytes are genuinely webp, not the original renamed.
+    expect(files[path][0, 4]).to eq("RIFF")
+
+    obf = JSON.parse(files["boards/#{board.id}.obf"])
+    expect(obf["images"].first["path"]).to eq(path)
+    expect(obf["images"].first["content_type"]).to eq("image/webp")
   end
 
   it "refuses to build a package over the size cap" do
@@ -100,10 +141,10 @@ RSpec.describe Boards::ObzPackager do
     # reference the identical asset path.
     board_b.board_images.first.update!(image_id: board_a.board_images.first.image_id)
 
-    broken_blob_id = shared_doc.image.blob.id
+    broken_blob_ids = asset_blob_ids(shared_doc)
     read_attempts = 0
     allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
-      if original.receiver.id == broken_blob_id
+      if broken_blob_ids.include?(original.receiver.id)
         read_attempts += 1
         raise StandardError, "S3 unavailable"
       end
@@ -162,10 +203,10 @@ RSpec.describe Boards::ObzPackager do
     healthy_board = board_with_tile("Healthy")
     broken_doc = broken_board.board_images.first.export_doc(user)
     broken_doc_id = broken_doc.id
-    broken_blob_id = broken_doc.image.blob.id
+    broken_blob_ids = asset_blob_ids(broken_doc)
 
     allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_wrap_original do |original, *args, &block|
-      raise StandardError, "S3 unavailable" if original.receiver.id == broken_blob_id
+      raise StandardError, "S3 unavailable" if broken_blob_ids.include?(original.receiver.id)
 
       original.call(*args, &block)
     end
@@ -210,7 +251,7 @@ RSpec.describe Boards::ObzPackager do
     files = entries_in(described_class.new(scope, exporting_user: user).call.bytes)
 
     image_entries = files.keys.select { |k| k.start_with?("images/") }
-    expect(image_entries).to eq(["images/#{doc.id}.png"])
+    expect(image_entries).to eq(["images/#{doc.id}.webp"])
   end
 
   # Attaches audio_files (has_many_attached, on Image) BEFORE doc.image
