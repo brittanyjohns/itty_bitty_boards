@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — upgrading from Free
+
+- **An account whose Stripe customer had been deleted could no longer upgrade
+  to any plan.** Checkout trusted the stored customer id, so Stripe rejected
+  every session with "No such customer" and the pricing page showed only
+  "There was an error choosing your plan. Please try again." — with no way for
+  the user to recover. The customer is now verified before use and recreated if
+  it is gone. A Stripe outage or network blip leaves the stored id untouched.
+
 ### Fixed — importing a `.obf` file
 - **Uploading a `.obf` file now imports.** `POST /api/boards/import_obf`
   only handled `.obz` uploads; a `.obf` fell through to

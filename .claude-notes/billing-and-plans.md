@@ -392,6 +392,14 @@ demo/myspeak signups keep using `sign_up`. Key invariants:
   → 400 generic message. Requires a saved Customer-portal default config in
   the Stripe dashboard (test + live) — see `docs/stripe-setup.md` §4b.
   Optional `STRIPE_PORTAL_CONFIG_ID` pins a dedicated config.
+- **A stored `stripe_customer_id` is verified, not trusted.**
+  `ensure_stripe_customer!` retrieves the customer and recreates it when Stripe
+  answers `resource_missing` or `deleted` — a customer removed from the
+  dashboard (or left over from a different account/key) otherwise 400s *every*
+  billing call with "No such customer", permanently locking that account out of
+  upgrading with no self-service recovery. The check **fails open**: any other
+  Stripe error keeps the stored id, since dropping a valid one would orphan the
+  account from its live subscription and billing history.
 
 ### Social sign-in — Google (Phase 1)
 
