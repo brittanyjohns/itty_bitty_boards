@@ -678,10 +678,41 @@ class User < ApplicationRecord
   # Lazily create the Stripe customer on first billing touch. Mobile signups
   # and legacy accounts have no customer until they hit checkout or the
   # billing portal.
+  #
+  # A stored id is verified, not trusted: if the customer was deleted in the
+  # Stripe dashboard (or the row predates an account/key change) every billing
+  # call 400s on "No such customer" with no way out — the user is permanently
+  # unable to upgrade. Re-create in that case so the path self-heals.
   def ensure_stripe_customer!
-    return stripe_customer_id if stripe_customer_id.present?
+    return stripe_customer_id if stripe_customer_id.present? && stripe_customer_live?
     update!(stripe_customer_id: User.create_stripe_customer(email))
     stripe_customer_id
+  end
+
+  # True when `stripe_customer_id` resolves to a real, non-deleted customer on
+  # the current Stripe key.
+  #
+  # Fails OPEN: only Stripe telling us the customer is gone (`resource_missing`
+  # / `deleted`) invalidates the id. A network blip, auth error, or outage
+  # returns true so we keep the stored id — dropping it would orphan the
+  # account from its subscription and billing history.
+  def stripe_customer_live?
+    customer = Stripe::Customer.retrieve(stripe_customer_id)
+    return true unless customer.respond_to?(:deleted) && customer.deleted
+
+    Rails.logger.warn "[Billing] stripe customer #{stripe_customer_id} is deleted for user=#{id}; recreating"
+    false
+  rescue Stripe::InvalidRequestError => e
+    if e.code.to_s == "resource_missing"
+      Rails.logger.warn "[Billing] stripe customer #{stripe_customer_id} missing for user=#{id}; recreating"
+      return false
+    end
+    raise
+  rescue Stripe::StripeError => e
+    # Transient/unrelated Stripe failure — keep the id and let the caller's own
+    # error handling deal with whatever happens next.
+    Rails.logger.error "[Billing] could not verify stripe customer for user=#{id}: #{e.class} - #{e.message}"
+    true
   end
 
   # Create a no-card Stripe trial subscription on the Partner Pro price so the

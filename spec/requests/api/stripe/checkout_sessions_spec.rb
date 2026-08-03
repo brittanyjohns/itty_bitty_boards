@@ -76,6 +76,37 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
       expect(user.reload.stripe_customer_id).to eq("cus_new_123")
     end
 
+    # Production, 2026-08-03: a Free account could not upgrade to ANY plan.
+    # Its stored customer no longer existed on the live Stripe key, so every
+    # checkout 400'd on "No such customer" — with no way for the user to
+    # recover. Verify the stale id instead of trusting it.
+    it "recreates a stale Stripe customer instead of 400ing the checkout" do
+      user.update!(stripe_customer_id: "cus_deleted_in_dashboard")
+
+      allow(Stripe::Customer).to receive(:retrieve).and_raise(
+        Stripe::InvalidRequestError.new(
+          "No such customer: 'cus_deleted_in_dashboard'",
+          "customer",
+          code: "resource_missing",
+        ),
+      )
+      expect(Stripe::Customer).to receive(:create)
+        .with({ email: user.email })
+        .and_return(OpenStruct.new(id: "cus_healed_456"))
+
+      captured = nil
+      expect(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://checkout.stripe.com/c/pay/cs_test_healed")
+      end
+
+      do_post.call({ plan_key: "basic" })
+
+      expect(response).to have_http_status(:ok)
+      expect(captured[:customer]).to eq("cus_healed_456")
+      expect(user.reload.stripe_customer_id).to eq("cus_healed_456")
+    end
+
     it "records paid_plan_type on the user after creating the session" do
       user.update!(stripe_customer_id: "cus_existing")
       allow(Stripe::Checkout::Session).to receive(:create).and_return(OpenStruct.new(url: "https://stripe.test/x"))
