@@ -35,8 +35,21 @@ module UsersHelper
     self.organization_id = nil
     self.vendor_id = nil
 
-    # Optional: remove potentially identifying keys
-    self.child_lookup_key = nil
+    # Optional: remove potentially identifying keys.
+    #
+    # Guarded on the column actually existing. `users.child_lookup_key` is
+    # declared in schema.rb but is ABSENT in production: the migration that
+    # adds it (20240715200059_devise_create_child_accounts) gained those lines
+    # after it had already run there, and Rails tracks migrations by version,
+    # so prod never executed them. Dev/CI build from schema.rb and do have the
+    # column — which is why an unguarded assignment passed every test and
+    # raised NoMethodError on the only environment that matters, breaking
+    # EVERY account deletion (including the user-facing "delete my account"
+    # endpoint and admin cleanup).
+    #
+    # Guarding rather than deleting the line: where the column exists it may
+    # hold an identifying key, and anonymization should still clear it.
+    self.child_lookup_key = nil if has_attribute?(:child_lookup_key)
 
     # Keep Stripe IDs for recordkeeping unless you have a separate tombstone table.
     # self.stripe_customer_id = nil
