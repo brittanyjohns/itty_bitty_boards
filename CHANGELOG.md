@@ -13,6 +13,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   already grouped; a board you'd hand-linked together with folder buttons
   had no way to get one. Creating a set now auto-discovers every linked
   board and keeps picking up newly-added links on repeat use.
+### Fixed — deleting an account
+
+- **Deleting an account failed outright in production.** Every deletion path —
+  the in-app "delete my account" endpoint, admin deletion, and demo cleanup —
+  raised partway through and left the account untouched. The anonymization step
+  cleared a database column that exists in the schema definition but had never
+  actually been added to the production database, so the code worked in every
+  environment except the live one. The column is now cleared only where it
+  exists.
+
 ### Fixed — test accounts counted as real users
 
 - **Internal test accounts can now be marked as such explicitly.** Demo
