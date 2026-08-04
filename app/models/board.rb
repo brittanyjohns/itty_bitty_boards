@@ -2717,8 +2717,18 @@ class Board < ApplicationRecord
     reset_layouts_after_import = obj["reset_layouts_after_import"] || false
     apply_button_attributes = import_options[:apply_button_attributes] ? true : false
 
+    # Import files carry hundreds to thousands of buttons (a real OBZ core
+    # vocab set runs ~1400). Resolving each one's Image/BoardImage match with
+    # its own SELECT turned a single import into thousands of sequential
+    # queries. Preload every match this OBF's buttons could need ONCE, then
+    # have find_or_create_image_for_button / find_board_image_for_button read
+    # (and, for newly-created images, write back into) these in-memory caches
+    # instead of hitting the DB per button.
+    image_cache = preload_image_cache(current_user, buttons)
+    board_image_cache = preload_board_image_cache(board)
+
     buttons.each do |item|
-      image = find_or_create_image_for_button(item, current_user)
+      image = find_or_create_image_for_button(item, current_user, image_cache: image_cache)
       next unless image
 
       doc_data = images_by_obf_id[item["image_id"].to_s]
@@ -2728,7 +2738,8 @@ class Board < ApplicationRecord
       reset_layouts_after_import ||= coords.nil?
 
       board_image = upsert_board_image(board, image, item, coords, temp_display_image,
-                                       apply_button_attributes: apply_button_attributes)
+                                       apply_button_attributes: apply_button_attributes,
+                                       board_image_cache: board_image_cache)
       dynamic_data[image.id] = {
         "board_id" => board.id,
         "board" => board,
@@ -2802,18 +2813,58 @@ class Board < ApplicationRecord
   # An admin can flip the flag later via the admin UI. Existing matches are
   # returned as-is — we don't downgrade visibility on something the user
   # already owns.
-  def self.find_or_create_image_for_button(item, user)
+  #
+  # `image_cache` (from preload_image_cache) skips the 2-3 per-button SELECTs
+  # this used to run — pass nil to fall back to the original per-call
+  # queries (kept for callers outside the from_obf hot loop).
+  def self.find_or_create_image_for_button(item, user, image_cache: nil)
     label = item["label"]
+    obf_id = item["image_id"]
     image = nil
     if item["ext_saw_image_id"]
-      image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: user.id)
+      ext_id = item["ext_saw_image_id"].to_i
+      image = image_cache ? image_cache[:by_ext_id][ext_id] : Image.find_by(id: ext_id, user_id: user.id)
     end
-    image ||= Image.where(user_id: user.id, label: label, obf_id: item["image_id"]).order(:id).first
-    image ||= Image.where(user_id: user.id, label: label).order(:id).first
-    image ||= Image.create!(label: label, user_id: user.id, obf_id: item["image_id"], is_private: true)
+    if image_cache
+      image ||= image_cache[:by_label_and_obf_id][[label, obf_id]]
+      image ||= image_cache[:by_label][label]
+    else
+      image ||= Image.where(user_id: user.id, label: label, obf_id: obf_id).order(:id).first
+      image ||= Image.where(user_id: user.id, label: label).order(:id).first
+    end
+    unless image
+      image = Image.create!(label: label, user_id: user.id, obf_id: obf_id, is_private: true)
+      if image_cache
+        image_cache[:by_label_and_obf_id][[label, obf_id]] ||= image
+        image_cache[:by_label][label] ||= image
+      end
+    end
     image
   end
   private_class_method :find_or_create_image_for_button
+
+  # One-shot preload for find_or_create_image_for_button: every Image match
+  # this OBF's buttons could resolve to, keyed the same way the per-button
+  # lookups were. `.order(:id)` + `||=` while building each hash preserves
+  # the original `.order(:id).first` tie-break (lowest id wins).
+  def self.preload_image_cache(user, buttons)
+    ext_ids = buttons.filter_map { |b| b["ext_saw_image_id"]&.to_i }.uniq
+    labels = buttons.filter_map { |b| b["label"] }.uniq
+
+    by_ext_id = ext_ids.any? ? Image.where(id: ext_ids, user_id: user.id).index_by(&:id) : {}
+
+    by_label_and_obf_id = {}
+    by_label = {}
+    if labels.any?
+      Image.where(user_id: user.id, label: labels).order(:id).each do |img|
+        by_label_and_obf_id[[img.label, img.obf_id]] ||= img
+        by_label[img.label] ||= img
+      end
+    end
+
+    { by_ext_id: by_ext_id, by_label_and_obf_id: by_label_and_obf_id, by_label: by_label }
+  end
+  private_class_method :preload_image_cache
 
   # Downloads / attaches an image binary from an OBF image entry to a Doc on
   # the SpeakAnyWay Image. Copyright-sensitive: gated behind
@@ -2856,7 +2907,7 @@ class Board < ApplicationRecord
   end
   private_class_method :attach_image_doc
 
-  def self.upsert_board_image(board, image, item, coords, display_url, apply_button_attributes: false)
+  def self.upsert_board_image(board, image, item, coords, display_url, apply_button_attributes: false, board_image_cache: nil)
     obf_button_id = item["id"].presence&.to_s
 
     # Idempotency key is the AUTHORED OBF button id, NOT the resolved image_id.
@@ -2866,7 +2917,7 @@ class Board < ApplicationRecord
     # how a re-seed grew a second "all done" tile on the Core 60 builder source.
     # Match the button first so a re-import updates the same tile; fall back to
     # image_id for tiles seeded before button ids were stamped.
-    board_image = find_board_image_for_button(board, image, obf_button_id)
+    board_image = find_board_image_for_button(board, image, obf_button_id, board_image_cache: board_image_cache)
     unless board_image
       board_image = board.board_images.new(image_id: image.id, voice: board.voice,
                                            position: board.board_images_count,
@@ -2879,6 +2930,10 @@ class Board < ApplicationRecord
       # Previously skipped here; result was imported tiles had no audio
       # at all because nothing else compensated.
       board_image.save!
+      if board_image_cache
+        board_image_cache[:by_button_id][obf_button_id] = board_image if obf_button_id.present?
+        board_image_cache[:by_image_id][image.id] ||= board_image
+      end
     end
 
     # Heal resolution drift on an existing tile: re-point it at the freshly
@@ -2915,7 +2970,17 @@ class Board < ApplicationRecord
   # Resolve the existing tile for an authored OBF button. Prefer the stable
   # button id (stamped on board_image.data); fall back to image_id for tiles
   # seeded before stamping existed. nil → caller creates a fresh tile.
-  def self.find_board_image_for_button(board, image, obf_button_id)
+  #
+  # `board_image_cache` (from preload_board_image_cache) skips the 1-2
+  # per-button SELECTs this used to run — pass nil to fall back to the
+  # original per-call queries (kept for callers outside the from_obf hot loop).
+  def self.find_board_image_for_button(board, image, obf_button_id, board_image_cache: nil)
+    if board_image_cache
+      existing = obf_button_id.present? ? board_image_cache[:by_button_id][obf_button_id] : nil
+      return existing if existing
+      return board_image_cache[:by_image_id][image.id]
+    end
+
     if obf_button_id.present?
       existing = board.board_images.where("data ->> 'obf_button_id' = ?", obf_button_id).first
       return existing if existing
@@ -2923,6 +2988,28 @@ class Board < ApplicationRecord
     board.board_images.find_by(image_id: image.id)
   end
   private_class_method :find_board_image_for_button
+
+  # One-shot preload for find_board_image_for_button: every board_image the
+  # board already has, keyed the same way the per-button lookups were. Loaded
+  # once per from_obf call, so a from_obf call against an EXISTING board (a
+  # re-import/re-seed) still sees its current tiles — this only removes the
+  # per-button re-query, not cross-call staleness.
+  #
+  # Queries BoardImage directly rather than `board.board_images` — the
+  # association may already be loaded (and stale) on a `board` object the
+  # caller is holding onto across multiple writes, and the original per-button
+  # code always issued a fresh query, never reading a cached association.
+  def self.preload_board_image_cache(board)
+    by_button_id = {}
+    by_image_id = {}
+    BoardImage.where(board_id: board.id).each do |bi|
+      button_id = bi.data.is_a?(Hash) ? bi.data["obf_button_id"] : nil
+      by_button_id[button_id] = bi if button_id.present?
+      by_image_id[bi.image_id] ||= bi
+    end
+    { by_button_id: by_button_id, by_image_id: by_image_id }
+  end
+  private_class_method :preload_board_image_cache
 
   # Persist the authored OBF button id on the tile so a later re-import matches
   # this same tile even if button→image resolution drifts. Only writes when the
