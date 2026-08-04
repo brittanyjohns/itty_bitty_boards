@@ -13,6 +13,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   already grouped; a board you'd hand-linked together with folder buttons
   had no way to get one. Creating a set now auto-discovers every linked
   board and keeps picking up newly-added links on repeat use.
+### Fixed — test accounts counted as real users
+
+- **Internal test accounts can now be marked as such explicitly.** Demo
+  accounts were recognised only by email pattern (`bhannajohns+…`,
+  `@speakanyway.com`), so test accounts created under ordinary-looking
+  addresses were treated as real customers — consuming marketing emails,
+  bouncing when the address wasn't deliverable, and inflating growth metrics.
+  Accounts can now be flagged directly, and the flag is respected everywhere
+  demo accounts are already excluded.
 
 ### Fixed — onboarding emails that were never being sent
 

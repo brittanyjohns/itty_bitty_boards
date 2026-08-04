@@ -160,9 +160,25 @@ GitHub build). Two distinct uses:
     only when `MAILCHIMP_JOURNEYS_ENABLED=true`. CRM sync is **not** gated.
   - **Demo/internal accounts get no journey email.** `MailchimpEventJob`'s
     `"journey"` branch — the single choke point every journey trigger passes
-    through — returns early for `user.demo_user?` (`bhannajohns+*` /
-    `@speakanyway.com`), so demo traffic can't pull real campaign sends or skew
-    a journey's open/click stats. The #297 guards were reverted on 2026-06-10
+    through — returns early for `user.demo_user?`, so demo traffic can't pull
+    real campaign sends or skew a journey's open/click stats.
+    **`demo_user?` is not email patterns alone.** Patterns
+    (`User::DEMO_EMAIL_PATTERNS`, extensible without a deploy via the
+    `DEMO_EMAIL_PATTERNS` ENV) miss most real test accounts — a July 2026
+    testing session produced `speakanyway@gmail.com`, `testaria@gmail.com`,
+    `speak@test.com` and a dozen more, none matching `@speakanyway.com`, and
+    they were about to consume journey sends and hard-bounce. So there is also
+    an explicit `settings["internal_account"]` marker, set with
+    `users:internal:mark[<ids-or-emails>]` (`:unmark` reverses, `:list` shows
+    everything currently treated as internal). **Prefer marking to widening the
+    patterns** — a pattern broad enough to catch `arias@gmail.com` will
+    eventually catch a paying customer.
+    `User.demo_accounts` (the SQL scope behind admin/Mission Control metrics)
+    and `demo_user?` (the send gate) derive from the same patterns + flag and
+    **must stay in agreement**, or the dashboards and the emails disagree about
+    who is real. The scope's columns are table-qualified because Mission
+    Control joins `boards`, which has its own `settings` column.
+    The #297 guards were reverted on 2026-06-10
     to allow end-to-end testing and reinstated at this single seam instead;
     **set `MAILCHIMP_JOURNEYS_ALLOW_DEMO=true` to test with a demo account
     rather than removing the guard again.** CRM sync is deliberately NOT gated
