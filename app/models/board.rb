@@ -240,6 +240,15 @@ class Board < ApplicationRecord
       board_groups.where(builder: true).first
   end
 
+  # The BoardGroup a "view/create set map" action should use for this board,
+  # mirroring the frontend's eligibleSets() rule in ViewSetMapButton.tsx: a
+  # builder set takes priority (that's what the map is built for), otherwise
+  # any user-owned non-predefined set. nil when the board has neither.
+  def eligible_board_group
+    board_groups.where(builder: true).first ||
+      board_groups.where(predefined: [false, nil]).first
+  end
+
   def retranslate_on_language_change
     return unless saved_change_to_language?
     schedule_translations_for(language)
