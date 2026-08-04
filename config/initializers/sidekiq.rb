@@ -52,7 +52,7 @@ Sidekiq.configure_server do |config|
       "cron" => "0 5 1 * *",
       "class" => "MailchimpLegacySignupNudgeJob",
       "queue" => "default",
-      "description" => "Monthly Mailchimp Customer Journey trigger (5am UTC on the 1st) re-engaging legacy stalled signups: non-admin users created over LEGACY_SIGNUP_NUDGE_AGE_DAYS (default 30) ago, no boards, no sign-in within LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS (default 30). Flags user.settings[\"legacy_signup_nudge_sent\"] so each user is only nudged once. Second-touch — may fire for users who got the 48h first_board_nudge weeks earlier.",
+      "description" => "Monthly Mailchimp Customer Journey trigger (5am UTC on the 1st) re-engaging legacy stalled signups: non-admin users created over LEGACY_SIGNUP_NUDGE_AGE_DAYS (default 30) ago, no boards, no sign-in within LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS (default 30). Flags user.settings[\"legacy_signup_nudge_sent\"] so each user is only nudged once, and caps each run at LEGACY_SIGNUP_NUDGE_MAX_PER_RUN (default 100) sends so an unbounded backlog drains over months instead of one burst. Second-touch — may fire for users who got the 48h first_board_nudge weeks earlier.",
     },
     "mailchimp_win_back" => {
       "cron" => "30 4 * * *",

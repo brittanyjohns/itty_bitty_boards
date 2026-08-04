@@ -24,6 +24,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   so a missing journey ID no longer permanently disqualifies everyone it
   touched. New `mailchimp:nudge_flags:report` / `:clear[<flag>]` rake tasks
   (dry-run by default) repair anyone already stuck that way.
+- **The monthly re-engagement email is now capped at 100 sends per run**
+  (`LEGACY_SIGNUP_NUDGE_MAX_PER_RUN`). It's the only nudge with no upper bound
+  on how far back it reaches, so with the selection bug fixed a single run
+  could otherwise email every dormant account at once. The backlog drains
+  across consecutive monthly runs instead.
 - **Demo and internal accounts no longer receive marketing journey emails,**
   so test traffic can't consume real campaign sends or distort a journey's
   open and click rates. They stay in the Mailchimp audience as before.

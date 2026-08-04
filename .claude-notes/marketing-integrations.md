@@ -67,6 +67,12 @@ GitHub build). Two distinct uses:
       users created over `LEGACY_SIGNUP_NUDGE_AGE_DAYS` (default 30) ago, no
       boards, no sign-in within `LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS` (default 30).
       The `user.settings["legacy_signup_nudge_sent"]` flag makes it once-only.
+      **Capped at `LEGACY_SIGNUP_NUDGE_MAX_PER_RUN` (default 100) sends per
+      run** — it's the only nudge whose window has no upper bound, so an
+      uncapped run could email every cold account ever in one burst (spam
+      complaints → sending-domain reputation → transactional mail). The flag
+      makes the backlog resumable, so the cap just spreads it across monthly
+      runs; `0` disables it deliberately.
       It's a **second touch** distinct from `first_board_nudge` — different copy
       ("a while back you said yes…") and it *may* fire for a user who got the 48h
       nudge weeks earlier (the two flags are independent), but only ever once.

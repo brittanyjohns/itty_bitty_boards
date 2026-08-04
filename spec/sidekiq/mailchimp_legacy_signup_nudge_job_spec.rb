@@ -104,6 +104,43 @@ RSpec.describe MailchimpLegacySignupNudgeJob, type: :job do
       end
     end
 
+    # This is the only nudge with no upper bound on its window, so one run
+    # could otherwise email the entire back catalogue of cold accounts at once.
+    context "the per-run send cap" do
+      before do
+        allow(ENV).to receive(:[]).and_call_original
+      end
+
+      it "stops at LEGACY_SIGNUP_NUDGE_MAX_PER_RUN and leaves the rest unflagged" do
+        3.times { create_legacy_user }
+        allow(ENV).to receive(:[]).with("LEGACY_SIGNUP_NUDGE_MAX_PER_RUN").and_return("2")
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(2)
+
+        flagged = User.where("settings @> ?", { "legacy_signup_nudge_sent" => true }.to_json)
+        expect(flagged.count).to eq(2)
+      end
+
+      it "picks the remainder up on the next run" do
+        3.times { create_legacy_user }
+        allow(ENV).to receive(:[]).with("LEGACY_SIGNUP_NUDGE_MAX_PER_RUN").and_return("2")
+
+        job.perform
+        expect { described_class.new.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+      end
+
+      it "sends everything when the cap is explicitly disabled with 0" do
+        3.times { create_legacy_user }
+        allow(ENV).to receive(:[]).with("LEGACY_SIGNUP_NUDGE_MAX_PER_RUN").and_return("0")
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(3)
+      end
+
+      it "defaults to 100 rather than unlimited" do
+        expect(job.send(:max_per_run)).to eq(100)
+      end
+    end
+
     context "when one user's save raises" do
       it "logs and continues processing the rest" do
         user_a = create_legacy_user

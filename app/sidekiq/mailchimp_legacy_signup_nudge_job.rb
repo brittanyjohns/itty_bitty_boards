@@ -13,6 +13,7 @@
 # Thresholds are ENV-tunable to match the repo's other limit knobs:
 #   LEGACY_SIGNUP_NUDGE_AGE_DAYS       (default 30) — min account age
 #   LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS  (default 30) — min days since last sign-in
+#   LEGACY_SIGNUP_NUDGE_MAX_PER_RUN    (default 100) — send ceiling, 0 = no cap
 #
 # Failure-isolated per user (a bad row logs and continues), mirroring
 # DowngradeSoftTrialJob / MailchimpFirstBoardNudgeJob.
@@ -31,8 +32,15 @@ class MailchimpLegacySignupNudgeJob
     end
 
     count = 0
+    cap = max_per_run
+    capped = false
 
     eligible_users.find_each do |user|
+      if cap.positive? && count >= cap
+        capped = true
+        break
+      end
+
       next if already_nudged?(user)
       next if recently_active?(user)
       next if user.boards.any?
@@ -43,10 +51,26 @@ class MailchimpLegacySignupNudgeJob
       Rails.logger.error "MailchimpLegacySignupNudgeJob: failed for user #{user.id} - #{e.message}"
     end
 
-    Rails.logger.info "MailchimpLegacySignupNudgeJob: completed — #{count} user(s) nudged"
+    if capped
+      Rails.logger.info "MailchimpLegacySignupNudgeJob: completed — #{count} user(s) nudged (hit the #{cap}/run cap; the rest go out next month)"
+    else
+      Rails.logger.info "MailchimpLegacySignupNudgeJob: completed — #{count} user(s) nudged"
+    end
   end
 
   private
+
+  # Ceiling on how many nudges one run may send. This job is the only nudge
+  # that can face an unbounded backlog: its window has no upper bound (every
+  # cold account ever), so a single run could email the entire back catalogue
+  # at once — the fastest way to draw spam complaints and damage the sending
+  # domain's reputation, which then degrades transactional mail too. The
+  # per-user flag makes the work resumable, so a cap just spreads the backlog
+  # over consecutive monthly runs. Set LEGACY_SIGNUP_NUDGE_MAX_PER_RUN=0 to
+  # disable the cap and send everything (deliberate, not the default).
+  def max_per_run
+    (ENV["LEGACY_SIGNUP_NUDGE_MAX_PER_RUN"] || 100).to_i
+  end
 
   def signup_age
     (ENV["LEGACY_SIGNUP_NUDGE_AGE_DAYS"] || 30).to_i.days
