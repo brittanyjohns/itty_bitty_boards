@@ -24,6 +24,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   so a missing journey ID no longer permanently disqualifies everyone it
   touched. New `mailchimp:nudge_flags:report` / `:clear[<flag>]` rake tasks
   (dry-run by default) repair anyone already stuck that way.
+- **The first-board nudge no longer misses people when a run is skipped.**
+  Eligibility was a single 24-hour band, so a user was reachable on exactly one
+  day — two missed runs and that day's signups were skipped forever, with
+  nothing to catch them. It's now a 48h–14d catch-up window (capped at 100
+  sends per run); the per-user flag still guarantees nobody is nudged twice.
 - **The monthly re-engagement email is now capped at 100 sends per run**
   (`LEGACY_SIGNUP_NUDGE_MAX_PER_RUN`). It's the only nudge with no upper bound
   on how far back it reaches, so with the selection bug fixed a single run

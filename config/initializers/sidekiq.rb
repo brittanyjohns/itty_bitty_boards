@@ -46,7 +46,7 @@ Sidekiq.configure_server do |config|
       "cron" => "0 4 * * *",
       "class" => "MailchimpFirstBoardNudgeJob",
       "queue" => "default",
-      "description" => "Daily Mailchimp Customer Journey trigger for users who signed up 48-72h ago without making a board. Runs at 4am UTC, after DowngradeSoftTrialJob (2am) and RefreshFreeTierCreditsJob (3am). Flags user.settings[\"first_board_nudge_sent\"] so each user is only nudged once.",
+      "description" => "Daily Mailchimp Customer Journey trigger for users who signed up between FIRST_BOARD_NUDGE_MIN_AGE_HOURS (48) and FIRST_BOARD_NUDGE_MAX_AGE_DAYS (14) ago without making a board, capped at FIRST_BOARD_NUDGE_MAX_PER_RUN (100) sends per run. Runs at 4am UTC, after DowngradeSoftTrialJob (2am) and RefreshFreeTierCreditsJob (3am). Flags user.settings[\"first_board_nudge_sent\"] so each user is only nudged once — the flag, not the window width, is what guarantees once-only, so the window is deliberately wide enough to catch users whose nudge day was missed.",
     },
     "mailchimp_legacy_signup_nudge" => {
       "cron" => "0 5 1 * *",

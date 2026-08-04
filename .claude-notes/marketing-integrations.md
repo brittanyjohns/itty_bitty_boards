@@ -58,10 +58,15 @@ GitHub build). Two distinct uses:
       Free-only; deduped per user for 14 days via `Rails.cache` so a user
       mashing the create button isn't spammed.
     - `first_board_nudge` — enqueued by `MailchimpFirstBoardNudgeJob` (daily
-      at 4am UTC) for non-admin users who signed up 48-72h ago with no boards.
-      The `user.settings["first_board_nudge_sent"]` flag prevents re-nudging
-      across runs. Window has 24h slop so a single missed cron run doesn't
-      permanently skip users.
+      at 4am UTC) for non-admin users who signed up between
+      `FIRST_BOARD_NUDGE_MIN_AGE_HOURS` (48) and `FIRST_BOARD_NUDGE_MAX_AGE_DAYS`
+      (14 days) ago with no boards, capped at `FIRST_BOARD_NUDGE_MAX_PER_RUN`
+      (100) per run. **The window is a catch-up sweep, not a one-day band, and
+      once-only delivery comes from the `first_board_nudge_sent` flag — never
+      from the window's narrowness.** The original 72h..48h band gave each user
+      a single day of eligibility, so two missed runs aged that day's cohort
+      out permanently with nothing sweeping for them afterwards. Don't narrow
+      it back; the flag is what prevents a second send.
     - `legacy_signup_nudge` — enqueued by `MailchimpLegacySignupNudgeJob`
       (monthly, 5am UTC on the 1st) re-engaging cold legacy signups: non-admin
       users created over `LEGACY_SIGNUP_NUDGE_AGE_DAYS` (default 30) ago, no

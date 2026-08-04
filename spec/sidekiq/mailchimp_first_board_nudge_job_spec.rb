@@ -84,10 +84,68 @@ RSpec.describe MailchimpFirstBoardNudgeJob, type: :job do
       end
     end
 
-    context "when the user signed up more than 72h ago" do
-      it "is skipped (already missed the window)" do
-        create_eligible_user(created_at: 5.days.ago)
+    # The window is a catch-up sweep, not a single-day band — a user whose own
+    # eligibility day was missed (outage, two skipped runs) must still be
+    # reachable, since nothing else sweeps for them.
+    context "when a user's nudge day was missed" do
+      it "still nudges someone who signed up 5 days ago" do
+        user = create_eligible_user(created_at: 5.days.ago)
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+        expect(MailchimpEventJob.jobs.last["args"].first).to eq(user.id)
+      end
+
+      it "still nudges someone at the far edge of the window (13 days)" do
+        create_eligible_user(created_at: 13.days.ago)
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+      end
+    end
+
+    context "when the user signed up longer ago than the window" do
+      it "is skipped — stale, and legacy_signup_nudge owns that cohort" do
+        create_eligible_user(created_at: 20.days.ago)
         expect { job.perform }.not_to change(MailchimpEventJob.jobs, :size)
+      end
+    end
+
+    context "ENV threshold overrides" do
+      before { allow(ENV).to receive(:[]).and_call_original }
+
+      it "honors FIRST_BOARD_NUDGE_MAX_AGE_DAYS" do
+        create_eligible_user(created_at: 10.days.ago)
+        allow(ENV).to receive(:[]).with("FIRST_BOARD_NUDGE_MAX_AGE_DAYS").and_return("7")
+
+        expect { job.perform }.not_to change(MailchimpEventJob.jobs, :size)
+      end
+
+      it "honors FIRST_BOARD_NUDGE_MIN_AGE_HOURS" do
+        create_eligible_user(created_at: 24.hours.ago)
+        allow(ENV).to receive(:[]).with("FIRST_BOARD_NUDGE_MIN_AGE_HOURS").and_return("12")
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+      end
+    end
+
+    context "the per-run send cap" do
+      before { allow(ENV).to receive(:[]).and_call_original }
+
+      it "stops at FIRST_BOARD_NUDGE_MAX_PER_RUN and leaves the rest unflagged" do
+        3.times { |i| create_eligible_user(created_at: (3 + i).days.ago) }
+        allow(ENV).to receive(:[]).with("FIRST_BOARD_NUDGE_MAX_PER_RUN").and_return("2")
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(2)
+        expect(User.where("settings @> ?", { "first_board_nudge_sent" => true }.to_json).count).to eq(2)
+      end
+
+      it "picks the remainder up on the next run" do
+        3.times { |i| create_eligible_user(created_at: (3 + i).days.ago) }
+        allow(ENV).to receive(:[]).with("FIRST_BOARD_NUDGE_MAX_PER_RUN").and_return("2")
+
+        job.perform
+        expect { described_class.new.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+      end
+
+      it "defaults to 100 rather than unlimited" do
+        expect(job.send(:max_per_run)).to eq(100)
       end
     end
 
