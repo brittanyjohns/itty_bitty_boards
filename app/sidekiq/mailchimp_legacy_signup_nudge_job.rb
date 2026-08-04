@@ -22,8 +22,14 @@ class MailchimpLegacySignupNudgeJob
   sidekiq_options queue: :default, retry: 3
 
   SETTINGS_FLAG = "legacy_signup_nudge_sent".freeze
+  JOURNEY_KEY = "legacy_signup_nudge".freeze
 
   def perform
+    unless MailchimpClient.journey_deliverable?(JOURNEY_KEY)
+      Rails.logger.warn "MailchimpLegacySignupNudgeJob: journey '#{JOURNEY_KEY}' is disabled or unconfigured — skipping without flagging anyone"
+      return
+    end
+
     count = 0
 
     eligible_users.find_each do |user|
@@ -50,9 +56,11 @@ class MailchimpLegacySignupNudgeJob
     (ENV["LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS"] || 30).to_i.days
   end
 
+  # `User.non_admin` is NULL-safe; `where.not(role: "admin")` is not (see
+  # MailchimpFirstBoardNudgeJob).
   def eligible_users
     User
-      .where.not(role: "admin")
+      .non_admin
       .where("created_at < ?", signup_age.ago)
   end
 
@@ -69,7 +77,7 @@ class MailchimpLegacySignupNudgeJob
   end
 
   def enqueue_and_flag(user)
-    MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "legacy_signup_nudge" })
+    MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => JOURNEY_KEY })
     user.settings = (user.settings || {}).merge(SETTINGS_FLAG => true)
     user.save!
   end

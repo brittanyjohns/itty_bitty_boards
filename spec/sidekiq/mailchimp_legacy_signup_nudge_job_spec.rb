@@ -3,7 +3,10 @@ require "rails_helper"
 RSpec.describe MailchimpLegacySignupNudgeJob, type: :job do
   subject(:job) { described_class.new }
 
-  before { MailchimpEventJob.clear }
+  before do
+    MailchimpEventJob.clear
+    allow(MailchimpClient).to receive(:journey_deliverable?).with("legacy_signup_nudge").and_return(true)
+  end
 
   # Eligible by default: created 90d ago, last sign-in 60d ago, no boards.
   def create_legacy_user(overrides = {})
@@ -28,6 +31,13 @@ RSpec.describe MailchimpLegacySignupNudgeJob, type: :job do
         user = create_legacy_user
         job.perform
         expect(user.reload.settings["legacy_signup_nudge_sent"]).to eq(true)
+      end
+
+      it "nudges a user with no role — role is nullable and `where.not` would drop them" do
+        user = create_legacy_user(role: nil)
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+        expect(MailchimpEventJob.jobs.last["args"].first).to eq(user.id)
       end
 
       it "still fires for a user who already got the 48h first_board_nudge (second touch)" do

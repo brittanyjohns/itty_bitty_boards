@@ -3,7 +3,10 @@ require "rails_helper"
 RSpec.describe MailchimpFirstBoardNudgeJob, type: :job do
   subject(:job) { described_class.new }
 
-  before { MailchimpEventJob.clear }
+  before do
+    MailchimpEventJob.clear
+    allow(MailchimpClient).to receive(:journey_deliverable?).with("first_board_nudge").and_return(true)
+  end
 
   def create_eligible_user(overrides = {})
     user = create(:user, **overrides.except(:created_at))
@@ -26,6 +29,26 @@ RSpec.describe MailchimpFirstBoardNudgeJob, type: :job do
         user = create_eligible_user
         job.perform
         expect(user.reload.settings["first_board_nudge_sent"]).to eq(true)
+      end
+    end
+
+    context "when the user has no role (the shape every password signup has)" do
+      it "is still nudged — role is nullable and `where.not` would drop them" do
+        user = create_eligible_user(role: nil)
+        expect(user.reload.role).to be_nil
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+        expect(MailchimpEventJob.jobs.last["args"].first).to eq(user.id)
+      end
+    end
+
+    context "when the journey is unconfigured or journeys are disabled" do
+      it "nudges nobody and leaves the flag unset so the backlog survives" do
+        allow(MailchimpClient).to receive(:journey_deliverable?).with("first_board_nudge").and_return(false)
+        user = create_eligible_user
+
+        expect { job.perform }.not_to change(MailchimpEventJob.jobs, :size)
+        expect(user.reload.settings["first_board_nudge_sent"]).not_to eq(true)
       end
     end
 

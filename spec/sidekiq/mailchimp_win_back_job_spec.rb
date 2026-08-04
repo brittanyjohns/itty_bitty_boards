@@ -3,7 +3,10 @@ require "rails_helper"
 RSpec.describe MailchimpWinBackJob, type: :job do
   subject(:job) { described_class.new }
 
-  before { MailchimpEventJob.clear }
+  before do
+    MailchimpEventJob.clear
+    allow(MailchimpClient).to receive(:journey_deliverable?).with("win_back").and_return(true)
+  end
 
   # Eligible by default: last sign-in 21 days ago (inside the 14-30d window),
   # with one board. Caller adds boards as needed.
@@ -30,6 +33,16 @@ RSpec.describe MailchimpWinBackJob, type: :job do
 
         job.perform
         expect(user.reload.settings["win_back_nudge_sent"]).to eq(true)
+      end
+    end
+
+    context "when the user has no role (the shape every password signup has)" do
+      it "is still nudged — role is nullable and `where.not` would drop them" do
+        user = create_dormant_user(role: nil)
+        create(:board, user: user)
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+        expect(MailchimpEventJob.jobs.last["args"].first).to eq(user.id)
       end
     end
 

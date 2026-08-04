@@ -57,4 +57,30 @@ RSpec.describe MailchimpClient do
       expect(MailchimpClient.journeys_enabled?).to be false
     end
   end
+
+  # The nudge crons gate their permanent per-user "already nudged" flags on
+  # this, so an unconfigured journey must read as not-deliverable rather than
+  # burning the backlog.
+  describe ".journey_deliverable?" do
+    it "is true only when journeys are enabled AND the key is configured" do
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
+      allow(MailchimpClient).to receive(:journey).with("first_board_nudge")
+        .and_return({ journey_id: 1, step_id: 2 })
+
+      expect(MailchimpClient.journey_deliverable?("first_board_nudge")).to be true
+    end
+
+    it "is false when the journey's ENV pair is missing" do
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
+      allow(MailchimpClient).to receive(:journey).with("first_board_nudge").and_return(nil)
+
+      expect(MailchimpClient.journey_deliverable?("first_board_nudge")).to be false
+    end
+
+    it "is false when journeys are disabled for the environment" do
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(false)
+
+      expect(MailchimpClient.journey_deliverable?("first_board_nudge")).to be false
+    end
+  end
 end

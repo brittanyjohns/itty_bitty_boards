@@ -57,11 +57,16 @@ module API
           if user.role == "partner"
             user.send_partner_welcome_email
           end
+          # Audience upsert BEFORE the journey trigger: a journey can only be
+          # triggered for a contact that already exists, and Sidekiq runs these
+          # concurrently. Enqueue order isn't a guarantee — MailchimpService
+          # #trigger_journey still upserts-and-retries when it loses the race —
+          # but there's no reason to hand the trigger a head start.
+          MailchimpEventJob.perform_async(user.id, "sign_up")
           if params["plan_type"] != "partner_pro" && user.should_send_welcome_email?
             user.send_welcome_email("free")
             MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end
-          MailchimpEventJob.perform_async(user.id, "sign_up")
           PosthogService.capture_for_user(user, "user_signed_up", properties: {
             signup_method: "standard",
             plan_type: user.plan_type,
@@ -150,11 +155,12 @@ module API
         # plan-neutral receipt now. The real plan welcome ships from the Stripe
         # webhook once trial/active. The Mailchimp `welcome` journey is still
         # enqueued here (follow-up: make journey plan-aware too).
+        # Audience upsert first — see the note in #sign_up.
+        MailchimpEventJob.perform_async(user.id, "sign_up")
         if user.should_send_welcome_receipt_email?
           user.send_welcome_receipt_email(raw_invitation_token: raw_invitation_token)
           MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
         end
-        MailchimpEventJob.perform_async(user.id, "sign_up")
         PosthogService.capture_for_user(user, "user_signed_up", properties: {
           signup_method: "email_only",
           plan_type: user.plan_type,
@@ -278,11 +284,12 @@ module API
         if is_new_user
           user.record_signup_context!(platform: platform, method: "google", ref: params[:ref])
           user.notify_admin_of_signup!
+          # Audience upsert first — see the note in #sign_up.
+          MailchimpEventJob.perform_async(user.id, "sign_up")
           if user.should_send_welcome_email?
             user.send_welcome_email("free")
             MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end
-          MailchimpEventJob.perform_async(user.id, "sign_up")
           PosthogService.capture_for_user(user, "user_signed_up", properties: {
             signup_method: "google",
             plan_type: user.plan_type,

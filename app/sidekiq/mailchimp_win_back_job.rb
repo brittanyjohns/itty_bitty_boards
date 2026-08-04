@@ -20,8 +20,14 @@ class MailchimpWinBackJob
   sidekiq_options queue: :default, retry: 3
 
   SETTINGS_FLAG = "win_back_nudge_sent".freeze
+  JOURNEY_KEY = "win_back".freeze
 
   def perform
+    unless MailchimpClient.journey_deliverable?(JOURNEY_KEY)
+      Rails.logger.warn "MailchimpWinBackJob: journey '#{JOURNEY_KEY}' is disabled or unconfigured — skipping without flagging anyone"
+      return
+    end
+
     count = 0
 
     eligible_users.find_each do |user|
@@ -48,9 +54,11 @@ class MailchimpWinBackJob
   end
 
   # last_sign_in_at between (max ago) and (min ago) — i.e. dormant 14-30 days.
+  # `User.non_admin` is NULL-safe; `where.not(role: "admin")` is not (see
+  # MailchimpFirstBoardNudgeJob).
   def eligible_users
     User
-      .where.not(role: "admin")
+      .non_admin
       .where(last_sign_in_at: dormant_max.ago..dormant_min.ago)
   end
 
@@ -59,7 +67,7 @@ class MailchimpWinBackJob
   end
 
   def enqueue_and_flag(user)
-    MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "win_back" })
+    MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => JOURNEY_KEY })
     user.settings = (user.settings || {}).merge(SETTINGS_FLAG => true)
     user.save!
   end

@@ -174,7 +174,66 @@ RSpec.describe MailchimpService do
         .and_raise(MailchimpMarketing::ApiError.new(status: 404, message: "Not Found"))
 
       expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to be_nil
-      expect(journeys).to have_received(:trigger).once
+      # One retry, then give up — `attempted_subscribe` is the loop guard.
+      expect(journeys).to have_received(:trigger).twice
+    end
+
+    # The signup race: `auths#sign_up` enqueues the journey trigger and the
+    # audience upsert as sibling Sidekiq jobs, so the trigger routinely runs
+    # first. Mailchimp reports the missing contact as a 400, NOT a 404 — when
+    # only 404 was retried, every racing signup silently lost its welcome email.
+    context "when Mailchimp 400s because the contact isn't in the audience yet" do
+      let(:contact_missing_400) do
+        MailchimpMarketing::ApiError.new(
+          status: 400,
+          response_body: '{"title":"Bad Request","status":400,"detail":"This request can only be made with existing emails in the audience"}'
+        )
+      end
+
+      it "upserts the contact and retries once" do
+        service = described_class.new
+        allow(service).to receive(:record_new_subscriber).and_return(true)
+
+        calls = 0
+        allow(journeys).to receive(:trigger) do
+          calls += 1
+          raise contact_missing_400 if calls == 1
+          :ok
+        end
+
+        expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to eq(:ok)
+        expect(service).to have_received(:record_new_subscriber).once
+        expect(calls).to eq(2)
+      end
+
+      # The other half of the race: the sibling job's upsert lands first, so
+      # ours comes back "Member Exists" and record_new_subscriber returns nil.
+      # The contact exists all the same, so the retry must still happen.
+      it "retries even when the upsert itself fails (contact already created by the racing job)" do
+        service = described_class.new
+        allow(service).to receive(:record_new_subscriber).and_return(nil)
+
+        calls = 0
+        allow(journeys).to receive(:trigger) do
+          calls += 1
+          raise contact_missing_400 if calls == 1
+          :ok
+        end
+
+        expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to eq(:ok)
+        expect(calls).to eq(2)
+      end
+
+      it "does not retry an unrelated 400" do
+        service = described_class.new
+        allow(service).to receive(:record_new_subscriber)
+        allow(journeys).to receive(:trigger)
+          .and_raise(MailchimpMarketing::ApiError.new(status: 400, response_body: '{"detail":"Invalid journey id"}'))
+
+        expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to be_nil
+        expect(journeys).to have_received(:trigger).once
+        expect(service).not_to have_received(:record_new_subscriber)
+      end
     end
 
     it "logs and returns nil on other API errors" do
