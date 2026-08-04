@@ -80,6 +80,12 @@ RSpec.describe Board, type: :model do
       expect(cloned.predefined).to be false
     end
 
+    it "does not mark the clone as published" do
+      board.update!(published: true)
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.published).to be false
+    end
+
     it "copies board images to the new board" do
       cloned = board.clone_with_images(user.id)
       expect(cloned.board_images.count).to eq(board.board_images.count)
