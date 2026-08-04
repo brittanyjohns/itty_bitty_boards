@@ -177,17 +177,24 @@ class User < ApplicationRecord
     { INTERNAL_ACCOUNT_FLAG => true }.to_json
   end
 
-  # Columns are table-qualified: this scope gets joined (Mission Control joins
-  # boards for a per-user board count) and `boards` has a `settings` column
-  # too, so a bare reference is ambiguous and the query errors.
+  # Built in Arel rather than a SQL string. The pattern list is variable-length,
+  # so a string fragment would have to interpolate the `?` placeholders — safe
+  # in fact, but indistinguishable from injection to Brakeman, and this reads
+  # better anyway. `matches` compiles to ILIKE on Postgres.
+  #
+  # Columns come out table-qualified, which matters: this scope gets joined
+  # (Mission Control joins boards for a per-user board count) and `boards` has
+  # a `settings` column too, so an unqualified reference is ambiguous.
   scope :demo_accounts, -> {
-    patterns = demo_email_patterns
-    email_sql = Array.new(patterns.size, "users.email ILIKE ?").join(" OR ")
-    non_admin.where(
-      "(#{email_sql}) OR users.settings @> ?",
-      *patterns.map { |p| "%#{p}%" },
-      internal_account_condition
+    table = arel_table
+    email_match = demo_email_patterns
+      .map { |pattern| table[:email].matches("%#{pattern}%") }
+      .reduce(:or)
+    internal_flag = Arel::Nodes::InfixOperation.new(
+      "@>", table[:settings], Arel::Nodes.build_quoted(internal_account_condition)
     )
+
+    non_admin.where(email_match.or(internal_flag))
   }
   # Exact complement of demo_accounts (admins are never demo). Growth/usage
   # metrics use this so internal/test activity doesn't inflate the numbers.
