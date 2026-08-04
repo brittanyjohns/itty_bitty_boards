@@ -1170,6 +1170,30 @@ class API::BoardsController < API::ApplicationController
     render json: @new_board.api_view_with_images(current_user)
   end
 
+  def create_board_group
+    set_board
+    return if @board.nil? # set_board already rendered 404
+
+    unless @board.user_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    existing = @board.eligible_board_group
+    board_group = Boards::BoardGroupCreator.new(board: @board, user: current_user).call
+    status = existing ? :ok : :created
+    # api_view_with_boards omits root_board_id (unlike its sibling api_view) —
+    # merge it in so callers can identify the root board without a second call.
+    view = board_group.api_view_with_boards(current_user).merge(root_board_id: board_group.root_board_id)
+    render json: view, status: status
+  rescue Boards::BoardGroupCreator::LimitReached
+    render json: {
+      error: "You've reached your plan's board set limit. Upgrade to create more.",
+      limit: current_user.board_group_limit,
+      count: current_user.countable_board_group_count,
+    }, status: :unprocessable_content
+  end
+
   def create_from_template
     obf_data = params[:data]
     user_id = current_user.id
