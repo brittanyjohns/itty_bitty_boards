@@ -636,6 +636,38 @@ collections of boards. CRUD is open to any signed-in user;
 - **`add_board` route.** `POST /api/board_groups/:id/add_board/:board_id`
   (`BoardGroup#add_board` does the join + layout init). Beyond the owner-or-admin
   set check, the *board* must belong to the caller or be predefined/public.
+- **On-demand group creation for any linked board.** `POST
+  /api/boards/:id/create_board_group` (`Api::BoardsController#create_board_group`,
+  owner-or-admin gated) lets the "set map" (`Boards::SetGraphBuilder`, `GET
+  /api/board_groups/:id/graph`) work for a board that was hand-linked via
+  folder buttons, not just Board Builder trees. `Boards::BoardGroupCreator`
+  does the work: `Boards::LinkedBoardsFinder` BFS-walks
+  `board_images.predictive_board_id` from the board and every reachable board
+  becomes a member. The group's owner is **always `board.user`** (the board's
+  real owner), never the acting user — an admin creating on behalf of someone
+  else must not end up owning the group, be limited by their own
+  `at_board_group_limit?`, or under/over-count the real owner's usage. When an
+  eligible group already exists, the service reuses it and **re-syncs**
+  membership (re-runs the BFS and adds any newly-reachable board that isn't
+  already a member — never removes existing members) so re-calling the
+  endpoint after adding a new folder link is both idempotent and additive
+  rather than freezing membership at first-creation time. `Board#eligible_board_group(user)`
+  takes the viewing user and filters `board_groups` to that user's own
+  groups — without it, the pre-existing `add_to_groups` ownership hole could
+  let this endpoint hand back another user's full group data. The
+  check-then-create/resync path runs inside `board.with_lock` to close a
+  concurrent-double-POST race.
+  - Two `BoardGroup` quirks are worked around from the outside rather than
+    fixed at the source (kept out of scope for this feature): the
+    `before_create :set_root_board` callback derives `root_board_id` from
+    `boards.first` when the group has no members yet, clobbering an
+    explicitly-passed `root_board_id` back to `nil` — `BoardGroupCreator`
+    re-asserts it with `update!` after populating. And `add_board`'s first
+    call memoizes the (at that point empty) `:boards` association via its own
+    `boards.include?(member)` guard, so a caller that adds several boards and
+    then reads `group.boards` sees a stale, empty-looking cache —
+    `BoardGroupCreator` reloads the group after populating/re-syncing so
+    callers always see the current members.
 
 ## Responsive board layouts (sm/md derived from lg)
 

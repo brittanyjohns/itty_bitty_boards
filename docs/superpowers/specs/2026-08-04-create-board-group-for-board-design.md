@@ -49,9 +49,11 @@ Behavior:
    and `BoardBuilderController#create`).
 3. BFS-discover boards via `Boards::LinkedBoardsFinder.new(board).call`.
 4. In a transaction: create `BoardGroup.new(user: user, name: board.name,
-   builder: false, root_board_id: board.id)`, then
-   `board_group_boards.create!` for each discovered board in BFS order
-   (`position: index`).
+   builder: false, root_board_id: board.id)`, then call `add_board` for each
+   discovered board in BFS order. Membership order follows `add_board`'s own
+   default behavior (it doesn't set an explicit `position`) — this is
+   cosmetic and doesn't affect the graph endpoint, which builds its own
+   edges rather than relying on `position`.
 5. Return the group.
 
 ### Endpoint
@@ -83,7 +85,7 @@ Behavior:
 - `spec/services/boards/linked_boards_finder_spec.rb` — BFS traversal,
   cycles, cap.
 - `spec/services/boards/board_group_creator_spec.rb` — creates a new group
-  with correct members/positions; returns existing eligible group instead of
+  with correct members; returns existing eligible group instead of
   duplicating; raises `LimitReached` at the plan limit.
 - `spec/requests/api/boards_create_board_group_spec.rb` (or added to the
   existing boards request spec) — 401 for non-owner, 422 at limit, 200/201
