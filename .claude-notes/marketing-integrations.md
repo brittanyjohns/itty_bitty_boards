@@ -134,12 +134,16 @@ GitHub build). Two distinct uses:
     `MailchimpClient.journeys_enabled?` returns true in production (and only
     production — staging is excluded via `AppEnv.staging?`); dev/staging fire
     only when `MAILCHIMP_JOURNEYS_ENABLED=true`. CRM sync is **not** gated.
-  - **Demo/internal accounts currently DO get journey emails (temporary).**
-    The #297 `user.demo_user?` guards were reverted on 2026-06-10 so Brittany
-    can end-to-end test the journeys with demo accounts. When testing is done,
-    restore by reverting the revert commit (`git log --grep "Revert.*demo"`).
-    CRM sync was never gated either way — demo contacts stay in the audience,
-    tagged via the `DEMO_USER` merge field.
+  - **Demo/internal accounts get no journey email.** `MailchimpEventJob`'s
+    `"journey"` branch — the single choke point every journey trigger passes
+    through — returns early for `user.demo_user?` (`bhannajohns+*` /
+    `@speakanyway.com`), so demo traffic can't pull real campaign sends or skew
+    a journey's open/click stats. The #297 guards were reverted on 2026-06-10
+    to allow end-to-end testing and reinstated at this single seam instead;
+    **set `MAILCHIMP_JOURNEYS_ALLOW_DEMO=true` to test with a demo account
+    rather than removing the guard again.** CRM sync is deliberately NOT gated
+    — demo contacts stay in the audience, tagged via the `DEMO_USER` merge
+    field.
 
 App transactional email (welcome, password reset) still goes through
 ActionMailer/Gmail SMTP, **not** Mailchimp. True 1:1 transactional via Mailchimp

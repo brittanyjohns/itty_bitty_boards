@@ -24,6 +24,9 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   so a missing journey ID no longer permanently disqualifies everyone it
   touched. New `mailchimp:nudge_flags:report` / `:clear[<flag>]` rake tasks
   (dry-run by default) repair anyone already stuck that way.
+- **Demo and internal accounts no longer receive marketing journey emails,**
+  so test traffic can't consume real campaign sends or distort a journey's
+  open and click rates. They stay in the Mailchimp audience as before.
 
 ### Fixed — exporting a large board as `.obz`
 

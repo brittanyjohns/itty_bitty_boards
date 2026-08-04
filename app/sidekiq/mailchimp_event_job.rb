@@ -20,6 +20,16 @@ class MailchimpEventJob
         Rails.logger.info("[Mailchimp] Journeys disabled; skipping '#{key}' for user #{user_id}")
         return
       end
+      # Demo/internal accounts (bhannajohns+*, @speakanyway.com) don't get
+      # journey email — they'd otherwise pull real campaign sends and skew the
+      # journey's open/click stats. CRM sync is deliberately NOT gated: demo
+      # contacts stay in the audience, tagged via the DEMO_USER merge field.
+      # Set MAILCHIMP_JOURNEYS_ALLOW_DEMO=true to end-to-end test a journey
+      # with a demo account instead of reverting this guard.
+      if user.demo_user? && ENV["MAILCHIMP_JOURNEYS_ALLOW_DEMO"] != "true"
+        Rails.logger.info("[Mailchimp] Demo account; skipping journey '#{key}' for user #{user_id}")
+        return
+      end
       journey = MailchimpClient.journey(key)
       unless journey
         Rails.logger.warn("[Mailchimp] No journey configured for key '#{key}'; skipping")
