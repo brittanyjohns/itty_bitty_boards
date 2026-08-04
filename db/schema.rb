@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_30_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_04_191025) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -158,6 +158,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_30_120000) do
     t.jsonb "settings", default: {}, null: false
     t.text "description"
     t.boolean "builder", default: false, null: false
+    t.string "status"
     t.index ["builder"], name: "index_board_groups_on_builder"
     t.index ["description"], name: "index_board_groups_on_description"
     t.index ["featured"], name: "index_board_groups_on_featured"

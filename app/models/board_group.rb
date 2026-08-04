@@ -24,6 +24,7 @@
 #  settings              :jsonb            not null
 #  description           :text
 #  builder               :boolean          default(FALSE), not null
+#  status                :string
 #
 class BoardGroup < ApplicationRecord
   # has_many :board_group_boards, dependent: :destroy
@@ -33,6 +34,11 @@ class BoardGroup < ApplicationRecord
   has_many :images, through: :board_images
   belongs_to :user
   belongs_to :root_board, class_name: "Board", optional: true
+
+  # Holds the raw uploaded .obz while ImportObzJob processes it in the
+  # background — the file must be durable Sidekiq args, since 20+MB of zip
+  # bytes don't belong in a Redis-backed job payload.
+  has_one_attached :import_source_file
 
   scope :predefined, -> { where(predefined: true) }
   scope :builder, -> { where(builder: true) }
@@ -127,6 +133,14 @@ class BoardGroup < ApplicationRecord
       return cover.display_image_url if cover
     end
     read_attribute(:display_image_url)
+  end
+
+  # Delegates to the root board's rendered preview once import/build has
+  # produced one. Used by the frontend's generic generation-status poller
+  # (BoardGenerationStatusPage) while status is still "queued"/"processing" —
+  # nil is a normal, expected value there, not an error.
+  def preview_image_url
+    root_board&.preview_image_url
   end
 
   def etsy_link
@@ -273,11 +287,14 @@ class BoardGroup < ApplicationRecord
       small_screen_columns: small_screen_columns,
       medium_screen_columns: medium_screen_columns,
       large_screen_columns: large_screen_columns,
+      root_board_id: root_board_id,
       settings: settings,
       margin_settings: margin_settings,
       slug: slug,
       public_url: public_url,
       featured: featured,
+      status: status,
+      preview_image_url: preview_image_url,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       boards: cached_board_group_boards.map do |board_group_board|
         board = board_group_board.board

@@ -12,16 +12,37 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "imports a .obz file and creates a board for the user" do
+    # Sidekiq::Testing.fake! queues are process-global and nothing in the
+    # suite clears them between examples, so a job enqueued by a previous
+    # example would otherwise drain into this one's assertions.
+    before { ImportObzJob.jobs.clear }
+
+    it "accepts the .obz upload and queues the import instead of blocking" do
       expect {
         post "/api/boards/import_obf",
              params: { file: obz_upload },
              headers: auth_headers(user)
-      }.to change { user.boards.count }.by(1)
-      expect(response).to have_http_status(:ok)
+      }.to change { ImportObzJob.jobs.size }.by(1)
+
+      expect(user.boards.count).to eq(0)
+      expect(response).to have_http_status(:accepted)
       body = JSON.parse(response.body)
       expect(body["status"]).to eq("ok")
-      expect(body["root_board_id"]).to be_present
+      expect(body["board_group_id"]).to be_present
+      expect(body["import_status"]).to eq("queued")
+    end
+
+    it "creates the board(s) once the queued job runs" do
+      post "/api/boards/import_obf",
+           params: { file: obz_upload },
+           headers: auth_headers(user)
+      board_group_id = JSON.parse(response.body)["board_group_id"]
+
+      expect { ImportObzJob.drain }.to change { user.boards.count }.by(1)
+
+      board_group = BoardGroup.find(board_group_id)
+      expect(board_group.status).to eq("complete")
+      expect(board_group.root_board_id).to be_present
     end
 
     # A bare .obf is a single JSON board document. It used to fall through to
@@ -144,18 +165,19 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
         Rack::Test::UploadedFile.new(obz_path, "application/zip")
       end
 
-      it "succeeds without opt-in and reports include_images=false" do
+      it "queues without opt-in and reports include_images=false" do
         post "/api/boards/import_obf",
              params: { file: fresh_upload },
              headers: auth_headers(user)
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:accepted)
         expect(JSON.parse(response.body)["include_images"]).to eq(false)
       end
 
-      it "marks all newly-created Images as is_private" do
+      it "marks all newly-created Images as is_private once the job runs" do
         post "/api/boards/import_obf",
              params: { file: fresh_upload },
              headers: auth_headers(user)
+        ImportObzJob.drain
         expect(user.images.where(label: ["happy", "sad"]).pluck(:is_private)).to all(eq(true))
       end
 
@@ -167,7 +189,7 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
         expect(JSON.parse(response.body)["error"]).to eq("image_license_required")
       end
 
-      it "succeeds and persists the audit when include_images=true with ack" do
+      it "queues with the ack and persists the audit once the job runs" do
         post "/api/boards/import_obf",
              params: {
                file: fresh_upload,
@@ -175,9 +197,11 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
                image_license_acknowledged: "true",
              },
              headers: auth_headers(user)
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:accepted)
         body = JSON.parse(response.body)
         expect(body["include_images"]).to eq(true)
+
+        ImportObzJob.drain
 
         bg = BoardGroup.find(body["board_group_id"])
         expect(bg.settings["imported_from_obf"]).to include(

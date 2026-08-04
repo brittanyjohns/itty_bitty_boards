@@ -707,25 +707,23 @@ class API::BoardsController < API::ApplicationController
 
       if file_extension == ".obz"
         begin
-          @board_group = BoardGroup.create!(name: group_name, user_id: current_user.id)
-          result = ObzImporter.new(
-            uploaded_file.read, current_user,
-            board_group: @board_group, import_all: true,
-            import_options: import_options,
-          ).import!
+          @board_group = BoardGroup.create!(name: group_name, user_id: current_user.id, status: "queued")
+          @board_group.import_source_file.attach(uploaded_file)
         rescue => e
           Rails.logger.error "OBZ import failed: #{e.message}"
           render json: { error: "OBZ import failed: #{e.message}" }, status: :unprocessable_content
           return
         end
 
+        ImportObzJob.perform_async(@board_group.id, current_user.id, import_options.stringify_keys)
+
         render json: {
           status: "ok",
-          message: "Imported OBZ file #{file_name}",
+          message: "Importing OBZ file #{file_name}",
           board_group_id: @board_group.id,
-          root_board_id: result[:root_board]&.id,
+          import_status: @board_group.status,
           include_images: import_options[:include_images],
-        }
+        }, status: :accepted
       elsif file_extension == ".obf"
         json_data = parse_obf_upload(uploaded_file)
         unless json_data
