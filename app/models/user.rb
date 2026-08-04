@@ -148,7 +148,47 @@ class User < ApplicationRecord
   scope :partner, -> { where(role: "partner") }
 
   scope :non_admin, -> { where("role IS NULL OR role != ?", "admin") }
-  scope :demo_accounts, -> { non_admin.where("email LIKE ? OR email LIKE ?", "%bhannajohns+%", "%@speakanyway.com") }
+  # Demo/internal accounts, recognised two ways:
+  #   1. an email matching a known pattern (below, extensible via ENV), or
+  #   2. an explicit settings["internal_account"] = true marker.
+  #
+  # (2) exists because pattern-matching alone kept missing real test accounts:
+  # a testing session created speakanyway@gmail.com, testaria@gmail.com,
+  # speak@test.com and friends, none of which match "@speakanyway.com", and
+  # they went on to consume journey sends, bounce, and pollute growth metrics.
+  # Mark those by hand with `users:internal:mark` rather than inventing ever
+  # broader patterns that risk catching a real customer.
+  #
+  # This scope and #demo_user? MUST stay in agreement — the scope drives
+  # admin/Mission Control metrics while the predicate gates Mailchimp journey
+  # sends, so a divergence means the dashboards and the emails disagree about
+  # who is real. Both derive from .demo_email_patterns + the same flag.
+  DEMO_EMAIL_PATTERNS = ["bhannajohns+", "@speakanyway.com"].freeze
+  INTERNAL_ACCOUNT_FLAG = "internal_account".freeze
+
+  # Additional substrings via DEMO_EMAIL_PATTERNS (comma-separated), so a new
+  # test-account convention doesn't need a deploy.
+  def self.demo_email_patterns
+    extra = ENV["DEMO_EMAIL_PATTERNS"].to_s.split(",").map(&:strip).reject(&:blank?)
+    DEMO_EMAIL_PATTERNS + extra
+  end
+
+  def self.internal_account_condition
+    { INTERNAL_ACCOUNT_FLAG => true }.to_json
+  end
+
+  # Columns are table-qualified: this scope gets joined (Mission Control joins
+  # boards for a per-user board count) and `boards` has a `settings` column
+  # too, so a bare reference is ambiguous and the query errors.
+  scope :demo_accounts, -> {
+    patterns = demo_email_patterns
+    email_sql = Array.new(patterns.size, "users.email ILIKE ?").join(" OR ")
+    non_admin.where(
+      "(#{email_sql}) OR users.settings @> ?",
+      *patterns.map { |p| "%#{p}%" },
+      internal_account_condition
+    )
+  }
   # Exact complement of demo_accounts (admins are never demo). Growth/usage
   # metrics use this so internal/test activity doesn't inflate the numbers.
   scope :non_demo, -> { where.not(id: demo_accounts.select(:id)) }
@@ -1354,8 +1394,22 @@ class User < ApplicationRecord
     Rails.logger.error "Mailchimp tag update failed: #{e.message}"
   end
 
+  # Ruby counterpart of the demo_accounts scope — keep the two in agreement
+  # (see the scope's note). Gates Mailchimp journey sends and the DEMO_USER
+  # merge field.
   def demo_user?
-    email.include?("bhannajohns+") || email.include?("@speakanyway.com")
+    return true if settings.is_a?(Hash) && settings[INTERNAL_ACCOUNT_FLAG] == true
+
+    address = email.to_s.downcase
+    self.class.demo_email_patterns.any? { |pattern| address.include?(pattern.downcase) }
+  end
+
+  def mark_internal!
+    update!(settings: (settings || {}).merge(INTERNAL_ACCOUNT_FLAG => true))
+  end
+
+  def unmark_internal!
+    update!(settings: (settings || {}).except(INTERNAL_ACCOUNT_FLAG))
   end
 
   def partner_pro?

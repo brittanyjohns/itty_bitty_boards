@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — test accounts counted as real users
+
+- **Internal test accounts can now be marked as such explicitly.** Demo
+  accounts were recognised only by email pattern (`bhannajohns+…`,
+  `@speakanyway.com`), so test accounts created under ordinary-looking
+  addresses were treated as real customers — consuming marketing emails,
+  bouncing when the address wasn't deliverable, and inflating growth metrics.
+  Accounts can now be flagged directly, and the flag is respected everywhere
+  demo accounts are already excluded.
+
 ### Fixed — onboarding emails that were never being sent
 
 - **The "make your first board" nudge now actually reaches people.** The daily
