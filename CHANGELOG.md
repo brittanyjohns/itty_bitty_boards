@@ -34,6 +34,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   on how far back it reaches, so with the selection bug fixed a single run
   could otherwise email every dormant account at once. The backlog drains
   across consecutive monthly runs instead.
+- **No one receives two marketing emails back to back.** Journey emails are
+  triggered from independent places that can coincide — a signup welcome and a
+  subscription-started email minutes apart, or two nightly nudges half an hour
+  apart. A minimum 4-hour gap per person is now enforced centrally; a message
+  that would arrive too soon is delayed rather than dropped.
+- **The win-back email is capped at 100 sends per run** (`WIN_BACK_MAX_PER_RUN`),
+  matching the other nudges.
 - **Demo and internal accounts no longer receive marketing journey emails,**
   so test traffic can't consume real campaign sends or distort a journey's
   open and click rates. They stay in the Mailchimp audience as before.

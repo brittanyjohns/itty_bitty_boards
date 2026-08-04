@@ -58,7 +58,7 @@ Sidekiq.configure_server do |config|
       "cron" => "30 4 * * *",
       "class" => "MailchimpWinBackJob",
       "queue" => "default",
-      "description" => "Daily Mailchimp Customer Journey trigger (4:30am UTC) re-engaging recently-dormant active users: non-admin users with >=1 board whose last sign-in is WIN_BACK_DORMANT_MIN_DAYS-WIN_BACK_DORMANT_MAX_DAYS (default 14-30) days ago. Flags user.settings[\"win_back_nudge_sent\"] so each user is only nudged once.",
+      "description" => "Daily Mailchimp Customer Journey trigger (4:30am UTC) re-engaging recently-dormant active users: non-admin users with >=1 board whose last sign-in is WIN_BACK_DORMANT_MIN_DAYS-WIN_BACK_DORMANT_MAX_DAYS (default 14-30) days ago. Flags user.settings[\"win_back_nudge_sent\"] so each user is only nudged once, capped at WIN_BACK_MAX_PER_RUN (default 100) sends per run.",
     },
     "revenuecat_trial_ending" => {
       "cron" => "0 5 * * *",

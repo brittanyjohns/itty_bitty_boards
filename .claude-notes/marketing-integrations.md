@@ -119,6 +119,19 @@ GitHub build). Two distinct uses:
       (the single conversion seam — paid start or trial→paid) enqueues the same
       journey, so mobile subscribers get it too. The webhook's event-idempotency
       gate prevents double-sends.
+  - **No two journey emails to the same person inside
+    `MAILCHIMP_JOURNEY_MIN_GAP_HOURS` (default 4).** Enforced in
+    `MailchimpEventJob`'s `"journey"` branch — the single seam every trigger
+    passes through — because the triggering seams are independent and routinely
+    coincide (`email_signup` fires `welcome`, then the Stripe webhook fires
+    `subscription_started` minutes later; the nudge crons run 04:00 and 04:30).
+    A throttled trigger is **re-enqueued with jitter, not dropped**, so the
+    email still arrives; after `MAX_DEFERS` (3) attempts it's abandoned with a
+    warn rather than deferred forever. The quiet period starts only on a
+    trigger that actually reached Mailchimp — a failed one must not suppress
+    the next journey. Backed by `Rails.cache` (Redis, fail-open: a blip means
+    sending on time, never swallowing the email), so specs need a real store
+    stubbed in — `:null_store` can't see its own writes.
   - **Two rules every nudge cron (`first_board_nudge`, `legacy_signup_nudge`,
     `win_back`) must follow:**
     1. **Scope with `User.non_admin`, never `where.not(role: "admin")`.**

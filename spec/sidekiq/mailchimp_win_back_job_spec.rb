@@ -46,6 +46,30 @@ RSpec.describe MailchimpWinBackJob, type: :job do
       end
     end
 
+    context "the per-run send cap" do
+      before { allow(ENV).to receive(:[]).and_call_original }
+
+      it "stops at WIN_BACK_MAX_PER_RUN and leaves the rest unflagged" do
+        3.times { create(:board, user: create_dormant_user) }
+        allow(ENV).to receive(:[]).with("WIN_BACK_MAX_PER_RUN").and_return("2")
+
+        expect { job.perform }.to change(MailchimpEventJob.jobs, :size).by(2)
+        expect(User.where("settings @> ?", { "win_back_nudge_sent" => true }.to_json).count).to eq(2)
+      end
+
+      it "picks the remainder up on the next run" do
+        3.times { create(:board, user: create_dormant_user) }
+        allow(ENV).to receive(:[]).with("WIN_BACK_MAX_PER_RUN").and_return("2")
+
+        job.perform
+        expect { described_class.new.perform }.to change(MailchimpEventJob.jobs, :size).by(1)
+      end
+
+      it "defaults to 100 rather than unlimited" do
+        expect(job.send(:max_per_run)).to eq(100)
+      end
+    end
+
     context "when the user has no boards" do
       it "is skipped (distinct from the legacy never-made-a-board journey)" do
         create_dormant_user

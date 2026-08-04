@@ -12,6 +12,7 @@
 # Thresholds ENV-tunable to match the repo's other limit knobs:
 #   WIN_BACK_DORMANT_MIN_DAYS  (default 14)
 #   WIN_BACK_DORMANT_MAX_DAYS  (default 30)
+#   WIN_BACK_MAX_PER_RUN       (default 100) — send ceiling, 0 = no cap
 #
 # Failure-isolated per user (a bad row logs and continues).
 class MailchimpWinBackJob
@@ -29,8 +30,15 @@ class MailchimpWinBackJob
     end
 
     count = 0
+    cap = max_per_run
+    capped = false
 
     eligible_users.find_each do |user|
+      if cap.positive? && count >= cap
+        capped = true
+        break
+      end
+
       next if already_nudged?(user)
       next unless user.boards.any?
 
@@ -40,10 +48,22 @@ class MailchimpWinBackJob
       Rails.logger.error "MailchimpWinBackJob: failed for user #{user.id} - #{e.message}"
     end
 
-    Rails.logger.info "MailchimpWinBackJob: completed — #{count} user(s) nudged"
+    if capped
+      Rails.logger.info "MailchimpWinBackJob: completed — #{count} user(s) nudged (hit the #{cap}/run cap; the rest go out tomorrow)"
+    else
+      Rails.logger.info "MailchimpWinBackJob: completed — #{count} user(s) nudged"
+    end
   end
 
   private
+
+  # Ceiling on one run's sends. The 14-30 day window is self-limiting in steady
+  # state, but the first run after a selection fix (or any extended outage)
+  # faces the whole band at once. Daily cadence drains a capped backlog fast.
+  # Set WIN_BACK_MAX_PER_RUN=0 to disable the cap deliberately.
+  def max_per_run
+    (ENV["WIN_BACK_MAX_PER_RUN"] || 100).to_i
+  end
 
   def dormant_min
     (ENV["WIN_BACK_DORMANT_MIN_DAYS"] || 14).to_i.days
