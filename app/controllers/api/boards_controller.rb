@@ -1179,9 +1179,9 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
-    existing = @board.eligible_board_group
-    board_group = Boards::BoardGroupCreator.new(board: @board, user: current_user).call
-    status = existing ? :ok : :created
+    creator = Boards::BoardGroupCreator.new(board: @board, user: current_user)
+    board_group = creator.call
+    status = creator.created? ? :created : :ok
     # api_view_with_boards omits root_board_id (unlike its sibling api_view) —
     # merge it in so callers can identify the root board without a second call.
     view = board_group.api_view_with_boards(current_user).merge(root_board_id: board_group.root_board_id)

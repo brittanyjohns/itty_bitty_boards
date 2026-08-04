@@ -41,6 +41,16 @@ RSpec.describe "API::Boards#create_board_group", type: :request do
     expect(BoardGroup.where(root_board_id: home.id)).to be_empty
   end
 
+  it "owns the created group by the board's owner when an admin creates it on their behalf" do
+    admin = create(:admin_user)
+
+    post "/api/boards/#{home.id}/create_board_group", headers: auth_headers(admin)
+
+    expect(response).to have_http_status(:created)
+    group = BoardGroup.find(JSON.parse(response.body)["id"])
+    expect(group.user_id).to eq(user.id)
+  end
+
   it "returns the standard board-set-limit 422 shape when the user is at their limit" do
     user.update!(settings: (user.settings || {}).merge("board_group_limit" => 0))
 

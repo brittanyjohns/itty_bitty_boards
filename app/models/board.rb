@@ -244,9 +244,15 @@ class Board < ApplicationRecord
   # mirroring the frontend's eligibleSets() rule in ViewSetMapButton.tsx: a
   # builder set takes priority (that's what the map is built for), otherwise
   # any user-owned non-predefined set. nil when the board has neither.
-  def eligible_board_group
-    board_groups.where(builder: true).first ||
-      board_groups.where(predefined: [false, nil]).first
+  #
+  # Scoped to `user`'s own groups: `board_groups` has no ownership filter of
+  # its own, and (a pre-existing, separate hole) `add_to_groups` lets any
+  # board get added to any group id with no ownership check — so without this
+  # filter a board could surface another user's full group data here even
+  # though the viewer could never actually load that group's map.
+  def eligible_board_group(user)
+    board_groups.where(user: user, builder: true).first ||
+      board_groups.where(user: user, predefined: [false, nil]).first
   end
 
   def retranslate_on_language_change
