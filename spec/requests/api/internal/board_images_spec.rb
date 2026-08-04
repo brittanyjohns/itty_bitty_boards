@@ -112,6 +112,50 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
       bi = board.board_images.last
       expect(bi.data).to include("hide_label" => true)
     end
+
+    context "folder tiles (predictive_board_id)" do
+      let!(:target_board) { create(:board, user: admin_user, name: "Feelings") }
+
+      it "links a tile to another board and reports it as dynamic" do
+        image = create(:image, label: "feelings-folder", user_id: admin_user.id)
+
+        post "/api/internal/boards/#{board.id}/board_images",
+             params: { image_id: image.id, predictive_board_id: target_board.id }.to_json,
+             headers: auth_headers
+
+        expect(response).to have_http_status(:created)
+        bi = board.board_images.last
+        expect(bi.predictive_board_id).to eq(target_board.id)
+        expect(bi.is_dynamic?).to eq(true)
+        expect(JSON.parse(response.body)["dynamic"]).to eq(true)
+      end
+
+      it "degrades to a plain word tile when the target board does not exist" do
+        image = create(:image, label: "dangling-folder", user_id: admin_user.id)
+
+        post "/api/internal/boards/#{board.id}/board_images",
+             params: { image_id: image.id, predictive_board_id: 0 }.to_json,
+             headers: auth_headers
+
+        # check_predictive_board nulls the id rather than raising, which is what
+        # lets this attribute be permitted without extra validation.
+        expect(response).to have_http_status(:created)
+        bi = board.board_images.last
+        expect(bi.predictive_board_id).to be_nil
+        expect(bi.is_dynamic?).to eq(false)
+      end
+
+      it "does not treat a self-link as dynamic" do
+        image = create(:image, label: "self-folder", user_id: admin_user.id)
+
+        post "/api/internal/boards/#{board.id}/board_images",
+             params: { image_id: image.id, predictive_board_id: board.id }.to_json,
+             headers: auth_headers
+
+        expect(response).to have_http_status(:created)
+        expect(board.board_images.last.is_dynamic?).to eq(false)
+      end
+    end
   end
 
   describe "POST /api/internal/boards/:board_id/board_images/bulk" do
@@ -156,6 +200,29 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
       expect(created[0].bg_color).to eq("#FFEA75")
       expect(created[0].data).to include("hide_label" => true)
       expect(created[1].border_width).to eq(6)
+    end
+
+    it "mixes linked folder tiles and plain word tiles in one request" do
+      food = create(:board, user: admin_user, name: "Food")
+      play = create(:board, user: admin_user, name: "Play")
+      word = create(:image, label: "want-bulk", user_id: admin_user.id)
+      food_tile = create(:image, label: "food-folder-bulk", user_id: admin_user.id)
+      play_tile = create(:image, label: "play-folder-bulk", user_id: admin_user.id)
+
+      post "/api/internal/boards/#{board.id}/board_images/bulk",
+           params: {
+             cells: [
+               { image_id: word.id, position: 0 },
+               { image_id: food_tile.id, position: 1, predictive_board_id: food.id },
+               { image_id: play_tile.id, position: 2, predictive_board_id: play.id },
+             ],
+           }.to_json,
+           headers: auth_headers
+
+      expect(response).to have_http_status(:created)
+      created = board.reload.board_images.order(:position).to_a
+      expect(created.map(&:predictive_board_id)).to eq([nil, food.id, play.id])
+      expect(JSON.parse(response.body).map { |c| c["dynamic"] }).to eq([false, true, true])
     end
 
     it "rolls back atomically when any entry is invalid" do
