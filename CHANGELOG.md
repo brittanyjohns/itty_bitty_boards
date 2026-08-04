@@ -5,6 +5,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Any board that links to other boards can now get a Board Set map created
+  for it on demand, not just Board Builder boards.** Previously the
+  bird's-eye "set map" only worked for boards the Board Builder wizard had
+  already grouped; a board you'd hand-linked together with folder buttons
+  had no way to get one. Creating a set now auto-discovers every linked
+  board and keeps picking up newly-added links on repeat use.
 ### Fixed — deleting an account
 
 - **Deleting an account failed outright in production.** Every deletion path —

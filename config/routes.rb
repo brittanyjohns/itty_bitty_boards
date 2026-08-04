@@ -293,6 +293,7 @@ Rails.application.routes.draw do
         put "associate_image"
         put "associate_images"
         post "clone"
+        post "create_board_group"
         put "add_to_team"
         put "add_to_groups"
         post "assign_accounts"

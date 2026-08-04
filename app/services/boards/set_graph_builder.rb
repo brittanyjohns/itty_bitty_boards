@@ -9,10 +9,6 @@ module Boards
   # v1 targets builder sets (the `predictive_board_id` tree keyed on a
   # BoardGroup), but the shape generalizes to any BoardGroup.
   class SetGraphBuilder
-    # Defensive hard cap on the root-BFS fallback so a cyclic/garbage set can't
-    # spin forever. Builder sets are tiny (root + ~a dozen pages).
-    MAX_BOARDS = 500
-
     def initialize(board_group, viewing_user: nil)
       @board_group = board_group
       @viewing_user = viewing_user
@@ -68,22 +64,8 @@ module Boards
     def bfs_boards_from_root
       return [] if root_board_id.blank?
 
-      visited = {}
-      queue = [root_board_id]
-      until queue.empty? || visited.size >= MAX_BOARDS
-        board_id = queue.shift
-        next if visited.key?(board_id)
-
-        board = Board.includes(board_images: :image).find_by(id: board_id)
-        next unless board
-
-        visited[board_id] = board
-        board.board_images.each do |bi|
-          target = bi.predictive_board_id
-          queue << target if target.present? && target != bi.board_id && !visited.key?(target)
-        end
-      end
-      visited.values
+      root_board = Board.find_by(id: root_board_id)
+      Boards::LinkedBoardsFinder.new(root_board).call
     end
 
     # Every tile with a non-null predictive_board_id whose target board is in
