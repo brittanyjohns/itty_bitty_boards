@@ -1158,6 +1158,7 @@ class Board < ApplicationRecord
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
+    @cloned_board.published = false
     @cloned_board.obf_id = nil
     @cloned_board.generated_token = nil
     @cloned_board.generated_token_expires_at = nil
