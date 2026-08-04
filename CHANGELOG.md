@@ -5,6 +5,46 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — onboarding emails that were never being sent
+
+- **The "make your first board" nudge now actually reaches people.** The daily
+  job that emails users who signed up 48–72h ago without making a board was
+  selecting nobody — it filtered on `role != 'admin'`, which in Postgres is
+  false for the NULL role that every password signup has. It reported "0 users
+  nudged" every day for months without erroring. The same bug silently disabled
+  the win-back journey and most of the monthly legacy-signup nudge; all three
+  now use the NULL-safe `User.non_admin` scope.
+- **The welcome journey no longer loses the race with signup.** Triggering a
+  Mailchimp journey for a contact who isn't in the audience yet returns a 400,
+  not a 404, and only 404s were retried — so when the journey trigger ran ahead
+  of the audience upsert (routinely, since signup enqueues both at once), the
+  welcome email was dropped. Both responses now upsert the contact and retry.
+- **A nudge can no longer be marked "sent" when nothing was sent.** The nudge
+  jobs check that a journey is configured and enabled before flagging users,
+  so a missing journey ID no longer permanently disqualifies everyone it
+  touched. New `mailchimp:nudge_flags:report` / `:clear[<flag>]` rake tasks
+  (dry-run by default) repair anyone already stuck that way.
+- **The first-board nudge no longer misses people when a run is skipped.**
+  Eligibility was a single 24-hour band, so a user was reachable on exactly one
+  day — two missed runs and that day's signups were skipped forever, with
+  nothing to catch them. It's now a 48h–14d catch-up window (capped at 100
+  sends per run); the per-user flag still guarantees nobody is nudged twice.
+- **The monthly re-engagement email is now capped at 100 sends per run**
+  (`LEGACY_SIGNUP_NUDGE_MAX_PER_RUN`). It's the only nudge with no upper bound
+  on how far back it reaches, so with the selection bug fixed a single run
+  could otherwise email every dormant account at once. The backlog drains
+  across consecutive monthly runs instead.
+- **No one receives two marketing emails back to back.** Journey emails are
+  triggered from independent places that can coincide — a signup welcome and a
+  subscription-started email minutes apart, or two nightly nudges half an hour
+  apart. A minimum 4-hour gap per person is now enforced centrally; a message
+  that would arrive too soon is delayed rather than dropped.
+- **The win-back email is capped at 100 sends per run** (`WIN_BACK_MAX_PER_RUN`),
+  matching the other nudges.
+- **Demo and internal accounts no longer receive marketing journey emails,**
+  so test traffic can't consume real campaign sends or distort a journey's
+  open and click rates. They stay in the Mailchimp audience as before.
+
 ### Fixed — exporting a large board as `.obz`
 
 - **Exporting a board with many linked boards no longer fails with "Package

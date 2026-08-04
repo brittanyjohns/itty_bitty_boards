@@ -46,19 +46,19 @@ Sidekiq.configure_server do |config|
       "cron" => "0 4 * * *",
       "class" => "MailchimpFirstBoardNudgeJob",
       "queue" => "default",
-      "description" => "Daily Mailchimp Customer Journey trigger for users who signed up 48-72h ago without making a board. Runs at 4am UTC, after DowngradeSoftTrialJob (2am) and RefreshFreeTierCreditsJob (3am). Flags user.settings[\"first_board_nudge_sent\"] so each user is only nudged once.",
+      "description" => "Daily Mailchimp Customer Journey trigger for users who signed up between FIRST_BOARD_NUDGE_MIN_AGE_HOURS (48) and FIRST_BOARD_NUDGE_MAX_AGE_DAYS (14) ago without making a board, capped at FIRST_BOARD_NUDGE_MAX_PER_RUN (100) sends per run. Runs at 4am UTC, after DowngradeSoftTrialJob (2am) and RefreshFreeTierCreditsJob (3am). Flags user.settings[\"first_board_nudge_sent\"] so each user is only nudged once — the flag, not the window width, is what guarantees once-only, so the window is deliberately wide enough to catch users whose nudge day was missed.",
     },
     "mailchimp_legacy_signup_nudge" => {
       "cron" => "0 5 1 * *",
       "class" => "MailchimpLegacySignupNudgeJob",
       "queue" => "default",
-      "description" => "Monthly Mailchimp Customer Journey trigger (5am UTC on the 1st) re-engaging legacy stalled signups: non-admin users created over LEGACY_SIGNUP_NUDGE_AGE_DAYS (default 30) ago, no boards, no sign-in within LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS (default 30). Flags user.settings[\"legacy_signup_nudge_sent\"] so each user is only nudged once. Second-touch — may fire for users who got the 48h first_board_nudge weeks earlier.",
+      "description" => "Monthly Mailchimp Customer Journey trigger (5am UTC on the 1st) re-engaging legacy stalled signups: non-admin users created over LEGACY_SIGNUP_NUDGE_AGE_DAYS (default 30) ago, no boards, no sign-in within LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS (default 30). Flags user.settings[\"legacy_signup_nudge_sent\"] so each user is only nudged once, and caps each run at LEGACY_SIGNUP_NUDGE_MAX_PER_RUN (default 100) sends so an unbounded backlog drains over months instead of one burst. Second-touch — may fire for users who got the 48h first_board_nudge weeks earlier.",
     },
     "mailchimp_win_back" => {
       "cron" => "30 4 * * *",
       "class" => "MailchimpWinBackJob",
       "queue" => "default",
-      "description" => "Daily Mailchimp Customer Journey trigger (4:30am UTC) re-engaging recently-dormant active users: non-admin users with >=1 board whose last sign-in is WIN_BACK_DORMANT_MIN_DAYS-WIN_BACK_DORMANT_MAX_DAYS (default 14-30) days ago. Flags user.settings[\"win_back_nudge_sent\"] so each user is only nudged once.",
+      "description" => "Daily Mailchimp Customer Journey trigger (4:30am UTC) re-engaging recently-dormant active users: non-admin users with >=1 board whose last sign-in is WIN_BACK_DORMANT_MIN_DAYS-WIN_BACK_DORMANT_MAX_DAYS (default 14-30) days ago. Flags user.settings[\"win_back_nudge_sent\"] so each user is only nudged once, capped at WIN_BACK_MAX_PER_RUN (default 100) sends per run.",
     },
     "revenuecat_trial_ending" => {
       "cron" => "0 5 * * *",

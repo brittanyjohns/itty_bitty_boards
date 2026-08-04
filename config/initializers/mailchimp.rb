@@ -36,4 +36,15 @@ module MailchimpClient
 
     Rails.env.production? && !AppEnv.staging?
   end
+
+  # True when a trigger for `key` would actually reach Mailchimp — journeys are
+  # on for this environment AND the key's ID/STEP pair is configured.
+  #
+  # The nudge cron jobs check this BEFORE flagging users as nudged. Their
+  # per-user `settings[...]_sent` flags are permanent, so flagging while the
+  # journey is unconfigured burns the whole backlog: those users can never be
+  # nudged again, even once the ENV pair lands.
+  def self.journey_deliverable?(key)
+    journeys_enabled? && journey(key).present?
+  end
 end

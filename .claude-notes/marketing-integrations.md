@@ -28,9 +28,22 @@ GitHub build). Two distinct uses:
   from the trigger (the historical snake_case bug that flooded the Sidekiq dead
   set) is **caught, logged, and swallowed** so `MailchimpEventJob` doesn't
   exhaust its retries into Dead. The contact is upserted-and-retried-once if
-  Mailchimp 404s.
+  Mailchimp says it isn't in the audience.
   Wired through the `MailchimpEventJob` `"journey"` event type, which takes a
   `journey_key`.
+
+  - **A journey can only be triggered for a contact that already exists, and at
+    signup it usually doesn't yet.** The signup actions enqueue the audience
+    upsert (`"sign_up"`) and the journey trigger as sibling Sidekiq jobs, so they
+    race. Mailchimp reports the miss as a **400** (`"This request can only be
+    made with existing emails in the audience"`), *not* a 404 —
+    `MailchimpService#contact_missing?` treats both as the same condition, and
+    `trigger_journey` upserts and retries once. The retry fires **regardless of
+    what the upsert returns**: when the sibling job wins the race our upsert
+    comes back `Member Exists` (nil), but the contact exists and the retry
+    succeeds. Retrying only on 404 silently dropped the welcome email for
+    essentially every new signup. Signup actions enqueue `"sign_up"` before the
+    journey as belt-and-braces; enqueue order is not a guarantee.
 
   - **Journey IDs are never hardcoded.** `MailchimpClient.journey(key)` resolves
     a symbolic key (e.g. `:welcome`) to `{ journey_id, step_id }` from
@@ -45,15 +58,26 @@ GitHub build). Two distinct uses:
       Free-only; deduped per user for 14 days via `Rails.cache` so a user
       mashing the create button isn't spammed.
     - `first_board_nudge` — enqueued by `MailchimpFirstBoardNudgeJob` (daily
-      at 4am UTC) for non-admin users who signed up 48-72h ago with no boards.
-      The `user.settings["first_board_nudge_sent"]` flag prevents re-nudging
-      across runs. Window has 24h slop so a single missed cron run doesn't
-      permanently skip users.
+      at 4am UTC) for non-admin users who signed up between
+      `FIRST_BOARD_NUDGE_MIN_AGE_HOURS` (48) and `FIRST_BOARD_NUDGE_MAX_AGE_DAYS`
+      (14 days) ago with no boards, capped at `FIRST_BOARD_NUDGE_MAX_PER_RUN`
+      (100) per run. **The window is a catch-up sweep, not a one-day band, and
+      once-only delivery comes from the `first_board_nudge_sent` flag — never
+      from the window's narrowness.** The original 72h..48h band gave each user
+      a single day of eligibility, so two missed runs aged that day's cohort
+      out permanently with nothing sweeping for them afterwards. Don't narrow
+      it back; the flag is what prevents a second send.
     - `legacy_signup_nudge` — enqueued by `MailchimpLegacySignupNudgeJob`
       (monthly, 5am UTC on the 1st) re-engaging cold legacy signups: non-admin
       users created over `LEGACY_SIGNUP_NUDGE_AGE_DAYS` (default 30) ago, no
       boards, no sign-in within `LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS` (default 30).
       The `user.settings["legacy_signup_nudge_sent"]` flag makes it once-only.
+      **Capped at `LEGACY_SIGNUP_NUDGE_MAX_PER_RUN` (default 100) sends per
+      run** — it's the only nudge whose window has no upper bound, so an
+      uncapped run could email every cold account ever in one burst (spam
+      complaints → sending-domain reputation → transactional mail). The flag
+      makes the backlog resumable, so the cap just spreads it across monthly
+      runs; `0` disables it deliberately.
       It's a **second touch** distinct from `first_board_nudge` — different copy
       ("a while back you said yes…") and it *may* fire for a user who got the 48h
       nudge weeks earlier (the two flags are independent), but only ever once.
@@ -95,16 +119,55 @@ GitHub build). Two distinct uses:
       (the single conversion seam — paid start or trial→paid) enqueues the same
       journey, so mobile subscribers get it too. The webhook's event-idempotency
       gate prevents double-sends.
+  - **No two journey emails to the same person inside
+    `MAILCHIMP_JOURNEY_MIN_GAP_HOURS` (default 4).** Enforced in
+    `MailchimpEventJob`'s `"journey"` branch — the single seam every trigger
+    passes through — because the triggering seams are independent and routinely
+    coincide (`email_signup` fires `welcome`, then the Stripe webhook fires
+    `subscription_started` minutes later; the nudge crons run 04:00 and 04:30).
+    A throttled trigger is **re-enqueued with jitter, not dropped**, so the
+    email still arrives; after `MAX_DEFERS` (3) attempts it's abandoned with a
+    warn rather than deferred forever. The quiet period starts only on a
+    trigger that actually reached Mailchimp — a failed one must not suppress
+    the next journey. Backed by `Rails.cache` (Redis, fail-open: a blip means
+    sending on time, never swallowing the email), so specs need a real store
+    stubbed in — `:null_store` can't see its own writes.
+  - **Two rules every nudge cron (`first_board_nudge`, `legacy_signup_nudge`,
+    `win_back`) must follow:**
+    1. **Scope with `User.non_admin`, never `where.not(role: "admin")`.**
+       `users.role` is nullable and the password-signup path never sets it (only
+       `User.create_from_email` does), so a plain `!=` is NULL-false and drops
+       the majority of real users. That bug ran the first-board nudge and
+       win-back at literally 0 users/day for months without erroring. Specs
+       don't catch it on their own — the `:user` factory hardcodes
+       `role { "user" }`, so any new nudge job needs an explicit `role: nil`
+       case.
+    2. **Check `MailchimpClient.journey_deliverable?(key)` before flagging.**
+       The per-user `settings["..._sent"]` flags are permanent, so flagging
+       while the journey's ENV pair is missing (or journeys are off for the env)
+       burns the entire backlog — those users can never be nudged again. The
+       jobs return early, unflagged, when the journey can't be delivered.
+       Repair a burned backlog with `mailchimp:nudge_flags:report` (counts per
+       flag + whether each journey is deliverable) and
+       `mailchimp:nudge_flags:clear[<flag>]` (dry-run by default, `DRY_RUN=false`
+       to apply, `EMAIL=` to scope). Clearing removes the key rather than
+       setting it false. Trial-reminder flags are deliberately out of scope —
+       they're keyed to a specific trial, so re-clearing one emails "your trial
+       is ending" to someone whose trial already ended.
   - **Env-gated to avoid emailing real users from non-prod.**
     `MailchimpClient.journeys_enabled?` returns true in production (and only
     production — staging is excluded via `AppEnv.staging?`); dev/staging fire
     only when `MAILCHIMP_JOURNEYS_ENABLED=true`. CRM sync is **not** gated.
-  - **Demo/internal accounts currently DO get journey emails (temporary).**
-    The #297 `user.demo_user?` guards were reverted on 2026-06-10 so Brittany
-    can end-to-end test the journeys with demo accounts. When testing is done,
-    restore by reverting the revert commit (`git log --grep "Revert.*demo"`).
-    CRM sync was never gated either way — demo contacts stay in the audience,
-    tagged via the `DEMO_USER` merge field.
+  - **Demo/internal accounts get no journey email.** `MailchimpEventJob`'s
+    `"journey"` branch — the single choke point every journey trigger passes
+    through — returns early for `user.demo_user?` (`bhannajohns+*` /
+    `@speakanyway.com`), so demo traffic can't pull real campaign sends or skew
+    a journey's open/click stats. The #297 guards were reverted on 2026-06-10
+    to allow end-to-end testing and reinstated at this single seam instead;
+    **set `MAILCHIMP_JOURNEYS_ALLOW_DEMO=true` to test with a demo account
+    rather than removing the guard again.** CRM sync is deliberately NOT gated
+    — demo contacts stay in the audience, tagged via the `DEMO_USER` merge
+    field.
 
 App transactional email (welcome, password reset) still goes through
 ActionMailer/Gmail SMTP, **not** Mailchimp. True 1:1 transactional via Mailchimp

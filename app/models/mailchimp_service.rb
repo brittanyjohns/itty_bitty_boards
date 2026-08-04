@@ -143,9 +143,15 @@ class MailchimpService
   end
 
   # Enrol a contact into a Mailchimp Customer Journey via its API-trigger step.
-  # Mailchimp then sends the email designed in that journey. The contact must
-  # already be an audience member; if Mailchimp 404s we upsert them and retry
-  # once (guarded so a misconfigured journey_id can't loop forever).
+  # Mailchimp then sends the email designed in that journey.
+  #
+  # The contact must already be an audience member, and at signup it usually
+  # ISN'T yet: `auths#sign_up` enqueues the journey job alongside the audience
+  # upsert job, so the two race in Sidekiq. Mailchimp reports that miss as a
+  # **400** ("This request can only be made with existing emails in the
+  # audience"), not a 404 — see contact_missing?. Only retrying 404s meant every
+  # racing signup silently lost its welcome email. Upsert-and-retry-once covers
+  # both, guarded so a misconfigured journey_id can't loop forever.
   def trigger_journey(user, journey_id:, step_id:)
     journeys = customer_journeys_api
     if journeys.nil?
@@ -164,9 +170,15 @@ class MailchimpService
         { email_address: user.email }
       )
     rescue MailchimpMarketing::ApiError => e
-      if e.status == 404 && !attempted_subscribe
+      if contact_missing?(e) && !attempted_subscribe
         attempted_subscribe = true
-        retry if record_new_subscriber(user)
+        # Retry regardless of what the upsert returns. record_new_subscriber
+        # returns nil on a "Member Exists" 400 — which is exactly what the
+        # racing signup job's upsert produces once it wins — and in that case
+        # the contact DOES now exist, so the retry succeeds. A genuinely
+        # missing contact just fails the same way again and falls through.
+        record_new_subscriber(user)
+        retry
       end
       Rails.logger.error "[Mailchimp] Failed to trigger journey #{journey_id}/#{step_id}: #{e.message}"
       nil
@@ -180,6 +192,22 @@ class MailchimpService
       Rails.logger.error "[Mailchimp] Customer Journeys accessor unavailable for journey #{journey_id}/#{step_id}: #{e.message}"
       nil
     end
+  end
+
+  # Does this ApiError mean "the contact isn't in the audience (yet)"?
+  #
+  # Mailchimp is inconsistent about which status it uses: the member endpoints
+  # 404, but the Customer Journeys trigger returns 400 with a "existing emails
+  # in the audience" detail. The gem raises the trigger error with only
+  # :status/:response_body set (no parsed :detail), so the text has to be read
+  # off whichever of detail/message is populated.
+  CONTACT_MISSING_DETAIL = "existing emails in the audience".freeze
+
+  def contact_missing?(error)
+    return true if error.status == 404
+    return false unless error.status == 400
+
+    "#{error.detail} #{error.message}".include?(CONTACT_MISSING_DETAIL)
   end
 
   # Resolve the gem's Customer Journeys API regardless of accessor casing. The
