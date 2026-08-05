@@ -161,6 +161,21 @@ class Rack::Attack
     req.path == "/up" || req.path.start_with?("/up/")
   end
 
+  # STAGING ONLY: the frontend Playwright suite (itty-bitty-frontend #620)
+  # creates and signs into many e2e+*@speakanyway.com accounts per run from a
+  # single IP, which trips the signup throttle long before real abuse would.
+  # Scoped three ways — staging host, auth POST paths, e2e address pattern —
+  # so production behavior is untouched, and the most a staging abuser gains
+  # is throttle-free creation of worthless staging accounts (whose mail is
+  # discarded by E2eMailInterceptor anyway).
+  E2E_EMAIL_PATTERN = /\Ae2e\+[^@\s]*@speakanyway\.com\z/i
+
+  safelist("staging-e2e-suite") do |req|
+    AppEnv.staging? && req.post? &&
+      (req.path.match?(SIGNUP_PATHS) || req.path.match?(LOGIN_PATHS)) &&
+      E2E_EMAIL_PATTERN.match?(login_email(req).to_s)
+  end
+
   # --- Throttles: auth ------------------------------------------------------
 
   throttle("login/ip", limit: LOGIN_LIMIT, period: LOGIN_PERIOD) do |req|

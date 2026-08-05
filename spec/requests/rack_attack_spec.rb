@@ -262,4 +262,42 @@ RSpec.describe "Rack::Attack rate limiting", type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
   end
+
+  describe "staging e2e safelist" do
+    let(:limit) { Rack::Attack::SIGNUP_LIMIT }
+
+    def signup(email)
+      post "/api/v1/users",
+        params: { email: email, password: "x", password_confirmation: "x", name: "T" },
+        as: :json
+    end
+
+    context "on staging" do
+      before { allow(AppEnv).to receive(:staging?).and_return(true) }
+
+      it "exempts e2e-pattern signups from the signup throttle" do
+        (limit + 5).times { |i| signup("e2e+run-#{i}@speakanyway.com") }
+        expect(response).not_to have_http_status(:too_many_requests)
+      end
+
+      it "still throttles ordinary signups" do
+        (limit + 1).times { |i| signup("person#{i}@example.com") }
+        expect(response).to have_http_status(:too_many_requests)
+      end
+
+      it "does not exempt lookalike addresses" do
+        (limit + 1).times { |i| signup("e2e+#{i}@speakanyway.com.evil.com") }
+        expect(response).to have_http_status(:too_many_requests)
+      end
+    end
+
+    context "outside staging" do
+      before { allow(AppEnv).to receive(:staging?).and_return(false) }
+
+      it "throttles e2e-pattern signups like any other" do
+        (limit + 1).times { |i| signup("e2e+run-#{i}@speakanyway.com") }
+        expect(response).to have_http_status(:too_many_requests)
+      end
+    end
+  end
 end
