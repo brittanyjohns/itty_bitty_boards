@@ -67,7 +67,85 @@ RSpec.describe BoardImage, type: :model do
       board_image = FactoryBot.create(:board_image, board: board, image: image, language: "es")
       board_image.set_labels
       expect(board_image.label).to eq("hello")
-      expect(board_image.display_label).to eq("hello")
+      # Non-English boards get sentence case, not English Title Case.
+      expect(board_image.display_label).to eq("Hello")
+    end
+  end
+
+  describe "display_label casing on create" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, language: "en") }
+
+    def tile_for(image, **attrs)
+      FactoryBot.create(:board_image, board: board, image: image, **attrs)
+    end
+
+    it "title cases a label defaulted from the image" do
+      image = FactoryBot.create(:image, label: "swing")
+      tile = tile_for(image)
+
+      expect(tile.display_label).to eq("Swing")
+      expect(tile.label).to eq("swing")
+    end
+
+    it "title cases every word of a multi-word label" do
+      image = FactoryBot.create(:image, label: "all done")
+      tile = tile_for(image)
+
+      expect(tile.display_label).to eq("All Done")
+      expect(tile.label).to eq("all done")
+    end
+
+    it "gives tiles created through different paths the same casing" do
+      lowercase_source = FactoryBot.create(:image, label: "faster")
+      titled_source = FactoryBot.create(:image, label: "higher")
+
+      defaulted = tile_for(lowercase_source)
+      authored = tile_for(titled_source, display_label: "Higher")
+
+      expect([defaulted.display_label, authored.display_label]).to eq(%w[Faster Higher])
+    end
+
+    it "keeps an explicitly supplied display_label exactly as given" do
+      image = FactoryBot.create(:image, label: "ipad")
+      tile = tile_for(image, display_label: "iPad")
+
+      expect(tile.display_label).to eq("iPad")
+      expect(tile.label).to eq("ipad")
+    end
+
+    it "leaves brand and acronym casing on the image label alone" do
+      image = FactoryBot.create(:image, label: "TV")
+      tile = tile_for(image)
+
+      expect(tile.display_label).to eq("TV")
+      expect(tile.label).to eq("TV")
+    end
+
+    it "sentence cases whole-utterance phrase tiles" do
+      image = FactoryBot.create(:image, label: "i want more", part_of_speech: "phrase")
+      tile = tile_for(image)
+
+      expect(tile.display_label).to eq("I want more")
+      expect(tile.label).to eq("i want more")
+    end
+
+    it "does not apply English Title Case to a non-English board" do
+      spanish_board = FactoryBot.create(:board, user: user, language: "es")
+      image = FactoryBot.create(:image, label: "todo listo")
+      tile = FactoryBot.create(:board_image, board: spanish_board, image: image, language: "es")
+
+      expect(tile.display_label).to eq("Todo listo")
+      expect(tile.label).to eq("todo listo")
+    end
+
+    it "normalizes the label defaulted through Board#add_image" do
+      image = FactoryBot.create(:image, label: "faster")
+      board.add_image(image.id)
+
+      tile = board.board_images.reload.find_by(image_id: image.id)
+      expect(tile.display_label).to eq("Faster")
+      expect(tile.label).to eq("faster")
     end
   end
 

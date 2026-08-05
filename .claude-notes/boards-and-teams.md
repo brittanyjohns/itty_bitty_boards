@@ -165,6 +165,41 @@ Full permissions matrix and the rationale for the split lives in
 `../speakanyway/marketing/.claude-notes/handoff-workflow.md`.
 
 
+## Tile text casing (`display_label`)
+
+`label` is a **lowercase matching key** used for image lookup — never display
+text, never normalized. `display_label` is what renders on the tile.
+
+`Labels::CaseNormalizer` normalizes **defaulted** `display_label` casing at
+creation. Two `BoardImage` paths default it, and both route through
+`normalized_default_label`:
+
+- `set_defaults` (`before_create`) — the `image.display_label` fallback. It
+  runs **after** `part_of_speech` resolution so the phrase rule sees the real
+  value.
+- `set_labels` — the `|| label` fall-through only. A `display_label` stored in
+  `language_settings` is an authored translation and is used verbatim.
+
+Rules, in order: blank passes through; **any existing uppercase letter means
+the text was cased deliberately** (`iPad`, `TV`, `McDonald's`) and is returned
+untouched — that guard is what removes the need for an acronym exception list;
+non-English → sentence case (`todo listo` → `Todo listo`, since Title Case is
+an English convention); English `part_of_speech == "phrase"` → sentence case,
+because gestalt/GLP tiles are whole utterances; otherwise English Title Case
+(`all done` → `All Done`). A standalone `i` capitalizes anywhere in sentence
+case. The transform **only ever upcases a word's first letter** — it never
+downcases, so nothing that slips past the uppercase guard can be mangled.
+
+An explicitly supplied `display_label` never reaches the normalizer:
+`display_label.blank?` is false, so the caller's casing wins. That's what keeps
+the authored-casing pins (`pin_authored_label!`, `NavRowSync`,
+`ImageResolver#upgrade_board_tiles!`, `BoardFromScreenshot`, `SeededSetCloner`)
+and the bulk `label_case` endpoint working unchanged.
+
+Normalization is **forward-only** — no backfill. Rows created before this
+keep their casing; a backfill would have to distinguish deliberate casing from
+inherited casing on data where that signal is already lost.
+
 ## Make a Board From Screenshot
 
 Turns an uploaded screenshot of an existing AAC/communication board into a real

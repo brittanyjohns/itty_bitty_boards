@@ -151,7 +151,26 @@ class BoardImage < ApplicationRecord
     image_language_settings = (image.language_settings || {})[lang] || {}
     self.language = lang
     self.label = image_language_settings["label"] || image.label
-    self.display_label = image_language_settings["display_label"] || label
+    # A stored translation is authored text — use it verbatim. Only the
+    # fall-through to `label` (a lowercase matching key) gets case-normalized.
+    translated = image_language_settings["display_label"]
+    self.display_label = translated.presence || normalized_default_label(label, lang)
+  end
+
+  # Tile text defaulted from the Image gets consistent casing so tiles created
+  # through different paths don't render "Higher" next to "swing" on the same
+  # board. `label` is never normalized — it's the lowercase matching key used
+  # for image lookup.
+  def normalized_default_label(text, lang = language)
+    Labels::CaseNormalizer.normalize(text, language: lang, part_of_speech: effective_part_of_speech)
+  end
+
+  # The part of speech this tile will actually carry: an explicitly set value
+  # wins, otherwise the shared Image's. Mirrors the resolution in set_defaults,
+  # which runs after set_labels on the add_image path.
+  def effective_part_of_speech
+    return part_of_speech if part_of_speech.present? && part_of_speech != "default"
+    image&.part_of_speech || "default"
   end
 
   # Delegates to the underlying Image's language_settings. Stored `label` /
@@ -694,7 +713,6 @@ class BoardImage < ApplicationRecord
     audio_file = nil
     self.voice = board.voice
     self.language = board.language
-    self.display_label = image.display_label if display_label.blank?
     self.language_settings = image.language_settings
 
     # audio_file = image.find_audio_for_voice(voice, language)
@@ -713,6 +731,10 @@ class BoardImage < ApplicationRecord
     if part_of_speech.blank? || part_of_speech == "default"
       self.part_of_speech = image.part_of_speech || "default"
     end
+
+    # Last, so the casing rule sees the resolved part_of_speech. A caller that
+    # supplied its own display_label keeps it exactly as given.
+    self.display_label = normalized_default_label(image.display_label) if display_label.blank?
   end
 
   def create_voice_audio_after_create

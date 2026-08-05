@@ -18,6 +18,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Tile text casing is consistent across a board.** A tile inherited whatever
+  casing its creation path happened to use — paths handing over a Title Cased
+  word list produced `Higher`, paths falling through to the image's lowercase
+  matching label produced `swing` — so the same board rendered both. Cosmetic
+  on screen, a visible defect in print, where these boards become physical
+  signs. Tile text defaulted from the image is now normalized at creation:
+  Title Case for English words, sentence case for whole-utterance phrase tiles
+  and for non-English boards. A display label you type yourself is never
+  touched, and anything already carrying capitals (`iPad`, `TV`, `McDonald's`)
+  is left exactly as-is. Existing tiles keep their current casing.
 - **Correcting a tile's word category now actually recolors the tile.** The
   callback meant to repaint an image when its part of speech changed never
   fired, and an ordinary save silently re-ran the auto-categorizer over a
