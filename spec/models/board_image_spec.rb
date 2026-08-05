@@ -80,30 +80,31 @@ RSpec.describe BoardImage, type: :model do
       FactoryBot.create(:board_image, board: board, image: image, **attrs)
     end
 
-    it "title cases a label defaulted from the image" do
+    it "leaves a label defaulted from the image lowercase" do
       image = FactoryBot.create(:image, label: "swing")
       tile = tile_for(image)
 
-      expect(tile.display_label).to eq("Swing")
+      expect(tile.display_label).to eq("swing")
       expect(tile.label).to eq("swing")
     end
 
-    it "title cases every word of a multi-word label" do
+    it "leaves every word of a multi-word label lowercase" do
       image = FactoryBot.create(:image, label: "all done")
       tile = tile_for(image)
 
-      expect(tile.display_label).to eq("All Done")
+      expect(tile.display_label).to eq("all done")
       expect(tile.label).to eq("all done")
     end
 
     it "gives tiles created through different paths the same casing" do
-      lowercase_source = FactoryBot.create(:image, label: "faster")
-      titled_source = FactoryBot.create(:image, label: "higher")
+      via_direct_create = FactoryBot.create(:image, label: "faster")
+      via_add_image = FactoryBot.create(:image, label: "higher")
 
-      defaulted = tile_for(lowercase_source)
-      authored = tile_for(titled_source, display_label: "Higher")
+      direct_tile = tile_for(via_direct_create)
+      board.add_image(via_add_image.id)
+      added_tile = board.board_images.reload.find_by(image_id: via_add_image.id)
 
-      expect([defaulted.display_label, authored.display_label]).to eq(%w[Faster Higher])
+      expect([direct_tile.display_label, added_tile.display_label]).to eq(%w[faster higher])
     end
 
     it "keeps an explicitly supplied display_label exactly as given" do
@@ -144,7 +145,7 @@ RSpec.describe BoardImage, type: :model do
       board.add_image(image.id)
 
       tile = board.board_images.reload.find_by(image_id: image.id)
-      expect(tile.display_label).to eq("Faster")
+      expect(tile.display_label).to eq("faster")
       expect(tile.label).to eq("faster")
     end
   end
