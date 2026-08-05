@@ -3052,7 +3052,15 @@ class Board < ApplicationRecord
       updates[:text_color] = ColorHelper.text_hex_for(bg)
     end
     updates[:border_color] = item["border_color"] if item["border_color"].present?
-    board_image.update_columns(updates) if updates.any?
+    return if updates.empty?
+
+    if updates.key?(:bg_color)
+      # Mark the color as authored, not derived, so the color-repair backfill
+      # (lib/tasks/tile_colors.rake) leaves it alone.
+      data = board_image.data || {}
+      updates[:data] = data.merge("explicit_bg_color" => true)
+    end
+    board_image.update_columns(updates)
   end
   private_class_method :apply_obf_explicit_colors
 

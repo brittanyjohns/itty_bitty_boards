@@ -761,3 +761,41 @@ tiles + Space/Delete.
   "sm"]` so an lg edit doesn't reflow away the QWERTY stagger or wide space bar.
 - Word-as-written playback needs no backend work: the frontend composes the
   string and uses the existing `POST /api/images/generate_audio`.
+
+
+## Tile colors (Modified Fitzgerald key)
+
+`part_of_speech` is the source of truth; `bg_color`/`text_color` are derived
+from it via `background_color_for` (`ImageHelper`) → `ColorHelper::PRESET_HEX`.
+Both `images` and `board_images` store their own snapshot of the pair, so
+nothing recolors retroactively — a category corrected later needs the row
+repainted.
+
+- **An explicitly assigned `part_of_speech` always wins.** `Image#ensure_defaults`
+  only calls `AacWordCategorizer` when the save isn't already changing
+  `part_of_speech`, so a plain `image.part_of_speech = "noun"; image.save!`
+  survives. The `update_column(s)` workarounds scattered around the codebase
+  (`reset_part_of_speech!`, `CategorizeImageJob`, `Board.apply_obf_part_of_speech`)
+  are now belt-and-braces, not load-bearing.
+- **Color follows category on save.** `Image`'s `after_save :update_background_color`
+  guards on `saved_change_to_part_of_speech?` — inside an `after_save` the
+  `*_changed?` predicates read *pending* changes and are always false. It skips
+  when `bg_color` moved in the same write (that color was authored) and writes
+  via `update_columns` so it can't re-enter `ensure_defaults`.
+- **`board_images.part_of_speech` is `null: false, default: "default"`**, so
+  `"default"` is a placeholder, not a category. Resolve it with
+  `BoardImage#effective_part_of_speech`, never a `part_of_speech ||
+  image.part_of_speech` chain — the `||` can never fall through.
+- **Authored colors are never recomputed.** OBF `background_color` is applied
+  after the main save via `update_columns` and stamped
+  `data["explicit_bg_color"] = true`.
+- **Repairing drifted rows:** `bin/rails tile_colors:repair` (dry run;
+  `WRITE=true` applies, `SCOPE=images|board_images`, `LIMIT=n`). It only ever
+  writes colors — a `board_image` category that differs from its `Image`'s is a
+  deliberate per-board override and is recolored from the tile's own category.
+  It skips any color that isn't one of the preset hexes, since only a preset
+  could have been derived. (`Image.update_all_background_colors` and
+  `BoardImage.fix_bg_hex` predate it and only touch grey/white/nil/non-hex rows.)
+- **Overrides are keyed on communicative function, not grammar** —
+  `AacWordCategorizer::OVERRIDES` codes "stop" as `important_function`
+  (protesting), while "help" stays a request verb.

@@ -45,6 +45,11 @@ class AacWordCategorizer
     "won't" => "important_function",
     "wont" => "important_function",
     "help!" => "important_function",
+    # Coded by communicative function, not grammar: a child hitting "stop" is
+    # protesting or asking for something to end, so it belongs with no / don't /
+    # can't — findable fast and visually distinct from the action words beside
+    # it. ("help" stays a request verb and reads correctly green.)
+    "stop" => "important_function",
     "stop!" => "important_function",
 
     # Determiners / articles / deixis

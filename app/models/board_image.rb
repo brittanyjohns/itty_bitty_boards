@@ -110,9 +110,18 @@ class BoardImage < ApplicationRecord
     self.text_color ||= ColorHelper.text_hex_for(bg_color)
   end
 
+  # `board_images.part_of_speech` is `null: false, default: "default"`, so a
+  # `part_of_speech || image.part_of_speech` chain can never fall through —
+  # "default" is a stored placeholder, not a category. Mirrors the
+  # `blank? || == "default"` test set_defaults uses on create so the two agree.
+  def effective_part_of_speech
+    own = part_of_speech.presence
+    return own if own && own != "default"
+    image&.part_of_speech.presence || "default"
+  end
+
   def set_background_color!
-    pos = part_of_speech || image.part_of_speech || "default"
-    img_color = background_color_for(pos)
+    img_color = background_color_for(effective_part_of_speech)
     set_background_color(img_color)
     self.save!
   end
@@ -132,8 +141,7 @@ class BoardImage < ApplicationRecord
   # NO save
   def set_colors
     set_text_color("black") unless text_color == "#000000"
-    pos = part_of_speech || image.part_of_speech || "default"
-    img_color = background_color_for(pos)
+    img_color = background_color_for(effective_part_of_speech)
     set_background_color(img_color)
   end
 

@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Staging no longer sends email to real people.** Staging runs against live
+  SMTP credentials, so anything exercised there — signups, invitations, alerts
+  — used to deliver genuine mail to whatever address was on the record. Mail is
+  now dropped on staging by default. To test a template end to end, set
+  `STAGING_MAIL_ALLOWLIST` to a comma-separated list of exact addresses
+  (`brittany@speakanyway.com`) or domain suffixes (`@speakanyway.com`);
+  everything else is stripped from to/cc/bcc. Production and development are
+  unaffected.
+
 ### Fixed
 
 - **Tile text casing is consistent across a board.** A tile inherited whatever
@@ -17,6 +28,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   and for non-English boards. A display label you type yourself is never
   touched, and anything already carrying capitals (`iPad`, `TV`, `McDonald's`)
   is left exactly as-is. Existing tiles keep their current casing.
+- **Correcting a tile's word category now actually recolors the tile.** The
+  callback meant to repaint an image when its part of speech changed never
+  fired, and an ordinary save silently re-ran the auto-categorizer over a
+  hand-picked category — so corrections either didn't stick or left the tile
+  painted its old color (the live case: a "social" tile still showing
+  important-function red). Hand-set categories now survive a normal save, and
+  the color follows the category.
+- **Tiles that never had their own category now inherit the word's category.**
+  A tile carrying the stored `"default"` placeholder was painted grey instead
+  of taking the color of its underlying word.
+- **"stop" is now coded as an important function (red), not a verb (green).**
+  In the Modified Fitzgerald key tiles are colored by communicative function:
+  a child hitting "stop" is protesting, so it belongs beside no / don't /
+  can't and needs to stand out from the action words around it. ("stop!"
+  already worked; plain "stop" fell through.) "help" is unchanged — it reads
+  correctly as a request verb.
+- Added `bin/rails tile_colors:repair` (dry run by default, `WRITE=true` to
+  apply) to repaint existing tiles whose stored color drifted from their
+  category. Per-board category overrides and deliberately authored colors —
+  including explicit colors from OBF/OBZ imports — are left alone.
 
 - **Boards built through the internal API land on real symbol art.**
   `POST /api/internal/boards/:id/board_images` and `.../board_images/bulk`
