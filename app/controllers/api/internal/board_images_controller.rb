@@ -1,4 +1,9 @@
 class API::Internal::BoardImagesController < API::Internal::ApplicationController
+  # AI generation is queued in slices, mirroring
+  # `Board#find_or_create_images_from_word_list`, so one 60-tile build doesn't
+  # become one 60-image Sidekiq job.
+  GENERATE_BATCH_SIZE = 3
+
   def create
     @board = Board.find(params[:board_id])
 
@@ -9,6 +14,8 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
 
     if board_image&.persisted?
       apply_optional_attributes!(board_image, params)
+      pin_authored_label!(board_image, params, image)
+      queue_missing_art!(label_path?(params) ? [image.id] : [])
       render json: board_image.api_view(current_user), status: :created
     else
       errors = board_image&.errors&.full_messages&.join(", ") || "Unable to add image to board"
@@ -26,6 +33,7 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
 
     created = []
     errors = []
+    label_resolved_image_ids = []
 
     ActiveRecord::Base.transaction do
       raw_cells.each_with_index do |cell_params, index|
@@ -40,6 +48,7 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
           errors << { index: index, error: "image_id or label is required" }
           next
         end
+        label_resolved_image_ids << image.id if label_path?(cp)
 
         board_image = @board.add_image(image.id)
         unless board_image&.persisted?
@@ -53,6 +62,8 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
           next
         end
 
+        pin_authored_label!(board_image, cp, image)
+
         created << board_image
       end
 
@@ -62,21 +73,77 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
     if errors.any?
       render json: { errors: errors }, status: :unprocessable_content
     else
+      # Only after the transaction has actually committed — a rolled-back bulk
+      # must not leave Sidekiq holding ids of Images that no longer exist.
+      queue_missing_art!(label_resolved_image_ids)
       render json: created.map { |bi| bi.api_view(current_user) }, status: :created
     end
   end
 
   private
 
+  # An explicit `image_id` pins that exact record; a bare `label` goes through
+  # label resolution (and is the only path that may create an Image or spend an
+  # OpenAI call).
+  def label_path?(p)
+    p[:image_id].blank? && p[:label].present?
+  end
+
+  # `Boards::ImageResolver` — not a naive `find_by(label:)` — is the single
+  # source of truth for label -> Image. A label can match several Image rows,
+  # and only the resolver prefers the art-bearing one (most docs, lowest id to
+  # break ties) and matches case-insensitively. `find_by` returns arbitrary
+  # Postgres heap order, which is how this endpoint used to attach blank,
+  # art-less duplicates to almost every tile.
   def resolve_image_from(p)
     if p[:image_id].present?
       Image.find_by(id: p[:image_id])
     elsif p[:label].present?
-      label = p[:label].to_s.strip
-      Image.find_by(label: label, user_id: current_user.id) ||
-        Image.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) ||
-        Image.create(label: label, user_id: current_user.id)
+      Boards::ImageResolver.resolve(p[:label].to_s.strip, owner: current_user)
     end
+  end
+
+  # The resolver matches case-insensitively, so "Run" can legitimately resolve
+  # to an Image labeled "run". Keep the caller's authored casing on the cell
+  # rather than silently renaming the tile — same rule as
+  # `ImageResolver.upgrade_board_tiles!`.
+  def pin_authored_label!(board_image, p, image)
+    return unless label_path?(p)
+    return if p[:display_label].present?
+
+    authored = p[:label].to_s.strip
+    return if authored.blank? || authored == image.label
+
+    board_image.update(display_label: authored)
+  end
+
+  # Queue AI art for any label that resolved to an Image with no artwork.
+  # Without this a tile for an unmatched label stays permanently blank: nothing
+  # else in this flow ever enqueues generation.
+  #
+  # Covers art-less images the resolver *found*, not just ones it created — an
+  # existing blank duplicate is every bit as blank as a fresh one.
+  def queue_missing_art!(image_ids)
+    return if image_ids.empty?
+    return unless generate_missing?
+
+    ids = Image.where(id: image_ids.uniq)
+               .where.missing(:docs)
+               .pluck(:id)
+    return if ids.empty?
+
+    ids.each_slice(GENERATE_BATCH_SIZE) do |batch|
+      GenerateImagesJob.perform_async(batch, @board.id)
+    end
+  end
+
+  # Generation is on by default (callers building a board expect filled tiles).
+  # `generate_missing: false` opts out when the caller would rather ship blanks
+  # than spend the OpenAI call.
+  def generate_missing?
+    return true if params[:generate_missing].nil?
+
+    ActiveModel::Type::Boolean.new.cast(params[:generate_missing]) != false
   end
 
   def apply_optional_attributes!(board_image, p)

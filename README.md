@@ -644,7 +644,7 @@ internal scripts can build a board cell-by-cell.
 **Body params**
 
 - `image_id` *(preferred)* — id of an existing `Image`. Used directly.
-- `label` *(fallback)* — used only if `image_id` is omitted. Looks up an admin/user-owned `Image` by label, then a public image, then creates a new admin-owned image with that label.
+- `label` *(fallback)* — used only if `image_id` is omitted. Resolved through `Boards::ImageResolver`: case-insensitive, and it picks the image that actually **has artwork** (most attached docs, lowest id to break ties) rather than an arbitrary same-label duplicate. Only if no image with that label has art does it reuse an existing blank one, or create a new admin-owned image.
 - `position` *(optional)* — integer used to set `BoardImage#position` after creation. If omitted, the cell is appended at `board_images_count` (its existing default).
 - `voice` *(optional)* — overrides the cell's voice. Normalized via `VoiceService`.
 - `language` *(optional)* — overrides the cell's language code.
@@ -653,8 +653,15 @@ internal scripts can build a board cell-by-cell.
 - `hidden`, `font_size`, `border_width`, `border_radius` *(optional)* — per-cell display overrides.
 - `bg_color`, `text_color`, `border_color` *(optional)* — run through `ColorHelper.to_hex`, so `"yellow"`, `"#FFEA75"`, and `"rgb(255,0,0)"` all work. Use these to apply Fitzgerald part-of-speech colors, since `part_of_speech` itself is not accepted here.
 - `hide_label` *(optional)* — merged into the cell's `data` jsonb without clobbering other keys.
+- `generate_missing` *(optional, default `true`)* — request-level, not per-cell. When a `label` resolves to an image with no artwork, `GenerateImagesJob` is enqueued (in batches of 3) so the tile fills in with AI art shortly after the request returns. Pass `false` to skip the OpenAI call and ship the tile blank. Never applies to the `image_id` path — an explicit id is treated as a deliberate pin.
 
 If neither `image_id` nor `label` is given, the request returns `422`.
+
+Because the resolver matches case-insensitively, `"Run"` may resolve to an
+image labeled `run`. The cell's `display_label` keeps the casing you sent, so
+the tile is not silently renamed — unless you pass an explicit `display_label`,
+which always wins.
+
 Duplicate cells (same image already on the board) are allowed — the model
 permits multiple `BoardImage` rows per `(board_id, image_id)` pair.
 

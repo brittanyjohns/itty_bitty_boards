@@ -9,6 +9,12 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
   before do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("INTERNAL_API_KEY").and_return(internal_key)
+    allow(GenerateImagesJob).to receive(:perform_async)
+  end
+
+  def with_art(image, count: 1)
+    count.times { create(:doc, documentable: image, user: admin_user) }
+    image
   end
 
   describe "POST /api/internal/boards/:board_id/board_images" do
@@ -244,6 +250,155 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
       expect(errors).to be_an(Array)
       expect(errors.first["index"]).to eq(1)
       expect(errors.first["error"]).to match(/image_id or label is required/)
+    end
+  end
+
+  # Regression coverage for #572: label resolution used a naive `find_by`, which
+  # returns arbitrary Postgres heap order and routinely attached a blank,
+  # art-less duplicate instead of the illustrated library image.
+  describe "label resolution" do
+    def bulk_post(cells, extra = {})
+      post "/api/internal/boards/#{board.id}/board_images/bulk",
+           params: { cells: cells }.merge(extra).to_json,
+           headers: auth_headers
+    end
+
+    it "attaches the art-bearing image, not a lower-id blank duplicate" do
+      blank = create(:image, label: "run", user_id: admin_user.id)
+      arted = with_art(create(:image, label: "run", user_id: admin_user.id))
+
+      bulk_post([{ label: "run", position: 0 }])
+
+      expect(response).to have_http_status(:created)
+      expect(board.reload.board_images.last.image_id).to eq(arted.id)
+      expect(board.board_images.last.image_id).not_to eq(blank.id)
+    end
+
+    it "prefers the image with the most artwork when several have art" do
+      few  = with_art(create(:image, label: "ball", user_id: admin_user.id), count: 1)
+      many = with_art(create(:image, label: "ball", user_id: admin_user.id), count: 3)
+
+      bulk_post([{ label: "ball" }])
+
+      expect(board.reload.board_images.last.image_id).to eq(many.id)
+      expect(board.board_images.last.image_id).not_to eq(few.id)
+    end
+
+    it "matches the label case-insensitively instead of creating a duplicate" do
+      arted = with_art(create(:image, label: "stop", user_id: admin_user.id))
+
+      expect {
+        bulk_post([{ label: "Stop" }])
+      }.not_to change(Image, :count)
+
+      expect(board.reload.board_images.last.image_id).to eq(arted.id)
+    end
+
+    it "keeps the caller's authored casing as the cell's display_label" do
+      with_art(create(:image, label: "stop", user_id: admin_user.id))
+
+      bulk_post([{ label: "Stop" }])
+
+      expect(board.reload.board_images.last.display_label).to eq("Stop")
+    end
+
+    it "does not override an explicit display_label with the authored casing" do
+      with_art(create(:image, label: "stop", user_id: admin_user.id))
+
+      bulk_post([{ label: "Stop", display_label: "🛑" }])
+
+      expect(board.reload.board_images.last.display_label).to eq("🛑")
+    end
+
+    it "still pins the exact record when image_id is given" do
+      blank = create(:image, label: "run", user_id: admin_user.id)
+      with_art(create(:image, label: "run", user_id: admin_user.id))
+
+      bulk_post([{ image_id: blank.id }])
+
+      expect(board.reload.board_images.last.image_id).to eq(blank.id)
+    end
+
+    it "creates the image with create! so validation failures surface" do
+      expect {
+        bulk_post([{ label: "zzz-brand-new-word" }])
+      }.to change(Image, :count).by(1)
+
+      expect(Image.last.label).to eq("zzz-brand-new-word")
+    end
+  end
+
+  # #572, second bug: a tile created for a label with no library art used to
+  # stay permanently blank — nothing in this flow enqueued generation.
+  describe "AI art for labels with no library art" do
+    def bulk_post(cells, extra = {})
+      post "/api/internal/boards/#{board.id}/board_images/bulk",
+           params: { cells: cells }.merge(extra).to_json,
+           headers: auth_headers
+    end
+
+    it "enqueues generation for a label that resolved to an art-less image" do
+      bulk_post([{ label: "zzz-no-art-anywhere" }])
+
+      expect(response).to have_http_status(:created)
+      image = Image.find_by(label: "zzz-no-art-anywhere")
+      expect(GenerateImagesJob).to have_received(:perform_async).with([image.id], board.id)
+    end
+
+    it "enqueues for an existing blank image, not just a newly created one" do
+      blank = create(:image, label: "zzz-existing-blank", user_id: admin_user.id)
+
+      bulk_post([{ label: "zzz-existing-blank" }])
+
+      expect(GenerateImagesJob).to have_received(:perform_async).with([blank.id], board.id)
+    end
+
+    it "does not enqueue when the label already has art" do
+      with_art(create(:image, label: "apple-arted", user_id: admin_user.id))
+
+      bulk_post([{ label: "apple-arted" }])
+
+      expect(GenerateImagesJob).not_to have_received(:perform_async)
+    end
+
+    it "does not enqueue for the explicit image_id path" do
+      blank = create(:image, label: "pinned-blank", user_id: admin_user.id)
+
+      bulk_post([{ image_id: blank.id }])
+
+      expect(GenerateImagesJob).not_to have_received(:perform_async)
+    end
+
+    it "does not enqueue when generate_missing is false" do
+      bulk_post([{ label: "zzz-opted-out" }], generate_missing: false)
+
+      expect(response).to have_http_status(:created)
+      expect(GenerateImagesJob).not_to have_received(:perform_async)
+    end
+
+    it "batches in slices of three" do
+      labels = (1..4).map { |i| { label: "zzz-batch-#{i}" } }
+
+      bulk_post(labels)
+
+      expect(GenerateImagesJob).to have_received(:perform_async).twice
+    end
+
+    it "enqueues nothing when the bulk request rolls back" do
+      bulk_post([{ label: "zzz-rolled-back" }, { position: 1 }])
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(GenerateImagesJob).not_to have_received(:perform_async)
+    end
+
+    it "enqueues for the single-cell endpoint too" do
+      post "/api/internal/boards/#{board.id}/board_images",
+           params: { label: "zzz-single-no-art" }.to_json,
+           headers: auth_headers
+
+      expect(response).to have_http_status(:created)
+      image = Image.find_by(label: "zzz-single-no-art")
+      expect(GenerateImagesJob).to have_received(:perform_async).with([image.id], board.id)
     end
   end
 end
