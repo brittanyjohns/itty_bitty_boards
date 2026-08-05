@@ -117,6 +117,16 @@ RSpec.describe AacWordCategorizer, type: :service do
         expect(described_class.categorize("what")).to eq("question")
       end
 
+      it "returns 'important_function' for plain 'stop' without calling the LLM" do
+        expect(described_class).not_to receive(:call_llm)
+        expect(described_class.categorize("stop")).to eq("important_function")
+        expect(described_class.categorize("Stop ")).to eq("important_function")
+      end
+
+      it "leaves plain 'help' to the categorizer — it reads as a request verb" do
+        expect(described_class::OVERRIDES).not_to have_key("help")
+      end
+
       it "returns 'determiner' for 'the'" do
         expect(described_class.categorize("the")).to eq("determiner")
       end
