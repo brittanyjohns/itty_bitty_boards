@@ -79,7 +79,14 @@ one-off handoff/scratch files stay untracked and local.
   `EMAIL_LOGO_URL`). Inline `cid` attachments are not an option: clients list
   every attachment part — inline ones included — so the logo showed up as a
   downloadable file. Transactional mail is therefore single-part `text/html`,
-  so specs must read bodies as `(mail.html_part || mail).body`.
+  so specs must read bodies as `(mail.html_part || mail).body`. **Staging
+  delivers no mail:** `StagingMailInterceptor` blocks every send when
+  `AppEnv.staging?`, so nothing exercised on staging reaches a real inbox. Set
+  `STAGING_MAIL_ALLOWLIST` (comma-separated exact addresses, or `@domain`
+  suffixes) to let specific recipients through when testing a template;
+  non-matching addresses are stripped from to/cc/bcc. `E2eMailInterceptor` is
+  separate and pattern-scoped — it drops `e2e+*@speakanyway.com` in every
+  environment.
 - **TTS/Audio:** AWS Polly
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder,
   image generation. Every text-to-image prompt is composed by
@@ -214,7 +221,9 @@ an explicit decision, not a drive-by edit.
   `Suggestions::Registry` context allow-list (enforced by spec).
 - **Third-party sends are env-gated to production** (Mailchimp journeys,
   PostHog captures; staging excluded via `AppEnv.staging?`) so non-prod can't
-  email or track real users.
+  email or track real users. Transactional mail is covered by the same rule at
+  the delivery layer: `StagingMailInterceptor` drops every message on staging
+  unless the recipient is in `STAGING_MAIL_ALLOWLIST`.
 - **Email verification is keyed on `email_verified_at`, never `confirmed_at`.**
   `User#mark_email_verified!` is the only writer. Verified status may be
   conferred ONLY by a path where the user clicked a link delivered to their
