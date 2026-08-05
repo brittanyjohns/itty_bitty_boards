@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Staging no longer sends email to real people.** Staging runs against live
+  SMTP credentials, so anything exercised there — signups, invitations, alerts
+  — used to deliver genuine mail to whatever address was on the record. Mail is
+  now dropped on staging by default. To test a template end to end, set
+  `STAGING_MAIL_ALLOWLIST` to a comma-separated list of exact addresses
+  (`brittany@speakanyway.com`) or domain suffixes (`@speakanyway.com`);
+  everything else is stripped from to/cc/bcc. Production and development are
+  unaffected.
+
 ### Fixed
 
 - **Boards built through the internal API land on real symbol art.**
