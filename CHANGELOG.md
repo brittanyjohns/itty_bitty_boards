@@ -3,7 +3,7 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.4.0] — 2026-08-05
 
 ### Added
 
@@ -463,6 +463,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   filter admin boards by tag, name or description, published or not.
 - `rake images:license_audit` — read-only report of the image library's
   license breakdown.
+
+## [1.3.0] — 2026-07-21
 
 ### Added — Video tiles accept iPhone recordings, and the 30s limit is now enforced
 - Tile video uploads now accept **.mov / HEVC** files, so a clip recorded on an
