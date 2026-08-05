@@ -86,6 +86,16 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
     updates[:language]      = p[:language] if p[:language].present?
     updates[:display_label] = p[:display_label].to_s.strip if p[:display_label].present?
 
+    # Folder tiles. predictive_board_id is the only thing that makes a tile open
+    # another board, so without it an internal-key caller can build every board
+    # in a set but never connect them.
+    #
+    # No extra validation is needed here on purpose: BoardImage's before_save
+    # check_predictive_board nulls an id that points at nothing rather than
+    # raising, and is_dynamic? ignores self-links. A bad value therefore
+    # degrades to an ordinary word tile instead of 500ing a bulk request.
+    updates[:predictive_board_id] = p[:predictive_board_id].to_i if p[:predictive_board_id].present?
+
     updates[:hidden]        = ActiveModel::Type::Boolean.new.cast(p[:hidden]) unless p[:hidden].nil?
     updates[:font_size]     = p[:font_size].to_i if p[:font_size].present?
     updates[:border_width]  = p[:border_width].to_i unless p[:border_width].nil?

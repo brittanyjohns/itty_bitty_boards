@@ -44,8 +44,6 @@
   - `POSTHOG_CAPTURE_ENABLED` - Set to `true` to fire server-side PostHog events outside production (dev/staging opt-in). Production fires automatically; staging stays off unless this is set.
   - `RACK_ATTACK_*` - Optional rate-limit tuning (all have sensible defaults). Limits/windows for auth, password-reset, token-lookup, and AI-generation throttles — e.g. `RACK_ATTACK_LOGIN_LIMIT`, `RACK_ATTACK_LOGIN_EMAIL_LIMIT`, `RACK_ATTACK_AI_LIMIT`, `RACK_ATTACK_TOKEN_LIMIT`, `RACK_ATTACK_PASSWORD_RESET_LIMIT` (+ matching `_PERIOD`). `RACK_ATTACK_REDIS_URL` overrides the Redis used for counters (defaults to `REDIS_URL`). See the "Rate limiting" section in `CLAUDE.md`.
   - `CACHE_REDIS_URL` - Optional. Overrides the Redis instance/db used for the production `Rails.cache` store (defaults to `REDIS_URL`). Production caches through a namespaced (`ibb_cache`), fail-open Redis cache store.
-  - `GOOGLE_OAUTH_CLIENT_ID` - Google OAuth client ID. Also the expected `aud` on ID tokens verified by `POST /api/v1/auths/google` (Google sign-in, Phase 1). When blank, that endpoint rejects every request with 401.
-  - `GOOGLE_OAUTH_CLIENT_SECRET` - Google OAuth client secret (not yet exercised server-side — the current flow verifies a frontend-obtained ID token, no server-side token exchange).
 
 - Database creation:
 
@@ -650,6 +648,11 @@ internal scripts can build a board cell-by-cell.
 - `position` *(optional)* — integer used to set `BoardImage#position` after creation. If omitted, the cell is appended at `board_images_count` (its existing default).
 - `voice` *(optional)* — overrides the cell's voice. Normalized via `VoiceService`.
 - `language` *(optional)* — overrides the cell's language code.
+- `predictive_board_id` *(optional)* — makes this a **folder tile** that opens another board when tapped. See "Folder tiles" below.
+- `display_label` *(optional)* — the text shown on the cell, when it should differ from the image's label.
+- `hidden`, `font_size`, `border_width`, `border_radius` *(optional)* — per-cell display overrides.
+- `bg_color`, `text_color`, `border_color` *(optional)* — run through `ColorHelper.to_hex`, so `"yellow"`, `"#FFEA75"`, and `"rgb(255,0,0)"` all work. Use these to apply Fitzgerald part-of-speech colors, since `part_of_speech` itself is not accepted here.
+- `hide_label` *(optional)* — merged into the cell's `data` jsonb without clobbering other keys.
 
 If neither `image_id` nor `label` is given, the request returns `422`.
 Duplicate cells (same image already on the board) are allowed — the model
@@ -667,6 +670,73 @@ curl -X POST https://<host>/api/internal/boards/123/board_images \
 ```
 
 Response: `201 Created` with the new `BoardImage`'s `api_view`.
+
+#### `POST /api/internal/boards/:id/board_images/bulk`
+
+Adds many cells in **one atomic request**. Takes the same per-cell params as the
+single-cell endpoint above, wrapped in a `cells` array.
+
+Atomic means all cells commit or none do — one bad entry rolls the whole request
+back, so a board never ends up half-built. The response array is in **input
+order**, which is what lets you map the returned `BoardImage` ids straight onto a
+layout you then `PATCH`.
+
+```sh
+curl -X POST https://<host>/api/internal/boards/123/board_images/bulk \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cells": [
+      { "label": "I",        "position": 0, "bg_color": "#FFEA75" },
+      { "label": "want",     "position": 1, "bg_color": "#A1F571" },
+      { "label": "Feelings", "position": 2, "bg_color": "#5ECFFF", "predictive_board_id": 456 }
+    ]
+  }'
+```
+
+Response: `201 Created` with an array of `api_view`s, or `422` with
+`{ "errors": [ { "index": 1, "error": "..." } ] }` identifying which entries
+failed.
+
+#### Folder tiles — linking one board to another
+
+`predictive_board_id` on a cell is the **only** thing that makes tapping a tile
+open a different board. It's what turns a flat grid into a navigable set: a root
+board with "Food", "Feelings" and "Play" tiles that each open their own page.
+
+Set it on either `board_images` or `board_images/bulk`. The cell's `api_view`
+comes back with `dynamic: true` when the link took, which is the reliable way to
+confirm it — the frontend derives its "opens another board" badge from that same
+flag.
+
+```sh
+# Create the child page first, then link a tile on the root to it.
+curl -X POST https://<host>/api/internal/boards/123/board_images \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "label": "Feelings", "position": 12, "predictive_board_id": 456 }'
+```
+
+Three behaviors worth knowing before you script this:
+
+1. **A bad target id degrades, it doesn't error.** `BoardImage`'s
+   `check_predictive_board` callback nulls a `predictive_board_id` that points at
+   nothing rather than raising. The cell is still created — as an ordinary word
+   tile. This is deliberate: because `bulk` is atomic, a raise would roll back an
+   entire board over one stale id. Check `dynamic` on the response rather than
+   assuming a `201` means the link stuck.
+2. **Self-links are inert.** A cell whose `predictive_board_id` equals its own
+   `board_id` is never reported as `dynamic`.
+3. **Linked children drop out of board search.** `Board#check_is_sub_board`
+   flags any board something points at as a sub-board, and
+   `GET /api/internal/boards/search` filters sub-boards out. That's intended — it
+   keeps fringe pages out of the catalog — but it means you should fetch child
+   boards by id afterward, not by searching for their name.
+
+Build order follows from #1: **create child boards first**, then create the root
+with its folder tiles carrying `predictive_board_id` in the same `bulk` call. A
+child page's "back to home" tile is the one link that can't be made that way; the
+app renders a native back arrow for it, so it usually isn't needed.
 
 #### `POST /api/internal/generated_boards`
 
