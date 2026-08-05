@@ -79,6 +79,45 @@ Only **35.9%** of the library can go in a product that's sold — roughly
 at 2,464 docs (ARASAAC, author "Sergio Palao"). Commercial-safe decomposes
 exactly as `OpenAI` 3,116 + `cc by` 400 + `public domain` 58 + `cc by 3.0` 52.
 
+## Label → Image resolution (`board_images` create + bulk)
+
+`Boards::ImageResolver` is the **only** sanctioned way to turn a tile label into
+an `Image` — for this namespace and everywhere else. Several `Image` rows
+routinely share a label (the OBF seed created art-less duplicates), so a naive
+`find_by(label:)` is `LIMIT 1` over arbitrary Postgres heap order and attaches
+a blank image roughly at random. That is exactly how a 60-tile internal build
+came out with 3 tiles on art while reporting `status: "complete"`. Never
+reintroduce a bare `find_by(label:)` here — match case-insensitively and order
+by `COUNT(docs) DESC, images.id ASC`.
+
+Note the first-branch trap: in this namespace `current_user` is *always* the
+default admin, so "prefer the current user's own images" and "prefer public
+admin images" select from overlapping sets. The art requirement, not the
+ownership scope, is what makes the choice correct.
+
+An explicit `image_id` bypasses resolution entirely and pins that exact record.
+That is the escape hatch for callers that resolved a label themselves via
+`POST /api/internal/images/search`.
+
+**Case pinning.** The resolver may return a differently-cased image (`"Run"` →
+`run`). The controller writes the caller's authored casing to the cell's
+`display_label` so tiles aren't silently renamed; an explicit `display_label`
+always wins.
+
+**AI art for misses is on by default.** A label that resolves to an art-less
+image gets `GenerateImagesJob` enqueued in batches of 3 — otherwise the tile is
+blank *forever*, since nothing else in this flow ever queues generation and
+`has_generating_images` would stay `false`. This covers art-less images the
+resolver *found*, not only ones it created. Two rails:
+
+- Enqueue happens **after** the bulk transaction commits. A rolled-back bulk
+  must never hand Sidekiq ids of Images that no longer exist.
+- The `image_id` path never generates. An explicit id is a deliberate pin, and
+  a paid OpenAI call is not a reasonable side effect of one.
+
+Callers that would rather ship blanks than spend the call pass a request-level
+`generate_missing: false` (not per-cell).
+
 ## Search endpoints
 
 - `GET|POST /api/internal/images/search` → `Images::LabelSearch`. Exact match

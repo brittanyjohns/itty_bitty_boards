@@ -3,6 +3,26 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Boards built through the internal API land on real symbol art.**
+  `POST /api/internal/boards/:id/board_images` and `.../board_images/bulk`
+  resolved a tile label with a naive `find_by(label:)`. Many labels have
+  several `Image` rows, so that returned one at random — routinely a blank,
+  art-less duplicate — and boards came out almost entirely empty while
+  reporting `status: "complete"`. One 60-tile build landed 3 tiles on art.
+  Both endpoints now resolve labels through `Boards::ImageResolver`: matching
+  is case-insensitive and prefers the image that actually has artwork. When
+  the resolved image is cased differently than the label sent, the cell keeps
+  the caller's casing so tiles aren't renamed.
+- **Tiles for words with no library art no longer stay blank forever.** A
+  label with no artwork anywhere now enqueues AI generation, so the tile fills
+  in shortly after the request instead of never. Pass `generate_missing: false`
+  to opt out. An explicit `image_id` still pins that exact record and never
+  triggers generation.
+
 ## [1.4.0] — 2026-08-05
 
 ### Added
