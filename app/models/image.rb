@@ -96,7 +96,12 @@ class Image < ApplicationRecord
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
   after_save :update_board_images_display_image, if: -> { saved_change_to_src_url? }
   # after_save :update_board_images_next_words, if: -> { next_words_changed? }
-  after_save :update_background_color, if: -> { part_of_speech_changed? }
+  # saved_change_to_*, not *_changed?: inside an after_save the dirty-tracking
+  # predicates report *pending* changes, which are always empty by then — the
+  # `part_of_speech_changed?` form never fired at all.
+  # Skipped when bg_color moved in the same write — that color was authored (or
+  # already filled in by ensure_defaults), and the preset must not overwrite it.
+  after_save :update_background_color, if: -> { saved_change_to_part_of_speech? && !saved_change_to_bg_color? }
 
   before_save :update_src_url, if: -> { src_url.blank? && docs.any? }
 
@@ -257,10 +262,19 @@ class Image < ApplicationRecord
     end
   end
 
+  # Called from an after_save, so it must not re-enter save! — that would run
+  # ensure_defaults again and re-categorize over the value that just triggered
+  # this refresh. update_columns writes the derived colors and stops there.
   def update_background_color
-    self.bg_color = background_color_for(part_of_speech)
-    self.text_color = text_color_for(bg_color)
-    self.save!
+    bg = background_color_for(part_of_speech)
+    txt = text_color_for(bg)
+
+    if persisted?
+      update_columns(bg_color: bg, text_color: txt)
+    else
+      self.bg_color = bg
+      self.text_color = txt
+    end
   end
 
   def ensure_defaults
@@ -283,6 +297,15 @@ class Image < ApplicationRecord
       self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
       self.text_color = text_color_for(bg_color) if text_color.blank?
       @defer_categorization = true if skip_categorize
+    elsif will_save_change_to_part_of_speech? && part_of_speech.present?
+      # An explicitly assigned part_of_speech wins over the categorizer — an
+      # ordinary `image.part_of_speech = "noun"; image.save!` must survive.
+      # Without this, the else-branch below silently re-categorized every save,
+      # which is why several callers had to reach for update_column(s).
+      # Only fill blanks here so a new record never lands with no color; an
+      # existing record's repaint is the after_save's job.
+      self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
+      self.text_color = text_color_for(bg_color) if text_color.blank?
     else
       pos = AacWordCategorizer.categorize(label)
       self.part_of_speech = pos
