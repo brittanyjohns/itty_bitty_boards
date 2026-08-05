@@ -13,21 +13,26 @@
 #   bin/rails tile_colors:repair WRITE=true      # actually writes
 #   bin/rails tile_colors:repair SCOPE=board_images LIMIT=500
 module TileColorRepair
-  # Only colors the preset table itself could have produced count as derived.
-  # Anything else is an authored color — an OBF button's explicit
-  # background_color, or a hand-picked one — and must not be "repaired".
-  DERIVED_HEXES = ColorHelper::PRESET_HEX.values.map(&:upcase).to_set.freeze
-
   BATCH_SIZE = 500
   SAMPLE_SIZE = 10
 
   module_function
 
+  # Only colors the preset table itself could have produced count as derived.
+  # Anything else is an authored color — an OBF button's explicit
+  # background_color, or a hand-picked one — and must not be "repaired".
+  #
+  # Resolved lazily: rake loads every .rake file before the :environment task
+  # runs, so app constants aren't autoloadable at file-load time.
+  def derived_hexes
+    @derived_hexes ||= ::ColorHelper::PRESET_HEX.values.map { |hex| hex.upcase }.to_set.freeze
+  end
+
   def authored?(record)
     return true if record.is_a?(BoardImage) && record.data.is_a?(Hash) && record.data["explicit_bg_color"]
     return false if record.bg_color.blank?
 
-    !DERIVED_HEXES.include?(ColorHelper.to_hex(record.bg_color, default: "").upcase)
+    !derived_hexes.include?(::ColorHelper.to_hex(record.bg_color, default: "").upcase)
   end
 
   # nil when the row is already correct or must be left alone.
@@ -38,10 +43,10 @@ module TileColorRepair
     expected = record.background_color_for(pos)
     return nil if expected.blank?
 
-    current = record.bg_color.presence && ColorHelper.to_hex(record.bg_color, default: "").upcase
+    current = record.bg_color.presence && ::ColorHelper.to_hex(record.bg_color, default: "").upcase
     return nil if current == expected.upcase
 
-    { bg_color: expected, text_color: ColorHelper.text_hex_for(expected), pos: pos, was: record.bg_color }
+    { bg_color: expected, text_color: ::ColorHelper.text_hex_for(expected), pos: pos, was: record.bg_color }
   end
 
   def sweep(relation, label:, write:, limit: nil, out: $stdout)
