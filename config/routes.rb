@@ -74,6 +74,11 @@ Rails.application.routes.draw do
         post :deny
       end
     end
+    resources :organizations, only: [:index, :show, :new, :create, :edit, :update], as: :dashboard_organizations do
+      member do
+        post :assign_user
+      end
+    end
     resources :video_boards, only: [:index, :new, :create, :show, :destroy], as: :dashboard_video_boards do
       member do
         post :publish
