@@ -1,0 +1,19 @@
+<div class="wrapper-page">
+  <% if @logo.present? %>
+    <img class="logo-small" src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+  <h2>About SpeakAnyWay</h2>
+  <p>
+    SpeakAnyWay is a free AAC app built by a mom of two communicators. Scan any
+    QR code in this file and the board opens online, where every word speaks out
+    loud when you tap it — free, no sign-in, no subscription. We make tools that
+    help families connect — without the price tag of traditional AAC.
+  </p>
+  <p class="cta">
+    Find more printables and the free app at <strong>speakanyway.com</strong>
+  </p>
+  <% if @qr_data_url.present? %>
+    <img class="qr-large" src="<%= @qr_data_url %>" alt="QR code to the board" />
+  <% end %>
+  <p class="thanks">Thank you for supporting SpeakAnyWay. 💙</p>
+</div>

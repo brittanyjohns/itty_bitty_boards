@@ -147,8 +147,9 @@ gem "browser", "~> 5.3"
 gem "geocoder", "~> 1.8" # Coarse IP→location lookup for safety-profile view alerts
 gem "annotaterb", "~> 4.13" # Rails 8-compatible successor to the annotate gem
 
-gem "grover"     # HTML → PDF via headless Chrome
-gem "rqrcode"    # Generate QR code PNGs
+gem "grover"      # HTML → PDF via headless Chrome
+gem "rqrcode"     # Generate QR code PNGs
+gem "combine_pdf" # Merge per-page Grover renders into one PDF (MIT, pure Ruby)
 
 gem "devise_invitable", "~> 2.0.10"
 
