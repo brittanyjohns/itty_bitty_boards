@@ -7,11 +7,16 @@ module Labels
   # up rendering "Higher" next to "swing". That reads as a defect in print,
   # where these boards become physical signs.
   #
+  # The default is lowercase (the AAC core-vocabulary convention), not Title
+  # Case — so the fix for the inconsistency above is "Higher" settling down to
+  # "higher", not "swing" climbing up to "Swing".
+  #
   # This normalizes the **defaulted** case only. Callers that explicitly supply
   # a `display_label` never route through here — their casing wins.
   #
-  # The transform only ever upcases the first letter of a word. It never
-  # downcases, so nothing that slips past `deliberate_casing?` can be mangled.
+  # The transform only ever upcases the first letter of a word (and only for
+  # the standalone pronoun "I"). It never downcases, so nothing that slips past
+  # `deliberate_casing?` can be mangled.
   module CaseNormalizer
     # Whole-utterance tiles (gestalt / GLP) read as sentences, not headlines.
     PHRASE_PART_OF_SPEECH = "phrase".freeze
@@ -32,7 +37,7 @@ module Labels
 
       english = english?(language)
       if english && part_of_speech.to_s != PHRASE_PART_OF_SPEECH
-        title_case(text)
+        lowercase_case(text)
       else
         sentence_case(text, english: english)
       end
@@ -52,8 +57,13 @@ module Labels
       lang.empty? || lang == "en" || lang.start_with?("en-", "en_")
     end
 
-    def title_case(text)
-      transform_words(text) { |word| upcase_first(word) }
+    # AAC core-vocabulary convention: tiles stay lowercase, not Title Case or
+    # sentence-initial capitals — most single/multi-word boards (LAMP, Unity,
+    # Word Power, PrAACtical AAC) present core words lowercase throughout. The
+    # pronoun "I" is the one grammar rule that survives regardless of style or
+    # position in the tile text.
+    def lowercase_case(text)
+      transform_words(text) { |word| word.match?(STANDALONE_I) ? upcase_first(word) : word }
     end
 
     # First word capitalized, the rest left as authored — except a standalone

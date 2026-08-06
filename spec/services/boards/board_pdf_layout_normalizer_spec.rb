@@ -17,9 +17,9 @@ RSpec.describe Boards::BoardPdfLayoutNormalizer, type: :service do
       image = create(:image, label: "dog", src_url: "https://cdn.example/dog.png")
       add_tile(image)
 
-      # The normalizer keys its output on display_label, which is Title Cased
+      # The normalizer keys its output on display_label, which stays lowercase
       # when defaulted from the image's lowercase matching label.
-      expect(tile_for("Dog")["image_url"]).to eq("https://cdn.example/dog.png")
+      expect(tile_for("dog")["image_url"]).to eq("https://cdn.example/dog.png")
     end
 
     it "leaves a label-only tile blank instead of borrowing a same-label library image" do
