@@ -334,15 +334,22 @@ class BuildBoardSetJob
   end
 
   # Every board in the just-built set: BFS the predictive_board_id links from the
-  # root, bounded in depth and scoped to the owner's boards so a tile pointing at
-  # a shared/admin board can't pull it into the sweep.
-  def set_board_ids(root, max_depth = 3)
+  # root, scoped to the owner's boards so a tile pointing at a shared/admin board
+  # can't pull it into the sweep.
+  #
+  # Deliberately UNBOUNDED in depth (issue #586). A depth cap is an escape hatch:
+  # a page below the cap is reachable from the published root by tapping through,
+  # but never joins the builder BoardGroup — and publish/unpublish/delete/board
+  # count all read group membership, so it silently falls out of the set. Current
+  # templates don't nest past 3, but hand-extended sets do. The walk still
+  # terminates: `where.not(id: seen)` means each pass adds only boards it hasn't
+  # seen, so it's bounded by the owner's board count and cycle-safe.
+  def set_board_ids(root)
     owner_id = root.user_id
     seen = [root.id]
     frontier = [root.id]
-    depth = 0
 
-    while frontier.any? && depth < max_depth
+    while frontier.any?
       child_ids = BoardImage.where(board_id: frontier).where.not(predictive_board_id: nil)
         .pluck(:predictive_board_id).uniq
       children = Board.where(id: child_ids, user_id: owner_id).where.not(id: seen).pluck(:id)
@@ -350,7 +357,6 @@ class BuildBoardSetJob
 
       seen.concat(children)
       frontier = children
-      depth += 1
     end
 
     seen

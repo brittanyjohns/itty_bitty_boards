@@ -38,6 +38,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   visitors a 404. Board owners can now publish and unpublish their own boards.
   Curation is unchanged: marking a board as a starter board is still admin-only,
   and publishing your own board does not add it to the public board gallery.
+- New folder pages added to a Board Builder set after it was built now belong to
+  the set. Previously a page created by turning a tile into a folder escaped the
+  set entirely: publishing the set skipped it (so public visitors tapping that
+  folder still hit a dead end), deleting the set left it behind, and it counted
+  against the plan's board limit even though the rest of the set didn't. Pages
+  nested more than three levels deep are also covered now.
 - Publishing a Board Builder board set now publishes every page in the set, so
   public visitors no longer hit a dead end when tapping a folder button.
   Unpublishing removes the whole set from public view. Both ask for confirmation

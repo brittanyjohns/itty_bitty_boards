@@ -240,6 +240,21 @@ class Board < ApplicationRecord
       board_groups.where(builder: true).first
   end
 
+  # The builder BoardGroup this board is a MEMBER of — the root or any page of
+  # a built set. `builder_board_group` only answers for the root, but a folder
+  # tile is usually added on a `builder_child` page deeper in the set, and a
+  # page created from that tile has to join the same group or it escapes the
+  # set's publish cascade, delete, and 0-slot board count (issue #586).
+  #
+  # Scoped to `user`'s own groups for the same reason `eligible_board_group` is:
+  # `board_groups` carries no ownership filter, so without it a board could pull
+  # in another user's group.
+  def containing_builder_board_group(user)
+    return nil unless user
+
+    board_groups.where(user: user, builder: true).first
+  end
+
   # The BoardGroup a "view/create set map" action should use for this board,
   # mirroring the frontend's eligibleSets() rule in ViewSetMapButton.tsx: a
   # builder set takes priority (that's what the map is built for), otherwise

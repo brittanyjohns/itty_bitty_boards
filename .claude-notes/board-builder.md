@@ -201,6 +201,17 @@ tree. "Set-ness" lives in the BoardGroup, not the fragile `builder_child`
 JSONB marker. The `builder_root` marker on the root board is still the detection
 key for re-runs and the backfill.
 
+**A set stays whole after the build, too (#586).** At build time the group
+membership and the reachable folder-tile graph are the same set, but they
+diverge the moment a user hand-extends the set. `Api::ImagesController
+#create_predictive_board` ("turn this tile into a folder") therefore adds the
+page it creates to the parent board's builder group via
+`Board#containing_builder_board_group` — which answers for any *member* of the
+set, not just the root, since folder tiles are usually added on a child page.
+`BuildBoardSetJob#set_board_ids` walks the link graph with no depth cap for the
+same reason (it's owner-scoped and cycle-safe, so it still terminates). Escaped
+pages don't publish, don't cascade-delete, and burn a board slot.
+
 **Backfill for pre-#407 sets (#409):** existing builder sets predate the
 BoardGroup, so `rake board_groups:backfill_builder_sets`
 (`lib/tasks/board_groups.rake`) wraps each `builder_root` tree lacking a builder
