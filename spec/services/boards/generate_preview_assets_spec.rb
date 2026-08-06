@@ -15,7 +15,7 @@ RSpec.describe Boards::GeneratePreviewAssets, type: :service do
   end
 
   describe "#call(generate_png: true)" do
-    it "attaches the preview image at a deterministic key" do
+    it "attaches the preview image under the board's preview namespace" do
       described_class.new(
         board: board,
         routes: Rails.application.routes.url_helpers,
@@ -23,25 +23,43 @@ RSpec.describe Boards::GeneratePreviewAssets, type: :service do
 
       board.reload
       expect(board.preview_image).to be_attached
-      expect(board.preview_image.key).to eq("board_previews/#{board.id}/preview.png")
+      expect(board.preview_image.key).to match(%r{\Aboard_previews/#{board.id}/[^/]+/preview\.png\z})
     end
 
-    it "keeps the same blob key across regenerations" do
+    # The CDN in front of the bucket does not include the query string in its
+    # cache key, so a `?v=` buster on a fixed key never invalidates anything —
+    # covers silently stopped updating after the first regeneration. A distinct
+    # PATH per generation is the only reliable invalidation. Do not "simplify"
+    # this back to one stable key.
+    it "gives every regeneration its own key so the CDN can't serve a stale PNG" do
       service = described_class.new(
         board: board,
         routes: Rails.application.routes.url_helpers,
       )
 
       service.call(generate_png: true)
-      board.reload
-      first_key = board.preview_image.key
+      first_key = board.reload.preview_image.key
 
       service.call(generate_png: true)
-      board.reload
-      second_key = board.preview_image.key
+      second_key = board.reload.preview_image.key
 
-      expect(second_key).to eq(first_key)
-      expect(second_key).to eq("board_previews/#{board.id}/preview.png")
+      expect(second_key).not_to eq(first_key)
+      expect(second_key).to start_with("board_previews/#{board.id}/")
+    end
+
+    it "purges the superseded object so old previews don't accumulate" do
+      service = described_class.new(
+        board: board,
+        routes: Rails.application.routes.url_helpers,
+      )
+
+      service.call(generate_png: true)
+      first_blob = board.reload.preview_image.blob
+
+      service.call(generate_png: true)
+
+      expect(ActiveStorage::Blob.where(id: first_blob.id)).to be_empty
+      expect(board.preview_image.service.exist?(first_blob.key)).to be(false)
     end
 
     it "refreshes the preset display image URL to the freshly generated preview" do

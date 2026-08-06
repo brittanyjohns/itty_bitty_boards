@@ -344,10 +344,12 @@ class Board < ApplicationRecord
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
-        # Key is deterministic (board_previews/<id>/preview.png) so the URL is
-        # stable. Append `?v=<blob.created_at>` so clients and CloudFront pick
-        # up the new PNG on regeneration — the service purges + reuploads, so
-        # each regen mints a fresh blob row.
+        # Cache invalidation rides on the KEY, not on `?v=`: GeneratePreviewAssets
+        # writes every regeneration to its own path, because CloudFront omits the
+        # query string from its cache key (a `?v=` buster on a fixed key is a
+        # no-op — see Boards::GeneratePreviewAssets#versioned_preview_key). `?v=`
+        # is kept only as belt-and-braces for browser caches; it is not what makes
+        # a regenerated cover visible.
         "#{cdn_host}/#{preview_image.key}?v=#{preview_image.blob.created_at.to_i}"
       else
         preview_image.url # Fallback to the direct Active Storage URL

@@ -15,11 +15,16 @@ which already depends on `pdf-lib`.
 
 - **`MarketingAsset` (`app/models/marketing_asset.rb`) hosts a PDF at a stable
   slug.** `has_one_attached :file` written at a **deterministic** S3 key
-  (`marketing_assets/<slug>.pdf`) via purge-then-reupload — the same
-  stable-key pattern as `Boards::GeneratePreviewAssets#stable_preview_key`.
+  (`marketing_assets/<slug>.pdf`) via purge-then-reupload.
   Production S3 is `public: true`, so `#file_url` (CDN_HOST + key, `file.url`
   fallback) is a permanent, unsigned CDN URL that **never changes across
-  regenerations**. `MarketingAsset.upsert_pdf!(slug:, bytes:, title:, kind:)` is
+  regenerations**. The stable key is required here (the /classroom page
+  hardcodes the URL) but carries a cost: CloudFront omits the query string from
+  its cache key, so a re-published kit keeps serving the old PDF until the edge
+  TTL expires — it needs a CloudFront invalidation. Do not copy the pattern for
+  mutable assets; board previews use a per-generation key instead
+  (`Boards::GeneratePreviewAssets#versioned_preview_key`).
+  `MarketingAsset.upsert_pdf!(slug:, bytes:, title:, kind:)` is
   idempotent — re-running the kit build overwrites in place, so the
   `KIT_DOWNLOAD_URL` is safe to hardcode on the frontend.
 - **Stable slugs for kit boards (`replace_existing_slug`).** The internal
