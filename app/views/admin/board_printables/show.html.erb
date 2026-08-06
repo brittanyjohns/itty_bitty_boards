@@ -1,0 +1,54 @@
+<% content_for :page_title, "Printable ##{@printable.id}" %>
+<% if %w[pending generating].include?(@printable.status) %>
+  <% content_for :head_extra, tag.meta("http-equiv": "refresh", content: "5") %>
+<% end %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @printable.board&.name || "Board ##{@printable.board_id}" %></h1>
+    <p class="text-sm text-t3 mt-0.5">Printable #<%= @printable.id %></p>
+  </div>
+  <%= link_to "← All printables", admin_dashboard_board_printables_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="<%= board_printable_status_badge(@printable.status) %> inline-block text-xs rounded px-2.5 py-1"><%= @printable.status %></span>
+    <% if %w[pending generating].include?(@printable.status) %>
+      <span class="text-xs text-t3">This page refreshes automatically every 5 seconds.</span>
+    <% end %>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs mb-4">
+    <div>
+      <div class="text-t2 mb-0.5">Subboards</div>
+      <div class="text-t1"><%= @printable.include_subboards? ? "Yes (#{@printable.board_ids.size} boards)" : "No" %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Max boards</div>
+      <div class="text-t1"><%= @printable.max_boards %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Pages</div>
+      <div class="text-t1"><%= @printable.page_count || "—" %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Requested by</div>
+      <div class="text-t1"><%= @printable.created_by&.email || "—" %></div>
+    </div>
+  </div>
+
+  <% if @printable.status == "failed" %>
+    <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm">
+      <%= @printable.error_message.presence || "Generation failed." %>
+    </div>
+  <% elsif @printable.complete? %>
+    <div class="flex flex-wrap gap-3">
+      <% @printable.files_view.each do |file| %>
+        <%= link_to "Download #{file[:variant].humanize} (#{number_to_human_size(file[:byte_size])})", file[:url],
+              target: "_blank", rel: "noopener",
+              class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

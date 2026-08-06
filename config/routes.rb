@@ -80,6 +80,7 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
+    resources :board_printables, only: [:index, :show, :create], as: :dashboard_board_printables
   end
 
   get "main/index", as: :home
