@@ -118,13 +118,82 @@ resolver *found*, not only ones it created. Two rails:
 Callers that would rather ship blanks than spend the call pass a request-level
 `generate_missing: false` (not per-cell).
 
+**Labels resolve in one batch per request.** `Boards::ImageResolver.resolve_all`
+does the art lookup in two queries however many labels are asked for, keyed by
+`ImageResolver.normalize(label)`, and picks exactly what a per-label `resolve`
+would. Per-cell resolution cost 2-3 queries per tile and was most of what pushed
+a 48-cell request past the proxy timeout. `resolve_all` may create a blank Image
+for a label with no match anywhere, so it belongs inside the caller's
+transaction and never on a read path.
+
+## Bulk is retry-safe only when the caller asks for it
+
+`bulk` used to return 500 *after* the cells committed, so the obvious client
+behaviour — retry on 5xx — doubled every tile on the board. Two rails now:
+
+- **`idempotency_key`** (request-level). The key and the ids it created are
+  recorded on `board.settings["internal_bulk_keys"]` (last
+  `IDEMPOTENCY_KEY_HISTORY` keys) **inside the transaction**, so a rolled-back
+  write leaves no key behind that a retry would replay against tiles that don't
+  exist. A repeat request with a known key creates nothing and replays the
+  original cells with `200` + an `Idempotent-Replay: true` header.
+- **`replace: true`** clears the board inside the same transaction, so a blind
+  retry converges instead of appending.
+
+Default behavior is unchanged (append, duplicates allowed) — the protection is
+opt-in so existing multi-batch callers keep working.
+
+**The multi-cell endpoints return a compact payload, not `api_view`.**
+`BoardImage#api_view` costs several queries per tile (docs + blobs, audio files,
+voice list, board lookups), all run after the transaction commits — hundreds of
+post-commit queries on a 48-cell build. `view=full` opts back in. The
+single-cell `create`/`update` still return `api_view`.
+
+## Correcting a tile (`update` / `bulk_update` / `destroy`)
+
+A symbol swap re-points `image_id` on the **same** `BoardImage`. The board's
+`layout` keys off `BoardImage` ids, so delete-and-recreate would orphan the
+layout entry and silently reflow the grid — never "fix" a tile that way. Tile
+text is left alone on a swap unless the caller passes `display_label`.
+
+Cells are always looked up through `@board.board_images`, so a cell id belonging
+to another board 404s rather than writing. `destroy` repacks displaced tiles and
+then rewrites the board-level `layout` (which would otherwise still name the
+removed id); surviving tiles keep their authored cells.
+
 ## Search endpoints
 
-- `GET|POST /api/internal/images/search` → `Images::LabelSearch`. Exact match
-  first, prefix fallback. Scoped to `Image.default_public.searchable.with_artifacts`
-  — user and private images are never reachable, and this is not overridable.
-  Images with no attached doc are excluded (a printable can't use them, so a
-  null-URL result would be noise).
+- `GET|POST /api/internal/images/search` → `Images::LabelSearch`. Scoped to
+  `Image.default_public.searchable.with_artifacts` — user and private images are
+  never reachable, and this is not overridable. Images with no attached doc are
+  excluded (a printable can't use them, so a null-URL result would be noise).
+
+  **Ranked in tiers, and the first tier is literal equality.**
+  `search_by_exact_label` is NOT an equality match — it is a pg_search tsearch
+  scope (`prefix: false`), so it matches the *word* "want" anywhere in a label
+  ("i want pasta", "want slide") and orders by `ts_rank` with no tiebreak. The
+  genuinely exact row was routinely outranked and truncated at `limit`, which is
+  how a pre-flight check reported core vocabulary as art-less while `bulk` was
+  attaching exact-label art for the same word. The literal tier
+  (`LOWER(label) = LOWER(?)`, ordered `COUNT(docs) DESC, id ASC`) runs first and
+  orders exactly the way `Boards::ImageResolver` does, so the two endpoints agree
+  on which Image wins a label. Do not collapse the tiers back into one query.
+
+  **`resolve=true`** prepends what `board_images/bulk` would actually attach
+  (`match: "resolve"`), reached through `ImageResolver` — which reads the default
+  admin's own images, private ones included, before the public scope. That is the
+  only way a caller can see a pick search's own scope excludes. A resolve row is
+  never dropped by `commercial_safe` filtering (hiding it would report "no art"
+  for a label that will get art); its flags carry the verdict. No resolve row
+  means no art exists and `bulk` would attach a blank + queue generation — search
+  itself must never create an Image.
+
+- `GET /api/internal/images/:id` serializes licensing (`has_art`, `source_type`,
+  `original_url`, `license`, `commercial_safe`, `attribution_required`,
+  `share_alike`) for the same Doc a search result would describe, via
+  `Images::LabelSearch.library_doc`. Without it there was no way to license-check
+  art after `bulk` attached it — every image read back as "unsafe, no license"
+  whether or not that was true.
 - `GET /api/internal/boards/search` → `Boards::AdminSearch`. Scoped to admin
   boards, excluding menus, sub-boards and Board Builder children. Returns
   **unpublished boards by default**; callers building shippable products must

@@ -121,6 +121,35 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
       image_prompt: image.image_prompt,
       src: image.display_image_url(current_user),
       error: image.error,
+    }.merge(license_payload(image))
+  end
+
+  # Licensing for the Doc a search result would describe. Without this there is
+  # no way to check what `bulk` actually attached — every image read back as
+  # "no license recorded" whether or not it had one (#575), which matters
+  # because these boards feed the printables pipeline.
+  #
+  # `has_art` is deliberately separate from the flags: no doc at all is a very
+  # different situation from a doc under an unusable license, and both used to
+  # come back looking identical.
+  def license_payload(image)
+    doc = Images::LabelSearch.library_doc(image)
+    return { has_art: false, source_type: nil, original_url: nil, license: nil,
+             commercial_safe: false, attribution_required: false, share_alike: false } if doc.nil?
+
+    license = Images::CommercialLicense.for(
+      doc,
+      include_share_alike: truthy_param?(params[:include_share_alike]),
+    )
+
+    {
+      has_art: doc.image.attached?,
+      source_type: doc.source_type,
+      original_url: doc.display_url,
+      license: license.license,
+      commercial_safe: license.commercial_safe?,
+      attribution_required: license.attribution_required?,
+      share_alike: license.share_alike?,
     }
   end
 
@@ -144,6 +173,10 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
       limit: limit || params[:limit].presence || default_limit || Images::LabelSearch::DEFAULT_LIMIT,
       commercial_safe: truthy_param?(params[:commercial_safe]),
       include_share_alike: truthy_param?(params[:include_share_alike]),
+      # `resolve=true` prepends the image `board_images/bulk` would actually
+      # attach for the label, so a pre-flight check reads the same slice of the
+      # library the write does.
+      resolve: truthy_param?(params[:resolve]),
     )
   end
 

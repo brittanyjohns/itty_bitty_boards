@@ -23,21 +23,37 @@ module Images
     COMMERCIAL_SAFE_OVERFETCH_MULTIPLIER = 4
     COMMERCIAL_SAFE_FETCH_CEILING = 200
 
-    attr_reader :match, :limit, :commercial_safe, :include_share_alike
+    attr_reader :match, :limit, :commercial_safe, :include_share_alike, :resolve
 
-    def initialize(match: "exact", limit: DEFAULT_LIMIT, commercial_safe: false, include_share_alike: false)
+    def initialize(match: "exact", limit: DEFAULT_LIMIT, commercial_safe: false, include_share_alike: false, resolve: false)
       @match = match.to_s == "prefix" ? "prefix" : "exact"
       @limit = clamp(limit)
       @commercial_safe = commercial_safe
       @include_share_alike = include_share_alike
+      @resolve = resolve
     end
 
     def call(label)
       label = label.to_s.strip
       return [] if label.blank?
 
-      matched, kind = fetch(label)
-      matched.filter_map { |image| serialize(image, kind) }.first(limit)
+      results = []
+      seen = Set.new
+
+      # Tiers are lazy: a tier is only queried when the one above it failed to
+      # fill `limit`, so an exact hit costs one lookup, not four.
+      tiers(label).each do |candidates, kind|
+        candidates.call.each do |image|
+          next unless seen.add?(image.id)
+
+          row = serialize(image, kind)
+          results << row if row
+          break if results.size >= limit
+        end
+        break if results.size >= limit
+      end
+
+      results
     end
 
     private
@@ -46,17 +62,64 @@ module Images
       Image.default_public.searchable.with_artifacts
     end
 
-    # Exact first, prefix as a fallback — labels are stored inconsistently
-    # enough that exact-only would produce spurious empty results.
-    def fetch(label)
-      if match == "prefix"
-        [base_scope.search_by_label(label).limit(fetch_limit), "prefix"]
-      else
-        exact = base_scope.search_by_exact_label(label).limit(fetch_limit).to_a
-        return [exact, "exact"] if exact.any?
+    # Ranked tiers, best first. Everything below the first tier existed before;
+    # the two additions are the `resolve` tier and the literal-equality tier.
+    #
+    # `search_by_exact_label` is NOT an equality match — it is a pg_search
+    # tsearch scope with `prefix: false`, so it matches the *word* "want"
+    # anywhere in a label ("i want pasta", "want slide") and orders by ts_rank
+    # with no tiebreak. The genuinely exact row could therefore be outranked by
+    # phrase matches and truncated away at `limit`, which is how a pre-flight
+    # check reported core vocabulary as having no art while `bulk` was happily
+    # attaching an exact-label image for the same word (#575). The literal tier
+    # runs first and orders exactly the way Boards::ImageResolver does, so the
+    # two endpoints agree on which Image wins a label.
+    def tiers(label)
+      list = []
+      list << [-> { resolved_candidates(label) }, "resolve"] if resolve
+      list << [-> { literal_matches(label) }, "exact"]
+      list << [-> { base_scope.search_by_exact_label(label).limit(fetch_limit) }, "exact"] if match != "prefix"
+      list << [-> { base_scope.search_by_label(label).limit(fetch_limit) }, "prefix"]
+      list
+    end
 
-        [base_scope.search_by_label(label).limit(fetch_limit), "prefix"]
-      end
+    # Exactly what `POST /api/internal/boards/:id/board_images/bulk` would
+    # attach for this label. The resolver reads a DIFFERENT slice of the library
+    # than search does — `owner.images` (the default admin's, private ones
+    # included) before the public scope — so a label can resolve to an image
+    # ordinary search can never return. This tier is the caller's only way to
+    # see that ahead of the write.
+    #
+    # Returns nothing when no art exists for the label: the resolver would then
+    # attach a blank image and queue AI generation, and search must not
+    # pre-create that Image as a side effect of a read.
+    def resolved_candidates(label)
+      owner = User.find_by(id: User::DEFAULT_ADMIN_ID)
+      return [] if owner.nil?
+
+      Array(Boards::ImageResolver.best_arted_for(label, owner))
+    end
+
+    # Literal, case-insensitive label equality, ordered the way
+    # Boards::ImageResolver orders: most artwork first, lowest id to break ties.
+    #
+    # Two queries on purpose. `with_artifacts` is an `includes`, and mixing it
+    # with the `left_joins(:docs) + GROUP BY` needed for the doc-count ordering
+    # makes Rails eager_load into the grouped query. Rank ids first, then load
+    # the page with its preloads intact.
+    def literal_matches(label)
+      ids = Image.default_public.searchable
+                 .where("LOWER(images.label) = LOWER(?)", label)
+                 .left_joins(:docs)
+                 .group("images.id")
+                 .having("COUNT(docs.id) > 0")
+                 .order(Arel.sql("COUNT(docs.id) DESC, images.id ASC"))
+                 .limit(fetch_limit)
+                 .pluck(:id)
+      return [] if ids.empty?
+
+      by_id = Image.where(id: ids).with_artifacts.index_by(&:id)
+      ids.filter_map { |id| by_id[id] }
     end
 
     # Behaviour is unchanged when commercial_safe filtering is off.
@@ -71,7 +134,11 @@ module Images
       return nil unless doc&.image&.attached?
 
       license = Images::CommercialLicense.for(doc, include_share_alike: include_share_alike)
-      return nil if commercial_safe && !license.commercial_safe?
+      # A resolve row is never filtered out: the point of the tier is "here is
+      # what bulk will attach", and hiding an unsafe pick behind the
+      # commercial_safe filter reports "no art" for a label that will in fact
+      # get art. The flags below let the caller judge it.
+      return nil if commercial_safe && kind != "resolve" && !license.commercial_safe?
 
       blob = doc.image.blob
 
@@ -100,6 +167,10 @@ module Images
       }
     end
 
+    def library_doc(image)
+      self.class.library_doc(image)
+    end
+
     # image.display_doc(nil) is NOT safe here: for an admin-owned image it
     # resolves to `docs.last` with no filter on doc.user_id at all. Non-admin
     # users can attach their own Docs to shared public admin-owned Images
@@ -119,7 +190,10 @@ module Images
     # `docs` carries no default ordering scope, so `max_by(&:id)` is
     # equivalent to the previous `.order(:id).last` ("most recent" wins).
     # Do not "optimize" this back into a `.where`.
-    def library_doc(image)
+    #
+    # Exposed as a class method as well so the internal images#show endpoint
+    # reports licensing for the same Doc a search result would describe.
+    def self.library_doc(image)
       image.docs.select { |doc| [nil, User::DEFAULT_ADMIN_ID].include?(doc.user_id) }.max_by(&:id)
     end
 

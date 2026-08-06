@@ -99,6 +99,120 @@ RSpec.describe Images::LabelSearch do
     end
   end
 
+  # #575: `search_by_exact_label` is a pg_search tsearch scope, not an equality
+  # match — it matches the word "want" anywhere in a label and orders by
+  # ts_rank. Exact-label images were being outranked by phrase matches and cut
+  # off at `limit`, so a pre-flight check reported core vocabulary as having no
+  # art while `bulk` was attaching an exact-label image for the same word.
+  describe "exact label ranking" do
+    it "ranks the literal label above phrase matches containing the word" do
+      %w[i\ want\ pasta want\ slide dont\ want i\ want\ to\ buy\ this].each do |phrase|
+        image_with_doc(label: phrase)
+      end
+      exact = image_with_doc(label: "want")
+
+      results = described_class.new(limit: 5).call("want")
+
+      expect(results.first[:id]).to eq(exact.id)
+      expect(results.first[:label]).to eq("want")
+      expect(results.first[:match]).to eq("exact")
+    end
+
+    it "returns the literal label even when the limit is smaller than the phrase-match count" do
+      3.times { |i| image_with_doc(label: "where are the lions #{i}") }
+      exact = image_with_doc(label: "where")
+
+      results = described_class.new(limit: 1).call("where")
+
+      expect(results.map { |r| r[:id] }).to eq([exact.id])
+    end
+
+    it "orders several exact-label images by artwork count, matching Boards::ImageResolver" do
+      few = image_with_doc(label: "up")
+      many = image_with_doc(label: "up")
+      2.times do
+        doc = many.docs.create!(user_id: admin.id, source_type: "OpenAI", raw: "up")
+        doc.image.attach(io: StringIO.new(file_fixture("sample.png").read),
+                         filename: "up.png", content_type: "image/png")
+      end
+
+      results = described_class.new.call("up")
+
+      expect(results.map { |r| r[:id] }.first(2)).to eq([many.id, few.id])
+      expect(Boards::ImageResolver.best_arted_for("up", admin).id).to eq(results.first[:id])
+    end
+
+    it "hoists the literal label above prefix matches in prefix mode too" do
+      image_with_doc(label: "apple sauce")
+      exact = image_with_doc(label: "apple")
+
+      results = described_class.new(match: "prefix", limit: 5).call("apple")
+
+      expect(results.first[:id]).to eq(exact.id)
+    end
+
+    it "does not match a different label case-sensitively" do
+      exact = image_with_doc(label: "Stop")
+      expect(described_class.new.call("stop").first[:id]).to eq(exact.id)
+    end
+  end
+
+  describe "resolve mode" do
+    it "surfaces the image bulk would attach even when search's scope excludes it" do
+      # An admin-owned PRIVATE image is outside Image.default_public (so search
+      # can never return it) but inside Boards::ImageResolver's first branch
+      # (owner.images), so `bulk` attaches it. That divergence is #575.
+      hidden = image_with_doc(label: "want-private", private_flag: true)
+
+      expect(described_class.new.call("want-private")).to eq([])
+
+      results = described_class.new(resolve: true).call("want-private")
+      expect(results.first[:id]).to eq(hidden.id)
+      expect(results.first[:match]).to eq("resolve")
+    end
+
+    it "agrees with Boards::ImageResolver on which image wins a label" do
+      image_with_doc(label: "go")
+      winner = image_with_doc(label: "go")
+      doc = winner.docs.create!(user_id: admin.id, source_type: "OpenAI", raw: "go")
+      doc.image.attach(io: StringIO.new(file_fixture("sample.png").read),
+                       filename: "go.png", content_type: "image/png")
+
+      results = described_class.new(resolve: true).call("go")
+
+      expect(results.first[:match]).to eq("resolve")
+      expect(results.first[:id]).to eq(Boards::ImageResolver.best_arted_for("go", admin).id)
+    end
+
+    it "returns no resolve row when no art exists, and creates nothing" do
+      Image.create!(label: "artless", user_id: admin.id)
+
+      expect {
+        expect(described_class.new(resolve: true).call("artless")).to eq([])
+      }.not_to change(Image, :count)
+    end
+
+    it "reports the resolved image even when it fails the commercial_safe filter" do
+      # Hiding it would report "no art" for a label that will in fact get art.
+      image_with_doc(label: "nc-resolve", source_type: "ObfImport",
+                     license: { "type" => "CC BY-NC" })
+
+      results = described_class.new(resolve: true, commercial_safe: true).call("nc-resolve")
+
+      expect(results.size).to eq(1)
+      expect(results.first[:match]).to eq("resolve")
+      expect(results.first[:commercial_safe]).to be false
+    end
+
+    it "does not duplicate the resolved image in the exact tier" do
+      image_with_doc(label: "dedupe")
+
+      results = described_class.new(resolve: true).call("dedupe")
+
+      expect(results.size).to eq(1)
+    end
+  end
+
   describe "limit" do
     it "clamps the limit to MAX_LIMIT" do
       expect(described_class.new(limit: 9_999).limit).to eq(described_class::MAX_LIMIT)

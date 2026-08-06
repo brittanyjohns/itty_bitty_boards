@@ -401,4 +401,279 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
       expect(GenerateImagesJob).to have_received(:perform_async).with([image.id], board.id)
     end
   end
+
+  # #574: bulk intermittently 500'd AFTER the cells had been written, so the
+  # obvious client behaviour — retry on 5xx — silently duplicated every tile.
+  describe "retry safety" do
+    def bulk_post(cells, extra = {})
+      post "/api/internal/boards/#{board.id}/board_images/bulk",
+           params: { cells: cells }.merge(extra).to_json,
+           headers: auth_headers
+    end
+
+    let!(:img_a) { create(:image, label: "retry-a", user_id: admin_user.id) }
+    let!(:img_b) { create(:image, label: "retry-b", user_id: admin_user.id) }
+
+    it "replays the original cells instead of duplicating them when the key repeats" do
+      cells = [{ image_id: img_a.id, position: 0 }, { image_id: img_b.id, position: 1 }]
+
+      bulk_post(cells, idempotency_key: "build-42")
+      expect(response).to have_http_status(:created)
+      first_ids = JSON.parse(response.body).map { |c| c["id"] }
+
+      expect { bulk_post(cells, idempotency_key: "build-42") }
+        .not_to change { board.reload.board_images.count }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Idempotent-Replay"]).to eq("true")
+      expect(JSON.parse(response.body).map { |c| c["id"] }).to eq(first_ids)
+    end
+
+    it "still creates cells for a different key on the same board" do
+      bulk_post([{ image_id: img_a.id }], idempotency_key: "build-1")
+
+      expect { bulk_post([{ image_id: img_b.id }], idempotency_key: "build-2") }
+        .to change { board.reload.board_images.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "duplicates as before when no key is supplied (behaviour is opt-in)" do
+      bulk_post([{ image_id: img_a.id }])
+
+      expect { bulk_post([{ image_id: img_a.id }]) }
+        .to change { board.reload.board_images.count }.by(1)
+    end
+
+    it "does not remember a key for a request that rolled back" do
+      bulk_post([{ image_id: img_a.id }, { position: 1 }], idempotency_key: "rolled-back")
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(board.reload.settings.dig("internal_bulk_keys", "rolled-back")).to be_nil
+
+      expect { bulk_post([{ image_id: img_a.id }], idempotency_key: "rolled-back") }
+        .to change { board.reload.board_images.count }.by(1)
+      expect(response).to have_http_status(:created)
+    end
+
+    it "replaces existing tiles when replace is true" do
+      bulk_post([{ image_id: img_a.id }, { image_id: img_b.id }])
+      expect(board.reload.board_images.count).to eq(2)
+
+      bulk_post([{ image_id: img_a.id }], replace: true)
+
+      expect(response).to have_http_status(:created)
+      expect(board.reload.board_images.count).to eq(1)
+      expect(board.board_images.first.image_id).to eq(img_a.id)
+      # The board-level layout no longer references the replaced tiles.
+      expect(board.reload.layout.values.flat_map(&:keys).uniq).to eq([board.board_images.first.id.to_s])
+    end
+
+    it "keeps other settings keys intact when remembering a key" do
+      board.update!(settings: { "video_seeder" => true })
+
+      bulk_post([{ image_id: img_a.id }], idempotency_key: "keep-settings")
+
+      expect(board.reload.settings["video_seeder"]).to eq(true)
+      expect(board.settings["internal_bulk_keys"]).to have_key("keep-settings")
+    end
+  end
+
+  # #574, the other half: `api_view` costs several queries PER TILE, all run
+  # after the transaction commits.
+  describe "bulk response payload" do
+    def bulk_post(cells, extra = {})
+      post "/api/internal/boards/#{board.id}/board_images/bulk",
+           params: { cells: cells }.merge(extra).to_json,
+           headers: auth_headers
+    end
+
+    it "returns a compact cell payload by default" do
+      image = create(:image, label: "compact", user_id: admin_user.id)
+
+      bulk_post([{ image_id: image.id, bg_color: "yellow" }])
+
+      cell = JSON.parse(response.body).first
+      expect(cell).to include("id", "board_id", "image_id", "label", "display_label",
+                              "position", "layout", "bg_color", "src", "dynamic", "data")
+      expect(cell).not_to have_key("docs")
+      expect(cell).not_to have_key("audio_files")
+      expect(cell).not_to have_key("voice_list")
+      expect(cell["bg_color"]).to eq("#FFEA75")
+    end
+
+    it "returns the full api_view when view=full is requested" do
+      image = create(:image, label: "full-view", user_id: admin_user.id)
+
+      bulk_post([{ image_id: image.id }], view: "full")
+
+      cell = JSON.parse(response.body).first
+      expect(cell).to include("docs", "audio_files", "voice_list", "board_name")
+    end
+
+    it "issues fewer queries than the full api_view for the same cells" do
+      images = 6.times.map { |i| create(:image, label: "flat-#{i}", user_id: admin_user.id) }
+
+      count_queries = lambda do |cells, extra|
+        queries = 0
+        callback = lambda do |_name, _start, _finish, _id, payload|
+          next if payload[:sql].to_s.match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)/i)
+
+          queries += 1
+        end
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          post "/api/internal/boards/#{board.id}/board_images/bulk",
+               params: { cells: cells }.merge(extra).to_json, headers: auth_headers
+        end
+        queries
+      end
+
+      lean = count_queries.call(images.first(3).map { |i| { image_id: i.id } }, {})
+      full = count_queries.call(images.last(3).map { |i| { image_id: i.id } }, { view: "full" })
+
+      # The per-tile docs / audio / voice-list lookups in api_view are what a
+      # 48-cell request was paying for AFTER the transaction committed.
+      expect(lean).to be < full
+    end
+  end
+
+  # #584: the internal API could create a tile but never correct one.
+  describe "PATCH /api/internal/boards/:board_id/board_images/:id" do
+    let!(:original) { with_art(create(:image, label: "more-unsafe", user_id: admin_user.id)) }
+    let!(:replacement) { with_art(create(:image, label: "more", user_id: admin_user.id)) }
+    let!(:cell) { board.add_image(original.id) }
+
+    it "returns 401 without a valid bearer token" do
+      patch "/api/internal/boards/#{board.id}/board_images/#{cell.id}", params: { bg_color: "red" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "swaps the image while preserving the BoardImage id and layout" do
+      layout_before = cell.reload.layout
+      board_layout_before = board.reload.layout
+
+      patch "/api/internal/boards/#{board.id}/board_images/#{cell.id}",
+            params: { image_id: replacement.id }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["id"]).to eq(cell.id)
+      expect(cell.reload.image_id).to eq(replacement.id)
+      expect(cell.layout).to eq(layout_before)
+      expect(board.reload.layout).to eq(board_layout_before)
+    end
+
+    it "updates style attributes the same way bulk does at create time" do
+      patch "/api/internal/boards/#{board.id}/board_images/#{cell.id}",
+            params: { bg_color: "yellow", display_label: "MORE", hidden: true, hide_label: true }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      cell.reload
+      expect(cell.bg_color).to eq("#FFEA75")
+      expect(cell.display_label).to eq("MORE")
+      expect(cell.hidden).to eq(true)
+      expect(cell.data).to include("hide_label" => true)
+    end
+
+    it "does not rename the tile when only the image is swapped" do
+      cell.update!(display_label: "more")
+
+      patch "/api/internal/boards/#{board.id}/board_images/#{cell.id}",
+            params: { image_id: replacement.id }.to_json,
+            headers: auth_headers
+
+      expect(cell.reload.display_label).to eq("more")
+    end
+
+    it "404s for a board_image belonging to another board, without writing" do
+      other_board = create(:board, user: admin_user)
+      other_cell = other_board.add_image(original.id)
+
+      patch "/api/internal/boards/#{board.id}/board_images/#{other_cell.id}",
+            params: { image_id: replacement.id }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:not_found)
+      expect(other_cell.reload.image_id).to eq(original.id)
+    end
+
+    it "422s for an image_id that does not exist" do
+      patch "/api/internal/boards/#{board.id}/board_images/#{cell.id}",
+            params: { image_id: 0 }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(cell.reload.image_id).to eq(original.id)
+    end
+  end
+
+  describe "PATCH /api/internal/boards/:board_id/board_images/bulk_update" do
+    let!(:image) { create(:image, label: "bulk-edit", user_id: admin_user.id) }
+    let!(:cell_a) { board.add_image(image.id) }
+    let!(:cell_b) { board.add_image(image.id) }
+
+    it "updates several cells atomically" do
+      patch "/api/internal/boards/#{board.id}/board_images/bulk_update",
+            params: { cells: [{ id: cell_a.id, bg_color: "yellow" }, { id: cell_b.id, voice: "alloy" }] }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(cell_a.reload.bg_color).to eq("#FFEA75")
+      expect(cell_b.reload.voice).to be_present
+    end
+
+    it "rolls back every cell when one is not on this board" do
+      other_board = create(:board, user: admin_user)
+      foreign = other_board.add_image(image.id)
+
+      patch "/api/internal/boards/#{board.id}/board_images/bulk_update",
+            params: { cells: [{ id: cell_a.id, bg_color: "yellow" }, { id: foreign.id, bg_color: "red" }] }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["errors"].first["index"]).to eq(1)
+      expect(cell_a.reload.bg_color).not_to eq("#FFEA75")
+    end
+
+    it "422s when cells is empty" do
+      patch "/api/internal/boards/#{board.id}/board_images/bulk_update",
+            params: { cells: [] }.to_json,
+            headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
+
+  describe "DELETE /api/internal/boards/:board_id/board_images/:id" do
+    let!(:image) { create(:image, label: "deletable", user_id: admin_user.id) }
+    let!(:cell_a) { board.add_image(image.id) }
+    let!(:cell_b) { board.add_image(image.id) }
+
+    it "removes the cell and drops it from the board's layout" do
+      expect {
+        delete "/api/internal/boards/#{board.id}/board_images/#{cell_a.id}", headers: auth_headers
+      }.to change { board.reload.board_images.count }.by(-1)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to include("deleted" => true, "id" => cell_a.id)
+      expect(board.reload.layout.values.flat_map(&:keys)).not_to include(cell_a.id.to_s)
+      expect(BoardImage.find_by(id: cell_a.id)).to be_nil
+    end
+
+    it "keeps the surviving cells" do
+      delete "/api/internal/boards/#{board.id}/board_images/#{cell_a.id}", headers: auth_headers
+
+      expect(board.reload.board_images.pluck(:id)).to eq([cell_b.id])
+    end
+
+    it "404s for a board_image belonging to another board" do
+      other_board = create(:board, user: admin_user)
+      foreign = other_board.add_image(image.id)
+
+      delete "/api/internal/boards/#{board.id}/board_images/#{foreign.id}", headers: auth_headers
+
+      expect(response).to have_http_status(:not_found)
+      expect(BoardImage.find_by(id: foreign.id)).to be_present
+    end
+  end
 end

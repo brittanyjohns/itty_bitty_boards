@@ -39,6 +39,62 @@ module Boards
         Image.create!(label: word, user_id: owner.id)
     end
 
+    # Batch form of `resolve` for a whole request's worth of labels. Returns a
+    # hash keyed by `normalize(label)`, so callers look a label up with the same
+    # key regardless of the casing they authored.
+    #
+    # Resolving per tile costs 2-3 queries each; a 48-tile board build was
+    # spending most of its wall clock here and landing near the proxy timeout
+    # that made the endpoint return 500 *after* committing (#574). This does the
+    # art lookup in two queries total, however many labels are asked for.
+    #
+    # Same rules as `resolve`, including creating a blank Image for a label with
+    # no match anywhere — so call it inside the caller's transaction, and never
+    # from a read-only path.
+    def resolve_all(labels, owner:)
+      # key (downcased) => the authored casing, so a label with no match
+      # anywhere creates an Image the same way a single `resolve` would rather
+      # than a silently downcased one.
+      authored = {}
+      Array(labels).each do |label|
+        word = Boards::InterestWords.normalize_word(label).to_s
+        next if word.blank?
+
+        authored[word.downcase] ||= word
+      end
+      return {} if authored.empty?
+
+      words = authored.keys
+      arted = best_arted_all(owner.images, words)
+      arted = best_arted_all(default_public_scope, words - arted.keys).merge(arted)
+
+      words.index_with do |word|
+        arted[word] || resolve(authored[word], owner: owner)
+      end
+    end
+
+    # The art-bearing image for each of `words`, keyed by normalized label.
+    # Ordering matches `best_arted` (most docs, then lowest id), and the first
+    # row seen per label wins — so a batch resolve picks exactly the Image a
+    # per-label resolve would.
+    def best_arted_all(relation, words)
+      return {} if words.empty?
+
+      relation
+        .where("LOWER(images.label) IN (?)", words)
+        .left_joins(:docs)
+        .group("images.id")
+        .having("COUNT(docs.id) > 0")
+        .order(Arel.sql("COUNT(docs.id) DESC, images.id ASC"))
+        .each_with_object({}) { |image, map| map[normalize(image.label)] ||= image }
+    end
+
+    # The lookup key for a label: normalized the way `resolve` normalizes, then
+    # downcased, since matching is case-insensitive.
+    def normalize(label)
+      Boards::InterestWords.normalize_word(label).to_s.downcase
+    end
+
     # Re-points every blank (art-less) tile on `board` to the curated art-bearing
     # image for the same label, leaving tiles that already have art untouched.
     # This is the same blank->art upgrade `SeededSetCloner#copy_tiles!` does for

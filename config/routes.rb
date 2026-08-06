@@ -446,9 +446,10 @@ Rails.application.routes.draw do
         member do
           get :export, action: :export_pdf, defaults: { format: :pdf }
         end
-        resources :board_images, only: [:create] do
+        resources :board_images, only: [:create, :update, :destroy] do
           collection do
             post :bulk
+            patch :bulk_update
           end
         end
       end

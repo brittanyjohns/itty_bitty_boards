@@ -129,4 +129,58 @@ RSpec.describe "API::Internal::Images search", type: :request do
       expect(body["results"]["widget"].size).to eq(25)
     end
   end
+
+  # #575: search and board_images/bulk disagreed about which Image a label
+  # resolves to, so a pre-flight art check reported core vocabulary as missing
+  # while bulk was attaching exact-label art for the same word.
+  describe "agreement with board_images/bulk" do
+    it "ranks the exact-label image first instead of phrase matches" do
+      ["i want to buy this", "want slide", "i want pasta", "dont want"].each do |phrase|
+        image_with_doc(label: phrase)
+      end
+      exact = image_with_doc(label: "want")
+
+      get "/api/internal/images/search", params: { q: "want", limit: 5 }, headers: auth_headers
+
+      expect(body["results"].first["id"]).to eq(exact.id)
+      expect(body["results"].first["label"]).to eq("want")
+    end
+
+    it "reports the exact-label image in a bulk search too" do
+      image_with_doc(label: "where are the lions?")
+      exact = image_with_doc(label: "where")
+
+      post "/api/internal/images/search",
+           params: { labels: ["where"], limit_per_label: 1 }.to_json, headers: json_headers
+
+      expect(body["results"]["where"].map { |r| r["id"] }).to eq([exact.id])
+    end
+
+    it "surfaces what bulk would attach when resolve=true" do
+      # Private admin-owned art: outside search's scope, inside the resolver's.
+      hidden = Image.create!(label: "resolve-only", user_id: admin.id, is_private: true)
+      doc = hidden.docs.create!(user_id: admin.id, source_type: "OpenAI", raw: "resolve-only")
+      doc.image.attach(io: StringIO.new(file_fixture("sample.png").read),
+                       filename: "r.png", content_type: "image/png")
+
+      get "/api/internal/images/search", params: { q: "resolve-only" }, headers: auth_headers
+      expect(body["results"]).to eq([])
+
+      get "/api/internal/images/search",
+          params: { q: "resolve-only", resolve: "true" }, headers: auth_headers
+
+      expect(body["results"].first["id"]).to eq(hidden.id)
+      expect(body["results"].first["match"]).to eq("resolve")
+    end
+
+    it "supports resolve in the bulk search" do
+      exact = image_with_doc(label: "up")
+
+      post "/api/internal/images/search",
+           params: { labels: ["up"], resolve: true, limit_per_label: 1 }.to_json, headers: json_headers
+
+      expect(body["results"]["up"].first["id"]).to eq(exact.id)
+      expect(body["results"]["up"].first["match"]).to eq("resolve")
+    end
+  end
 end

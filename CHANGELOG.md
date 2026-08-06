@@ -16,8 +16,41 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   everything else is stripped from to/cc/bcc. Production and development are
   unaffected.
 
+### Added
+
+- **The internal API can now correct a tile, not just create one.**
+  `PATCH /api/internal/boards/:id/board_images/:cell_id` (and an atomic
+  `bulk_update`) swap a tile's symbol, colours or label in place, and `DELETE`
+  removes one and resyncs the board's layout. A symbol swap keeps the same
+  `BoardImage`, so the grid doesn't move — previously a wrong image or colour
+  on an API-built board could only be fixed by hand in the editor, which
+  doesn't scale to a set of boards headed for print.
+
 ### Fixed
 
+- **Image search no longer reports art as missing when it exists.** Searching a
+  label like `want` or `where` returned only phrase matches (`i want pasta`,
+  `where are the lions?`) and could omit the image labelled exactly `want` —
+  the very one a board build attaches. Pre-flight "will this board have art?"
+  checks were therefore reporting core vocabulary as uncovered, nearly
+  triggering unnecessary AI generation and rewordings. Exact labels now rank
+  first, ordered the same way board building picks them, and `resolve=true`
+  reports exactly what a build would attach for a label.
+- **`GET /api/internal/images/:id` reports licensing.** It previously carried no
+  licence data at all, so every image read back as "not commercial safe, no
+  licence" whether or not that was true — meaning art attached to boards headed
+  for Etsy/print could not be licence-checked after the fact. It now returns
+  `has_art`, `source_type`, `original_url`, `license`, `commercial_safe`,
+  `attribution_required` and `share_alike`.
+- **Bulk tile creation no longer duplicates a board when a request is retried.**
+  Large bulk writes could return `500` *after* the tiles had been written; the
+  natural client response — retry — produced a board holding every tile twice.
+  Label resolution is now batched (two queries for a whole request instead of
+  two or three per tile) and the response payload is compact by default, which
+  removes most of the work that ran after the write committed. Callers can pass
+  an `idempotency_key` to make a retry replay the original tiles instead of
+  creating new ones, or `replace: true` so a retry converges on the intended
+  board. Pass `view=full` for the previous, heavier response shape.
 - **Tile text casing is consistent across a board.** A tile inherited whatever
   casing its creation path happened to use — paths handing over a Title Cased
   word list produced `Higher`, paths falling through to the image's lowercase
