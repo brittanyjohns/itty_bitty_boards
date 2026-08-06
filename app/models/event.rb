@@ -17,11 +17,13 @@ class Event < ApplicationRecord
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true
 
-  before_create :set_slug
+  # before_validation (not before_create) so a blank slug is auto-derived from
+  # name in time for the presence/uniqueness validation above to see it.
+  before_validation :set_slug
 
   def set_slug
     if slug.blank?
-      self.slug = name.parameterize
+      self.slug = name.to_s.parameterize
     else
       self.slug = slug.parameterize
     end

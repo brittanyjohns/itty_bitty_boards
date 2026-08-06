@@ -272,6 +272,22 @@ RSpec.describe "Admin::Users", type: :request do
       expect(user1.plan_type).to eq("free")
     end
 
+    it "writes voice and display-preference settings" do
+      patch admin_dashboard_user_path(user1),
+        params: { user: {
+          voice: { name: "nova", language: "es-US" },
+          wait_to_speak: "1", disable_audit_logging: "1",
+          enable_text_display: "1", enable_image_display: "0",
+        } }
+
+      user1.reload
+      expect(user1.settings["voice"]).to include("name" => "nova", "language" => "es-US")
+      expect(user1.settings["wait_to_speak"]).to be(true)
+      expect(user1.settings["disable_audit_logging"]).to be(true)
+      expect(user1.settings["enable_text_display"]).to be(true)
+      expect(user1.settings["enable_image_display"]).to be(false)
+    end
+
     it "rejects a duplicate email with an alert and leaves the user unchanged" do
       patch admin_dashboard_user_path(user1), params: { user: { email: user2.email } }
 
@@ -491,6 +507,17 @@ RSpec.describe "Admin::Users", type: :request do
       expect(flash[:notice]).to include("Temporary login email queued")
     end
 
+    it "queues the partner welcome email" do
+      partner = create(:user, email: "partner@example.com", role: "partner")
+
+      expect {
+        post send_partner_welcome_email_admin_dashboard_user_path(partner)
+      }.to have_enqueued_mail(PartnerMailer, :welcome_email)
+
+      expect(response).to redirect_to(admin_dashboard_user_path(partner))
+      expect(flash[:notice]).to include("Partner welcome email queued")
+    end
+
     context "when signed in as non-admin" do
       before do
         sign_out admin
@@ -502,6 +529,56 @@ RSpec.describe "Admin::Users", type: :request do
           post send_welcome_email_admin_dashboard_user_path(user2)
         }.not_to have_enqueued_mail
         expect(response).to redirect_to(root_path)
+      end
+    end
+  end
+
+  describe "GET /admin/users/export" do
+    it "streams a CSV of all users" do
+      get export_admin_dashboard_users_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to include("text/csv")
+      expect(response.body).to include(user1.email)
+      expect(response.body).to include(user2.email)
+    end
+  end
+
+  describe "POST /admin/users/destroy_users" do
+    it "bulk-deletes only the demo accounts among the selected ids" do
+      demo1 = create(:user, email: "bhannajohns+demo1@gmail.com")
+      demo2 = create(:user, email: "bhannajohns+demo2@gmail.com")
+
+      post destroy_users_admin_dashboard_users_path, params: { user_ids: [demo1.id, demo2.id, user1.id] }
+
+      expect(response).to redirect_to(admin_dashboard_users_path)
+      expect(demo1.reload.soft_deleted?).to be(true)
+      expect(demo2.reload.soft_deleted?).to be(true)
+      expect(user1.reload.soft_deleted?).to be(false)
+      expect(flash[:notice]).to include("Deleted 2 demo account")
+      expect(flash[:notice]).to include("Skipped 1")
+    end
+
+    it "alerts when nothing is selected" do
+      post destroy_users_admin_dashboard_users_path, params: {}
+
+      expect(response).to redirect_to(admin_dashboard_users_path)
+      expect(flash[:alert]).to include("No users selected")
+    end
+
+    context "when signed in as non-admin" do
+      before do
+        sign_out admin
+        sign_in user1
+      end
+
+      it "redirects to root without deleting" do
+        demo = create(:user, email: "bhannajohns+demo3@gmail.com")
+
+        post destroy_users_admin_dashboard_users_path, params: { user_ids: [demo.id] }
+
+        expect(response).to redirect_to(root_path)
+        expect(demo.reload.soft_deleted?).to be(false)
       end
     end
   end

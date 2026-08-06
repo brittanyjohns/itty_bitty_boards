@@ -60,12 +60,17 @@ Rails.application.routes.draw do
       post :cleanup_demo
     end
     resources :users, only: [:index, :show, :update, :destroy], as: :dashboard_users do
+      collection do
+        get :export
+        post :destroy_users
+      end
       member do
         post :adjust_credits
         post :change_plan
         post :send_welcome_email
         post :send_setup_email
         post :send_temp_login_email
+        post :send_partner_welcome_email
       end
     end
     resources :clinician_applications, only: [:index], as: :dashboard_clinician_applications do
@@ -74,12 +79,26 @@ Rails.application.routes.draw do
         post :deny
       end
     end
+    resources :organizations, only: [:index, :show, :new, :create, :edit, :update], as: :dashboard_organizations do
+      member do
+        post :assign_user
+      end
+    end
     resources :video_boards, only: [:index, :new, :create, :show, :destroy], as: :dashboard_video_boards do
       member do
         post :publish
         post :unpublish
       end
     end
+    resources :events, only: [:index, :show, :new, :create, :edit, :update], as: :dashboard_events do
+      member do
+        post :pick_winner
+        get :download_entries
+      end
+    end
+    get "feedback", to: "feedback#index", as: :dashboard_feedback
+    get "word_events", to: "word_events#index", as: :dashboard_word_events
+    resources :placeholders, only: [:index, :create], as: :dashboard_placeholders
     resources :board_printables, only: [:index, :show, :create], as: :dashboard_board_printables
   end
 

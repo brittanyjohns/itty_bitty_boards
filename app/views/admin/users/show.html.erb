@@ -225,6 +225,21 @@
       </div>
     </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 pt-4" style="border-top: 1px solid var(--border-light);">
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Voice</label>
+        <%= select_tag "user[voice][name]",
+              options_for_select(Admin::UsersController::VOICE_NAMES, @user.settings.dig("voice", "name")),
+              include_blank: "—", class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Language</label>
+        <%= select_tag "user[voice][language]",
+              options_for_select(Admin::UsersController::VOICE_LANGUAGES.map { |v, l| [l, v] }, @user.settings.dig("voice", "language")),
+              include_blank: "—", class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+    </div>
+
     <div class="flex flex-wrap items-center gap-6 mb-4">
       <label class="flex items-center gap-2 text-xs text-t1">
         <%= f.check_box :locked, checked: @user.locked? %>
@@ -233,6 +248,22 @@
       <label class="flex items-center gap-2 text-xs text-t1">
         <%= f.check_box :play_demo, checked: @user.play_demo %>
         Play demo
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :wait_to_speak, checked: @user.settings["wait_to_speak"] %>
+        Wait to speak
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :disable_audit_logging, checked: @user.settings["disable_audit_logging"] %>
+        Disable audit logging
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :enable_text_display, checked: @user.settings["enable_text_display"] %>
+        Enable text display
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :enable_image_display, checked: @user.settings["enable_image_display"] %>
+        Enable image display
       </label>
     </div>
 
@@ -301,6 +332,15 @@
               form: { data: { turbo_confirm: "Send a temporary login link to #{@user.email}?" } } %>
         <span class="text-[10px] text-t3">Issues a fresh <%= User::TEMP_LOGIN_TOKEN_EXPIRY_HOURS %>-hour login link.</span>
       </div>
+      <% if @user.role == "partner" %>
+        <div class="flex items-center gap-3">
+          <%= button_to "Send partner welcome email", send_partner_welcome_email_admin_dashboard_user_path(@user),
+                method: :post,
+                class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                form: { data: { turbo_confirm: "Send partner welcome email to #{@user.email}?" } } %>
+          <span class="text-[10px] text-t3">Partner Pilot onboarding email.</span>
+        </div>
+      <% end %>
     </div>
   </div>
 </div>
