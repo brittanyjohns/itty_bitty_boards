@@ -1,0 +1,38 @@
+<% if event.errors.any? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm">
+    <%= event.errors.full_messages.to_sentence %>
+  </div>
+<% end %>
+
+<%= form_with model: event, url: url, local: true do |f| %>
+  <div class="admin-card border rounded-xl p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs font-medium text-t2 mb-1" for="event_name">Name</label>
+      <%= f.text_field :name, id: "event_name", required: true,
+            class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-t2 mb-1" for="event_slug">Slug <span class="text-t3">(auto from name if left blank)</span></label>
+      <%= f.text_field :slug, id: "event_slug",
+            class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-t2 mb-1" for="event_date">Date</label>
+      <%= f.text_field :date, id: "event_date",
+            class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-t2 mb-1" for="event_promo_code">Promo code</label>
+      <%= f.text_field :promo_code, id: "event_promo_code",
+            class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-t2 mb-1" for="event_promo_code_details">Promo code details</label>
+      <%= f.text_area :promo_code_details, id: "event_promo_code_details", rows: 2,
+            class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+    </div>
+  </div>
+
+  <%= f.submit event.persisted? ? "Save changes" : "Create event",
+        class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>
+<% end %>

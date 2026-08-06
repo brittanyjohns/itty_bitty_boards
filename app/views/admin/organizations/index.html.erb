@@ -1,0 +1,39 @@
+<% content_for :page_title, "Organizations" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Organizations</h1>
+    <p class="text-sm text-t3 mt-0.5"><%= @organizations.size %> total</p>
+  </div>
+  <%= link_to "New organization", new_admin_dashboard_organization_path,
+        class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+</div>
+
+<div class="admin-card border rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Name", "Slug", "Admin user", "Members", "Created"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @organizations.each do |organization| %>
+        <tr class="admin-hover-row transition-colors" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3 text-xs text-t1 font-medium">
+            <%= link_to organization.name.presence || "(unnamed)", admin_dashboard_organization_path(organization), class: "hover:text-accent transition-colors" %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t2 font-mono"><%= organization.slug.presence || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t2"><%= organization.admin_user&.email || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t2"><%= organization.users.size %></td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap"><%= organization.created_at.strftime("%b %-d, %Y") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @organizations.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-t3">No organizations yet.</div>
+  <% end %>
+</div>

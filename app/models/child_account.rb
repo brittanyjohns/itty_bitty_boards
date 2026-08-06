@@ -943,14 +943,22 @@ class ChildAccount < ApplicationRecord
   # for backward-compat with the `supporters` field in `api_view`; new
   # canonical role set is just `member`. Issue #216.
   def supporters
-    team_users.includes(:user).where(role: "member").distinct.map(&:user)
+    team_members_with_roles("member")
   end
 
   # Curators across all of this account's teams. `admin` is the
   # account owner, `supervisor` is the SLP / power collaborator.
   # Surfaced in `api_view` under the `supervisors` key. Issue #216.
   def supervisors
-    team_users.includes(:user).where(role: %w[admin supervisor]).distinct.map(&:user)
+    team_members_with_roles(%w[admin supervisor])
+  end
+
+  # `team_users` can outlive the user it points at (rows removed outside the
+  # `dependent: :destroy` path), and every caller reads `s.id` / `s.name` off
+  # the result. INNER JOIN so orphaned rows drop out at the DB level instead
+  # of surfacing as a nil in the payload.
+  def team_members_with_roles(roles)
+    team_users.joins(:user).includes(:user).where(role: roles).distinct.map(&:user).compact
   end
 
   def startup_url

@@ -21,6 +21,14 @@ FactoryBot.define do
     data { "{}" }
   end
 
+  factory :feedback_item do
+    association :user
+    feedback_type { "bug" }
+    role { "parent" }
+    subject { FFaker::Lorem.sentence(3) }
+    message { FFaker::Lorem.paragraph }
+  end
+
   factory :download_lead do
     sequence(:email) { |n| "lead#{n}@example.com" }
     name { FFaker::Name.name }
