@@ -80,6 +80,7 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
+    get "word_events", to: "word_events#index", as: :dashboard_word_events
   end
 
   get "main/index", as: :home
