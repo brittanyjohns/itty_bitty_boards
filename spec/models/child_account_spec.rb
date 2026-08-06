@@ -124,6 +124,40 @@ RSpec.describe ChildAccount, type: :model do
     end
   end
 
+  # User carries `default_scope { where(deleted_at: nil) }`, so a team_users row
+  # pointing at a soft-deleted user preloads its `user` as nil. Every payload
+  # reads `s.id` off these, so a nil there 500s login.
+  describe "team member lists with a soft-deleted user" do
+    let(:account) { FactoryBot.create(:child_account, user: user) }
+    let(:team) { FactoryBot.create(:team, created_by: user) }
+    let(:live_supervisor) { FactoryBot.create(:user) }
+    let(:deleted_supervisor) { FactoryBot.create(:user) }
+    let(:deleted_supporter) { FactoryBot.create(:user) }
+
+    before do
+      TeamAccount.create!(team: team, account: account)
+      TeamUser.create!(team: team, user: live_supervisor, role: "supervisor")
+      TeamUser.create!(team: team, user: deleted_supervisor, role: "supervisor")
+      TeamUser.create!(team: team, user: deleted_supporter, role: "member")
+      deleted_supervisor.update_columns(deleted_at: Time.current)
+      deleted_supporter.update_columns(deleted_at: Time.current)
+    end
+
+    it "omits the soft-deleted users instead of returning nils" do
+      expect(account.supervisors).to all(be_present)
+      expect(account.supervisors.map(&:id)).to include(live_supervisor.id)
+      expect(account.supervisors.map(&:id)).not_to include(deleted_supervisor.id)
+      expect(account.supporters).to all(be_present)
+      expect(account.supporters.map(&:id)).not_to include(deleted_supporter.id)
+    end
+
+    it "renders index_api_view and api_view without raising" do
+      expect { account.index_api_view }.not_to raise_error
+      expect { account.api_view }.not_to raise_error
+      expect(account.index_api_view[:supervisors].map { |s| s[:id] }).not_to include(deleted_supervisor.id)
+    end
+  end
+
   # public_api_view backs unauthenticated public profile pages. Unlike the full
   # api_view, it must never leak parent email, passcode, claim tokens, or other
   # internal fields — only safe display data.
