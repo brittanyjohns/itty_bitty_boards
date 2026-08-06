@@ -4,6 +4,15 @@ module Admin
     # basic_trial is excluded — trials are owned by the soft-trial flow
     # (DowngradeSoftTrialJob), not manual admin assignment.
     CHANGEABLE_PLAN_TYPES = %w[free basic basic_yearly pro pro_yearly plus premium partner_pro].freeze
+    # Matches the React admin's AdminUserSettingsForm option list exactly —
+    # not the app's actual Polly voice catalog — since these are what's
+    # already stored in settings["voice"]["name"] for existing users.
+    VOICE_NAMES = %w[alloy onyx shimmer nova fable ash coral sage].freeze
+    VOICE_LANGUAGES = {
+      "en-US" => "English", "es-US" => "Spanish", "fr-FR" => "French", "de-DE" => "German",
+      "it-IT" => "Italian", "ja-JP" => "Japanese", "ko-KR" => "Korean", "nl-NL" => "Dutch",
+      "pl-PL" => "Polish", "pt-PT" => "Portuguese", "ru-RU" => "Russian", "zh-CN" => "Chinese",
+    }.freeze
 
     def index
       @sort = params[:sort].presence_in(%w[created_at email name plan_type sign_in_count current_sign_in_at boards]) || "created_at"
@@ -85,6 +94,24 @@ module Admin
       @user.settings["board_limit"] = attrs[:board_limit].to_i if attrs[:board_limit].present?
       @user.settings["paid_communicator_limit"] = attrs[:paid_communicator_limit].to_i if attrs[:paid_communicator_limit].present?
       @user.settings["demo_communicator_limit"] = attrs[:demo_communicator_limit].to_i if attrs[:demo_communicator_limit].present?
+
+      if attrs.key?(:wait_to_speak)
+        @user.settings["wait_to_speak"] = bool.cast(attrs[:wait_to_speak]) || false
+      end
+      if attrs.key?(:disable_audit_logging)
+        @user.settings["disable_audit_logging"] = bool.cast(attrs[:disable_audit_logging]) || false
+      end
+      if attrs.key?(:enable_text_display)
+        @user.settings["enable_text_display"] = bool.cast(attrs[:enable_text_display]) || false
+      end
+      if attrs.key?(:enable_image_display)
+        @user.settings["enable_image_display"] = bool.cast(attrs[:enable_image_display]) || false
+      end
+      if attrs[:voice].present?
+        voice = (@user.settings["voice"] || {}).merge(attrs[:voice].to_h.compact_blank)
+        @user.settings["voice"] = voice
+      end
+
       @user.skip_plan_setup = true # parity with API admin; setup_limits only runs on plan_type changes anyway
 
       if @user.save
@@ -149,6 +176,38 @@ module Admin
       redirect_to admin_dashboard_user_path(@user), notice: "Temporary login email queued for #{@user.email}.", status: :see_other
     end
 
+    def send_partner_welcome_email
+      @user = User.find(params[:id])
+      @user.send_partner_welcome_email
+      redirect_to admin_dashboard_user_path(@user), notice: "Partner welcome email queued for #{@user.email}.", status: :see_other
+    end
+
+    def export
+      send_data User.all.to_csv,
+                filename: "users-#{Time.zone.now.strftime("%Y-%m-%d")}.csv",
+                type: "text/csv"
+    end
+
+    # Demo-account bulk cleanup only — same restriction as single-user
+    # #destroy below. The JSON API's destroy_users has no such restriction,
+    # but this HTML action deliberately keeps parity with the existing
+    # single-delete guardrail rather than the broader JSON behavior.
+    def destroy_users
+      user_ids = Array(params[:user_ids])
+      if user_ids.blank?
+        redirect_to admin_dashboard_users_path, alert: "No users selected.", status: :see_other
+        return
+      end
+
+      users = User.where(id: user_ids).demo_accounts.where.not(role: "admin")
+      skipped = user_ids.size - users.size
+      users.each { |u| u.soft_delete_account!(reason: "admin_deleted", actor_id: current_user.id) unless u.soft_deleted? }
+
+      message = "Deleted #{users.size} demo account(s)."
+      message += " Skipped #{skipped} selected user(s) that weren't demo accounts." if skipped.positive?
+      redirect_to admin_dashboard_users_path, notice: message, status: :see_other
+    end
+
     # Demo-account cleanup only. Uses the same tombstone path as the Mission
     # Control batch cleanup: destroys all content (boards, communicators,
     # docs, ...), anonymizes PII, keeps one hidden row + credit ledger.
@@ -174,7 +233,9 @@ module Admin
 
     def user_params
       params.require(:user).permit(:name, :email, :role, :locked, :play_demo,
-                                   :board_limit, :paid_communicator_limit, :demo_communicator_limit)
+                                   :board_limit, :paid_communicator_limit, :demo_communicator_limit,
+                                   :wait_to_speak, :disable_audit_logging, :enable_text_display, :enable_image_display,
+                                   voice: [:name, :language])
     end
 
     def apply_filter(scope)

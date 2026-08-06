@@ -60,12 +60,17 @@ Rails.application.routes.draw do
       post :cleanup_demo
     end
     resources :users, only: [:index, :show, :update, :destroy], as: :dashboard_users do
+      collection do
+        get :export
+        post :destroy_users
+      end
       member do
         post :adjust_credits
         post :change_plan
         post :send_welcome_email
         post :send_setup_email
         post :send_temp_login_email
+        post :send_partner_welcome_email
       end
     end
     resources :clinician_applications, only: [:index], as: :dashboard_clinician_applications do
