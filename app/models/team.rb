@@ -97,6 +97,17 @@ class Team < ApplicationRecord
     team_users.detect { |tu| tu.user_id == user.id }&.role
   end
 
+  # `User` is soft-deleted (`default_scope { where(deleted_at: nil) }`), so a
+  # team_users row can outlive the user it points at and preload `user` as nil.
+  # INNER JOIN so those rows drop out rather than blowing up on `tu.user.name`.
+  def member_views(owner_ids)
+    team_users.joins(:user).includes(:user).map { |tu|
+      { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
+        role: tu.role, plan_type: tu.user.plan_type,
+        is_account_owner: owner_ids.include?(tu.user_id) }
+    }
+  end
+
   def index_api_view(viewing_user = nil)
     owner_ids = account_owner_ids
     {
@@ -107,11 +118,7 @@ class Team < ApplicationRecord
       created_by_email: created_by&.email,
       current_user_role: role_for(viewing_user),
       account_owner_ids: owner_ids,
-      members: team_users.includes(:user).map { |tu|
-        { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
-          role: tu.role, plan_type: tu.user.plan_type,
-          is_account_owner: owner_ids.include?(tu.user_id) }
-      },
+      members: member_views(owner_ids),
       accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, owner_id: a.owner_id, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
 
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -133,11 +140,7 @@ class Team < ApplicationRecord
       created_by_email: created_by&.email,
       account_owner_ids: owner_ids,
       accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, owner_id: a.owner_id, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
-      members: team_users.includes(:user).map { |tu|
-        { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
-          role: tu.role, plan_type: tu.user.plan_type,
-          is_account_owner: owner_ids.include?(tu.user_id) }
-      },
+      members: member_views(owner_ids),
       boards: team_boards.includes(board: :user).map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by_id: tb.created_by_id, board_owner_name: tb.board.user&.display_name, board_owner_id: tb.board.user_id } },
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),

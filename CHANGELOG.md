@@ -41,6 +41,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Sign-in no longer fails for accounts on a team with a deleted member.**
+  Deleted user accounts are kept as soft-deleted records, but the team
+  membership rows pointing at them stayed behind. Building the login payload
+  tried to read a name and email off those missing users and returned a server
+  error, locking every member of the affected team out of the app. Deleted
+  members are now simply left out of the team and communicator lists.
+
 - **Image search no longer reports art as missing when it exists.** Searching a
   label like `want` or `where` returned only phrase matches (`i want pasta`,
   `where are the lions?`) and could omit the image labelled exactly `want` —

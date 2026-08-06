@@ -1,0 +1,8 @@
+<% content_for :page_title, "New Organization" %>
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold text-t1 tracking-tight">New Organization</h1>
+  <%= link_to "← All organizations", admin_dashboard_organizations_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<%= render "form", organization: @organization, url: admin_dashboard_organizations_path %>
