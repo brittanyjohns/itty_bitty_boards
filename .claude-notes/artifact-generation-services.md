@@ -60,9 +60,13 @@ natural parent record (not a Board, not a Profile), so a small model owns it.
 
 - **`MarketingAsset`** (`app/models/marketing_asset.rb`): `has_one_attached :file`
   written at a **deterministic** S3 key (`marketing_assets/<slug>.pdf`) via
-  purge-then-reupload — same stable-key trick as `GeneratePreviewAssets#stable_preview_key`.
-  Prod S3 is `public: true`, so `#file_url` (CDN_HOST + key, `file.url` fallback)
-  is a permanent, unsigned CDN URL that never changes across regenerations.
+  purge-then-reupload. Prod S3 is `public: true`, so `#file_url` (CDN_HOST + key,
+  `file.url` fallback) is a permanent, unsigned CDN URL that never changes across
+  regenerations. **The stable key is a trade-off, not a pattern to copy:**
+  CloudFront omits the query string from its cache key, so re-uploading to a warm
+  key keeps serving the old file until the edge TTL expires — re-publishing needs
+  a CloudFront invalidation. Board previews hit this and moved to a
+  per-generation key (`GeneratePreviewAssets#versioned_preview_key`).
   `MarketingAsset.upsert_pdf!(slug:, bytes:, title:, kind:)` is idempotent.
 - **Endpoints** (behind `INTERNAL_API_KEY`): `POST /api/internal/marketing_assets`
   (multipart `file` + `slug`) → `{ slug, title, kind, url }`;

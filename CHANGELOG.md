@@ -24,6 +24,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   first.
 - Unpublishing a board works again — `published: false` was being silently
   dropped by the update endpoint.
+- **"Regenerate from tiles" updates the board cover every time, not just the
+  first.** Regenerating produced a correct new snapshot on the server, but every
+  version was written to the same CDN path — and the CDN ignores the `?v=`
+  cache-buster the app appended, so once an edge had cached a board's cover it
+  kept serving that copy. The app reported "Cover updated from your board" while
+  the picture stayed put, and appeared to work intermittently because edge
+  servers cache independently. Each regeneration now publishes to its own path,
+  which the CDN has never seen, so the new cover is visible immediately. The
+  superseded image is deleted, so nothing accumulates.
 - **Tile text casing is consistent across a board.** A tile inherited whatever
   casing its creation path happened to use — paths handing over a Title Cased
   word list produced `Higher`, paths falling through to the image's lowercase

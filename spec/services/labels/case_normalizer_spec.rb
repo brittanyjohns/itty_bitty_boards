@@ -2,16 +2,20 @@ require "rails_helper"
 
 RSpec.describe Labels::CaseNormalizer do
   describe ".normalize" do
-    it "title cases a single lowercase word" do
-      expect(described_class.normalize("swing")).to eq("Swing")
+    it "leaves a single lowercase word lowercase" do
+      expect(described_class.normalize("swing")).to eq("swing")
     end
 
-    it "title cases every word of a multi-word label" do
-      expect(described_class.normalize("all done")).to eq("All Done")
+    it "leaves every word of a multi-word label lowercase" do
+      expect(described_class.normalize("all done")).to eq("all done")
     end
 
     it "capitalizes a standalone i" do
       expect(described_class.normalize("i")).to eq("I")
+    end
+
+    it "capitalizes a standalone i anywhere in a multi-word label" do
+      expect(described_class.normalize("was it i")).to eq("was it I")
     end
 
     context "when the text already carries deliberate casing" do
@@ -63,8 +67,8 @@ RSpec.describe Labels::CaseNormalizer do
         expect(described_class.normalize("si i no", language: "es")).to eq("Si i no")
       end
 
-      it "still title cases regional English" do
-        expect(described_class.normalize("all done", language: "en-US")).to eq("All Done")
+      it "still applies the lowercase default for regional English" do
+        expect(described_class.normalize("all done", language: "en-US")).to eq("all done")
       end
     end
 
@@ -74,7 +78,11 @@ RSpec.describe Labels::CaseNormalizer do
     end
 
     it "preserves the original spacing" do
-      expect(described_class.normalize("all  done")).to eq("All  Done")
+      expect(described_class.normalize("all  done")).to eq("all  done")
+    end
+
+    it "preserves spacing around a capitalized standalone i" do
+      expect(described_class.normalize("was  it  i")).to eq("was  it  I")
     end
 
     it "never downcases" do
