@@ -85,6 +85,12 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
+    resources :events, only: [:index, :show, :new, :create, :edit, :update], as: :dashboard_events do
+      member do
+        post :pick_winner
+        get :download_entries
+      end
+    end
   end
 
   get "main/index", as: :home

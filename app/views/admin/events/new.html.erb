@@ -1,0 +1,8 @@
+<% content_for :page_title, "New Event" %>
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold text-t1 tracking-tight">New Event</h1>
+  <%= link_to "← All events", admin_dashboard_events_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<%= render "form", event: @event, url: admin_dashboard_events_path %>
