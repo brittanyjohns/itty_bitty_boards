@@ -1014,3 +1014,6 @@ doesn't replace it; both can be set independently. Wiring:
   `image[part_of_speech]=phrase` and optional free-form `data[gestalt_source]` /
   `data[utterance_function]`, stored on `board_images.data`.
 
+- **Publishing:** a built set publishes and unpublishes as a unit, behind a 409
+  warn+confirm. See "Publish cascade (warn + confirm)" in
+  `.claude-notes/boards-and-teams.md`.
