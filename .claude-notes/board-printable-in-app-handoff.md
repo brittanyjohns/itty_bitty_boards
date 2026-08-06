@@ -295,8 +295,10 @@ opening the PR.
 - **One new gem** — get Brittany's explicit OK first.
 - **One migration**, `board_printables`. No backfill.
 - **No new ENV vars.**
-- Ships independently of the frontend; it's an admin-only API with no UI until
-  the counterpart PR lands.
+- Ships independently of the frontend. An HTML admin UI now exists at
+  `/admin/board_printables` (`Admin::BoardPrintablesController`) — board
+  search, generate form, and a status page that auto-refreshes while
+  pending/generating and shows download links once complete.
 
 ## Wrap-up
 

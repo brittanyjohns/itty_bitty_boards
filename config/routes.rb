@@ -99,6 +99,7 @@ Rails.application.routes.draw do
     get "feedback", to: "feedback#index", as: :dashboard_feedback
     get "word_events", to: "word_events#index", as: :dashboard_word_events
     resources :placeholders, only: [:index, :create], as: :dashboard_placeholders
+    resources :board_printables, only: [:index, :show, :create], as: :dashboard_board_printables
   end
 
   get "main/index", as: :home

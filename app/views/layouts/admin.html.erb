@@ -84,6 +84,7 @@
       if (t === 'dark') document.documentElement.classList.add('dark');
     })();
   </script>
+  <%= yield(:head_extra) if content_for?(:head_extra) %>
 </head>
 <body class="h-full admin-body font-sans antialiased">
 
@@ -122,6 +123,8 @@
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/word_events") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Placeholders", admin_dashboard_placeholders_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/placeholders") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+          <%= link_to "Board Printables", admin_dashboard_board_printables_path,
+                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/board_printables") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq",
