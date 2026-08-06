@@ -642,6 +642,34 @@ delete in one step as before.
 - Frontend companion: handle the 409 with a confirm dialog and re-send with
   `confirm=true` (special copy for builder roots — it deletes the whole set).
 
+### Publish cascade (warn + confirm)
+
+A Board Builder set publishes and unpublishes as a **unit**. `Board#viewable_by?`
+gates each board on its own `published` flag, so publishing only the root leaves
+folder tiles 404ing for public visitors, and unpublishing only the root leaves
+every sub-page reachable by its own `/pb/<slug>`.
+
+`PUT /api/boards/:id` returns **409 `publish_cascade_confirmation_required`**
+when `published` would change on a builder root whose set members don't already
+match. The body carries `cascade: { action, board_group, affected: { count, names } }`.
+Re-send the identical payload with `confirm=true` to apply it; the root's save and
+`Boards::PublishCascade#apply!` run in one transaction.
+
+The guard runs **before any attribute is assigned**, so a declined cascade writes
+nothing — other fields in the same payload are neither applied nor lost.
+
+The cascade set is the root's builder `BoardGroup` membership — the same set
+`Boards::UsageCheck#builder_group` cascades on delete. Hand-linked folder-tile
+descendants (`board_images.predictive_board_id`) outside the builder set are
+deliberately **not** included: they aren't owned by the root.
+
+`published` is admin-only (`board_params` strips it for non-admins), so the
+cascade is unreachable for regular users.
+
+**Image-removal bypass:** The guard is skipped entirely when the request carries
+`image_ids_to_remove` — that branch returns early (line 453 in the controller)
+without any board attribute assignment or save, so there is nothing to confirm.
+
 ## Board Sets (BoardGroup) — user CRUD + limits
 
 Board Sets (`BoardGroup`, user-facing name "Board Sets") are user-owned

@@ -18,6 +18,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- Publishing a Board Builder board set now publishes every page in the set, so
+  public visitors no longer hit a dead end when tapping a folder button.
+  Unpublishing removes the whole set from public view. Both ask for confirmation
+  first.
+- Unpublishing a board works again — `published: false` was being silently
+  dropped by the update endpoint.
 - **Tile text casing is consistent across a board.** A tile inherited whatever
   casing its creation path happened to use — paths handing over a Title Cased
   word list produced `Higher`, paths falling through to the image's lowercase
