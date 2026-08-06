@@ -21,19 +21,52 @@ RSpec.describe "Mass-assignment of ownership fields", type: :request do
     end
   end
 
-  # #27 — `predefined`/`published` decide whether a board enters the public
-  # curated gallery; a non-admin must not be able to self-promote via update.
-  describe "PATCH /api/boards/:id (predefined/published self-promotion)" do
+  # #27 — `predefined` decides whether a board is offered as a starter board and
+  # is one of the three conditions for `Board.public_boards` (the curated
+  # gallery), so a non-admin must not be able to self-promote via update.
+  #
+  # #633 — `published` is deliberately NOT in that category. On a user-owned
+  # board it only controls `Board#viewable_by?`, i.e. whether the owner's own
+  # /pb/<slug> share link opens for a visitor. Owners set it themselves.
+  describe "PATCH /api/boards/:id (predefined/published)" do
     let(:board) { create(:board, user: owner, predefined: false, published: false) }
 
-    it "ignores predefined/published from a non-admin owner" do
+    it "ignores predefined from a non-admin owner but honours published" do
       patch "/api/boards/#{board.id}",
             params: { board: { predefined: true, published: true } },
             headers: auth_headers(owner)
 
       board.reload
       expect(board.predefined).to be_falsey
-      expect(board.published).to be_falsey
+      expect(board.published).to be true
+    end
+
+    it "lets a non-admin owner unpublish their own board again" do
+      board.update!(published: true)
+
+      patch "/api/boards/#{board.id}",
+            params: { board: { published: false } },
+            headers: auth_headers(owner)
+
+      expect(board.reload.published).to be false
+    end
+
+    it "does not put a self-published user board into the curated gallery" do
+      patch "/api/boards/#{board.id}",
+            params: { board: { published: true } },
+            headers: auth_headers(owner)
+
+      expect(board.reload.published).to be true
+      expect(Board.public_boards).not_to include(board)
+    end
+
+    it "does not let a non-owner publish someone else's board" do
+      patch "/api/boards/#{board.id}",
+            params: { board: { published: true } },
+            headers: auth_headers(attacker)
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(board.reload.published).to be_falsey
     end
 
     it "still lets an admin curate predefined/published" do

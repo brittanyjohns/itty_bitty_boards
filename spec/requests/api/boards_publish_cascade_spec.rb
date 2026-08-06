@@ -2,8 +2,9 @@ require "rails_helper"
 
 # Publish cascade: publishing or unpublishing a Board Builder root cascades to
 # every member board of its builder BoardGroup, behind a 409 warn+confirm that
-# mirrors the board-delete flow. `published` is admin-only server-side, so the
-# cascade is only ever reachable by admins.
+# mirrors the board-delete flow. Since #633 any board owner can set `published`,
+# so the cascade is reachable by non-admins too — its members are scoped to the
+# root board's owner so it can only ever flip boards the requester owns.
 RSpec.describe "API::Boards publish cascade", type: :request do
   let(:admin) { User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
   let(:member_user) { create(:user) }
@@ -168,6 +169,61 @@ RSpec.describe "API::Boards publish cascade", type: :request do
     end
   end
 
+  # #633 — the same cascade, driven by a plain owner rather than an admin.
+  describe "a non-admin owner cascading their own set" do
+    let(:owner) { create(:user) }
+
+    it "prompts with 409 and writes nothing until confirmed" do
+      root, members = build_builder_set(owner: owner)
+
+      update_board(root, as: owner, params: { board: { published: true } })
+
+      expect(response).to have_http_status(:conflict)
+      expect(JSON.parse(response.body)["error"]).to eq("publish_cascade_confirmation_required")
+      expect(root.reload.published).to be false
+      expect(members.map { |m| m.reload.published }).to all(be false)
+    end
+
+    it "cascades the whole set on confirm" do
+      root, members = build_builder_set(owner: owner)
+
+      update_board(root, as: owner, params: { board: { published: true }, confirm: "true" })
+
+      expect(response).to have_http_status(:ok)
+      expect(root.reload.published).to be true
+      expect(members.map { |m| m.reload.published }).to all(be true)
+    end
+
+    # `add_to_groups` lets any board be added to any group with no ownership
+    # check, so a group the owner controls can contain a board they don't own.
+    # The cascade must never flip that board.
+    it "never touches a group member owned by someone else" do
+      root, members = build_builder_set(owner: owner)
+      intruder = create(:board, user: member_user, name: "Not Yours", published: false)
+      root.builder_board_group.board_group_boards.create!(board: intruder)
+
+      update_board(root, as: owner, params: { board: { published: true }, confirm: "true" })
+
+      expect(response).to have_http_status(:ok)
+      expect(root.reload.published).to be true
+      expect(members.map { |m| m.reload.published }).to all(be true)
+      expect(intruder.reload.published).to be_falsey
+    end
+
+    it "excludes a foreign board from the confirmation summary" do
+      root, _members = build_builder_set(owner: owner)
+      intruder = create(:board, user: member_user, name: "Not Yours", published: false)
+      root.builder_board_group.board_group_boards.create!(board: intruder)
+
+      update_board(root, as: owner, params: { board: { published: true } })
+
+      expect(response).to have_http_status(:conflict)
+      affected = JSON.parse(response.body).dig("cascade", "affected")
+      expect(affected["count"]).to eq(2)
+      expect(affected["names"]).not_to include("Not Yours")
+    end
+  end
+
   describe "image_ids_to_remove in the same request as a publish toggle" do
     it "removes the image without applying an unconfirmed cascade, instead of an unbreakable confirm loop" do
       # The image_ids_to_remove branch returns early and never assigns or
@@ -196,18 +252,6 @@ RSpec.describe "API::Boards publish cascade", type: :request do
       update_board(root, as: admin, params: { image_ids_to_remove: [image.id] })
 
       expect(response).to have_http_status(:ok)
-    end
-  end
-
-  describe "non-admin" do
-    it "cannot trigger the cascade because published is stripped" do
-      root, members = build_builder_set(owner: member_user)
-
-      update_board(root, as: member_user, params: { board: { published: true } })
-
-      expect(response).to have_http_status(:ok)
-      expect(root.reload.published).to be false
-      expect(members.map { |m| m.reload.published }).to all(be false)
     end
   end
 end
