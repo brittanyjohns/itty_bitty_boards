@@ -9,6 +9,84 @@ RSpec.describe Boards::ImageResolver do
     image
   end
 
+  # #574: resolving a label at a time cost 2-3 queries per tile, which is most
+  # of what pushed a 48-cell bulk request toward the timeout that made the
+  # endpoint 500 after committing.
+  describe ".resolve_all" do
+    it "picks the same image per label as .resolve does" do
+      create(:image, label: "animals", user_id: admin.id)
+      animals = with_art(create(:image, label: "animals", user_id: admin.id))
+      few = with_art(create(:image, label: "ball", user_id: admin.id), count: 1)
+      many = with_art(create(:image, label: "ball", user_id: admin.id), count: 3)
+      owner_art = with_art(create(:image, label: "dog", user_id: owner.id))
+
+      resolved = described_class.resolve_all(["Animals", "ball", "dog"], owner: owner)
+
+      expect(resolved["animals"]).to eq(animals)
+      expect(resolved["ball"]).to eq(many)
+      expect(resolved["ball"]).not_to eq(few)
+      expect(resolved["dog"]).to eq(owner_art)
+      %w[Animals ball dog].each do |label|
+        expect(resolved[described_class.normalize(label)]).to eq(described_class.resolve(label, owner: owner))
+      end
+    end
+
+    it "keys on the normalized label so any casing looks the same up" do
+      arted = with_art(create(:image, label: "stop", user_id: admin.id))
+
+      resolved = described_class.resolve_all(["Stop", "STOP", "stop"], owner: owner)
+
+      expect(resolved.keys).to eq(["stop"])
+      expect(resolved["stop"]).to eq(arted)
+    end
+
+    it "falls back to an existing blank image, and creates one only when nothing matches" do
+      blank = create(:image, label: "zzz_niche", user_id: admin.id)
+
+      resolved = nil
+      expect {
+        resolved = described_class.resolve_all(["zzz_niche", "brand_new_batch_word"], owner: owner)
+      }.to change(Image, :count).by(1)
+
+      expect(resolved["zzz_niche"]).to eq(blank)
+      expect(resolved["brand_new_batch_word"].label).to eq("brand_new_batch_word")
+    end
+
+    it "keeps the authored casing on an image it has to create" do
+      resolved = described_class.resolve_all(["BrandNewCased"], owner: owner)
+
+      expect(resolved["brandnewcased"].label).to eq("BrandNewCased")
+    end
+
+    it "does not scale its query count with the number of labels" do
+      def query_count_for(n, owner, admin)
+        labels = n.times.map { |i| "batchword#{n}x#{i}" }
+        labels.each { |label| create(:doc, documentable: create(:image, label: label, user_id: admin.id), user: admin) }
+
+        queries = 0
+        callback = lambda do |_name, _start, _finish, _id, payload|
+          next if payload[:sql].to_s.match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)/i)
+
+          queries += 1
+        end
+
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          expect(described_class.resolve_all(labels, owner: owner).size).to eq(n)
+        end
+        queries
+      end
+
+      # Flat: the art lookup is two queries (owner scope, then public scope)
+      # however many labels are asked for — not 2-3 per label as `resolve` is.
+      expect(query_count_for(12, owner, admin)).to eq(query_count_for(3, owner, admin))
+    end
+
+    it "returns an empty hash for no labels" do
+      expect(described_class.resolve_all([], owner: owner)).to eq({})
+      expect(described_class.resolve_all([" ", nil], owner: owner)).to eq({})
+    end
+  end
+
   describe ".resolve" do
     it "prefers a public/admin image that has art over a blank same-label image" do
       blank = create(:image, label: "animals", user_id: admin.id)         # lower id, no art

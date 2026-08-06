@@ -318,6 +318,9 @@ For Hatchbox, set `INTERNAL_API_KEY` in the app's environment variables panel.
 | `GET` | `/api/internal/boards/:id/export.pdf` | Render a board as a PDF |
 | `POST` | `/api/internal/boards/:id/board_images` | Add a tile to a board |
 | `POST` | `/api/internal/boards/:id/board_images/bulk` | Add multiple tiles to a board |
+| `PATCH` | `/api/internal/boards/:id/board_images/:cell_id` | Correct one tile (swap image, colors, label) |
+| `PATCH` | `/api/internal/boards/:id/board_images/bulk_update` | Correct many tiles atomically |
+| `DELETE` | `/api/internal/boards/:id/board_images/:cell_id` | Remove a tile and resync the layout |
 | `POST` | `/api/internal/generated_boards` | Create a generated board |
 | `GET` | `/api/internal/images/search` | Find images by label (single) |
 | `POST` | `/api/internal/images/search` | Find images by label (bulk, ≤100) |
@@ -688,11 +691,19 @@ back, so a board never ends up half-built. The response array is in **input
 order**, which is what lets you map the returned `BoardImage` ids straight onto a
 layout you then `PATCH`.
 
+**Request-level params** (alongside `cells`):
+
+- `idempotency_key` *(optional, strongly recommended)* — makes a retry safe. The board remembers the key and the cells it created (its last 20 keys); a repeat request with the same key creates nothing and replays the original cells with `200 OK` and an `Idempotent-Replay: true` header instead of `201`. A request that rolled back records no key, so retrying it builds the board for real. The key is not checked against the body — reuse one only for a retry of the *same* request, and pick a new key per batch (e.g. `"<board-slug>-<batch-index>"`).
+- `replace` *(optional, default `false`)* — clears the board's existing tiles inside the same transaction before writing the new ones, then resyncs the board layout. Use it when a retry should converge on the intended board rather than append to a partial one.
+- `view` *(optional)* — `"full"` returns each cell's full `api_view`. The default is a compact payload (see below).
+- `generate_missing` *(optional, default `true`)* — as on the single-cell endpoint.
+
 ```sh
 curl -X POST https://<host>/api/internal/boards/123/board_images/bulk \
   -H "Authorization: Bearer $INTERNAL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
+    "idempotency_key": "playground-root-2026-08-06",
     "cells": [
       { "label": "I",        "position": 0, "bg_color": "#FFEA75" },
       { "label": "want",     "position": 1, "bg_color": "#A1F571" },
@@ -701,9 +712,49 @@ curl -X POST https://<host>/api/internal/boards/123/board_images/bulk \
   }'
 ```
 
-Response: `201 Created` with an array of `api_view`s, or `422` with
-`{ "errors": [ { "index": 1, "error": "..." } ] }` identifying which entries
-failed.
+Response: `201 Created` with an array of compact cell payloads — `id`,
+`board_id`, `image_id`, `label`, `display_label`, `position`, `layout`,
+`hidden`, `voice`, `language`, the colors, `font_size`, `part_of_speech`,
+`data`, `predictive_board_id`, `dynamic`, `src`, `display_image_url`, `status`
+— or `422` with `{ "errors": [ { "index": 1, "error": "..." } ] }` identifying
+which entries failed.
+
+The compact payload is the default because `BoardImage#api_view` costs several
+queries **per tile** (docs and their blobs, audio files, voice list, board
+lookups), all of them run after the transaction commits. On a 48-cell request
+that was hundreds of post-commit queries — enough to time out a request whose
+write had already landed. Pass `view=full` if you need the heavier shape.
+
+**Do not blind-retry a 5xx from this endpoint without an `idempotency_key`.**
+Without one, a retry appends a second copy of every cell.
+
+#### `PATCH` / `DELETE` `/api/internal/boards/:id/board_images/:cell_id`
+
+Corrects or removes a tile that already exists. `PATCH` takes the same
+attributes as the create endpoints, plus `image_id` to **swap the symbol in
+place**.
+
+A swap re-points `image_id` on the same `BoardImage` rather than
+delete-and-recreate: the board's `layout` keys off `BoardImage` ids, so
+recreating would orphan the layout entry and silently reflow the grid. The
+tile's text is left alone unless you pass `display_label`.
+
+```sh
+# Swap a tile onto a commercial-safe symbol without touching the grid.
+curl -X PATCH https://<host>/api/internal/boards/5679/board_images/146356 \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "image_id": 14305 }'
+```
+
+- A cell id that isn't on the given board returns `404` and writes nothing.
+- An `image_id` that doesn't exist returns `422`.
+- `PATCH .../board_images/bulk_update` takes `{ "cells": [{ "id": 146356, ... }] }`
+  and is atomic the same way `bulk` is — one bad entry rolls back every cell and
+  returns `422` with the offending `index`.
+- `DELETE` removes the cell, repacks displaced tiles and rewrites the board's
+  denormalized `layout` so it no longer references the removed id. Surviving
+  tiles keep their authored cells — the freed slot is not closed up under them.
 
 #### Folder tiles — linking one board to another
 
@@ -771,8 +822,9 @@ board via the existing board endpoints to see when generation finishes.
 
 #### `GET /api/internal/images/search`
 
-Find images in the public library by label. Exact match first, falling back to
-prefix matching when there is no exact hit.
+Find images in the public library by label. Results are ranked in tiers:
+literal label equality first (ordered the way `Boards::ImageResolver` orders —
+most artwork, then lowest id), then word matches, then prefix matches.
 
 ```sh
 curl -G https://<host>/api/internal/images/search \
@@ -783,7 +835,19 @@ curl -G https://<host>/api/internal/images/search \
 
 Params: `q` *(required)*, `match` (`exact` default, or `prefix`), `limit`
 (default 10, max 50), `commercial_safe` (default false),
-`include_share_alike` (default false).
+`include_share_alike` (default false), `resolve` (default false).
+
+**Use `resolve=true` for a pre-flight check.** Ordinary search reads
+`Image.default_public`, while `board_images/bulk` resolves through
+`Boards::ImageResolver`, which looks at the default admin's own images
+(private ones included) first. A label can therefore resolve to art that plain
+search can never return. `resolve=true` prepends the image `bulk` would
+actually attach, tagged `"match": "resolve"`, so "will this board have art?"
+tooling reads the same slice of the library the write does. A resolve row is
+never dropped by `commercial_safe=true` — hiding it would report "no art" for a
+label that will in fact get art; read its `commercial_safe` flag instead. No
+resolve row means no art exists for the label and `bulk` would attach a blank
+tile and queue AI generation (search itself never creates an image).
 
 Response `200`:
 
@@ -846,7 +910,9 @@ curl -X POST https://<host>/api/internal/images/search \
 
 Params: `labels` *(required, array, max 100)*, `limit_per_label` (default 3,
 max 25), `match` (`exact` default, or `prefix`), `commercial_safe` (default
-false), `include_share_alike` (default false).
+false), `include_share_alike` (default false), `resolve` (default false — same
+meaning as on the `GET` endpoint, and the right flag for a pre-flight art
+check).
 
 Response `200` — **every requested label gets a key**, misses included, so you
 can spot gaps without diffing against your request:
@@ -915,11 +981,26 @@ Response shape:
   "status": "complete",
   "image_prompt": "a red apple",
   "src": "https://.../apple.png",
-  "error": null
+  "error": null,
+  "has_art": true,
+  "source_type": "OpenAI",
+  "original_url": "https://cdn.../abc123",
+  "license": null,
+  "commercial_safe": true,
+  "attribution_required": false,
+  "share_alike": false
 }
 ```
 
 `status` will be `generating`, `complete`, or `failed`.
+
+The licensing fields describe the same Doc a search result would describe, so
+art attached by `board_images/bulk` can be license-checked **after the fact** —
+which matters when these boards feed the printables pipeline. `has_art: false`
+means no artwork at all, which is a different situation from artwork under an
+unusable license; both used to read identically. Pass
+`include_share_alike=true` to have share-alike licenses count as
+commercial-safe.
 
 ### Polling for generation status
 

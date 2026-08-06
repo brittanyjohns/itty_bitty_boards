@@ -64,5 +64,60 @@ RSpec.describe "API::Internal::Images", type: :request do
       expect(body["label"]).to eq("carrot")
       expect(body).to have_key("status")
     end
+
+    # #575, point 2: the payload carried no licensing at all, so art attached
+    # by `bulk` read as "not commercial safe, no license record" whether or not
+    # that was true — and these boards feed the printables pipeline.
+    describe "licensing" do
+      def image_with_doc(label:, source_type: "OpenAI", license: nil, user: admin_user)
+        img = Image.create!(label: label, user_id: user.id)
+        doc = img.docs.create!(user_id: user.id, source_type: source_type, license: license, raw: label)
+        doc.image.attach(io: StringIO.new(file_fixture("sample.png").read),
+                         filename: "#{label}.png", content_type: "image/png")
+        img
+      end
+
+      it "reports a commercial-safe image as safe, with its source and original URL" do
+        safe = image_with_doc(label: "safe-carrot", source_type: "OpenAI")
+
+        get "/api/internal/images/#{safe.id}", headers: auth_headers
+
+        body = JSON.parse(response.body)
+        expect(body["has_art"]).to be true
+        expect(body["commercial_safe"]).to be true
+        expect(body["source_type"]).to eq("OpenAI")
+        expect(body["original_url"]).to be_present
+      end
+
+      it "reports an ARASAAC-style image as unsafe and attribution-required" do
+        unsafe = image_with_doc(label: "arasaac-carrot", source_type: "ObfImport",
+                                license: { "type" => "CC BY-NC-SA", "author_name" => "Sergio Palao" })
+
+        get "/api/internal/images/#{unsafe.id}", headers: auth_headers
+
+        body = JSON.parse(response.body)
+        expect(body["commercial_safe"]).to be false
+        expect(body["attribution_required"]).to be true
+        expect(body["share_alike"]).to be true
+        expect(body["license"]["author_name"]).to eq("Sergio Palao")
+      end
+
+      it "distinguishes no artwork from unusable artwork" do
+        get "/api/internal/images/#{image.id}", headers: auth_headers
+
+        body = JSON.parse(response.body)
+        expect(body["has_art"]).to be false
+        expect(body["license"]).to be_nil
+        expect(body["commercial_safe"]).to be false
+      end
+
+      it "admits share-alike with include_share_alike" do
+        sa = image_with_doc(label: "sa-carrot", source_type: "ObfImport", license: { "type" => "CC BY-SA" })
+
+        get "/api/internal/images/#{sa.id}", params: { include_share_alike: "true" }, headers: auth_headers
+
+        expect(JSON.parse(response.body)["commercial_safe"]).to be true
+      end
+    end
   end
 end
