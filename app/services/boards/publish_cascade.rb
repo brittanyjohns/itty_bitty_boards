@@ -68,7 +68,12 @@ module Boards
       group = builder_group
       return Board.none unless group
 
-      group.boards.where.not(id: board.id).where.not(published: published)
+      # `where.not(published: published)` is SQL `NOT (published = X)`, which
+      # evaluates to NULL (excluded) for a NULL row — a legacy member with
+      # published IS NULL would silently never be counted or flipped, leaving
+      # it out of sync after a confirmed cascade. IS DISTINCT FROM treats NULL
+      # as a real, comparable value so those members are included too.
+      group.boards.where.not(id: board.id).where("published IS DISTINCT FROM ?", published)
     end
   end
 end

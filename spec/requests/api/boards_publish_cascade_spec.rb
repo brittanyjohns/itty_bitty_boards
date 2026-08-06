@@ -65,6 +65,21 @@ RSpec.describe "API::Boards publish cascade", type: :request do
       expect(root.reload.name).to eq("Home")
     end
 
+    it "creates no images from a word_list on a declined cascade" do
+      # Placement matters here in a way "nothing persisted" doesn't prove: the
+      # assignment block runs find_or_create_images_from_word_list, which
+      # creates Image/BoardImage rows regardless of whether @board.save ever
+      # runs. A guard placed anywhere before the save (but after assignment)
+      # would still leave these rows behind.
+      root, _members = build_builder_set(owner: admin)
+
+      expect {
+        update_board(root, as: admin, params: { board: { published: true }, word_list: ["apple"] })
+      }.not_to change { BoardImage.where(board: root).count }
+
+      expect(response).to have_http_status(:conflict)
+    end
+
     it "publishes the root and every member with confirm=true" do
       root, members = build_builder_set(owner: admin)
 
@@ -125,6 +140,37 @@ RSpec.describe "API::Boards publish cascade", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(root.reload.name).to eq("Renamed")
+    end
+  end
+
+  describe "image_ids_to_remove in the same request as a publish toggle" do
+    it "removes the image without applying an unconfirmed cascade, instead of an unbreakable confirm loop" do
+      # The image_ids_to_remove branch returns early and never assigns or
+      # saves `published`, so a confirm=true here must not be read as "the
+      # cascade applied" — the guard is skipped entirely for this request
+      # shape, matching the plain image-removal behavior it always had.
+      root, members = build_builder_set(owner: admin)
+      image = create(:image)
+      board_image = create(:board_image, board: root, image: image)
+
+      update_board(root, as: admin,
+                    params: { board: { published: true }, confirm: "true",
+                              image_ids_to_remove: [image.id] })
+
+      expect(response).to have_http_status(:ok)
+      expect(root.board_images.exists?(id: board_image.id)).to be false
+      expect(root.reload.published).to be false
+      expect(members.map { |m| m.reload.published }).to all(be false)
+    end
+
+    it "does not raise when image_ids_to_remove is present without a board key" do
+      root, _members = build_builder_set(owner: admin)
+      image = create(:image)
+      create(:board_image, board: root, image: image)
+
+      update_board(root, as: admin, params: { image_ids_to_remove: [image.id] })
+
+      expect(response).to have_http_status(:ok)
     end
   end
 

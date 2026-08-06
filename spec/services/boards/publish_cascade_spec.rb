@@ -109,4 +109,49 @@ RSpec.describe Boards::PublishCascade do
       expect(described_class.new(plain).apply!(published: true)).to eq(0)
     end
   end
+
+  describe "a member with published: nil" do
+    # SQL `NOT (published = X)` evaluates to NULL (excluded) for a NULL row.
+    # A legacy member whose `published` column is NULL must still be treated
+    # as "not yet matching" any boolean target — otherwise it's silently
+    # skipped by #needed?/#summary and never flipped by #apply!, in either
+    # publish or unpublish direction.
+    def build_set_with_null_member
+      root = create(:board, user: user, name: "Home", published: false,
+                            settings: { "builder_root" => true })
+      group = BoardGroup.create!(user: user, name: "Milo's Set", builder: true,
+                                 root_board_id: root.id)
+      group.board_group_boards.create!(board: root)
+      null_member = create(:board, user: user, name: "Null Page",
+                                   settings: { "builder_child" => true })
+      null_member.update_column(:published, nil)
+      group.board_group_boards.create!(board: null_member)
+      [root, null_member]
+    end
+
+    it "is included by #needed? and #summary when publishing" do
+      root, null_member = build_set_with_null_member
+      cascade = described_class.new(root)
+
+      expect(cascade.needed?(published: true)).to be true
+      summary = cascade.summary(published: true)
+      expect(summary[:affected][:count]).to eq(1)
+      expect(summary[:affected][:names]).to contain_exactly(null_member.name)
+    end
+
+    it "is flipped to true by #apply!(published: true)" do
+      root, null_member = build_set_with_null_member
+      described_class.new(root).apply!(published: true)
+      expect(null_member.reload.published).to be true
+    end
+
+    it "is included by #needed? and flipped to false by #apply!(published: false)" do
+      root, null_member = build_set_with_null_member
+      cascade = described_class.new(root)
+
+      expect(cascade.needed?(published: false)).to be true
+      cascade.apply!(published: false)
+      expect(null_member.reload.published).to be false
+    end
+  end
 end

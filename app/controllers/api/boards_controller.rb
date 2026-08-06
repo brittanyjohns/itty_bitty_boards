@@ -422,9 +422,19 @@ class API::BoardsController < API::ApplicationController
     # cascade writes nothing at all — the client re-sends the identical payload
     # with confirm=true. `published` is stripped from board_params for
     # non-admins, so this is unreachable for them.
-    if board_params.key?("published")
+    #
+    # Skipped entirely when `image_ids_to_remove` is present: that branch
+    # returns early below without ever assigning or saving `published`, so
+    # there is nothing to confirm — and `board_params` (which calls
+    # `params.require(:board)`) must not be evaluated on a request that may
+    # carry no `board` key at all.
+    if params["image_ids_to_remove"].blank? && board_params.key?("published")
       target_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
-      if target_published != @board.published
+      # `.cast` maps nil/"" to nil, not false. `published` is a nullable
+      # column, so a malformed value must not be treated as "unpublish" —
+      # skip the cascade guard rather than let a nil target match (and
+      # NULL out) every non-NULL member.
+      if [true, false].include?(target_published) && target_published != @board.published
         cascade = Boards::PublishCascade.new(@board)
         if cascade.needed?(published: target_published) && params[:confirm].to_s != "true"
           render json: {
@@ -531,6 +541,16 @@ class API::BoardsController < API::ApplicationController
 
       # The root's save and the set cascade share one transaction: a failed
       # cascade must not leave the root published with its members behind.
+      #
+      # `raise ActiveRecord::Rollback unless saved` is not what protects that
+      # invariant — when `@board.save` returns false nothing was written, so
+      # there is nothing to roll back. The real protection is `apply!`
+      # raising and propagating out of this block, which aborts the
+      # transaction and leaves the root's save uncommitted too. Also note:
+      # under transactional fixtures this block has no savepoint of its own,
+      # so a spec asserting "a cascade failure rolls back the root" would
+      # pass vacuously here — such a spec needs `requires_new: true` to
+      # actually exercise a rollback.
       saved = false
       ActiveRecord::Base.transaction do
         saved = @board.save
