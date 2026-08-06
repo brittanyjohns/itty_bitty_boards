@@ -92,6 +92,7 @@ Rails.application.routes.draw do
       end
     end
     get "feedback", to: "feedback#index", as: :dashboard_feedback
+    get "word_events", to: "word_events#index", as: :dashboard_word_events
   end
 
   get "main/index", as: :home
