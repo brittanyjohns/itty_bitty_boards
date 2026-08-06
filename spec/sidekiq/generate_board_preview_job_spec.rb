@@ -19,7 +19,7 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
 
     board.reload
     expect(board.preview_image).to be_attached
-    expect(board.preview_image.key).to eq("board_previews/#{board.id}/preview.png")
+    expect(board.preview_image.key).to match(%r{\Aboard_previews/#{board.id}/[^/]+/preview\.png\z})
     # The preset must point at the generated preview blob, but the exact URL
     # form depends on the configured storage backend: the Disk service yields a
     # signed /rails/active_storage/ route (CI default), while an S3/CDN-backed
@@ -28,7 +28,7 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
     # so the test isn't coupled to a developer's local storage config.
     expect(board.settings["preset_display_image_url"]).to be_present
     expect(board.settings["preset_display_image_url"]).to match(
-      %r{/rails/active_storage/|board_previews/#{board.id}/preview\.png},
+      %r{/rails/active_storage/|board_previews/#{board.id}/[^/]+/preview\.png},
     )
   end
 

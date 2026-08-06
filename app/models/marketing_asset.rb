@@ -4,12 +4,20 @@
 # the attachment.
 #
 # The file is attached at a DETERMINISTIC S3 key (`marketing_assets/<slug>.pdf`)
-# with purge-then-reupload on every regeneration, mirroring
-# Boards::GeneratePreviewAssets#stable_preview_key. Production S3 is
+# with purge-then-reupload on every regeneration. Production S3 is
 # `public: true`, so the resulting URL is a permanent, unsigned, CDN-stable
 # link that never changes across re-runs — exactly what the /classroom page's
-# KIT_DOWNLOAD_URL needs. Re-running the kit build is therefore idempotent:
-# same slug -> same URL, new bytes.
+# hardcoded KIT_DOWNLOAD_URL needs. Re-running the kit build is therefore
+# idempotent: same slug -> same URL, new bytes.
+#
+# CAVEAT: the stable key is a deliberate trade-off here, not a pattern to copy.
+# CloudFront omits the query string from its cache key, so new bytes at an
+# already-warm key keep serving the OLD file until the edge TTL expires — a
+# regenerated kit is not immediately visible to downloaders. Board previews hit
+# exactly this and moved to a per-generation key
+# (Boards::GeneratePreviewAssets#versioned_preview_key); this model cannot,
+# because the published URL must never change. Re-publishing the kit needs a
+# CloudFront invalidation.
 class MarketingAsset < ApplicationRecord
   has_one_attached :file
 
