@@ -73,7 +73,7 @@ module Boards
       # published IS NULL would silently never be counted or flipped, leaving
       # it out of sync after a confirmed cascade. IS DISTINCT FROM treats NULL
       # as a real, comparable value so those members are included too.
-      group.boards.where.not(id: board.id).where("published IS DISTINCT FROM ?", published)
+      group.boards.distinct.where.not(id: board.id).where("published IS DISTINCT FROM ?", published)
     end
   end
 end

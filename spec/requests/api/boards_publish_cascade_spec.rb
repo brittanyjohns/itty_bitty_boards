@@ -141,6 +141,23 @@ RSpec.describe "API::Boards publish cascade", type: :request do
       expect(response).to have_http_status(:ok)
       expect(root.reload.name).to eq("Renamed")
     end
+
+    it "does not cascade a malformed published value" do
+      # `.cast` maps nil to nil, not false or true, so the guard's
+      # `[true, false].include?(target_published)` check skips the cascade
+      # entirely rather than matching a nil target against every member. The
+      # root itself still goes through the normal (non-cascade) assignment
+      # path below, which is why its own column ends up nil rather than
+      # strictly unchanged — the guard's job is only to keep that malformed
+      # value from also NULLing out every member.
+      root, members = build_builder_set(owner: admin)
+
+      update_board(root, as: admin, params: { board: { published: nil } })
+
+      expect(response).to have_http_status(:ok)
+      expect(root.reload.published).to be_falsy
+      expect(members.map { |m| m.reload.published }).to all(be false)
+    end
   end
 
   describe "image_ids_to_remove in the same request as a publish toggle" do
