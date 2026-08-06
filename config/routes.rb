@@ -567,6 +567,12 @@ Rails.application.routes.draw do
         collection do
           get "generated_boards"
         end
+        resources :printables, only: [:create], controller: "board_printables"
+      end
+      resources :board_printables, only: [:show] do
+        member do
+          get "download_url"
+        end
       end
       resources :clinician_applications, only: [:index] do
         member do

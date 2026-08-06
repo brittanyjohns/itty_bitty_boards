@@ -420,8 +420,9 @@ class API::BoardsController < API::ApplicationController
     # Warn+confirm before cascading publish across a Board Builder set, mirroring
     # the delete flow. This runs BEFORE any attribute is assigned, so a declined
     # cascade writes nothing at all — the client re-sends the identical payload
-    # with confirm=true. `published` is stripped from board_params for
-    # non-admins, so this is unreachable for them.
+    # with confirm=true. Reachable by any board owner since #633 let non-admins
+    # set `published`; PublishCascade scopes its members to the root's owner so
+    # a cascade can only ever flip boards the requester already owns.
     #
     # Skipped entirely when `image_ids_to_remove` is present: that branch
     # returns early below without ever assigning or saving `published`, so
@@ -1609,14 +1610,22 @@ class API::BoardsController < API::ApplicationController
                                   :query,
                                   :page,
                                   :display_image_url, :category, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {}, tags: [])
-    # Only admins may curate `predefined`/`published` boards — those flags decide
-    # whether a board enters the public/curated gallery. Strip them for everyone
-    # else so a regular user can't self-promote their own board (#27, mirrors the
-    # board_groups_controller pattern).
-    unless current_user&.admin?
-      permitted.delete(:predefined)
-      permitted.delete(:published)
-    end
+    # `predefined` is curation and stays admin-only: it decides whether a board
+    # is offered as a starter board, and `Board.public_boards` (the curated
+    # gallery) is `admin-owned AND predefined AND published`. Stripping
+    # `predefined` is what stops a regular user self-promoting into that
+    # gallery (#27, mirrors the board_groups_controller pattern).
+    #
+    # `published` is NOT curation — on a user-owned board it only decides
+    # whether `Board#viewable_by?` lets a logged-out visitor open the board's
+    # own /pb/<slug> link, which is how a user's Public page and MySpeak tiles
+    # reach their boards. Owners need it, and stripping it here made the UI's
+    # Publish toggle a silent no-op (#633, frontend). It is safe to permit for
+    # non-admins because `update` is already gated to the owner
+    # (check_board_view_edit_permissions + User#can_edit?, which also refuses
+    # any predefined board), so the only non-admin who can set it is the person
+    # who owns the board.
+    permitted.delete(:predefined) unless current_user&.admin?
     permitted
   end
 

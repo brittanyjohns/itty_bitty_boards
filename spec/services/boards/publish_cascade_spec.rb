@@ -154,4 +154,46 @@ RSpec.describe Boards::PublishCascade do
       expect(null_member.reload.published).to be false
     end
   end
+
+  # #633 — publishing is no longer admin-only, so the cascade must not be a
+  # route to flipping a board you don't own. `add_to_groups` has no ownership
+  # check, so a group can legitimately contain a foreign board.
+  describe "a group member owned by another user" do
+    let(:other_user) { create(:user) }
+
+    def build_set_with_foreign_member
+      root, group, members = build_builder_set
+      foreign = create(:board, user: other_user, name: "Someone Else's", published: false)
+      group.board_group_boards.create!(board: foreign)
+      [root, members, foreign]
+    end
+
+    it "is excluded from #summary's affected count and names" do
+      root, _members, _foreign = build_set_with_foreign_member
+
+      summary = described_class.new(root).summary(published: true)
+
+      expect(summary[:affected][:count]).to eq(2)
+      expect(summary[:affected][:names]).not_to include("Someone Else's")
+    end
+
+    it "is not flipped by #apply!" do
+      root, members, foreign = build_set_with_foreign_member
+
+      expect(described_class.new(root).apply!(published: true)).to eq(2)
+      expect(members.map { |m| m.reload.published }).to all(be true)
+      expect(foreign.reload.published).to be false
+    end
+
+    it "alone does not make a cascade needed" do
+      root = create(:board, user: user, settings: { "builder_root" => true })
+      group = BoardGroup.create!(user: user, name: "Set", builder: true, root_board_id: root.id)
+      group.board_group_boards.create!(board: root)
+      group.board_group_boards.create!(
+        board: create(:board, user: other_user, published: false),
+      )
+
+      expect(described_class.new(root).needed?(published: true)).to be false
+    end
+  end
 end

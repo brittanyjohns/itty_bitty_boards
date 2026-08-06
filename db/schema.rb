@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_04_191025) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_06_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -199,6 +199,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_04_191025) do
     t.index ["image_id"], name: "index_board_images_on_image_id"
     t.index ["label"], name: "index_board_images_on_label"
     t.index ["predictive_board_id"], name: "index_board_images_on_predictive_board_id"
+  end
+
+  create_table "board_printables", force: :cascade do |t|
+    t.bigint "board_id", null: false
+    t.bigint "created_by_id"
+    t.string "status", default: "pending", null: false
+    t.boolean "include_subboards", default: false, null: false
+    t.integer "max_boards", default: 25, null: false
+    t.string "topic"
+    t.integer "page_count"
+    t.jsonb "board_ids", default: [], null: false
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id", "status"], name: "index_board_printables_on_board_id_and_status"
+    t.index ["board_id"], name: "index_board_printables_on_board_id"
+    t.index ["created_by_id"], name: "index_board_printables_on_created_by_id"
   end
 
   create_table "board_screenshot_cells", force: :cascade do |t|
@@ -1099,6 +1116,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_04_191025) do
   add_foreign_key "board_groups", "boards", column: "root_board_id"
   add_foreign_key "board_images", "boards"
   add_foreign_key "board_images", "images"
+  add_foreign_key "board_printables", "boards"
+  add_foreign_key "board_printables", "users", column: "created_by_id"
   add_foreign_key "board_screenshot_cells", "board_screenshot_imports"
   add_foreign_key "board_screenshot_imports", "users"
   add_foreign_key "boards", "users"

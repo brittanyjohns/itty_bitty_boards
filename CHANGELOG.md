@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Cover-wrapped board printables can be generated in the app.** A sellable,
+  print-ready PDF for a board previously required running the
+  `speakanyway-printables` GitHub Actions pipeline; its PDF-producing core now
+  lives in Rails behind admin-only endpoints. A single board produces one
+  6-page document (cover, how-to-use, colour board, low-ink board, license,
+  credits). Asking for subboards walks the board's linked-board tree and
+  returns two fully-wrapped files — a colour bundle and a low-ink bundle —
+  with each board page's QR pointing at that board rather than the root. Work
+  runs on Sidekiq; a tree over the board cap is refused up front with a 422
+  rather than half-built.
+
 ### Changed
 
 - **Staging no longer sends email to real people.** Staging runs against live
@@ -51,6 +64,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   an `idempotency_key` to make a retry replay the original tiles instead of
   creating new ones, or `replace: true` so a retry converges on the intended
   board. Pass `view=full` for the previous, heavier response shape.
+- **The "Publish this board" toggle works for everyone, not just admins.** The
+  server was discarding `published` from anyone who wasn't an admin, so a
+  regular user could flip the toggle, get a "Board saved" confirmation, and
+  still have an unpublished board — with a public link and QR code that showed
+  visitors a 404. Board owners can now publish and unpublish their own boards.
+  Curation is unchanged: marking a board as a starter board is still admin-only,
+  and publishing your own board does not add it to the public board gallery.
 - Publishing a Board Builder board set now publishes every page in the set, so
   public visitors no longer hit a dead end when tapping a folder button.
   Unpublishing removes the whole set from public view. Both ask for confirmation

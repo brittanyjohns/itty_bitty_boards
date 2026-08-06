@@ -1,0 +1,44 @@
+<%# Copy lifted near-verbatim from the printables pipeline's buildHowToUseHtml
+    (speakanyway-printables/src/plugins/aac/product-types/existing-board.ts) so
+    an in-app printable and a pipeline printable read identically. %>
+<div class="wrapper-page">
+  <h2>How to use this</h2>
+
+  <p class="intro">
+    <% if @topic.present? %>
+      This <%= @noun %> helps everyone participate in <strong><%= @topic %></strong>.
+      Print it, hang it, or laminate it for everyday use.
+    <% else %>
+      This <%= @noun %> gives your communicator words at their fingertips.
+      Print it, hang it, or laminate it for everyday use.
+    <% end %>
+  </p>
+
+  <ul class="tips">
+    <li>
+      <% if @is_set %>
+        This PDF prints every board twice: the first half in full color, the
+        second half with white tile backgrounds for a cleaner, lower-ink print.
+        Use whichever fits your printer.
+      <% else %>
+        This PDF has two prints of the same board: page 1 in full color, page 2
+        with white tile backgrounds for a cleaner, lower-ink print. Use
+        whichever fits your printer.
+      <% end %>
+    </li>
+    <li>Print at home or at a print shop, Letter size.</li>
+    <li>
+      Scan the QR code on the cover<%= " or any page" if @is_set %> to open the
+      board<%= "s" if @is_set %> in the free SpeakAnyWay app — every word speaks
+      out loud when tapped.
+    </li>
+    <li>Practice with your communicator before you need it. Familiarity helps.</li>
+    <li>Add or swap words as your communicator's vocabulary grows.</li>
+  </ul>
+
+  <p class="note">
+    <%= @is_set ? "Every board" : "The same board" %> is free in the SpeakAnyWay
+    app — scan the QR code on the cover and tap any word to hear it spoken out
+    loud. No sign-in, no subscription.
+  </p>
+</div>

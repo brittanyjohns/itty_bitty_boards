@@ -64,6 +64,16 @@ module Boards
 
     # Member boards whose published flag differs from the target. Excludes the
     # root itself — it's a member of its own group, but the caller saves it.
+    #
+    # Scoped to the root's owner. `Board#builder_board_group` falls back to
+    # `board_groups.where(builder: true).first` with no ownership filter, and
+    # `add_to_groups` lets any board be added to any group id without an
+    # ownership check (a known pre-existing hole, documented on
+    # Board#eligible_board_group). That was contained while `published` was
+    # admin-only, but #633 opened publishing to owners — without this filter a
+    # user could flip `published` on someone else's board just by getting it
+    # into a group they control. An admin editing another user's set is
+    # unaffected: the scope follows the root board's owner, not the requester.
     def member_boards_to_change(published)
       group = builder_group
       return Board.none unless group
@@ -73,7 +83,10 @@ module Boards
       # published IS NULL would silently never be counted or flipped, leaving
       # it out of sync after a confirmed cascade. IS DISTINCT FROM treats NULL
       # as a real, comparable value so those members are included too.
-      group.boards.distinct.where.not(id: board.id).where("published IS DISTINCT FROM ?", published)
+      group.boards.distinct
+           .where(user_id: board.user_id)
+           .where.not(id: board.id)
+           .where("published IS DISTINCT FROM ?", published)
     end
   end
 end
