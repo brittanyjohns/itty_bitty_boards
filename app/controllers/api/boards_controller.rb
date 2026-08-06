@@ -485,8 +485,13 @@ class API::BoardsController < API::ApplicationController
       # `.key?`, not `.present?` — `false.present?` is false, so a `.present?`
       # guard silently drops `published: false` and makes unpublishing a no-op.
       # Matches the `predefined` guard above: a missing key leaves the saved
-      # value untouched, an explicit false unpublishes.
-      @board.published = board_params["published"] if board_params.key?("published")
+      # value untouched, an explicit false unpublishes. Cast and require a
+      # real boolean so a malformed value (nil/"") can't NULL the column —
+      # mirrors the cascade guard's own `[true, false]` check on the members.
+      if board_params.key?("published")
+        incoming_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
+        @board.published = incoming_published unless incoming_published.nil?
+      end
       if board_params["slug"].present? && board_params["slug"] != @board.slug
         new_slug = @board.generate_unique_slug(board_params["slug"])
         @board.slug = new_slug
