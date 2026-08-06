@@ -448,7 +448,11 @@ class API::BoardsController < API::ApplicationController
       @board.tags = board_params["tags"] if board_params["tags"].present?
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
-      @board.published = board_params["published"] if board_params["published"].present?
+      # `.key?`, not `.present?` — `false.present?` is false, so a `.present?`
+      # guard silently drops `published: false` and makes unpublishing a no-op.
+      # Matches the `predefined` guard above: a missing key leaves the saved
+      # value untouched, an explicit false unpublishes.
+      @board.published = board_params["published"] if board_params.key?("published")
       if board_params["slug"].present? && board_params["slug"] != @board.slug
         new_slug = @board.generate_unique_slug(board_params["slug"])
         @board.slug = new_slug
