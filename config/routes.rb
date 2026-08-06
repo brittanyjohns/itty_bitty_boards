@@ -80,6 +80,7 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
+    get "feedback", to: "feedback#index", as: :dashboard_feedback
   end
 
   get "main/index", as: :home
