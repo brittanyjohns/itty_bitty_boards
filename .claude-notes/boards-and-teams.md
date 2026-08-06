@@ -673,6 +673,18 @@ contained while publishing was admin-only; now that owners can publish
 someone else's board. An admin editing another user's set is unaffected: the
 scope follows the root's owner, not the requester.
 
+**Group membership must therefore stay a superset of the set's reachable folder
+graph.** A page reachable from the published root by tapping a tile but missing
+from the group is invisible to publish, unpublish, delete, and the 0-slot board
+count — the visitor taps the tile and gets the 404 this feature exists to
+remove, and re-saving publish on the root doesn't help because
+`PublishCascade#needed?` only compares *members*. Two paths keep them in sync
+(issue #586): `Api::ImagesController#create_predictive_board` adds the page it
+creates to the parent board's builder group
+(`Board#containing_builder_board_group`, ownership-scoped on both ends), and
+`BuildBoardSetJob#set_board_ids` walks the link graph with **no depth cap**.
+Any new way to hang a page off a builder set needs the same join.
+
 **Image-removal bypass:** The guard is skipped entirely when the request carries
 `image_ids_to_remove` — that branch returns early (line 453 in the controller)
 without any board attribute assignment or save, so there is nothing to confirm.

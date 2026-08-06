@@ -619,6 +619,41 @@ RSpec.describe BuildBoardSetJob do
 
       expect(group.reload.boards.pluck(:id)).to match_array(user.boards.where(predefined: false).pluck(:id))
     end
+
+    # Issue #586: the membership walk used to stop at depth 3, so a page four
+    # hops from the root was reachable by tapping through but never a group
+    # member — and publish/unpublish/delete/board count all read membership.
+    it "attaches pages nested deeper than three hops from the root" do
+      root, group = precreate_root_and_group!(name: "Home")
+
+      # Hand-extend the set into a chain: root -> L1 -> L2 -> L3 -> L4.
+      pages = Array.new(4) { |i| create(:board, user: user, name: "L#{i + 1}") }
+      [root, *pages].each_cons(2) do |parent, child|
+        tile = create(:board_image, board: parent, label: child.name,
+                                    image: create(:image, label: child.name, user_id: user.id))
+        tile.update!(predictive_board_id: child.id)
+      end
+
+      # Root now has tiles, so this takes the already-built backfill path.
+      described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
+
+      expect(group.reload.boards.pluck(:id)).to match_array([root.id, *pages.map(&:id)])
+      expect(User.find(user.id).countable_board_count).to eq(0)
+    end
+
+    # A tile pointing at a board the owner doesn't own (a shared or admin seed
+    # board) still can't drag it into the set, cap or no cap.
+    it "does not sweep in boards the root's owner does not own" do
+      root, group = precreate_root_and_group!(name: "Home")
+      foreign = create(:board, user: create(:user), name: "Someone else's")
+      tile = create(:board_image, board: root, label: "Foreign",
+                                  image: create(:image, label: "Foreign", user_id: user.id))
+      tile.update!(predictive_board_id: foreign.id)
+
+      described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
+
+      expect(group.reload.boards.pluck(:id)).not_to include(foreign.id)
+    end
   end
 
   describe "missing root" do

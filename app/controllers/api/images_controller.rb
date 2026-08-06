@@ -427,6 +427,7 @@ class API::ImagesController < API::ApplicationController
     end
     @board_image.data["mute_name"] = true
     if @board_image.update(predictive_board_id: predictive_board.id)
+      attach_to_builder_set(@board, predictive_board)
       render json: { status: "ok", message: "Creating predictive board for image.", board: predictive_board }
     else
       render json: { status: "error", message: "Could not create predictive board." }
@@ -782,6 +783,30 @@ class API::ImagesController < API::ApplicationController
   end
 
   private
+
+  # A folder page created from a tile on a Board Builder set has to join that
+  # set's builder BoardGroup (issue #586). At build time the group membership
+  # and the reachable folder-tile graph are the same set, but they diverge the
+  # moment the set is hand-extended: the new page is reachable from the
+  # published root by tapping its tile, yet `Boards::PublishCascade` — like
+  # delete and the 0-slot board count — reads GROUP MEMBERSHIP, so a page that
+  # never joined is never published and a public visitor gets a 404.
+  #
+  # Ownership-scoped on both ends: only the current user's own groups are
+  # considered, so a folder tile added on a board shared from another account
+  # can't insert a board into that account's set. No-op for a board outside any
+  # builder set. `add_board` is idempotent, and a failure here must never fail
+  # the creation itself — the page exists and works either way.
+  def attach_to_builder_set(parent_board, new_board)
+    return unless parent_board && new_board
+
+    group = parent_board.containing_builder_board_group(current_user)
+    return unless group
+
+    group.add_board(new_board)
+  rescue => e
+    Rails.logger.error("[ImagesController] builder set attach failed board=#{new_board&.id}: #{e.class} - #{e.message}")
+  end
 
   # Issue #26 (IDOR): images are a shared library. A row is either PUBLIC
   # (is_private false/nil — e.g. the admin-owned symbol library, mirrors the
