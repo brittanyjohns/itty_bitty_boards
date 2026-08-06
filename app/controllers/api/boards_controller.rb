@@ -416,6 +416,30 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+
+    # Warn+confirm before cascading publish across a Board Builder set, mirroring
+    # the delete flow. This runs BEFORE any attribute is assigned, so a declined
+    # cascade writes nothing at all — the client re-sends the identical payload
+    # with confirm=true. `published` is stripped from board_params for
+    # non-admins, so this is unreachable for them.
+    if board_params.key?("published")
+      target_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
+      if target_published != @board.published
+        cascade = Boards::PublishCascade.new(@board)
+        if cascade.needed?(published: target_published) && params[:confirm].to_s != "true"
+          render json: {
+                   error: "publish_cascade_confirmation_required",
+                   message: "\"#{@board.name}\" is the home of a board set — this change applies to every page in the set.",
+                   board: { id: @board.id, name: @board.name },
+                   cascade: cascade.summary(published: target_published),
+                 }, status: :conflict
+          return
+        end
+        @publish_cascade = cascade
+        @publish_cascade_target = target_published
+      end
+    end
+
     if params["image_ids_to_remove"].present?
       image_ids_to_remove = params["image_ids_to_remove"]
       image_ids_to_remove.each do |image_id|
@@ -505,8 +529,17 @@ class API::BoardsController < API::ApplicationController
         @board.margin_settings = margins
       end
 
+      # The root's save and the set cascade share one transaction: a failed
+      # cascade must not leave the root published with its members behind.
+      saved = false
+      ActiveRecord::Base.transaction do
+        saved = @board.save
+        raise ActiveRecord::Rollback unless saved
+        @publish_cascade&.apply!(published: @publish_cascade_target)
+      end
+
       respond_to do |format|
-        if @board.save
+        if saved
           if params[:layout].present?
             # only save if changes are present
             layout_param = params[:layout]
