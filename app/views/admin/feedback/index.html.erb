@@ -1,0 +1,97 @@
+<% content_for :page_title, "Feedback" %>
+
+<%
+  type_label = ->(t) { { "bug" => "Bug", "feature" => "Feature", "question" => "Question", "praise" => "Praise" }[t] || t }
+  type_badge = ->(t) do
+    case t
+    when "bug"      then "bg-red-900/60 text-red-300"
+    when "feature"  then "bg-indigo-900/60 text-indigo-300"
+    when "question" then "bg-amber-900/60 text-amber-300"
+    when "praise"   then "bg-green-900/60 text-green-300"
+    else "admin-card-alt text-t2"
+    end
+  end
+%>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Feedback</h1>
+    <p class="text-sm text-t3 mt-0.5"><%= @feedback_items.size %> shown (most recent 200)</p>
+  </div>
+</div>
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div class="flex flex-wrap items-center gap-2">
+    <%= link_to "All (#{@counts.values.sum})", admin_dashboard_feedback_path(search: @search),
+          class: "text-xs px-3 py-1.5 rounded border admin-input transition-colors #{@type == "all" ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+    <% FeedbackItem::FEEDBACK_TYPES.each do |t| %>
+      <%= link_to "#{type_label.call(t)} (#{@counts[t] || 0})", admin_dashboard_feedback_path(type: t, search: @search),
+            class: "text-xs px-3 py-1.5 rounded border admin-input transition-colors #{@type == t ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+    <% end %>
+  </div>
+
+  <%= form_tag admin_dashboard_feedback_path, method: :get, class: "flex items-center gap-2", data: { turbo: false } do %>
+    <%= hidden_field_tag :type, @type unless @type == "all" %>
+    <input type="text" name="search" value="<%= @search %>" placeholder="Search subject, message, email…"
+           class="admin-input border rounded px-3 py-1.5 text-xs w-64 focus:border-indigo-500 focus:outline-none">
+    <button type="submit" class="text-xs px-2 py-1.5 text-t2 hover:text-t1">Search</button>
+    <% if @search.present? %>
+      <%= link_to "Clear", admin_dashboard_feedback_path(type: @type == "all" ? nil : @type), class: "text-xs text-t3 hover:text-t1" %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex flex-col gap-3">
+  <% @feedback_items.each do |item| %>
+    <details class="admin-card border rounded-xl">
+      <summary class="px-5 py-3 cursor-pointer flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="<%= type_badge.call(item.feedback_type) %> inline-block text-xs rounded px-2 py-0.5 shrink-0"><%= type_label.call(item.feedback_type) %></span>
+          <span class="text-sm text-t1 truncate"><%= item.subject.presence || item.message.truncate(80) %></span>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          <span class="text-xs text-t2"><%= item.user&.email || "—" %></span>
+          <span class="text-xs text-t3 whitespace-nowrap"><%= item.created_at.strftime("%b %-d, %Y %H:%M") %></span>
+        </div>
+      </summary>
+      <div class="px-5 pb-4 pt-1 text-sm" style="border-top: 1px solid var(--border-light);">
+        <p class="text-t1 whitespace-pre-wrap mb-3 mt-3"><%= item.message %></p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div>
+            <div class="text-t2 mb-0.5">Role</div>
+            <div class="text-t1"><%= item.role.presence || "—" %></div>
+          </div>
+          <div>
+            <div class="text-t2 mb-0.5">Device</div>
+            <div class="text-t1"><%= item.device.presence || "—" %></div>
+          </div>
+          <div>
+            <div class="text-t2 mb-0.5">Platform</div>
+            <div class="text-t1"><%= item.platform.presence || "—" %></div>
+          </div>
+          <div>
+            <div class="text-t2 mb-0.5">App version</div>
+            <div class="text-t1"><%= item.app_version.presence || "—" %></div>
+          </div>
+          <div class="col-span-2 md:col-span-4">
+            <div class="text-t2 mb-0.5">Page URL</div>
+            <div class="text-t1 break-all"><%= item.page_url.presence || "—" %></div>
+          </div>
+          <div>
+            <div class="text-t2 mb-0.5">Allow contact</div>
+            <div class="text-t1"><%= item.allow_contact? ? "Yes" : "No" %></div>
+          </div>
+        </div>
+        <% if item.user %>
+          <%= link_to "View user →", admin_dashboard_user_path(item.user), class: "text-xs text-accent hover:underline mt-3 inline-block" %>
+        <% end %>
+      </div>
+    </details>
+  <% end %>
+
+  <% if @feedback_items.empty? %>
+    <div class="admin-card border rounded-xl px-5 py-10 text-center text-sm text-t3">
+      No feedback matches this filter.
+    </div>
+  <% end %>
+</div>

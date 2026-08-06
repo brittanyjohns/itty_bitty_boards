@@ -91,6 +91,7 @@ Rails.application.routes.draw do
         get :download_entries
       end
     end
+    get "feedback", to: "feedback#index", as: :dashboard_feedback
   end
 
   get "main/index", as: :home
