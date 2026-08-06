@@ -53,6 +53,19 @@ introduced. `Boards::PredictiveLinkSet` is deliberately not used.
 
 ## Backend design
 
+### Prerequisite: `published: false` is silently dropped today
+
+`Api::BoardsController#update` assigns with
+`@board.published = board_params["published"] if board_params["published"].present?`.
+`false.present?` is `false`, so an explicit `published: false` never reaches the
+model — the request 200s and the board stays published. **Unpublishing is
+currently a no-op through this endpoint.**
+
+The unpublish half of this feature cannot work until the guard becomes
+`board_params.key?("published")`, matching the `predefined` line directly above
+it. This is a genuine bug independent of the cascade, and is fixed first so the
+cascade has working behavior to build on.
+
 ### `Boards::PublishCascade`
 
 New read-plus-apply service in `app/services/boards/`, a sibling to
