@@ -80,6 +80,7 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
+    resources :placeholders, only: [:index, :create], as: :dashboard_placeholders
   end
 
   get "main/index", as: :home

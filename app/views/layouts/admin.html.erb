@@ -112,6 +112,8 @@
           <% end %>
           <%= link_to "Video Boards", admin_dashboard_video_boards_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/video_boards") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+          <%= link_to "Placeholders", admin_dashboard_placeholders_path,
+                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/placeholders") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq",
