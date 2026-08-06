@@ -88,3 +88,64 @@ natural parent record (not a Board, not a Profile), so a small model owns it.
   tags render realistic sample data without a real child.
 
 See `.claude-notes/classroom-kit-hosting-handoff.md` for the end-to-end pipeline.
+
+## 7. Cover-wrapped board printables — the *sellable* PDF (SHIPPED)
+
+The in-app port of the `speakanyway-printables` Node pipeline's PDF-producing
+core (its steps 05, 08, 09). Engine #3 renders one board page; this wraps a
+board — or its whole subboard tree — in cover / how-to-use / license / credits
+and merges everything into a finished product PDF. Admin-only.
+
+- **Model:** `BoardPrintable` (`has_many_attached :files`, status
+  pending/generating/complete/failed, `board_ids` = the walked tree in BFS
+  order). Storage keys are scoped by record id
+  (`board_printables/<id>/<filename>`) so a re-run never collides on the unique
+  `active_storage_blobs.key` index. `#files_view` returns
+  `[{ variant, filename, url, byte_size }]` on the `CDN_HOST + key` convention.
+  Deliberately **not** `board.pdf_file` — that's engine #3's cached single-page
+  export and it rides in `Board#api_view`.
+- **Services** (`app/services/boards/printables/`): `CollectPages` (BFS walk +
+  two Grover renders per board), `RenderWrappers` (the four wrapper pages),
+  `MergePdf` (combine_pdf), `Generate` (orchestrates + attaches + stamps).
+  Job: `app/sidekiq/generate_board_printable_job.rb`.
+- **Endpoints:** `POST /api/admin/boards/:board_id/printables` (202),
+  `GET /api/admin/board_printables/:id`,
+  `GET /api/admin/board_printables/:id/download_url`.
+- **Output shape:** single board = **one** file (`<slug>.pdf`, variant `full`,
+  6 pages: cover, how-to-use, colour, low-ink, license, credits). Subboard tree
+  = **two** files (`<slug>.color.pdf` / `<slug>.low-ink.pdf`, variants `color`
+  and `low_ink`), each fully wrapped, `2N + 8` pages total. There is no combined
+  master; the cover is duplicated into both so either file stands alone.
+
+Things that will bite a future change:
+
+- **The tree size is checked in the controller, synchronously, before any record
+  exists.** An over-cap tree must answer **422**, and a job that raises cannot.
+  `CollectPages.walk_board_tree` is a class method for exactly this reason; the
+  job re-walks when it renders. Moving the check into the job would leave a
+  record stuck in `generating` with nothing attached.
+- **The walk raises rather than truncating.** Silently dropping boards ships an
+  incomplete product that looks complete. `max_boards` is clamped to
+  `MAX_BOARDS_CEILING` (100) — every board is two Chrome renders.
+- **Each board page's QR targets its own board**; only the cover's targets the
+  root. A buyer scanning page 5 of a 9-board bundle must land on that board.
+- **`hide_header: false` on every board page** — the QR lives inside the header
+  in `print.html.erb`, so hiding the header also kills the per-page QR. There is
+  no header-less-with-QR combination.
+- **Wrappers are a separate template/layout pair**
+  (`app/views/api/board_printables/*` + `layouts/pdf_printable.html.erb`), never
+  a branch inside `layouts/pdf.html.erb` — same rule as `pdf_marketing`.
+- **The layout deliberately does not `@import` Nunito** the way the pipeline's
+  `base.css` does. A network fetch inside PDF generation is a flaky failure
+  mode; it uses the system stack, matching `layouts/pdf.html.erb`. A spec
+  asserts the absence of `fonts.googleapis.com`.
+- **Merging, not one long HTML print**, is what preserves each page's own
+  orientation — portrait wrappers next to landscape board pages (any board with
+  ≥6 tiles goes landscape via `RenderAssetData#resolved_landscape`).
+
+**Licensing:** admin-only internal generation is fine, but *selling* the output
+is not automatically fine — `Images::CommercialLicense` is the gate, and per
+`.claude-notes/internal-api.md` only a minority of the image library is
+commercial-safe (ARASAAC, the largest source, is CC BY-NC-SA).
+
+Design + full context: `.claude-notes/board-printable-in-app-handoff.md`.
