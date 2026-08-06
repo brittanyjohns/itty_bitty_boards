@@ -663,12 +663,45 @@ The cascade set is the root's builder `BoardGroup` membership — the same set
 descendants (`board_images.predictive_board_id`) outside the builder set are
 deliberately **not** included: they aren't owned by the root.
 
-`published` is admin-only (`board_params` strips it for non-admins), so the
-cascade is unreachable for regular users.
+Members are additionally scoped to **the root board's owner**
+(`user_id: board.user_id`). `Board#builder_board_group` falls back to
+`board_groups.where(builder: true).first` with no ownership filter, and
+`add_to_groups` lets any board be added to any group id without an ownership
+check — so a group can contain a board its controller doesn't own. That was
+contained while publishing was admin-only; now that owners can publish
+(below), the scope is what stops the cascade becoming a route to flipping
+someone else's board. An admin editing another user's set is unaffected: the
+scope follows the root's owner, not the requester.
 
 **Image-removal bypass:** The guard is skipped entirely when the request carries
 `image_ids_to_remove` — that branch returns early (line 453 in the controller)
 without any board attribute assignment or save, so there is nothing to confirm.
+
+### `published` vs `predefined` — not the same permission
+
+These two are routinely conflated. They answer different questions, and only
+one is admin-only:
+
+- **`predefined`** — curation. Admin-only; `board_params` strips it for
+  non-admins (#27). It marks a board as a starter board, and it is one of the
+  three conditions for `Board.public_boards` (the curated gallery), which is
+  `user_id == DEFAULT_ADMIN_ID AND predefined AND published`. Stripping this is
+  what prevents a user self-promoting into the gallery. `User#can_edit?` also
+  returns false for any predefined board a non-admin touches.
+- **`published`** — share-link visibility, owned by **the board owner**. On a
+  user-owned board it only drives `Board#viewable_by?`: whether a logged-out
+  visitor can open that board's own `/pb/<slug>`. That link is how a user's
+  Public page (`PublicProfile`) and MySpeak tiles reach their boards, so an
+  owner who can't publish has a Public page whose every board 404s for
+  visitors. Permitted for non-admins as of #633 (filed on the frontend).
+
+Publishing your own board does **not** put it in the curated gallery — the
+gallery still requires admin ownership plus `predefined`.
+
+Safe for non-admins because `update` is already gated to the owner:
+`check_board_view_edit_permissions` (owner or admin) plus the inline
+`User#can_edit?`. The only non-admin who can reach the assignment is the person
+who owns the board.
 
 ## Board Sets (BoardGroup) — user CRUD + limits
 

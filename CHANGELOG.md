@@ -18,6 +18,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The "Publish this board" toggle works for everyone, not just admins.** The
+  server was discarding `published` from anyone who wasn't an admin, so a
+  regular user could flip the toggle, get a "Board saved" confirmation, and
+  still have an unpublished board — with a public link and QR code that showed
+  visitors a 404. Board owners can now publish and unpublish their own boards.
+  Curation is unchanged: marking a board as a starter board is still admin-only,
+  and publishing your own board does not add it to the public board gallery.
 - Publishing a Board Builder board set now publishes every page in the set, so
   public visitors no longer hit a dead end when tapping a folder button.
   Unpublishing removes the whole set from public view. Both ask for confirmation
