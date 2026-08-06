@@ -51,6 +51,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   an `idempotency_key` to make a retry replay the original tiles instead of
   creating new ones, or `replace: true` so a retry converges on the intended
   board. Pass `view=full` for the previous, heavier response shape.
+- Publishing a Board Builder board set now publishes every page in the set, so
+  public visitors no longer hit a dead end when tapping a folder button.
+  Unpublishing removes the whole set from public view. Both ask for confirmation
+  first.
+- Unpublishing a board works again — `published: false` was being silently
+  dropped by the update endpoint.
 - **"Regenerate from tiles" updates the board cover every time, not just the
   first.** Regenerating produced a correct new snapshot on the server, but every
   version was written to the same CDN path — and the CDN ignores the `?v=`

@@ -416,6 +416,40 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+
+    # Warn+confirm before cascading publish across a Board Builder set, mirroring
+    # the delete flow. This runs BEFORE any attribute is assigned, so a declined
+    # cascade writes nothing at all — the client re-sends the identical payload
+    # with confirm=true. `published` is stripped from board_params for
+    # non-admins, so this is unreachable for them.
+    #
+    # Skipped entirely when `image_ids_to_remove` is present: that branch
+    # returns early below without ever assigning or saving `published`, so
+    # there is nothing to confirm — and `board_params` (which calls
+    # `params.require(:board)`) must not be evaluated on a request that may
+    # carry no `board` key at all.
+    if params["image_ids_to_remove"].blank? && board_params.key?("published")
+      target_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
+      # `.cast` maps nil/"" to nil, not false. `published` is a nullable
+      # column, so a malformed value must not be treated as "unpublish" —
+      # skip the cascade guard rather than let a nil target match (and
+      # NULL out) every non-NULL member.
+      if [true, false].include?(target_published) && target_published != @board.published
+        cascade = Boards::PublishCascade.new(@board)
+        if cascade.needed?(published: target_published) && params[:confirm].to_s != "true"
+          render json: {
+                   error: "publish_cascade_confirmation_required",
+                   message: "\"#{@board.name}\" is the home of a board set — this change applies to every page in the set.",
+                   board: { id: @board.id, name: @board.name },
+                   cascade: cascade.summary(published: target_published),
+                 }, status: :conflict
+          return
+        end
+        @publish_cascade = cascade
+        @publish_cascade_target = target_published
+      end
+    end
+
     if params["image_ids_to_remove"].present?
       image_ids_to_remove = params["image_ids_to_remove"]
       image_ids_to_remove.each do |image_id|
@@ -448,7 +482,16 @@ class API::BoardsController < API::ApplicationController
       @board.tags = board_params["tags"] if board_params["tags"].present?
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
-      @board.published = board_params["published"] if board_params["published"].present?
+      # `.key?`, not `.present?` — `false.present?` is false, so a `.present?`
+      # guard silently drops `published: false` and makes unpublishing a no-op.
+      # Matches the `predefined` guard above: a missing key leaves the saved
+      # value untouched, an explicit false unpublishes. Cast and require a
+      # real boolean so a malformed value (nil/"") can't NULL the column —
+      # mirrors the cascade guard's own `[true, false]` check on the members.
+      if board_params.key?("published")
+        incoming_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
+        @board.published = incoming_published unless incoming_published.nil?
+      end
       if board_params["slug"].present? && board_params["slug"] != @board.slug
         new_slug = @board.generate_unique_slug(board_params["slug"])
         @board.slug = new_slug
@@ -501,8 +544,27 @@ class API::BoardsController < API::ApplicationController
         @board.margin_settings = margins
       end
 
+      # The root's save and the set cascade share one transaction: a failed
+      # cascade must not leave the root published with its members behind.
+      #
+      # `raise ActiveRecord::Rollback unless saved` is not what protects that
+      # invariant — when `@board.save` returns false nothing was written, so
+      # there is nothing to roll back. The real protection is `apply!`
+      # raising and propagating out of this block, which aborts the
+      # transaction and leaves the root's save uncommitted too. Also note:
+      # under transactional fixtures this block has no savepoint of its own,
+      # so a spec asserting "a cascade failure rolls back the root" would
+      # pass vacuously here — such a spec needs `requires_new: true` to
+      # actually exercise a rollback.
+      saved = false
+      ActiveRecord::Base.transaction do
+        saved = @board.save
+        raise ActiveRecord::Rollback unless saved
+        @publish_cascade&.apply!(published: @publish_cascade_target)
+      end
+
       respond_to do |format|
-        if @board.save
+        if saved
           if params[:layout].present?
             # only save if changes are present
             layout_param = params[:layout]
