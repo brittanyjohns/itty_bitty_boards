@@ -64,26 +64,36 @@ module Boards
     def attach_png
       png_data = Grover.new(html, **grover_options).to_png
 
-      # Purge the existing attachment synchronously so the S3 object at the
-      # deterministic key is removed before we PUT the new one. Without this,
-      # `create_and_upload!` would hit the unique index on active_storage_blobs.key.
+      # Purge the superseded attachment (and its S3 object) before uploading the
+      # replacement, so old previews don't accumulate in the bucket.
       board.preview_image.purge if board.preview_image.attached?
 
       blob = ActiveStorage::Blob.create_and_upload!(
         io: StringIO.new(png_data),
         filename: "#{board.slug}-preview.png",
         content_type: "image/png",
-        key: stable_preview_key,
+        key: versioned_preview_key,
       )
       board.preview_image.attach(blob)
     end
 
-    # Deterministic per-board key so the public CDN URL never changes across
-    # regenerations. Stale-URL chasing in callers becomes unnecessary; clients
-    # cache-bust on the `?v=<updated_at>` query string emitted by
-    # Board#preview_image_url.
-    def stable_preview_key
-      "board_previews/#{board.id}/preview.png"
+    # A NEW key — and therefore a new CDN path — for every regeneration.
+    #
+    # This deliberately is NOT one stable key per board. The CloudFront
+    # distribution in front of the bucket does not include the query string in
+    # its cache key, so the `?v=<blob.created_at>` buster on
+    # Board#preview_image_url invalidates nothing: after the first generation
+    # warmed the edge, every later regeneration wrote fresh bytes to a key whose
+    # cached copy kept being served. Covers appeared to update ("Cover updated
+    # from your board") while the picture never changed, intermittently, because
+    # edge servers cache independently.
+    #
+    # Callers can safely depend on a changing path: display_image_url /
+    # preview_image_url resolve live from the attachment, and the denormalized
+    # settings["preset_display_image_url"] is refreshed in #call, in the same
+    # operation that produced the PNG.
+    def versioned_preview_key
+      "board_previews/#{board.id}/#{Time.current.to_i}-#{SecureRandom.hex(4)}/preview.png"
     end
 
     def attach_pdf
