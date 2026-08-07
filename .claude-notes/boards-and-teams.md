@@ -715,6 +715,34 @@ Safe for non-admins because `update` is already gated to the owner:
 `User#can_edit?`. The only non-admin who can reach the assignment is the person
 who owns the board.
 
+### A published board's slug is frozen
+
+`Board#slug_locked?` (`published? && slug.present?`) makes the slug permanent
+once a board is published, enforced by the `freeze_published_slug` before_save.
+`/pb/<slug>` is what the QR codes on board printables encode
+(`Boards::Printables::CollectPages.qr_key_for`) and what users paste into IEPs
+and share links; there is no redirect and no slug history behind it, so a
+rename silently 404s laminated paper (#611).
+
+Two properties of the guard are load-bearing:
+
+- **It reverts, it does not raise.** The frontend re-derives the slug from the
+  name on every rename (`BoardForm`), so a slug param arrives on ordinary
+  updates. Rejecting the save would break renaming a published board entirely.
+  The rest of the update lands; only the slug snaps back, and the response
+  carries the real slug.
+- **It sits on the model, not the controller.** Four controller paths regenerate
+  slugs (`Api::BoardsController#update`, `Api::Internal::BoardsController` ×3)
+  plus jobs, services and rake tasks. A before_save covers all of them; a
+  controller guard would leak.
+
+Unpublished boards rename freely — nothing shareable exists yet — and a slug
+assigned in the same save that publishes is allowed (the guard reads
+`published_was`). Deliberate renames go through `Board#rename_slug!`, exposed as
+`force_slug: true` on the internal admin update and the
+`boards:rename_slug[id,new-slug]` rake task. Both break existing paper by
+design; the caller owns the reprint.
+
 ## Board Sets (BoardGroup) — user CRUD + limits
 
 Board Sets (`BoardGroup`, user-facing name "Board Sets") are user-owned

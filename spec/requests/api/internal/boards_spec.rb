@@ -278,6 +278,41 @@ RSpec.describe "API::Internal::Boards", type: :request do
         expect(response).to have_http_status(:ok)
         expect(board.reload.name).to eq("New Name")
       end
+
+      # A published board's slug is frozen because printed QR codes encode
+      # `/pb/<slug>` (#611). This admin surface is the one deliberate rename
+      # path, opted into with `force_slug`.
+      context "renaming a published board's slug" do
+        let!(:published_board) do
+          b = create(:board, name: "Snack Time", user: admin_user, published: false)
+          b.generate_unique_slug
+          b.save!
+          b.update!(published: true)
+          b
+        end
+
+        def patch_slug(params)
+          patch "/api/internal/boards/#{published_board.id}",
+                params: params.to_json,
+                headers: auth_headers.merge("Content-Type" => "application/json")
+        end
+
+        it "ignores the new slug without force_slug" do
+          original_slug = published_board.slug
+
+          patch_slug(board: { slug: "lunch-time" })
+
+          expect(response).to have_http_status(:ok)
+          expect(published_board.reload.slug).to eq(original_slug)
+        end
+
+        it "applies the new slug with force_slug" do
+          patch_slug(board: { slug: "lunch-time" }, force_slug: true)
+
+          expect(response).to have_http_status(:ok)
+          expect(published_board.reload.slug).to eq("lunch-time")
+        end
+      end
     end
   end
 end

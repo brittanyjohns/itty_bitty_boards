@@ -16,10 +16,10 @@ module Boards
       # `find_by(id:)` then `find_by(slug:)` — and Board#public_url already
       # uses the slug, so the QR matches the link we hand out everywhere else.
       #
-      # Slugs are only mostly stable: #update regenerates one when a client
-      # sends a different `slug` param, and the column defaults to "". Hence
-      # `qr_key_for` falling back to the id, which never changes. A printed QR
-      # is permanent paper — an editable key is a real (accepted) trade.
+      # This is safe to print because a PUBLISHED board's slug is frozen
+      # (Board#slug_locked?, #611) — and only a published board is shareable
+      # in the first place. The column still defaults to "", hence `qr_key_for`
+      # falling back to the id, which never changes.
       QR_BASE_URL = "https://app.speakanyway.com/pb".freeze
 
       Page = Struct.new(:pdf_bytes, :board_id, :board_name, :variant, keyword_init: true)
