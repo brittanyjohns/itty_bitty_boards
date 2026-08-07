@@ -1,0 +1,126 @@
+<% content_for :page_title, @build.name %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @build.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= @build.columns_count %>×<%= @build.rows_count %> · <%= @build.tiles.size %> tiles
+      <% if @build.topic.present? %> · topic: <%= @build.topic %><% end %>
+      <% if @board %> · <span class="font-mono text-xs"><%= @board.slug %></span><% end %>
+    </p>
+  </div>
+  <%= link_to "← All board builds", admin_dashboard_board_builds_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <% case @build.status %>
+      <% when "complete" %>
+        <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">built</span>
+      <% when "failed" %>
+        <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2 py-0.5">failed</span>
+      <% else %>
+        <span class="admin-card-alt text-t2 inline-block text-xs rounded px-2 py-0.5"><%= @build.status %></span>
+      <% end %>
+
+      <% if @board %>
+        <% if @board.published? %>
+          <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5 ml-1">published</span>
+        <% else %>
+          <span class="admin-card-alt text-t2 inline-block text-xs rounded px-2 py-0.5 ml-1">unpublished</span>
+        <% end %>
+      <% end %>
+
+      <% if @build.in_flight? %>
+        <p class="text-xs text-t2 mt-2">The build is queued — reload in a moment.</p>
+      <% end %>
+
+      <% if @build.failed? %>
+        <p class="text-xs text-red-400 mt-2 max-w-xl font-mono"><%= @build.error_message %></p>
+        <p class="text-xs text-t2 mt-1">The word list is saved below — nothing needs re-typing.</p>
+      <% end %>
+
+      <% if @board %>
+        <p class="text-xs text-t2 mt-2">
+          Board <span class="font-mono">#<%= @board.id %></span> ·
+          <%= @board.board_images.size %> tiles ·
+          lg <%= @board.large_screen_columns %> / md <%= @board.medium_screen_columns %> / sm <%= @board.small_screen_columns %> columns
+        </p>
+        <p class="text-xs text-t2 mt-1">
+          Public URL when published: <span class="font-mono">/pb/<%= @board.slug %></span> —
+          a published slug is frozen, so check it now.
+        </p>
+      <% end %>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <% if @board %>
+        <% if @board.published? %>
+          <%= button_to "Unpublish", unpublish_admin_dashboard_board_build_path(@build), method: :post,
+                class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
+                form: { data: { turbo_confirm: "Unpublish “#{@board.name}”? It will no longer be public." } } %>
+        <% else %>
+          <%= button_to "Publish", publish_admin_dashboard_board_build_path(@build), method: :post,
+                class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+                form: { data: { turbo_confirm: "Publish “#{@board.name}”? This makes it public to everyone. Have you looked at every tile?" } } %>
+        <% end %>
+      <% end %>
+      <% unless @board&.published? %>
+        <%= button_to "Delete", admin_dashboard_board_build_path(@build), method: :delete,
+              class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
+              form: { data: { turbo_confirm: "Delete this build and its board? This can't be undone." } } %>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<% if @board %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Art coverage</h2>
+    <p class="text-xs text-t2">
+      <%= @build.art_report["coverage_pct"] || 0 %>% of tiles had library art at build time.
+      <% if @missing_art_count.positive? %>
+        <span class="text-amber-500"><%= @missing_art_count %> <%= "tile".pluralize(@missing_art_count) %> still have no picture</span> —
+        AI generation was queued for them.
+      <% else %>
+        Every tile has a picture.
+      <% end %>
+      <% if @board.has_generating_images? %>
+        <span class="text-t1">Art is still generating.</span>
+      <% end %>
+    </p>
+    <% if Array(@build.art_report["missing_labels"]).any? %>
+      <p class="text-[11px] text-t3 mt-2">
+        Generated: <%= Array(@build.art_report["missing_labels"]).join(", ") %>
+      </p>
+    <% end %>
+  </div>
+
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Tiles — in board order</h2>
+
+  <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+    <% @tiles.each do |tile| %>
+      <div class="admin-card border rounded-xl overflow-hidden">
+        <div class="aspect-square flex items-center justify-center overflow-hidden" style="background-color: <%= tile.bg_color || "transparent" %>;">
+          <% if tile.display_image_url.present? %>
+            <img src="<%= tile.display_image_url %>" alt="<%= tile.display_label %>" loading="lazy" class="w-full h-full object-contain">
+          <% else %>
+            <span class="text-[11px] text-t3 px-2 text-center">no picture yet</span>
+          <% end %>
+        </div>
+        <div class="p-2">
+          <p class="text-xs font-medium text-t1 truncate" title="<%= tile.display_label %>"><%= tile.display_label %></p>
+          <p class="text-[10px] text-t3"><%= tile.effective_part_of_speech %></p>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<div class="admin-card border rounded-xl p-5 mt-6">
+  <h2 class="text-sm font-medium text-t1 mb-2">The word list that was built</h2>
+  <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= @build.tiles.map { |tile|
+        [tile["label"], tile["part_of_speech"], tile["display_label"]].compact.reject(&:blank?).join(" | ")
+      }.join("\n") %></pre>
+</div>

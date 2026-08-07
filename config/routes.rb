@@ -85,6 +85,16 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
+    resources :board_builds, only: [:index, :new, :create, :show, :destroy], as: :dashboard_board_builds do
+      collection do
+        post :draft
+        post :preview
+      end
+      member do
+        post :publish
+        post :unpublish
+      end
+    end
     get "feedback", to: "feedback#index", as: :dashboard_feedback
     get "word_events", to: "word_events#index", as: :dashboard_word_events
     resources :board_printables, only: [:index, :show, :create], as: :dashboard_board_printables

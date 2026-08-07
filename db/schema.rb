@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_07_120100) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_07_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -55,6 +55,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_120100) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "admin_board_builds", force: :cascade do |t|
+    t.bigint "board_id"
+    t.bigint "created_by_id"
+    t.string "status", default: "pending", null: false
+    t.string "name", null: false
+    t.string "topic"
+    t.string "voice", default: "polly:kevin", null: false
+    t.integer "columns_count", null: false
+    t.integer "rows_count", null: false
+    t.boolean "commercial_safe_only", default: true, null: false
+    t.jsonb "plan", default: {}, null: false
+    t.jsonb "art_report", default: {}, null: false
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id"], name: "index_admin_board_builds_on_board_id"
+    t.index ["created_by_id"], name: "index_admin_board_builds_on_created_by_id"
+    t.index ["status", "created_at"], name: "index_admin_board_builds_on_status_and_created_at"
   end
 
   create_table "analytics_events", force: :cascade do |t|
@@ -1110,6 +1130,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_120100) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "admin_board_builds", "boards"
+  add_foreign_key "admin_board_builds", "users", column: "created_by_id"
   add_foreign_key "board_exports", "users"
   add_foreign_key "board_gallery_listings", "boards"
   add_foreign_key "board_gallery_reports", "board_gallery_listings"

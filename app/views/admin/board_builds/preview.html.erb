@@ -1,0 +1,104 @@
+<% content_for :page_title, "Review art — #{@form[:name]}" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Review the art — <%= @form[:name] %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      Nothing has been written yet. <%= @preview[:total] %> tiles ·
+      <%= @form[:columns] %>×<%= @form[:rows] %> grid.
+    </p>
+  </div>
+  <%= link_to "← All board builds", admin_dashboard_board_builds_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex flex-wrap items-center gap-6">
+    <div>
+      <p class="text-2xl font-semibold text-t1"><%= @preview[:coverage_pct] %>%</p>
+      <p class="text-[11px] text-t3">library coverage (<%= @preview[:found] %>/<%= @preview[:total] %>)</p>
+    </div>
+    <div>
+      <p class="text-2xl font-semibold text-t1"><%= @preview[:missing].size %></p>
+      <p class="text-[11px] text-t3">no art — AI will generate these</p>
+    </div>
+    <div>
+      <p class="text-2xl font-semibold text-t1"><%= @preview[:inexact].size %></p>
+      <p class="text-[11px] text-t3">fuzzy matches — check these by eye</p>
+    </div>
+    <% if @form[:commercial_safe_only] && @preview[:unsafe].any? %>
+      <div>
+        <p class="text-2xl font-semibold text-t1"><%= @preview[:unsafe].size %></p>
+        <p class="text-[11px] text-t3">not commercially safe</p>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @preview[:inexact].any? %>
+    <p class="text-xs text-t2 mt-4">
+      <span class="text-t1 font-medium">Fuzzy:</span> <%= @preview[:inexact].join(", ") %> —
+      the library returned art whose own label is a different word. Look at the picture, not the percentage.
+    </p>
+  <% end %>
+  <% if @preview[:missing].any? %>
+    <p class="text-xs text-t2 mt-2">
+      <span class="text-t1 font-medium">No art:</span> <%= @preview[:missing].join(", ") %> —
+      these get a blank image and queued AI art after the build.
+    </p>
+  <% end %>
+</div>
+
+<h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Every tile — in reading order</h2>
+
+<div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
+  <% @preview[:rows].each do |row| %>
+    <div class="admin-card border rounded-xl overflow-hidden <%= "border-amber-500" if row.found? && !row.exact %><%= "border-red-500" unless row.found? %>">
+      <div class="aspect-square admin-card-alt flex items-center justify-center overflow-hidden">
+        <% if row.display_url.present? %>
+          <img src="<%= row.display_url %>" alt="<%= row.label %>" loading="lazy" class="w-full h-full object-contain">
+        <% else %>
+          <span class="text-[11px] text-t3 px-2 text-center">no art</span>
+        <% end %>
+      </div>
+      <div class="p-2">
+        <p class="text-xs font-medium text-t1 truncate" title="<%= row.label %>"><%= row.label %></p>
+        <% if row.found? && !row.exact %>
+          <p class="text-[10px] text-amber-500 truncate" title="<%= row.matched_label %>">matched “<%= row.matched_label %>”</p>
+        <% elsif !row.found? %>
+          <p class="text-[10px] text-red-400">will be generated</p>
+        <% end %>
+        <% if row.found? && row.commercial_safe == false %>
+          <p class="text-[10px] text-t3 truncate" title="<%= row.license %>">not commercial-safe</p>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-8">
+  <h2 class="text-sm font-medium text-t1 mb-1">Happy with it?</h2>
+  <p class="text-xs text-t2 mb-4">
+    Building creates the board unpublished, owned by the default admin, and queues AI art for anything the library
+    didn't cover. Publishing is a separate step.
+  </p>
+
+  <%# Hidden-field resubmit of exactly what was previewed. `create` re-parses
+      and re-validates it from scratch — the round trip is not trusted. %>
+  <%= form_tag admin_dashboard_board_builds_path, method: :post do %>
+    <%= hidden_field_tag :name, @form[:name] %>
+    <%= hidden_field_tag :topic, @form[:topic] %>
+    <%= hidden_field_tag :audience, @form[:audience] %>
+    <%= hidden_field_tag :voice, @form[:voice] %>
+    <%= hidden_field_tag :columns, @form[:columns] %>
+    <%= hidden_field_tag :rows, @form[:rows] %>
+    <%= hidden_field_tag :words, @form[:words] %>
+    <%= hidden_field_tag :commercial_safe_only, @form[:commercial_safe_only] ? "1" : "0" %>
+    <%= hidden_field_tag :allow_partial_row, @form[:allow_partial_row] ? "1" : "0" %>
+    <%= submit_tag "Build this board",
+          class: "text-xs font-medium px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer border-0",
+          data: { turbo_confirm: "Build “#{@form[:name]}”? This creates the board and queues AI art for missing symbols." } %>
+  <% end %>
+</div>
+
+<h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Or change something and look again</h2>
+
+<%= render "form" %>
