@@ -86,6 +86,91 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST /admin/board_builds/draft" do
+    let(:drafted) do
+      [
+        { label: "I", part_of_speech: "pronoun" },
+        { label: "want", part_of_speech: "verb" },
+        { label: "more", part_of_speech: "social" },
+        { label: "swing", part_of_speech: "noun" },
+      ]
+    end
+
+    before do
+      sign_in admin
+      allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call).and_return(drafted)
+    end
+
+    # The draft only ever populates the form — it is never fed to a preview or
+    # a build on its own.
+    it "fills the word list and writes nothing" do
+      expect { post draft_admin_dashboard_board_builds_path, params: form_params(words: "") }
+        .to not_change(Board, :count)
+        .and not_change(Image, :count)
+        .and not_change(AdminBoardBuild, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("I | pronoun")
+      expect(response.body).to include("swing | noun")
+      expect(response.body).to include("Drafted 4 words")
+    end
+
+    it "keeps everything else the admin already typed" do
+      post draft_admin_dashboard_board_builds_path,
+           params: form_params(words: "", name: "Playtime", audience: "a preschooler")
+
+      expect(response.body).to include("Playtime")
+      expect(response.body).to include("a preschooler")
+    end
+
+    it "passes the topic, grid and audience to the drafter" do
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(topic: "the playground", columns: 2, rows: 2, audience: "a preschooler")
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "a preschooler")
+    end
+
+    it "says so when the draft comes back short of the grid" do
+      allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call).and_return(drafted.first(2))
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(words: "")
+
+      expect(response.body).to include("Drafted 2 of 4 words")
+    end
+
+    it "refuses to draft without a topic" do
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Give the board a topic to draft from")
+    end
+
+    it "does not require a name — a board can be drafted before it is named" do
+      post draft_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("I | pronoun")
+    end
+
+    it "surfaces a generation failure without losing the form" do
+      allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call)
+        .and_raise(Boards::AdminBuilder::WordListDrafter::GenerationError, "OpenAI returned no content")
+
+      post draft_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t draft a word list")
+      expect(response.body).to include("Playground")
+    end
+
+    it "is closed to non-admins" do
+      sign_in create(:user)
+      post draft_admin_dashboard_board_builds_path, params: form_params
+      expect(response).to redirect_to(root_path)
+    end
+  end
+
   describe "POST /admin/board_builds/preview" do
     before { sign_in admin }
 

@@ -87,6 +87,7 @@ Rails.application.routes.draw do
     end
     resources :board_builds, only: [:index, :new, :create, :show, :destroy], as: :dashboard_board_builds do
       collection do
+        post :draft
         post :preview
       end
       member do

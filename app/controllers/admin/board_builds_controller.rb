@@ -32,6 +32,29 @@ module Admin
       @form = blank_form
     end
 
+    # Optional step zero. Drafts a word list into the form and stops there —
+    # the draft is never fed to a preview or a build on its own. A human edits
+    # it, then previews the art, then builds.
+    def draft
+      @form = submitted_form
+      @problems = draft_problems(@form)
+      return render(:new, status: :unprocessable_entity) if @problems.any?
+
+      tiles = Boards::AdminBuilder::WordListDrafter.new(
+        topic: @form[:topic],
+        columns: @form[:columns].to_i,
+        rows: @form[:rows].to_i,
+        audience: @form[:audience],
+      ).call
+
+      @form = @form.merge(words: tiles_to_words(tiles), tiles: tiles)
+      flash.now[:notice] = draft_notice(tiles, @form)
+      render :new
+    rescue Boards::AdminBuilder::WordListDrafter::GenerationError => e
+      @problems = ["Couldn't draft a word list: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
     # Step one. Read-only: resolves what the library would attach to each tile
     # and renders it for a human to look at. Asserted by spec to change neither
     # Board.count nor Image.count.
@@ -149,10 +172,38 @@ module Admin
       @voice_values ||= VoiceService::VOICES.map { |voice| voice[:value] }
     end
 
+    # Drafting needs a topic and a grid to size the list, and nothing else —
+    # a board can be drafted before it has a name.
+    def draft_problems(form)
+      problems = []
+      problems << "Give the board a topic to draft from." if form[:topic].blank?
+
+      columns = form[:columns].to_i
+      rows = form[:rows].to_i
+      problems << "Columns must be between 1 and #{MAX_COLUMNS}." unless columns.between?(1, MAX_COLUMNS)
+      problems << "Rows must be between 1 and #{MAX_ROWS}." unless rows.between?(1, MAX_ROWS)
+      problems
+    end
+
+    def tiles_to_words(tiles)
+      tiles.map { |tile| "#{tile[:label]} | #{tile[:part_of_speech]}" }.join("\n")
+    end
+
+    # The drafter can come back short (near-duplicates get dropped), which is
+    # survivable because this only fills the textarea — but say so rather than
+    # letting the admin discover it at preview.
+    def draft_notice(tiles, form)
+      wanted = form[:columns].to_i * form[:rows].to_i
+      return "Drafted #{tiles.size} words. Edit them, then preview the art." if tiles.size == wanted
+
+      "Drafted #{tiles.size} of #{wanted} words — add #{wanted - tiles.size} more before previewing."
+    end
+
     def blank_form
       {
         name: "",
         topic: "",
+        audience: "",
         voice: DEFAULT_VOICE,
         columns: DEFAULT_COLUMNS.to_s,
         rows: DEFAULT_ROWS.to_s,
@@ -172,6 +223,7 @@ module Admin
       {
         name: params[:name].to_s.strip,
         topic: params[:topic].to_s.strip,
+        audience: params[:audience].to_s.strip,
         voice: params[:voice].to_s.strip.presence || DEFAULT_VOICE,
         columns: params[:columns].to_s.strip,
         rows: params[:rows].to_s.strip,

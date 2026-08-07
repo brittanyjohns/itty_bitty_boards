@@ -12,7 +12,13 @@
         <label class="block text-xs font-medium text-t2 mb-1" for="topic">Topic <span class="text-t3">(optional)</span></label>
         <%= text_field_tag :topic, @form[:topic], id: "topic", placeholder: "the playground",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
-        <p class="text-[11px] text-t3 mt-1">Steers AI art for words the library doesn't cover — “swing” on a playground board, not a mood swing.</p>
+        <p class="text-[11px] text-t3 mt-1">Steers AI art for words the library doesn't cover — “swing” on a playground board, not a mood swing. Also what the AI drafts a word list from.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="audience">Audience <span class="text-t3">(optional)</span></label>
+        <%= text_field_tag :audience, @form[:audience], id: "audience", placeholder: "an early communicator, preschool age",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Used only when drafting. Not saved on the board.</p>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -38,8 +44,17 @@
   </div>
 
   <div class="admin-card border rounded-xl p-5 mb-6">
-    <div class="mb-3">
+    <div class="flex items-start justify-between gap-4 mb-3">
       <h2 class="text-sm font-medium text-t1">Word list</h2>
+      <%# formaction, not a second form: drafting has to see the topic, audience
+          and grid the admin just typed above. %>
+      <button type="submit" id="draft-button" formaction="<%= draft_admin_dashboard_board_builds_path %>"
+              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+        Draft with AI
+      </button>
+    </div>
+
+    <div class="mb-3">
       <p class="text-[11px] text-t3 mt-0.5">
         One tile per line. <span class="font-mono">word</span>,
         <span class="font-mono">word | part_of_speech</span>, or
@@ -95,5 +110,17 @@
 
     [words, columns, rows].forEach(function (el) { el.addEventListener("input", update); });
     update();
+
+    // Drafting replaces the textarea wholesale, so only confirm when there is
+    // something to lose.
+    var draftButton = document.getElementById("draft-button");
+    if (draftButton) {
+      draftButton.addEventListener("click", function (event) {
+        if (words.value.trim() === "") return;
+        if (!window.confirm("Replace the word list you've typed with an AI draft?")) {
+          event.preventDefault();
+        }
+      });
+    }
   })();
 </script>

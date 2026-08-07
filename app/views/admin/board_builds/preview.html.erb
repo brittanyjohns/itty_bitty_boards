@@ -86,6 +86,7 @@
   <%= form_tag admin_dashboard_board_builds_path, method: :post do %>
     <%= hidden_field_tag :name, @form[:name] %>
     <%= hidden_field_tag :topic, @form[:topic] %>
+    <%= hidden_field_tag :audience, @form[:audience] %>
     <%= hidden_field_tag :voice, @form[:voice] %>
     <%= hidden_field_tag :columns, @form[:columns] %>
     <%= hidden_field_tag :rows, @form[:rows] %>

@@ -1069,4 +1069,15 @@ Its own invariants:
   the context of the playground" — because `Images::PromptBuilder` composes the
   house style envelope at generation time and must not have it baked in twice.
 
-Phases 2 (AI word-list drafting) and 3 (linked child pages) are not built.
+- **AI drafting only ever populates the form.** `POST .../board_builds/draft`
+  runs `Boards::AdminBuilder::WordListDrafter` and re-renders `new` with the
+  textarea filled — it never feeds a preview or a build. The draft is a starting
+  point a human edits; everything downstream still validates it from scratch.
+  Deliberately one new prompt rather than a composition of the existing pieces:
+  `Board#get_words_for_scenario` needs a persisted Board and returns bare
+  strings, and `AacWordCategorizer.categorize` is one OpenAI call *per word*, so
+  chaining them is an N+1 against a paid API. No credit charge — the boards are
+  admin-owned. Short drafts are returned rather than raised on, since the form
+  can absorb them; only an unusable response is an error.
+
+Phase 3 (linked child pages) is not built.
