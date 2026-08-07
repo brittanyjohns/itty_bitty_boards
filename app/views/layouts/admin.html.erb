@@ -115,14 +115,10 @@
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/video_boards") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Organizations", admin_dashboard_organizations_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/organizations") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
-          <%= link_to "Events", admin_dashboard_events_path,
-                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/events") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Feedback", admin_dashboard_feedback_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/feedback") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Word Events", admin_dashboard_word_events_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/word_events") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
-          <%= link_to "Placeholders", admin_dashboard_placeholders_path,
-                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/placeholders") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Board Printables", admin_dashboard_board_printables_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/board_printables") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
