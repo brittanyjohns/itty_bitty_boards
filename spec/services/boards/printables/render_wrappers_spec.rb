@@ -49,6 +49,28 @@ RSpec.describe Boards::Printables::RenderWrappers do
       expect(rendered[:cover]).to include("data:image/png;base64,")
     end
 
+    # The QR is a PNG by the time it reaches the template, so the encoded URL
+    # can only be checked at the point it is handed to RQRCode.
+    it "encodes the slug URL, matching Board#public_url" do
+      board.update!(slug: "core-words")
+      allow(RQRCode::QRCode).to receive(:new).and_call_original
+
+      render
+
+      expect(RQRCode::QRCode).to have_received(:new)
+        .with("https://app.speakanyway.com/pb/core-words")
+    end
+
+    it "encodes the id when the board has no slug" do
+      board.update_column(:slug, "")
+      allow(RQRCode::QRCode).to receive(:new).and_call_original
+
+      render
+
+      expect(RQRCode::QRCode).to have_received(:new)
+        .with("https://app.speakanyway.com/pb/#{board.id}")
+    end
+
     it "describes a single board" do
       render
 
@@ -73,15 +95,18 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render
 
       expect(rendered[:how_to_use]).to include("This communication board")
-      expect(rendered[:how_to_use]).to include("page 1 in full color")
+      expect(rendered[:how_to_use]).to include("includes the board twice")
       expect(rendered[:how_to_use]).to include("The same board")
     end
 
-    it "explains the colour/low-ink halves for a set" do
+    # A set ships as two separate files (MergePdf#call), not one document with
+    # a colour half and a low-ink half — the copy must not promise otherwise.
+    it "describes a set as two files rather than one two-part document" do
       render(board_count: 4)
 
       expect(rendered[:how_to_use]).to include("set of 4 communication boards")
-      expect(rendered[:how_to_use]).to include("prints every board twice")
+      expect(rendered[:how_to_use]).to include("comes as two files")
+      expect(rendered[:how_to_use]).not_to include("prints every board twice")
       expect(rendered[:how_to_use]).to include("Every board")
     end
 
@@ -89,6 +114,31 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render(topic: "mealtime")
 
       expect(rendered[:how_to_use]).to include("mealtime")
+    end
+
+    # Viewing needs nothing; editing needs an account. The two claims sit two
+    # paragraphs apart, so they must not read as contradicting each other.
+    it "says an account is needed to edit, without undercutting free viewing" do
+      render
+
+      expect(rendered[:how_to_use]).to include("create a free account")
+      expect(rendered[:how_to_use]).to include("the shared version isn't")
+      expect(rendered[:how_to_use]).to include("No sign-in, no subscription")
+    end
+
+    it "warns that a shared board can drift from the print" do
+      render
+
+      expect(rendered[:how_to_use]).to include("may stop matching this print")
+    end
+
+    # The QR opens a web page, not a native app — three pages used to describe
+    # the same destination three different ways.
+    it "describes the QR destination as online rather than an app install" do
+      render
+
+      expect(rendered[:how_to_use]).to include("Nothing to install")
+      expect(rendered[:how_to_use]).not_to include("in the free SpeakAnyWay app")
     end
   end
 

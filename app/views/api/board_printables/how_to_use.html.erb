@@ -1,6 +1,11 @@
 <%# Copy lifted near-verbatim from the printables pipeline's buildHowToUseHtml
     (speakanyway-printables/src/plugins/aac/product-types/existing-board.ts) so
-    an in-app printable and a pipeline printable read identically. %>
+    an in-app printable and a pipeline printable read identically.
+
+    Exception — the set branch. The pipeline merges a set into ONE PDF with a
+    colour half then a low-ink half; MergePdf here emits TWO fully-wrapped
+    files instead. This same page is bound into both, so the copy has to
+    describe the pair, not halves of one document. %>
 <div class="wrapper-page">
   <h2>How to use this</h2>
 
@@ -17,11 +22,11 @@
   <ul class="tips">
     <li>
       <% if @is_set %>
-        This PDF prints every board twice: the first half in full color, the
-        second half with white tile backgrounds for a cleaner, lower-ink print.
-        Use whichever fits your printer.
+        This printable comes as two files, each with all the same boards: one in
+        full color, and one with white tile backgrounds for a cleaner, lower-ink
+        print. Use whichever fits your printer.
       <% else %>
-        This PDF has two prints of the same board: page 1 in full color, page 2
+        This printable includes the board twice: once in full color, then again
         with white tile backgrounds for a cleaner, lower-ink print. Use
         whichever fits your printer.
       <% end %>
@@ -29,16 +34,22 @@
     <li>Print at home or at a print shop, Letter size.</li>
     <li>
       Scan the QR code on the cover<%= " or any page" if @is_set %> to open the
-      board<%= "s" if @is_set %> in the free SpeakAnyWay app — every word speaks
-      out loud when tapped.
+      board<%= "s" if @is_set %> online — every word speaks out loud when you
+      tap it. Nothing to install.
     </li>
     <li>Practice with your communicator before you need it. Familiarity helps.</li>
     <li>Add or swap words as your communicator's vocabulary grows.</li>
+    <li>
+      To change a picture or a word online, create a free account at
+      speakanyway.com and save your own copy first — the shared version isn't
+      yours to edit. Your copy also keeps this exact set of words, since a
+      shared board can change over time and may stop matching this print.
+    </li>
   </ul>
 
   <p class="note">
-    <%= @is_set ? "Every board" : "The same board" %> is free in the SpeakAnyWay
-    app — scan the QR code on the cover and tap any word to hear it spoken out
-    loud. No sign-in, no subscription.
+    <%= @is_set ? "Every board" : "The same board" %> is free to use online —
+    scan the QR code on the cover and tap any word to hear it spoken out loud.
+    No sign-in, no subscription.
   </p>
 </div>

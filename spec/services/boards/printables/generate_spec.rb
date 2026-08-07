@@ -104,11 +104,25 @@ RSpec.describe Boards::Printables::Generate do
 
       described_class.new(printable: printable).call
 
-      # Two renders per board (colour + low-ink), each targeting that board.
+      # Two renders per board (colour + low-ink), each targeting that board by
+      # its slug — CollectPages.qr_key_for, matching Board#public_url.
       [root, child_a, child_b].each do |board|
-        expect(qr_targets.count("https://app.speakanyway.com/pb/#{board.id}")).to eq(2)
+        key = board.slug.presence || board.id
+        expect(qr_targets.count("https://app.speakanyway.com/pb/#{key}")).to eq(2)
       end
       expect(qr_targets.length).to eq(6)
+    end
+
+    # Each board in a tree gets its own key, so a slugless board in the middle
+    # can't quietly take the root's URL.
+    it "keys each board page separately when one board has no slug" do
+      child_a.update_column(:slug, "")
+      printable = printable_for(include_subboards: true)
+
+      described_class.new(printable: printable).call
+
+      expect(qr_targets.uniq.length).to eq(3)
+      expect(qr_targets.count("https://app.speakanyway.com/pb/#{child_a.id}")).to eq(2)
     end
   end
 

@@ -92,4 +92,35 @@ RSpec.describe Boards::Printables::CollectPages, ".walk_board_tree" do
     expect { walk(max_boards: 3) }.not_to raise_error
     expect { walk(max_boards: 2) }.to raise_error(described_class::TreeTooLargeError)
   end
+
+  # The QR key is printed onto paper and can never be corrected, so the
+  # fallback matters more than the happy path.
+  describe ".qr_key_for" do
+    it "prefers the slug, which is what Board#public_url hands out" do
+      root.update!(slug: "core-words")
+
+      expect(described_class.qr_key_for(root)).to eq("core-words")
+    end
+
+    it "falls back to the id when the slug is blank" do
+      root.update_column(:slug, "")
+
+      expect(described_class.qr_key_for(root)).to eq(root.id)
+    end
+
+    it "falls back to the id when the slug is nil" do
+      root.update_column(:slug, nil)
+
+      expect(described_class.qr_key_for(root)).to eq(root.id)
+    end
+
+    # Both forms have to resolve, or a printed QR 404s. BoardsController#set_board
+    # tries find_by(id:) then find_by(slug:) — this pins that contract.
+    it "produces a key /pb/ can resolve either way" do
+      root.update!(slug: "core-words")
+
+      expect(Board.find_by(id: root.id) || Board.find_by(slug: root.id)).to eq(root)
+      expect(Board.find_by(id: "core-words") || Board.find_by(slug: "core-words")).to eq(root)
+    end
+  end
 end

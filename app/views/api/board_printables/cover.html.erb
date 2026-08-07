@@ -1,7 +1,7 @@
 <div class="cover">
   <% if @qr_data_url.present? %>
     <img class="qr" src="<%= @qr_data_url %>" alt="QR code" />
-    <p class="qr-caption">Scan for free voice output</p>
+    <p class="qr-caption">Scan to hear these words out loud</p>
   <% end %>
   <% if @logo.present? %>
     <img class="logo" src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
