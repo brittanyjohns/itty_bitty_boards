@@ -16,5 +16,16 @@ module Admin
       base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
       "#{base_url}/pb/#{Boards::Printables::CollectPages.qr_key_for(board)}"
     end
+
+    # The list is capped at PUBLIC_BOARD_LIMIT, so which boards you see depends
+    # on the sort — the summary line says which one picked them.
+    def board_sort_label(sort)
+      case sort
+      when "subboards"  then "subboard count"
+      when "created_at" then "created date"
+      when "updated_at" then "updated date"
+      else "name"
+      end
+    end
   end
 end
