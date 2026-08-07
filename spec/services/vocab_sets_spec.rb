@@ -310,7 +310,7 @@ RSpec.describe VocabSets do
 
     def expect_authored_colors(board)
       EXPECTED_TILES.each do |label, expected|
-        tile = board.board_images.find_by(label: label)
+        tile = board.board_images.find_by(display_label: label)
         expect(tile).to be_present, "expected a '#{label}' tile on #{board.name}"
         expect(tile.part_of_speech).to eq(expected[:pos]),
           "expected '#{label}' part_of_speech #{expected[:pos]}, got #{tile.part_of_speech}"

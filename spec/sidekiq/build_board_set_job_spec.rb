@@ -94,7 +94,7 @@ RSpec.describe BuildBoardSetJob do
       expect(root.settings["builder_root"]).to be(true)
 
       # Core tiles landed on the SAME root the controller returned.
-      labels = root.board_images.map(&:label)
+      labels = root.board_images.map(&:display_label)
       expect(labels).to include("I", "want", "Food", "Feelings", "Play")
 
       # Folder tiles link to builder_child sub-boards.
@@ -400,7 +400,7 @@ RSpec.describe BuildBoardSetJob do
       # to a real board. None are left dead (excluding authored seed pages used
       # to strip the sub-board while leaving its tile behind).
       dead = root.board_images.select do |bi|
-        label = bi.label.to_s
+        label = bi.display_label.to_s
         label.length > 2 && label[0] == label[0].upcase && bi.predictive_board_id.nil?
       end
       expect(dead).to be_empty

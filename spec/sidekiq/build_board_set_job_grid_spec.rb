@@ -78,7 +78,7 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   # carry a predictive link — a dead folder tile opens nothing when tapped.
   def dead_folder_tiles(board)
     board.board_images.select do |bi|
-      label = bi.label.to_s
+      label = bi.display_label.to_s
       label.length > 2 && label[0] == label[0].upcase && bi.predictive_board_id.nil?
     end
   end
@@ -106,10 +106,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     # authored folders the planner used to strip are intact.
     expect(dead_folder_tiles(root)).to be_empty
 
-    labels = root.board_images.map(&:label)
+    labels = root.board_images.map(&:display_label)
     expect(labels).to include("More", "School", "Time", "Describe")
     %w[More School Time Describe].each do |name|
-      tile = root.board_images.find { |bi| bi.label == name }
+      tile = root.board_images.find { |bi| bi.display_label == name }
       expect(tile.predictive_board_id).to be_present, "#{name} folder tile has no linked board"
     end
 

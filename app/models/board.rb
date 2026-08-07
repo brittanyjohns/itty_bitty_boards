@@ -2894,12 +2894,18 @@ class Board < ApplicationRecord
       ext_id = item["ext_saw_image_id"].to_i
       image = image_cache ? image_cache[:by_ext_id][ext_id] : Image.find_by(id: ext_id, user_id: user.id)
     end
+    # Key on the normalized label, not the raw OBF one. Buttons are authored
+    # with display casing ("I", "Food") while images store the lowercase
+    # matching key, so a raw-label lookup misses every capitalized button and
+    # falls through to create! — minting a fresh duplicate Image on every
+    # import and re-seed.
+    key = Image.normalize_label(label)
     if image_cache
-      image ||= image_cache[:by_label_and_obf_id][[label, obf_id]]
-      image ||= image_cache[:by_label][label]
+      image ||= image_cache[:by_label_and_obf_id][[key, obf_id]]
+      image ||= image_cache[:by_label][key]
     else
-      image ||= Image.where(user_id: user.id, label: label, obf_id: obf_id).order(:id).first
-      image ||= Image.where(user_id: user.id, label: label).order(:id).first
+      image ||= Image.by_label(label).where(user_id: user.id, obf_id: obf_id).order(:id).first
+      image ||= Image.by_label(label).where(user_id: user.id).order(:id).first
     end
     unless image
       image = Image.create!(label: label, user_id: user.id, obf_id: obf_id, is_private: true)
@@ -2925,9 +2931,17 @@ class Board < ApplicationRecord
     by_label_and_obf_id = {}
     by_label = {}
     if labels.any?
-      Image.where(user_id: user.id, label: labels).order(:id).each do |img|
-        by_label_and_obf_id[[img.label, img.obf_id]] ||= img
-        by_label[img.label] ||= img
+      # Match and key on the normalized label so a button authored as "Food"
+      # resolves to the stored `food` image instead of creating a twin. Both
+      # hashes are keyed the same way find_or_create_image_for_button looks
+      # them up.
+      keys = labels.map { |l| Image.normalize_label(l) }.uniq
+      Image.where(user_id: user.id)
+           .where("LOWER(images.label) IN (?)", keys)
+           .order(:id).each do |img|
+        key = Image.normalize_label(img.label)
+        by_label_and_obf_id[[key, img.obf_id]] ||= img
+        by_label[key] ||= img
       end
     end
 
@@ -3001,7 +3015,14 @@ class Board < ApplicationRecord
       board_image.save!
       if board_image_cache
         board_image_cache[:by_button_id][obf_button_id] = board_image if obf_button_id.present?
-        board_image_cache[:by_image_id][image.id] ||= board_image
+        # Deliberately NOT indexed by image_id. by_image_id is the legacy
+        # adoption path for tiles that predate button-id stamping, and it must
+        # only ever offer tiles that existed BEFORE this pass. Registering a
+        # tile we just created lets a later button sharing the same Image adopt
+        # it instead of creating its own — which is exactly what dropped the
+        # "play" and "more" word tiles once case-insensitive lookup made them
+        # share an Image with the "Play" and "More" folders.
+        board_image_cache[:by_image_id][image.id] ||= board_image if obf_button_id.blank?
       end
     end
 
@@ -3010,6 +3031,16 @@ class Board < ApplicationRecord
     # onto this same tile instead of forking a duplicate.
     board_image.image_id = image.id if board_image.image_id != image.id
     stamp_obf_button_id(board_image, obf_button_id)
+
+    # The button's label is AUTHORED tile text — pin it rather than letting the
+    # tile default its display_label from the shared Image. Core 84 authors both
+    # a "more" word button and a "More" folder button; they resolve to one Image
+    # (lookup is case-insensitive by design), so whichever was imported first
+    # decided that Image's display casing and the folder rendered as "more".
+    # Labels::CaseNormalizer is deliberately bypassed here for the same reason it
+    # is for every other authored label: the author already chose the casing.
+    authored_label = item["label"].presence
+    board_image.display_label = authored_label if authored_label
 
     apply_obf_part_of_speech(board_image, image, item) if apply_button_attributes
 
@@ -3043,16 +3074,31 @@ class Board < ApplicationRecord
   # `board_image_cache` (from preload_board_image_cache) skips the 1-2
   # per-button SELECTs this used to run — pass nil to fall back to the
   # original per-call queries (kept for callers outside the from_obf hot loop).
+  # The image_id fallback is CLAIM-ONCE. Two authored buttons can legitimately
+  # resolve to the same Image — Core 60/84 author both a "more" word tile and a
+  # "More" category folder, and image lookup is case-insensitive, so they share
+  # one Image record. Handing the same pre-existing tile to both buttons made
+  # the second button reuse the first's tile instead of creating its own, and
+  # the seeded home boards came out 58/82 tiles instead of 60/84 — the "play"
+  # and "more" word tiles silently vanished.
+  #
+  # Deleting the entry as it is consumed keeps the legacy upgrade path working
+  # (a tile seeded before button-id stamping is still adopted, exactly once)
+  # while stopping a second button from collapsing onto it.
   def self.find_board_image_for_button(board, image, obf_button_id, board_image_cache: nil)
     if board_image_cache
       existing = obf_button_id.present? ? board_image_cache[:by_button_id][obf_button_id] : nil
       return existing if existing
-      return board_image_cache[:by_image_id][image.id]
+      return board_image_cache[:by_image_id].delete(image.id)
     end
 
     if obf_button_id.present?
       existing = board.board_images.where("data ->> 'obf_button_id' = ?", obf_button_id).first
       return existing if existing
+      # Only adopt an unstamped tile: a stamped one belongs to a different
+      # button that happens to share this Image.
+      return board.board_images.where(image_id: image.id)
+                  .where("data IS NULL OR data ->> 'obf_button_id' IS NULL").first
     end
     board.board_images.find_by(image_id: image.id)
   end
