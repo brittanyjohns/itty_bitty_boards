@@ -1,0 +1,93 @@
+name: CI Failure Triage (Claude)
+
+# When CI or Security goes red on a PR, have Claude read the failing logs,
+# gauge whether the failure is caused by the PR's diff or is unrelated
+# (a newly published dependency CVE, a flaky test, infra), and post ONE
+# triage comment on the PR.
+#
+# Comment-only by design: this job is granted `contents: read`, so it
+# physically cannot push commits or edit files even if asked to. To let it
+# open fix PRs later, raise `contents` to `write` and adjust the prompt.
+#
+# NOTE: workflow_run workflows only run from the default branch (main), so
+# this does nothing until merged — including for its own PR.
+
+on:
+  workflow_run:
+    workflows: ["CI", "Security"]
+    types: [completed]
+
+permissions:
+  contents: read # cannot push code — comment-only guardrail
+  pull-requests: write # can post the triage comment
+  actions: read # can read the failed run's logs
+  id-token: write
+
+# One triage at a time per branch; newer failures supersede older runs.
+concurrency:
+  group: ci-failure-triage-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    # Only act on genuine failures (skip success / cancelled / skipped).
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR number from branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="${{ github.event.workflow_run.head_branch }}"
+          num=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+                  --head "$branch" --state open \
+                  --json number --jq '.[0].number')
+          if [ -z "$num" ]; then
+            echo "No open PR for branch '$branch' (likely a push to main) — skipping."
+          else
+            echo "Triaging failure for PR #$num"
+          fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.pr.outputs.number != ''
+
+      - uses: anthropics/claude-code-action@v1
+        if: steps.pr.outputs.number != ''
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 20"
+          prompt: |
+            The GitHub Actions run "${{ github.event.workflow_run.name }}"
+            (run id ${{ github.event.workflow_run.id }}) FAILED for
+            PR #${{ steps.pr.outputs.number }} on branch
+            "${{ github.event.workflow_run.head_branch }}".
+
+            Your job is to TRIAGE the failure, not to fix it. Steps:
+
+            1. Read the failing logs:
+                 gh run view ${{ github.event.workflow_run.id }} --log-failed
+               (fall back to `--log` if `--log-failed` returns nothing).
+            2. Read the PR diff:
+                 gh pr diff ${{ steps.pr.outputs.number }}
+            3. Decide whether the failure is CAUSED BY THIS PR'S CHANGES or is
+               UNRELATED — e.g. a newly published dependency CVE, a flaky or
+               intermittent test, an infra/network error, or a failure already
+               present on main. When unsure, say so rather than guessing.
+            4. Post EXACTLY ONE concise comment on the PR with:
+                 gh pr comment ${{ steps.pr.outputs.number }} --body "..."
+               Use this structure, kept short and skimmable:
+                 **CI triage: <workflow name>**
+                 - **Verdict:** PR-caused / Unrelated / Uncertain
+                 - **What failed:** the job + the specific error (1-2 lines)
+                 - **Why:** brief reasoning
+                 - **Suggested fix:** a concrete next step — a command, a
+                   file:line, or "re-run, looks flaky"
+
+            Hard rules:
+            - Comment only. Do NOT attempt to commit, push, or edit files.
+            - Post to PR #${{ steps.pr.outputs.number }} only; do not touch
+              other PRs or issues.
+            - If you genuinely cannot determine the cause, say so plainly and
+              link the failed run.
