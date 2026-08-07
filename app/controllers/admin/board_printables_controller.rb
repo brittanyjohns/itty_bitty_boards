@@ -1,19 +1,35 @@
 module Admin
   class BoardPrintablesController < Admin::ApplicationController
     PUBLIC_BOARD_LIMIT = 100
+    SORTABLE_BOARD_COLUMNS = %w[name subboards created_at updated_at].freeze
+
+    # Directly linked subboards, as a scalar subquery, so "sort by subboards"
+    # happens in the database. Sorting the fetched page in Ruby would only
+    # order the first PUBLIC_BOARD_LIMIT rows the *name* sort happened to
+    # return, which is a different (and wrong) answer.
+    SUBBOARD_COUNT_SQL = <<~SQL.squish.freeze
+      (SELECT COUNT(DISTINCT bi.predictive_board_id)
+         FROM board_images bi
+        WHERE bi.board_id = boards.id
+          AND bi.predictive_board_id IS NOT NULL
+          AND bi.predictive_board_id <> bi.board_id)
+    SQL
 
     def index
       @printables = BoardPrintable.includes(:board).recent.limit(50)
+      @board_sort = params[:sort].presence_in(SORTABLE_BOARD_COLUMNS) || "name"
+      @board_dir = params[:dir].presence_in(%w[asc desc]) || "asc"
+
       @board_search = params[:board_search]
       @boards = if @board_search.present?
-        Board.where("name ILIKE ? OR CAST(id AS TEXT) = ?", "%#{@board_search}%", @board_search).limit(25)
+        sorted_boards(Board.where("name ILIKE ? OR CAST(id AS TEXT) = ?", "%#{@board_search}%", @board_search)).limit(25)
       else
         []
       end
 
       public_boards = Board.public_boards
       @public_boards_count = public_boards.count
-      @public_boards = public_boards.alphabetical.limit(PUBLIC_BOARD_LIMIT)
+      @public_boards = sorted_boards(public_boards).limit(PUBLIC_BOARD_LIMIT)
 
       @subboard_counts = direct_subboard_counts(@public_boards + @boards)
     end
@@ -57,6 +73,22 @@ module Admin
     end
 
     private
+
+    # @board_sort / @board_dir are whitelisted above, so they are safe to
+    # interpolate. Every sort falls back to name so the order is total —
+    # boards created in the same seed run otherwise shuffle between requests.
+    def sorted_boards(scope)
+      name_order = "LOWER(boards.name) ASC"
+
+      case @board_sort
+      when "name"
+        scope.reorder(Arel.sql("LOWER(boards.name) #{@board_dir.upcase}"))
+      when "subboards"
+        scope.reorder(Arel.sql("#{SUBBOARD_COUNT_SQL} #{@board_dir.upcase}, #{name_order}"))
+      else
+        scope.reorder(Arel.sql("boards.#{@board_sort} #{@board_dir.upcase}, #{name_order}"))
+      end
+    end
 
     # Directly linked subboards per board, in one grouped query — the full tree
     # would need a walk per row, and the list can be 100 boards long. Self-links

@@ -92,7 +92,20 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
 
       get admin_dashboard_board_printables_path
 
-      expect(response.body).to include("No subboards")
+      expect(response.body).to include("None")
+    end
+
+    it "shows a created and updated date for each public board" do
+      sign_in admin
+      created = Time.zone.local(2026, 3, 4, 12, 0)
+      updated = Time.zone.local(2026, 5, 6, 12, 0)
+      create(:board, user: default_admin, predefined: true, published: true, name: "Public Dated",
+             created_at: created, updated_at: updated)
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("Mar 4, 2026")
+      expect(response.body).to include("May 6, 2026")
     end
 
     it "links each public board to its public page in a new tab" do
@@ -104,6 +117,81 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
 
       expect(response.body).to include("/pb/#{key}")
       expect(response.body).to include('target="_blank"')
+    end
+
+    describe "sorting the public board list" do
+      def public_board_order(body)
+        %w[Apple Mango Zebra].sort_by { |name| body.index(">#{name}<") || Float::INFINITY }
+      end
+
+      let!(:zebra) do
+        create(:board, user: default_admin, predefined: true, published: true, name: "Zebra",
+               created_at: 3.days.ago, updated_at: 1.hour.ago)
+      end
+      let!(:apple) do
+        create(:board, user: default_admin, predefined: true, published: true, name: "Apple",
+               created_at: 1.day.ago, updated_at: 3.hours.ago)
+      end
+      let!(:mango) do
+        create(:board, user: default_admin, predefined: true, published: true, name: "Mango",
+               created_at: 2.days.ago, updated_at: 2.hours.ago)
+      end
+
+      before { sign_in admin }
+
+      it "sorts by name ascending by default" do
+        get admin_dashboard_board_printables_path
+
+        expect(public_board_order(response.body)).to eq(%w[Apple Mango Zebra])
+      end
+
+      it "reverses on dir=desc" do
+        get admin_dashboard_board_printables_path(sort: "name", dir: "desc")
+
+        expect(public_board_order(response.body)).to eq(%w[Zebra Mango Apple])
+      end
+
+      it "sorts by created date" do
+        get admin_dashboard_board_printables_path(sort: "created_at", dir: "asc")
+
+        expect(public_board_order(response.body)).to eq(%w[Zebra Mango Apple])
+      end
+
+      it "sorts by updated date" do
+        get admin_dashboard_board_printables_path(sort: "updated_at", dir: "asc")
+
+        expect(public_board_order(response.body)).to eq(%w[Apple Mango Zebra])
+      end
+
+      it "sorts by subboard count in the database, not just the fetched page" do
+        link(mango, create(:board, user: owner, name: "Mango Child"))
+        link(zebra, create(:board, user: owner, name: "Zebra Child A"), position: 0)
+        link(zebra, create(:board, user: owner, name: "Zebra Child B"), position: 1)
+
+        get admin_dashboard_board_printables_path(sort: "subboards", dir: "desc")
+
+        expect(public_board_order(response.body)).to eq(%w[Zebra Mango Apple])
+      end
+
+      it "ignores an unknown sort column rather than interpolating it" do
+        get admin_dashboard_board_printables_path(sort: "id; DROP TABLE boards", dir: "asc")
+
+        expect(response).to have_http_status(:ok)
+        expect(public_board_order(response.body)).to eq(%w[Apple Mango Zebra])
+      end
+
+      it "keeps the picker expanded when a sort is applied" do
+        get admin_dashboard_board_printables_path(sort: "created_at")
+
+        expect(response.body).to include("<details open>")
+      end
+
+      it "carries the search term through the sort header links" do
+        get admin_dashboard_board_printables_path(board_search: "Core", sort: "created_at", dir: "desc")
+
+        expect(response.body).to include("board_search=Core")
+        expect(response.body).to include("Core Words")
+      end
     end
 
     it "searches boards by name" do

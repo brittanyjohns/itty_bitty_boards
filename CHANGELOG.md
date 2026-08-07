@@ -28,9 +28,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   with each board page's QR pointing at that board rather than the root. Work
   runs on Sidekiq; a tree over the board cap is refused up front with a 422
   rather than half-built. The board picker collapses behind a toggle and
-  scrolls instead of running the length of the page, and each board shows how
-  many subboards it links to plus a link that opens its public page in a new
-  tab.
+  scrolls instead of running the length of the page. It is now a table with
+  sortable Board / Subboards / Created / Updated columns — sorting happens in
+  the database, so re-sorting changes which boards make the capped list rather
+  than just reshuffling the ones already on screen — and each row carries a
+  link that opens the board's public page in a new tab.
 
 ### Fixed
 
