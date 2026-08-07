@@ -61,19 +61,9 @@ RSpec.configure do |config|
 
   config.before(:each) do
     ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
-
-    # Keep the users id sequence above User::DEFAULT_ADMIN_ID. Several specs
-    # insert the admin with an explicit id (== DEFAULT_ADMIN_ID); an explicit
-    # id doesn't advance the Postgres sequence, and sequences aren't rolled back
-    # between examples — so depending on shard/run order, a later create(:user)
-    # could grab that same id and raise PG::UniqueViolation on users_pkey. This
-    # makes the next sequence id deterministically clear of the fixed admin id.
-    ActiveRecord::Base.connection.execute(<<~SQL)
-      SELECT setval(
-        pg_get_serial_sequence('users', 'id'),
-        GREATEST(COALESCE((SELECT MAX(id) FROM users), 0), #{User::DEFAULT_ADMIN_ID}),
-        true
-      )
-    SQL
   end
+
+  # The `users` primary-key sequence is parked above every hand-pinned id by
+  # spec/support/users_id_sequence.rb. Read that file before touching a spec
+  # that inserts a user at an explicit id.
 end
