@@ -15,7 +15,7 @@ RSpec.describe Boards::AdminBuilder::Build do
     image
   end
 
-  def build_record(tiles:, columns: 2, rows: 2, **overrides)
+  def build_record(tiles:, columns: 2, rows: 2, children: [], **overrides)
     AdminBoardBuild.create!(
       {
         created_by: requester,
@@ -24,7 +24,7 @@ RSpec.describe Boards::AdminBuilder::Build do
         voice: "polly:kevin",
         columns_count: columns,
         rows_count: rows,
-        plan: { "tiles" => tiles },
+        plan: { "tiles" => tiles, "children" => children },
       }.merge(overrides),
     )
   end
@@ -156,6 +156,175 @@ RSpec.describe Boards::AdminBuilder::Build do
 
       expect(board_id_when_queued).to eq(build.reload.board_id)
       expect(board_id_when_queued).to be_present
+    end
+  end
+
+  describe "a linked set" do
+    def root_with_folder
+      [
+        { "label" => "i", "part_of_speech" => "pronoun" },
+        { "label" => "want", "part_of_speech" => "verb" },
+        { "label" => "more", "part_of_speech" => "important_function" },
+        { "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" },
+      ]
+    end
+
+    def food_page(tiles: nil)
+      {
+        "key" => "food", "name" => "Food",
+        "tiles" => tiles || [
+          { "label" => "apple", "part_of_speech" => "noun" },
+          { "label" => "banana", "part_of_speech" => "noun" },
+          { "label" => "hungry", "part_of_speech" => "adjective" },
+          { "label" => "eat", "part_of_speech" => "verb" },
+        ],
+      }
+    end
+
+    let(:build) { build_record(tiles: root_with_folder, children: [food_page]) }
+
+    it "creates every page and points the folder tile at its child" do
+      root = described_class.new(admin_board_build: build).call
+
+      expect(Board.count).to eq(2)
+      folder = root.board_images.order(:position).find { |bi| bi.label == "food" }
+      child = Board.find(folder.predictive_board_id)
+
+      expect(child.name).to eq("Food")
+      expect(child.board_images.order(:position).map(&:label)).to eq(%w[apple banana hungry eat])
+    end
+
+    it "records every page on the build so publish and show can reach them" do
+      root = described_class.new(admin_board_build: build).call
+      boards = build.reload.art_report["boards"]
+
+      expect(boards.keys).to contain_exactly(Boards::AdminBuilder::Plan::ROOT_KEY, "food")
+      expect(boards[Boards::AdminBuilder::Plan::ROOT_KEY]).to eq(root.id)
+      expect(build.set_boards.map(&:id)).to eq([root.id, boards["food"]])
+    end
+
+    # Only the root belongs in the public catalogue — Board.public_boards keys
+    # on `predefined`, and a set whose folder pages showed up there as
+    # standalone boards would bury the board they belong to.
+    it "marks the root predefined and the pages not" do
+      root = described_class.new(admin_board_build: build).call
+      child = build.reload.set_boards.last
+
+      expect(root.predefined).to be(true)
+      expect(child.predefined).to be(false)
+      expect(child.settings["admin_builder"]).to be(true)
+      expect(child.settings["builder_child"]).to be(true)
+      expect(root.settings["builder_root"]).to be(true)
+    end
+
+    it "gives every page the root's grid" do
+      root = described_class.new(admin_board_build: build_record(
+        tiles: root_with_folder, columns: 4, rows: 1, children: [food_page],
+      )).call
+      child = Board.find(root.board_images.find { |bi| bi.predictive_board_id }.predictive_board_id)
+
+      expect(child.large_screen_columns).to eq(4)
+      expect(child.medium_screen_columns).to eq(Boards::ScreenColumns.derive(4, "md"))
+    end
+
+    it "lets a page override the grid when one was authored" do
+      root = described_class.new(admin_board_build: build_record(
+        tiles: root_with_folder,
+        children: [food_page.merge("columns" => 2, "rows" => 2)],
+      )).call
+      child = Board.find(root.board_images.find { |bi| bi.predictive_board_id }.predictive_board_id)
+
+      expect(child.large_screen_columns).to eq(2)
+    end
+
+    # Cycles are normal: a page almost always carries a "back to home" tile.
+    # Every board row exists before any link is set, so this needs no ordering.
+    it "wires a page's back-link to the root" do
+      back = food_page(tiles: [
+        { "label" => "apple", "part_of_speech" => "noun" },
+        { "label" => "banana", "part_of_speech" => "noun" },
+        { "label" => "hungry", "part_of_speech" => "adjective" },
+        { "label" => "back", "part_of_speech" => "social", "links_to" => Boards::AdminBuilder::Plan::ROOT_KEY },
+      ])
+      root = described_class.new(admin_board_build: build_record(tiles: root_with_folder, children: [back])).call
+      child = Board.find(root.board_images.find { |bi| bi.predictive_board_id }.predictive_board_id)
+
+      expect(child.board_images.find { |bi| bi.label == "back" }.predictive_board_id).to eq(root.id)
+    end
+
+    it "wires two pages that link to each other" do
+      root_tiles = [
+        { "label" => "i", "part_of_speech" => "pronoun" },
+        { "label" => "want", "part_of_speech" => "verb" },
+        { "label" => "more", "part_of_speech" => "important_function" },
+        { "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" },
+      ]
+      food = food_page(tiles: [
+        { "label" => "apple", "part_of_speech" => "noun" },
+        { "label" => "banana", "part_of_speech" => "noun" },
+        { "label" => "hungry", "part_of_speech" => "adjective" },
+        { "label" => "Play", "part_of_speech" => "noun", "links_to" => "play" },
+      ])
+      play = {
+        "key" => "play", "name" => "Play",
+        "tiles" => [
+          { "label" => "ball", "part_of_speech" => "noun" },
+          { "label" => "run", "part_of_speech" => "verb" },
+          { "label" => "swing", "part_of_speech" => "noun" },
+          { "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" },
+        ],
+      }
+
+      set_build = build_record(tiles: root_tiles, children: [food, play])
+      described_class.new(admin_board_build: set_build).call
+
+      ids = set_build.reload.art_report["boards"]
+      food_board = Board.find(ids["food"])
+      play_board = Board.find(ids["play"])
+
+      expect(food_board.board_images.find { |bi| bi.label == "play" }.predictive_board_id).to eq(play_board.id)
+      expect(play_board.board_images.find { |bi| bi.label == "food" }.predictive_board_id).to eq(food_board.id)
+    end
+
+    # The same word on two pages is one Image and one generation.
+    it "resolves a label shared between pages once" do
+      shared = food_page(tiles: [
+        { "label" => "apple", "part_of_speech" => "noun" },
+        { "label" => "banana", "part_of_speech" => "noun" },
+        { "label" => "hungry", "part_of_speech" => "adjective" },
+        { "label" => "more", "part_of_speech" => "important_function" },
+      ])
+      set_build = build_record(tiles: root_with_folder, children: [shared])
+
+      expect { described_class.new(admin_board_build: set_build).call }.to change(Image, :count).by(7)
+
+      queued = GenerateImagesJob.jobs.flat_map { |job| job["args"].first }
+      expect(queued.size).to eq(7)
+      expect(queued.uniq.size).to eq(7)
+    end
+
+    it "aborts the whole set when a page links to a key that doesn't exist" do
+      broken = [
+        { "label" => "i", "part_of_speech" => "pronoun" },
+        { "label" => "want", "part_of_speech" => "verb" },
+        { "label" => "more", "part_of_speech" => "important_function" },
+        { "label" => "Food", "part_of_speech" => "noun", "links_to" => "nope" },
+      ]
+      set_build = build_record(tiles: broken, children: [food_page])
+
+      expect { described_class.new(admin_board_build: set_build).call }
+        .to raise_error(described_class::BuildError, /unknown page/)
+
+      expect(Board.count).to eq(0)
+      expect(set_build.reload.status).to eq("failed")
+    end
+
+    it "leaves a single-board build with no builder_root or builder_child marks" do
+      root = described_class.new(admin_board_build: build_record(tiles: four_tiles)).call
+
+      expect(root.settings).not_to have_key("builder_root")
+      expect(root.settings).not_to have_key("builder_child")
+      expect(root.predefined).to be(true)
     end
   end
 

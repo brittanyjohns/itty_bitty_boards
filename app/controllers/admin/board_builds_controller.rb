@@ -20,6 +20,8 @@ module Admin
     DEFAULT_COLUMNS = 6
     DEFAULT_ROWS = 4
     DEFAULT_VOICE = "polly:kevin".freeze
+    # Marks the field in a word-list line that names the page a tile opens.
+    LINK_TOKEN = ">".freeze
 
     before_action :require_seed_admin!
     before_action :set_build, only: %i[show destroy publish unpublish]
@@ -64,7 +66,7 @@ module Admin
       return render(:new, status: :unprocessable_entity) if @problems.any?
 
       @preview = Boards::AdminBuilder::ArtPreview.new(
-        labels: @form[:tiles].map { |tile| tile[:label] },
+        pages: pages_for(@form),
         commercial_safe_only: @form[:commercial_safe_only],
       ).call
 
@@ -87,7 +89,18 @@ module Admin
         columns_count: @form[:columns].to_i,
         rows_count: @form[:rows].to_i,
         commercial_safe_only: @form[:commercial_safe_only],
-        plan: { "tiles" => @form[:tiles].map { |tile| tile.transform_keys(&:to_s) } },
+        plan: {
+          "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(@form[:tiles]),
+          "children" => @form[:children].map do |child|
+            {
+              "key" => child[:key],
+              "name" => child[:name],
+              "columns" => child[:columns].presence&.to_i,
+              "rows" => child[:rows].presence&.to_i,
+              "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(child[:tiles]),
+            }.compact
+          end,
+        },
       )
       BuildAdminBoardJob.perform_async(build.id)
 
@@ -97,10 +110,14 @@ module Admin
 
     def show
       @board = builder_board_for(@build)
-      @tiles = @board ? @board.board_images.includes(:image).order(:position) : []
-      @missing_art_count = @board ? missing_art_count(@board) : 0
+      @set_boards = @build.set_boards
+      @tiles_by_board = @set_boards.index_with { |board| board.board_images.includes(:image).order(:position) }
+      @missing_art_count = @set_boards.sum { |board| missing_art_count(board) }
     end
 
+    # Publishing is a set-wide operation. `Board#viewable_by?` gates each board
+    # on its OWN published flag, so publishing only the root leaves every folder
+    # tile 404ing for a public visitor — the set has to move as a unit.
     def publish
       board = builder_board_for(@build)
       return redirect_to(admin_dashboard_board_build_path(@build), alert: "No board to publish yet.") if board.nil?
@@ -110,16 +127,25 @@ module Admin
                            alert: "This board has no tiles — refusing to publish an empty board."
       end
 
-      board.update!(published: true)
-      redirect_to admin_dashboard_board_build_path(@build), notice: "“#{board.name}” is now public."
+      set = @build.set_boards
+      empty = set.reject { |page| page.board_images.any? }
+      if empty.any?
+        return redirect_to admin_dashboard_board_build_path(@build),
+                           alert: "#{empty.map(&:name).to_sentence} has no tiles — " \
+                                  "refusing to publish a set with an empty page."
+      end
+
+      set.each { |page| page.update!(published: true) }
+      redirect_to admin_dashboard_board_build_path(@build), notice: publish_notice(board, set, "now public")
     end
 
     def unpublish
       board = builder_board_for(@build)
       return redirect_to(admin_dashboard_board_build_path(@build), alert: "No board to unpublish.") if board.nil?
 
-      board.update!(published: false)
-      redirect_to admin_dashboard_board_build_path(@build), notice: "“#{board.name}” is no longer public."
+      set = @build.set_boards
+      set.each { |page| page.update!(published: false) }
+      redirect_to admin_dashboard_board_build_path(@build), notice: publish_notice(board, set, "no longer public")
     end
 
     def destroy
@@ -130,10 +156,14 @@ module Admin
       end
 
       name = @build.name
+      set = @build.set_boards
       # The build row first: admin_board_builds.board_id carries a foreign key,
       # so destroying the board while the build still points at it violates it.
       @build.destroy
-      board&.destroy
+      # Children before the root: a child's back-link is a predictive_board_id
+      # onto the root, and destroying the root first leaves those pointing at
+      # nothing for as long as the loop runs.
+      set.reverse_each(&:destroy)
       redirect_to admin_dashboard_board_builds_path, notice: "Deleted “#{name}”."
     end
 
@@ -209,9 +239,15 @@ module Admin
         rows: DEFAULT_ROWS.to_s,
         words: "",
         tiles: [],
+        children: [],
         commercial_safe_only: true,
         allow_partial_row: false,
+        allow_mixed_grids: false,
       }
+    end
+
+    def blank_child
+      { key: "", name: "", columns: "", rows: "", words: "", tiles: [] }
     end
 
     # Keeps the raw submitted strings so a failed submit re-renders exactly what
@@ -229,9 +265,31 @@ module Admin
         rows: params[:rows].to_s.strip,
         words: words,
         tiles: parse_tiles(words),
+        children: submitted_children,
         commercial_safe_only: checked?(params[:commercial_safe_only]),
         allow_partial_row: checked?(params[:allow_partial_row]),
+        allow_mixed_grids: checked?(params[:allow_mixed_grids]),
       }
+    end
+
+    # Child pages arrive as an indexed hash, the same shape
+    # Admin::VideoBoardsController reads its video rows from. A wholly blank
+    # block is dropped so an unused "add a page" click isn't a validation error.
+    def submitted_children
+      params.fetch(:children, {}).values.filter_map do |child|
+        words = child[:words].to_s
+        page = {
+          key: child[:key].to_s.strip.downcase,
+          name: child[:name].to_s.strip,
+          columns: child[:columns].to_s.strip,
+          rows: child[:rows].to_s.strip,
+          words: words,
+          tiles: parse_tiles(words),
+        }
+        next if page[:key].blank? && page[:name].blank? && words.strip.blank?
+
+        page
+      end
     end
 
     def checked?(value)
@@ -241,16 +299,24 @@ module Admin
     # One tile per line: `word`, `word | part_of_speech`, or
     # `word | part_of_speech | tile text`. A textarea rather than N inputs
     # because a dense board is 24-84 words and pasting a list is the job.
+    #
+    # A field beginning with `>` names the page the tile opens, wherever it
+    # appears in the line — so `Food | noun | >food` doesn't force an empty
+    # tile-text field just to reach a fourth position.
     def parse_tiles(words)
       words.to_s.split("\n").filter_map do |line|
         line = line.strip
         next if line.blank?
 
-        label, part_of_speech, display_label = line.split("|", 3).map { |part| part.to_s.strip }
+        label, *rest = line.split("|").map { |part| part.to_s.strip }
+        links_to = rest.find { |field| field.start_with?(LINK_TOKEN) }
+        part_of_speech, display_label = rest - [links_to].compact
+
         {
           label: label.to_s,
           part_of_speech: part_of_speech.presence || "default",
           display_label: display_label.presence,
+          links_to: links_to&.delete_prefix(LINK_TOKEN)&.strip&.downcase.presence,
         }.compact
       end
     end
@@ -267,14 +333,49 @@ module Admin
       rows = form[:rows].to_i
       problems << "Columns must be between 1 and #{MAX_COLUMNS}." unless columns.between?(1, MAX_COLUMNS)
       problems << "Rows must be between 1 and #{MAX_ROWS}." unless rows.between?(1, MAX_ROWS)
+      problems.concat(child_grid_range_problems(form))
       return problems if problems.any?
 
       problems + Boards::AdminBuilder::PlanValidator.new(
-        tiles: form[:tiles],
-        columns: columns,
-        rows: rows,
+        pages: pages_for(form),
         allow_partial_row: form[:allow_partial_row],
+        allow_mixed_grids: form[:allow_mixed_grids],
       ).call
+    end
+
+    # Range-checked before the plan is assembled, because Plan#child_page reads
+    # an out-of-range override straight into a grid the validator would then
+    # describe rather than reject.
+    def child_grid_range_problems(form)
+      form[:children].flat_map do |child|
+        label = child[:name].presence || child[:key].presence || "A page"
+        problems = []
+        if child[:columns].present? && !child[:columns].to_i.between?(1, MAX_COLUMNS)
+          problems << "#{label}: columns must be between 1 and #{MAX_COLUMNS}."
+        end
+        if child[:rows].present? && !child[:rows].to_i.between?(1, MAX_ROWS)
+          problems << "#{label}: rows must be between 1 and #{MAX_ROWS}."
+        end
+        problems
+      end
+    end
+
+    def pages_for(form)
+      Boards::AdminBuilder::Plan.pages(
+        root: {
+          name: form[:name],
+          columns: form[:columns].to_i,
+          rows: form[:rows].to_i,
+          tiles: form[:tiles],
+        },
+        children: form[:children],
+      )
+    end
+
+    def publish_notice(root, set, state)
+      return "“#{root.name}” is #{state}." if set.size <= 1
+
+      "“#{root.name}” and its #{set.size - 1} #{"page".pluralize(set.size - 1)} are #{state}."
     end
   end
 end

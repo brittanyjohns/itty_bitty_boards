@@ -14,6 +14,13 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
     image
   end
 
+  def pages_for(labels, children: [])
+    Boards::AdminBuilder::Plan.pages(
+      root: { name: "Board", columns: 2, rows: 2, tiles: labels.map { |label| { label: label } } },
+      children: children,
+    )
+  end
+
   before { admin }
 
   # The single most important property of this service: Preview is a read-only
@@ -23,14 +30,14 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
     image_with_doc(label: "apple")
 
     expect {
-      described_class.new(labels: %w[apple nonexistentwordxyz], commercial_safe_only: false).call
+      described_class.new(pages: pages_for(%w[apple nonexistentwordxyz]), commercial_safe_only: false).call
     }.to not_change(Image, :count).and not_change(Doc, :count)
   end
 
   it "reports an exact match with its image and a display url" do
     image = image_with_doc(label: "apple")
 
-    row = described_class.new(labels: ["apple"], commercial_safe_only: false).call[:rows].first
+    row = described_class.new(pages: pages_for(["apple"]), commercial_safe_only: false).call[:pages].first[:rows].first
 
     expect(row.image_id).to eq(image.id)
     expect(row.matched_label).to eq("apple")
@@ -41,7 +48,7 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
   it "matches case-insensitively without calling it fuzzy" do
     image_with_doc(label: "apple")
 
-    row = described_class.new(labels: ["Apple"], commercial_safe_only: false).call[:rows].first
+    row = described_class.new(pages: pages_for(["Apple"]), commercial_safe_only: false).call[:pages].first[:rows].first
 
     expect(row).to be_found
     expect(row).to be_exact
@@ -52,18 +59,18 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
   it "flags a hit whose own label is a different word as inexact" do
     image_with_doc(label: "applesauce")
 
-    result = described_class.new(labels: ["apple"], commercial_safe_only: false).call
+    result = described_class.new(pages: pages_for(["apple"]), commercial_safe_only: false).call
 
-    expect(result[:rows].first).to be_found
-    expect(result[:rows].first).not_to be_exact
+    expect(result[:pages].first[:rows].first).to be_found
+    expect(result[:pages].first[:rows].first).not_to be_exact
     expect(result[:inexact]).to eq(["apple"])
   end
 
   it "reports a label with no art as missing" do
-    result = described_class.new(labels: ["nonexistentwordxyz"], commercial_safe_only: false).call
+    result = described_class.new(pages: pages_for(["nonexistentwordxyz"]), commercial_safe_only: false).call
 
     expect(result[:missing]).to eq(["nonexistentwordxyz"])
-    expect(result[:rows].first).not_to be_found
+    expect(result[:pages].first[:rows].first).not_to be_found
     expect(result[:coverage_pct]).to eq(0)
   end
 
@@ -71,7 +78,7 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
     image_with_doc(label: "apple")
     image_with_doc(label: "banana")
 
-    result = described_class.new(labels: %w[apple banana nonexistentwordxyz], commercial_safe_only: false).call
+    result = described_class.new(pages: pages_for(%w[apple banana nonexistentwordxyz]), commercial_safe_only: false).call
 
     expect(result[:total]).to eq(3)
     expect(result[:found]).to eq(2)
@@ -81,14 +88,64 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
   it "surfaces licensing so an unsafe pick can be judged rather than hidden" do
     image_with_doc(label: "apple", license: "CC BY-NC", source_type: "OpenSymbols")
 
-    row = described_class.new(labels: ["apple"], commercial_safe_only: true).call[:rows].first
+    row = described_class.new(pages: pages_for(["apple"]), commercial_safe_only: true).call[:pages].first[:rows].first
 
     expect(row).to be_found
     expect(row.commercial_safe).to be(false)
   end
 
+  describe "across a set" do
+    def multi_page
+      pages_for(
+        %w[i want more Food],
+        children: [{ key: "food", name: "Food", tiles: %w[apple banana hungry more].map { |l| { label: l } } }],
+      )
+    end
+
+    it "reports each page's tiles separately, in order" do
+      result = described_class.new(pages: multi_page, commercial_safe_only: false).call
+
+      expect(result[:pages].map { |page| page[:key] }).to eq([Boards::AdminBuilder::Plan::ROOT_KEY, "food"])
+      expect(result[:pages].last[:name]).to eq("Food")
+      expect(result[:pages].last[:rows].map(&:label)).to eq(%w[apple banana hungry more])
+    end
+
+    # The same word on two pages is one symbol and one generation — counting it
+    # twice would misreport both the coverage and the AI spend.
+    it "counts a label shared between pages once" do
+      result = described_class.new(pages: multi_page, commercial_safe_only: false).call
+
+      expect(result[:total]).to eq(7)
+      expect(result[:missing].count("more")).to eq(1)
+    end
+
+    it "searches a repeated label only once" do
+      expect_any_instance_of(Images::LabelSearch).to receive(:call).exactly(7).times.and_return([])
+
+      described_class.new(pages: multi_page, commercial_safe_only: false).call
+    end
+
+    it "marks a tile that opens a page" do
+      result = described_class.new(pages: multi_page, commercial_safe_only: false).call
+      root_rows = result[:pages].first[:rows]
+
+      expect(root_rows.last).not_to be_folder
+      expect(root_rows.map(&:links_to)).to eq([nil, nil, nil, nil])
+    end
+
+    it "carries links_to through to the row" do
+      pages = pages_for(%w[i want more], children: [])
+      pages.first[:tiles] << { label: "Food", links_to: "food" }
+
+      row = described_class.new(pages: pages, commercial_safe_only: false).call[:pages].first[:rows].last
+      expect(row).to be_folder
+      expect(row.links_to).to eq("food")
+    end
+  end
+
   it "ignores blank lines in the label list" do
-    result = described_class.new(labels: ["apple", "", "  "], commercial_safe_only: false).call
-    expect(result[:total]).to eq(1)
+    result = described_class.new(pages: pages_for(["apple", "", "  "]), commercial_safe_only: false).call
+    expect(result[:total]).to eq(2)
+    expect(result[:pages].first[:rows].size).to eq(3)
   end
 end

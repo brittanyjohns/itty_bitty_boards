@@ -4,7 +4,7 @@
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @build.name %></h1>
     <p class="text-sm text-t3 mt-0.5">
-      <%= @build.columns_count %>×<%= @build.rows_count %> · <%= @build.tiles.size %> tiles
+      <%= @build.columns_count %>×<%= @build.rows_count %> · <%= @build.tiles.size %> tiles<%= " · #{@build.children.size} #{"page".pluralize(@build.children.size)}" if @build.multi_page? %>
       <% if @build.topic.present? %> · topic: <%= @build.topic %><% end %>
       <% if @board %> · <span class="font-mono text-xs"><%= @board.slug %></span><% end %>
     </p>
@@ -97,30 +97,50 @@
     <% end %>
   </div>
 
-  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Tiles — in board order</h2>
+  <% @set_boards.each do |page| %>
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">
+      <%= page.id == @board.id ? "Main board" : "Page" %> — <%= page.name %>
+      <span class="text-t3 font-normal normal-case tracking-normal">
+        · <span class="font-mono"><%= page.slug %></span>
+        · <%= page.published? ? "published" : "unpublished" %>
+      </span>
+    </h2>
 
-  <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-    <% @tiles.each do |tile| %>
-      <div class="admin-card border rounded-xl overflow-hidden">
-        <div class="aspect-square flex items-center justify-center overflow-hidden" style="background-color: <%= tile.bg_color || "transparent" %>;">
-          <% if tile.display_image_url.present? %>
-            <img src="<%= tile.display_image_url %>" alt="<%= tile.display_label %>" loading="lazy" class="w-full h-full object-contain">
-          <% else %>
-            <span class="text-[11px] text-t3 px-2 text-center">no picture yet</span>
-          <% end %>
+    <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
+      <% @tiles_by_board[page].each do |tile| %>
+        <div class="admin-card border rounded-xl overflow-hidden">
+          <div class="aspect-square flex items-center justify-center overflow-hidden" style="background-color: <%= tile.bg_color || "transparent" %>;">
+            <% if tile.display_image_url.present? %>
+              <img src="<%= tile.display_image_url %>" alt="<%= tile.display_label %>" loading="lazy" class="w-full h-full object-contain">
+            <% else %>
+              <span class="text-[11px] text-t3 px-2 text-center">no picture yet</span>
+            <% end %>
+          </div>
+          <div class="p-2">
+            <p class="text-xs font-medium text-t1 truncate" title="<%= tile.display_label %>"><%= tile.display_label %></p>
+            <p class="text-[10px] text-t3"><%= tile.effective_part_of_speech %></p>
+            <% if tile.predictive_board_id.present? %>
+              <p class="text-[10px] text-accent truncate">opens a page</p>
+            <% end %>
+          </div>
         </div>
-        <div class="p-2">
-          <p class="text-xs font-medium text-t1 truncate" title="<%= tile.display_label %>"><%= tile.display_label %></p>
-          <p class="text-[10px] text-t3"><%= tile.effective_part_of_speech %></p>
-        </div>
-      </div>
-    <% end %>
-  </div>
+      <% end %>
+    </div>
+  <% end %>
 <% end %>
 
 <div class="admin-card border rounded-xl p-5 mt-6">
   <h2 class="text-sm font-medium text-t1 mb-2">The word list that was built</h2>
-  <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= @build.tiles.map { |tile|
-        [tile["label"], tile["part_of_speech"], tile["display_label"]].compact.reject(&:blank?).join(" | ")
-      }.join("\n") %></pre>
+  <% @build.pages.each do |page| %>
+    <% if @build.multi_page? %>
+      <p class="text-[11px] font-medium text-t1 mt-3 mb-1">
+        <%= page[:key] == Boards::AdminBuilder::Plan::ROOT_KEY ? "Main board" : "#{page[:key]} — #{page[:name]}" %>
+      </p>
+    <% end %>
+    <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= page[:tiles].map { |tile|
+          fields = [tile[:label], tile[:part_of_speech], tile[:display_label]].compact.reject(&:blank?)
+          fields << ">#{tile[:links_to]}" if tile[:links_to].present?
+          fields.join(" | ")
+        }.join("\n") %></pre>
+  <% end %>
 </div>

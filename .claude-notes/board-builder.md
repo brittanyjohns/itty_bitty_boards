@@ -1080,4 +1080,38 @@ Its own invariants:
   admin-owned. Short drafts are returned rather than raised on, since the form
   can absorb them; only an unusable response is an error.
 
-Phase 3 (linked child pages) is not built.
+- **A build can be a linked set, not just one board.** `plan["children"]` holds
+  child pages (`key`, `name`, optional grid, tiles) and any tile may carry
+  `links_to`, which becomes `predictive_board_id` — the same one-line link
+  `Boards::BoardTreeBuilder` makes. `Boards::AdminBuilder::Plan` normalizes the
+  root and its pages into one list so validation, preview and build never
+  special-case the root; the root's key is `Plan::ROOT_KEY` (`__root__`), which
+  is also what a "back to home" tile links to.
+- **Linking is a three-pass write, NOT a topological build order.** Every page's
+  Board row is created first, then tiles, then the links. `build_board.py` needs
+  `build_order()` with cycle-breaking because its HTTP API creates a board
+  *together with* its tiles and so can't name a board that doesn't exist yet —
+  the same class of remote-client workaround the rest of this page deliberately
+  didn't port. In-process, linking is already a separate `update!`, so creating
+  the shells up front makes cycles (a page's back-link to the root, two pages
+  linking to each other) structurally impossible to get wrong instead of
+  something a heuristic has to guess its way out of.
+- **Every page shares the root's grid.** A page with no authored grid inherits
+  it; a page that authors a different one is rejected unless "allow mixed grids"
+  is ticked. A communicator moving into a folder page shouldn't have the cell
+  size change under their finger.
+- **Only the root is `predefined`.** `Board.public_boards` keys on it, so a set
+  whose every folder page appeared there as a standalone board would bury the
+  board it belongs to. Pages stay reachable because `Board#viewable_by?` gates on
+  `published` alone. The root also carries `settings["builder_root"]` when it has
+  pages, so a back-link can't make `check_is_sub_board` demote it; pages carry
+  `settings["builder_child"]`.
+- **Publish and unpublish move the whole set**, for the reason spelled out in
+  `.claude-notes/boards-and-teams.md`: `viewable_by?` is per board, so publishing
+  only the root leaves every folder tile 404ing for a visitor. The set is read
+  from `art_report["boards"]` (key → board id, recorded at build time) and
+  re-scoped through `builder_boards`, so a hand-edited id can't widen the blast
+  radius. Publishing refuses a set with any empty page; delete removes pages
+  before the root.
+
+AI drafting (Phase 2) fills the main word list only — pages are authored by hand.

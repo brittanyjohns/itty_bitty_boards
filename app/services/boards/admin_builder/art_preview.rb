@@ -1,6 +1,7 @@
 module Boards
   module AdminBuilder
-    # What the library would put on each tile, resolved WITHOUT WRITING ANYTHING.
+    # What the library would put on each tile across the whole set, resolved
+    # WITHOUT WRITING ANYTHING.
     #
     # 🚨 This is the reason the builder is two steps, and the one rule that must
     # not be relaxed: `Boards::ImageResolver.resolve` / `.resolve_all` CREATE a
@@ -19,11 +20,14 @@ module Boards
       Row = Struct.new(
         :label, :image_id, :matched_label, :exact, :src, :original_url,
         :source_type, :license, :commercial_safe, :attribution_required, :share_alike,
+        :links_to,
         keyword_init: true,
       ) do
         def found? = image_id.present?
 
         def exact? = exact.present?
+
+        def folder? = links_to.present?
 
         # `src` is nil until the 288px variant is processed — that is not the
         # same as "no art". Fall back to the full-resolution original so the
@@ -31,28 +35,35 @@ module Boards
         def display_url = src.presence || original_url.presence
       end
 
-      def initialize(labels:, commercial_safe_only: true)
-        @labels = Array(labels).map { |label| label.to_s.strip }.reject(&:blank?)
+      def initialize(pages:, commercial_safe_only: true)
+        @pages = Array(pages)
         @commercial_safe_only = commercial_safe_only
       end
 
       def call
-        rows = labels.map { |label| row_for(label) }
+        previewed = pages.map do |page|
+          { key: page[:key], name: page[:name], rows: page[:tiles].map { |tile| row_for(tile) } }
+        end
+
+        # Coverage is over distinct labels: the same word on two pages is one
+        # symbol and one generation, so counting it twice would misreport both
+        # the percentage and the AI spend.
+        distinct = previewed.flat_map { |page| page[:rows] }.uniq { |row| row.label.downcase }
 
         {
-          rows: rows,
-          total: rows.size,
-          found: rows.count(&:found?),
-          coverage_pct: coverage_pct(rows),
-          missing: rows.reject(&:found?).map(&:label),
-          inexact: rows.select { |row| row.found? && !row.exact }.map(&:label),
-          unsafe: rows.select { |row| row.found? && row.commercial_safe == false }.map(&:label),
+          pages: previewed,
+          total: distinct.size,
+          found: distinct.count(&:found?),
+          coverage_pct: coverage_pct(distinct),
+          missing: distinct.reject(&:found?).map(&:label),
+          inexact: distinct.select { |row| row.found? && !row.exact }.map(&:label),
+          unsafe: distinct.select { |row| row.found? && row.commercial_safe == false }.map(&:label),
         }
       end
 
       private
 
-      attr_reader :labels, :commercial_safe_only
+      attr_reader :pages, :commercial_safe_only
 
       def searcher
         # limit: 1 — the review grid shows what will actually be attached, not a
@@ -65,9 +76,19 @@ module Boards
         )
       end
 
-      def row_for(label)
-        result = searcher.call(label).first
-        return Row.new(label: label, exact: false) if result.nil?
+      # A label repeated across pages costs one search, not one per page.
+      def lookup(label)
+        @lookup ||= {}
+        key = label.downcase
+        return @lookup[key] if @lookup.key?(key)
+
+        @lookup[key] = searcher.call(label).first
+      end
+
+      def row_for(tile)
+        label = tile[:label].to_s.strip
+        result = lookup(label)
+        return Row.new(label: label, exact: false, links_to: tile[:links_to]) if result.nil?
 
         Row.new(
           label: label,
@@ -81,6 +102,7 @@ module Boards
           commercial_safe: result[:commercial_safe],
           attribution_required: result[:attribution_required],
           share_alike: result[:share_alike],
+          links_to: tile[:links_to],
         )
       end
 
