@@ -93,6 +93,11 @@ class Board < ApplicationRecord
 
   attr_accessor :skip_create_voice_audio
 
+  # Opt-in escape hatch for the one deliberate rename path (admin/internal API,
+  # `boards:rename_slug` rake task). Everything else is frozen — see
+  # `freeze_published_slug`.
+  attr_accessor :allow_slug_change
+
   validates :slug, uniqueness: true
 
   include UtilHelper
@@ -193,6 +198,7 @@ class Board < ApplicationRecord
 
   include ImageHelper
 
+  before_save :freeze_published_slug
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
   # before_save :update_display_image, unless: :display_image_url?
@@ -1396,6 +1402,43 @@ class Board < ApplicationRecord
     self.slug = slug
     slug
   end
+
+  # A published board's slug is permanent. It is the key in `/pb/<slug>`, which
+  # is what the QR codes on printed board printables encode — laminated paper
+  # can't be re-issued, so a rename would silently 404 every already-printed
+  # sheet with no redirect and no history (#611).
+  #
+  # Unpublished boards are unaffected: nothing shareable has been handed out.
+  def slug_locked?
+    published? && slug.present?
+  end
+
+  # The deliberate rename path. Used by the admin/internal API and the
+  # `boards:rename_slug` rake task — never by an ordinary board update.
+  # Callers are responsible for reprinting anything already in the wild.
+  def rename_slug!(requested_slug)
+    self.allow_slug_change = true
+    generate_unique_slug(requested_slug)
+    save
+  ensure
+    self.allow_slug_change = false
+  end
+
+  # Reverts a slug change on an already-published board rather than rejecting
+  # the save: the frontend re-derives the slug from the name on every rename
+  # (BoardForm), so raising here would break ordinary board renaming. The rest
+  # of the update goes through untouched, and the response carries the real
+  # (unchanged) slug.
+  def freeze_published_slug
+    return if new_record?
+    return if allow_slug_change
+    return unless slug_changed?
+    return unless published_was && slug_was.present?
+
+    Rails.logger.info "[board #{id}] ignoring slug change #{slug_was.inspect} -> #{slug.inspect}: published slugs are frozen"
+    self.slug = slug_was
+  end
+  private :freeze_published_slug
 
   def update_board_layout(screen_size)
     self.layout = {}

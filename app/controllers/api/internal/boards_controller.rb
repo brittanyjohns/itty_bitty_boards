@@ -165,6 +165,8 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
 
   def update
     @board = Board.find(params[:id])
+    # Captured before assign_attributes, which may itself write `slug`.
+    persisted_slug = @board.slug
     @board.assign_attributes(board_params.except(:settings, :voice))
     @board.voice = VoiceService.normalize_voice(board_params[:voice]) if board_params[:voice].present?
 
@@ -176,7 +178,12 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     @board.parent_type = "User"
     @board.parent_id = @board.user_id || User::DEFAULT_ADMIN_ID
 
-    if board_params[:slug].present? && board_params[:slug] != @board.slug
+    # A published board's slug is frozen (printed QR codes encode `/pb/<slug>`
+    # — see Board#slug_locked?). This admin surface is the deliberate rename
+    # path: `force_slug: true` opts in, and the caller owns reprinting whatever
+    # is already in the wild. Without it the change is ignored, not rejected.
+    if board_params[:slug].present? && board_params[:slug] != persisted_slug
+      @board.allow_slug_change = force_slug?
       @board.slug = @board.generate_unique_slug(board_params[:slug])
     end
 
@@ -238,6 +245,10 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     end
 
     board.save
+  end
+
+  def force_slug?
+    ActiveModel::Type::Boolean.new.cast(params[:force_slug])
   end
 
   def replace_existing_slug?

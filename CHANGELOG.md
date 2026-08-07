@@ -18,6 +18,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   runs on Sidekiq; a tree over the board cap is refused up front with a 422
   rather than half-built.
 
+### Fixed
+
+- **Renaming a published board no longer breaks its printed QR codes.** A
+  board's share link (`/pb/<slug>`) is derived from its name, and renaming the
+  board used to rebuild that link — silently 404ing every QR code already
+  printed onto a board printable, with no redirect. A published board's link is
+  now permanent: renaming still works and still updates the board's name
+  everywhere, it just leaves the shareable link alone. Unpublished boards are
+  unaffected, since nothing has been handed out yet.
+
 ### Removed
 
 - **The Events, Placeholders and Organizations screens are gone from the HTML

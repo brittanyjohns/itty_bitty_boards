@@ -493,6 +493,11 @@ class API::BoardsController < API::ApplicationController
         incoming_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
         @board.published = incoming_published unless incoming_published.nil?
       end
+      # Renaming a board re-derives this param from the name on the frontend,
+      # so it arrives on ordinary renames. On a PUBLISHED board the change is
+      # dropped by Board#freeze_published_slug — `/pb/<slug>` is printed into
+      # QR codes and paper can't be re-issued (#611). Deliberate renames go
+      # through the internal API's `force_slug` or `boards:rename_slug`.
       if board_params["slug"].present? && board_params["slug"] != @board.slug
         new_slug = @board.generate_unique_slug(board_params["slug"])
         @board.slug = new_slug
