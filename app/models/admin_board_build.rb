@@ -29,12 +29,34 @@ class AdminBoardBuild < ApplicationRecord
     Board.where("(settings ->> :key) = 'true'", key: BUILDER_SETTING)
   end
 
+  # The root page plus any child pages, normalized into one iterable list.
+  def pages
+    Boards::AdminBuilder::Plan.from_stored(plan, name: name, columns: columns_count, rows: rows_count)
+  end
+
   def tiles
     Array((plan || {})["tiles"])
   end
 
+  def children
+    Array((plan || {})["children"])
+  end
+
+  def multi_page? = children.any?
+
   def labels
-    tiles.map { |tile| tile["label"].to_s }
+    Boards::AdminBuilder::Plan.labels(pages)
+  end
+
+  # Every board of the built set, root first. Keyed off the ids recorded at
+  # build time rather than re-walking predictive_board_id, and scoped through
+  # `builder_boards` so a stale id can't reach a board this page didn't create.
+  def set_boards
+    ids = Array(art_report["boards"].presence&.values).presence || [board_id].compact
+    return Board.none if ids.empty?
+
+    ordered = self.class.builder_boards.where(id: ids).index_by(&:id)
+    [board_id, *ids].uniq.filter_map { |id| ordered[id] }
   end
 
   def cell_count

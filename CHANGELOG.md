@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **The board builder works out the topic and audience for you.** Name a board
+  and it infers what the board is about and who it's for — the two things that
+  steer both the drafted word list and the art generated for words the library
+  doesn't cover. It runs on its own when you draft from a name alone, or on
+  demand from a button. Anything you've typed yourself is left alone.
+- **The admin board builder can build a linked set of pages, not just one
+  board.** Add pages to a build, give each one a key, and point a tile at it —
+  that tile becomes a folder that opens the page, and a tile on a page can point
+  back at the main board. Every page shares the main board's grid unless you
+  explicitly say otherwise, so cell size doesn't change under a communicator's
+  finger as they move between pages. The art review covers every page before
+  anything is written, and publishing moves the whole set at once — a published
+  board whose folder pages were still private would have led to dead ends.
+
 ### Changed
 
 - **Board printables got a real cover.** The four pages that bookend every

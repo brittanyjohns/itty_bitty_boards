@@ -37,9 +37,10 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     )
   end
 
-  def built_board(published: false)
+  def built_board(published: false, name: "Built Board")
     Board.create!(
-      name: "Built Board",
+      name: name,
+      slug: name.parameterize,
       user: seed_admin,
       published: published,
       settings: { AdminBoardBuild::BUILDER_SETTING => true },
@@ -83,6 +84,192 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       sign_in admin
       get new_admin_dashboard_board_build_path
       expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "child pages" do
+    before { sign_in admin }
+
+    def set_params(overrides = {})
+      form_params(
+        words: "i | pronoun\nwant | verb\nmore | social\nFood | noun | >food",
+        children: {
+          "0" => {
+            key: "food", name: "Food", columns: "", rows: "",
+            words: "apple | noun\nbanana | noun\nhungry | adjective\nback | social | >__root__",
+          },
+        },
+      ).merge(overrides)
+    end
+
+    it "previews every page separately and still writes nothing" do
+      expect { post preview_admin_dashboard_board_builds_path, params: set_params }
+        .to not_change(Board, :count)
+        .and not_change(Image, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Main board")
+      expect(response.body).to include("Page “food”")
+      expect(response.body).to include("opens “food”")
+    end
+
+    it "stores the pages and the links on the build" do
+      post admin_dashboard_board_builds_path, params: set_params
+
+      build = AdminBoardBuild.last
+      expect(build.children.map { |child| child["key"] }).to eq(["food"])
+      expect(build.children.first["name"]).to eq("Food")
+      expect(build.tiles.last).to include("label" => "Food", "links_to" => "food")
+      expect(build.children.first["tiles"].last).to include("links_to" => "__root__")
+      expect(build.labels).to include("apple", "hungry")
+    end
+
+    # The token is found by its `>`, not by its position, so a tile can link
+    # without being forced to fill in a part of speech or tile text first.
+    it "reads the link token wherever it appears in the line" do
+      post admin_dashboard_board_builds_path,
+           params: set_params(words: "i | pronoun\nwant | verb\nmore | social\nFood | >food")
+
+      tile = AdminBoardBuild.last.tiles.last
+      expect(tile["links_to"]).to eq("food")
+      expect(tile["part_of_speech"]).to eq("default")
+      expect(tile).not_to have_key("display_label")
+    end
+
+    it "keeps the remaining fields positional once the link token is removed" do
+      post admin_dashboard_board_builds_path,
+           params: set_params(words: "i | pronoun\nwant | verb\nmore | social\nFood | noun | Food page | >food")
+
+      tile = AdminBoardBuild.last.tiles.last
+      expect(tile["links_to"]).to eq("food")
+      expect(tile["part_of_speech"]).to eq("noun")
+      expect(tile["display_label"]).to eq("Food page")
+    end
+
+    it "drops a wholly blank page block rather than failing on it" do
+      params = set_params
+      params[:children]["1"] = { key: "", name: "", columns: "", rows: "", words: "  " }
+
+      expect { post admin_dashboard_board_builds_path, params: params }
+        .to change(AdminBoardBuild, :count).by(1)
+      expect(AdminBoardBuild.last.children.size).to eq(1)
+    end
+
+    it "rejects a tile pointing at a page that doesn't exist" do
+      params = set_params(words: "i | pronoun\nwant | verb\nmore | social\nFood | noun | >nope")
+
+      expect { post admin_dashboard_board_builds_path, params: params }.not_to change(AdminBoardBuild, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("which doesn&#39;t exist")
+    end
+
+    it "rejects a page whose grid differs from the main board's" do
+      params = set_params
+      params[:children]["0"] = params[:children]["0"].merge(columns: "3", rows: "3",
+                                                            words: (1..9).map { |i| "word#{i} | noun" }.join("\n"))
+
+      expect { post admin_dashboard_board_builds_path, params: params }.not_to change(AdminBoardBuild, :count)
+      expect(response.body).to include("differs from the main board")
+    end
+
+    it "allows a different grid when the escape hatch is ticked" do
+      params = set_params(allow_mixed_grids: "1")
+      params[:children]["0"] = params[:children]["0"].merge(columns: "3", rows: "3",
+                                                            words: (1..9).map { |i| "word#{i} | noun" }.join("\n"))
+
+      expect { post admin_dashboard_board_builds_path, params: params }.to change(AdminBoardBuild, :count).by(1)
+    end
+
+    it "rejects a duplicate page key" do
+      params = set_params
+      params[:children]["1"] = params[:children]["0"]
+
+      expect { post admin_dashboard_board_builds_path, params: params }.not_to change(AdminBoardBuild, :count)
+      expect(response.body).to include("Duplicate page keys: food")
+    end
+
+    it "rejects an out-of-range page grid" do
+      params = set_params
+      params[:children]["0"] = params[:children]["0"].merge(columns: "99")
+
+      post admin_dashboard_board_builds_path, params: params
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Food: columns must be between 1 and 12")
+    end
+
+    it "preserves the submitted pages when something else fails validation" do
+      post preview_admin_dashboard_board_builds_path, params: set_params(name: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("hungry | adjective")
+      expect(response.body).to include("Food")
+    end
+  end
+
+  describe "POST /admin/board_builds/suggest" do
+    before do
+      sign_in admin
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ topic: "the playground", audience: "a preschooler" })
+    end
+
+    it "fills in both fields and writes nothing" do
+      expect { post suggest_admin_dashboard_board_builds_path, params: form_params(topic: "", audience: "") }
+        .to not_change(Board, :count)
+        .and not_change(Image, :count)
+        .and not_change(AdminBoardBuild, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("the playground")
+      expect(response.body).to include("a preschooler")
+      expect(response.body).to include("Suggested a topic and audience")
+    end
+
+    it "keeps the rest of the form" do
+      post suggest_admin_dashboard_board_builds_path,
+           params: form_params(topic: "", audience: "", name: "Playtime")
+
+      expect(response.body).to include("Playtime")
+      expect(response.body).to include("swing | noun")
+    end
+
+    it "reads the board name and the words already typed" do
+      expect(Boards::AdminBuilder::ContextSuggester).to receive(:new)
+        .with(name: "Playground", words: a_string_including("swing"))
+        .and_call_original
+
+      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "Playground", topic: "", audience: "")
+    end
+
+    it "leaves a value the admin already typed alone" do
+      post suggest_admin_dashboard_board_builds_path, params: form_params(audience: "a teenager")
+
+      expect(response.body).to include("a teenager")
+      expect(response.body).not_to include("a preschooler")
+    end
+
+    it "refuses when there is nothing to work from" do
+      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Give the board a name, or some words")
+    end
+
+    it "surfaces a generation failure without losing the form" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_raise(Boards::AdminBuilder::ContextSuggester::GenerationError, "OpenAI returned no content")
+
+      post suggest_admin_dashboard_board_builds_path, params: form_params(topic: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t suggest a topic")
+      expect(response.body).to include("Playground")
+    end
+
+    it "is closed to non-admins" do
+      sign_in create(:user)
+      post suggest_admin_dashboard_board_builds_path, params: form_params
+      expect(response).to redirect_to(root_path)
     end
   end
 
@@ -139,18 +326,74 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("Drafted 2 of 4 words")
     end
 
-    it "refuses to draft without a topic" do
-      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "")
+    # Topic and audience steer the draft and, later, the art prompts, so a
+    # blank one is inferred rather than being a prerequisite.
+    it "works out a blank topic and audience before drafting" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ topic: "the playground", audience: "a preschooler" })
 
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Give the board a topic to draft from")
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(topic: "the playground", audience: "a preschooler"))
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path,
+           params: form_params(topic: "", audience: "", name: "At the Playground", words: "")
+
+      expect(response).to have_http_status(:ok)
     end
 
-    it "does not require a name — a board can be drafted before it is named" do
+    it "never overwrites a topic the admin typed" do
+      expect(Boards::AdminBuilder::ContextSuggester).not_to receive(:new)
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(topic: "the playground", audience: "a preschooler"))
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "a preschooler", words: "")
+    end
+
+    it "fills a blank topic but keeps an audience the admin typed" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ topic: "the playground", audience: "someone else" })
+
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(topic: "the playground", audience: "a teenager"))
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", audience: "a teenager", words: "")
+    end
+
+    # Audience is optional to the drafter, so a known topic means no second
+    # round trip just to fill it in.
+    it "does not spend a call working out a blank audience when the topic is known" do
+      expect(Boards::AdminBuilder::ContextSuggester).not_to receive(:new)
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "", words: "")
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "refuses to draft with neither a name nor a topic" do
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "", words: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Give the board a name or a topic to draft from")
+    end
+
+    it "does not require a name — a board can be drafted from a topic alone" do
       post draft_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("I | pronoun")
+    end
+
+    it "surfaces a failure to work out the topic" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_raise(Boards::AdminBuilder::ContextSuggester::GenerationError, "OpenAI returned no content")
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "Playground")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t work out the topic")
     end
 
     it "surfaces a generation failure without losing the form" do
@@ -365,6 +608,66 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
     # The admin_builder marker is the scoping rail: a board this page didn't
     # create must be unreachable even if the build points at it.
+    # Board#viewable_by? gates each board on its OWN published flag, so
+    # publishing only the root leaves every folder tile 404ing for a visitor.
+    context "a linked set" do
+      def built_set
+        root = built_board
+        page = built_board(name: "Food page")
+        [root, page].each { |board| board.add_image(Image.create!(label: "i", user_id: seed_admin.id).id) }
+        build = create_build(status: "complete", board: root)
+        build.update!(art_report: { "boards" => { "__root__" => root.id, "food" => page.id } })
+        [build, root, page]
+      end
+
+      it "publishes every page, not just the root" do
+        build, root, page = built_set
+
+        post publish_admin_dashboard_board_build_path(build)
+
+        expect(root.reload.published).to be(true)
+        expect(page.reload.published).to be(true)
+        expect(flash[:notice]).to include("and its 1 page")
+      end
+
+      it "unpublishes every page" do
+        build, root, page = built_set
+        [root, page].each { |board| board.update!(published: true) }
+
+        post unpublish_admin_dashboard_board_build_path(build)
+
+        expect(root.reload.published).to be(false)
+        expect(page.reload.published).to be(false)
+      end
+
+      it "refuses to publish when any page is empty" do
+        build, root, page = built_set
+        page.board_images.destroy_all
+
+        post publish_admin_dashboard_board_build_path(build)
+
+        expect(root.reload.published).to be(false)
+        expect(flash[:alert]).to include("Food page has no tiles")
+      end
+
+      it "deletes every page" do
+        build, = built_set
+
+        expect { delete admin_dashboard_board_build_path(build) }.to change(Board, :count).by(-2)
+      end
+
+      it "ignores a recorded page that isn't one of ours" do
+        build, root, = built_set
+        stranger = create(:board, name: "Not Ours")
+        build.update!(art_report: { "boards" => { "__root__" => root.id, "x" => stranger.id } })
+
+        post publish_admin_dashboard_board_build_path(build)
+
+        expect(root.reload.published).to be(true)
+        expect(stranger.reload.published).to be_falsey
+      end
+    end
+
     it "does not reach a board that wasn't created here" do
       other = create(:board, name: "Not A Built Board")
       build = create_build(status: "complete", board: other)

@@ -8,6 +8,15 @@
         <%= text_field_tag :name, @form[:name], id: "name", required: true,
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
       </div>
+      <div class="flex items-end">
+        <%# formaction, not a second form: the suggestion is worked out from the
+            name and any words already typed in this same form. %>
+        <button type="submit" formaction="<%= suggest_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Work out topic &amp; audience
+        </button>
+        <p class="text-[11px] text-t3 ml-3">Reads the board name and any words you've typed. Drafting does this on its own if they're blank.</p>
+      </div>
       <div>
         <label class="block text-xs font-medium text-t2 mb-1" for="topic">Topic <span class="text-t3">(optional)</span></label>
         <%= text_field_tag :topic, @form[:topic], id: "topic", placeholder: "the playground",
@@ -62,6 +71,10 @@
         Parts of speech: <span class="font-mono"><%= ColorHelper::PARTS_OF_SPEECH.join(", ") %></span>.
       </p>
       <p class="text-[11px] text-t3 mt-1">
+        Add <span class="font-mono">&gt;page_key</span> to any field to make the tile open that page —
+        <span class="font-mono">Food | noun | &gt;food</span>. From a page, <span class="font-mono">&gt;<%= Boards::AdminBuilder::Plan::ROOT_KEY %></span> goes back to the main board.
+      </p>
+      <p class="text-[11px] text-t3 mt-1">
         You need exactly <span id="cell-count" class="text-t1 font-medium">—</span> words
         (<span id="word-count" class="text-t1 font-medium">0</span> so far).
         A partial row leaves dead cells at the end of the last row.
@@ -81,8 +94,103 @@
         <%= check_box_tag :allow_partial_row, "1", @form[:allow_partial_row] %>
         Allow a partial last row (leaves empty cells — tick only if you mean it)
       </label>
+      <label class="flex items-center gap-2 text-xs text-t2">
+        <%= check_box_tag :allow_mixed_grids, "1", @form[:allow_mixed_grids] %>
+        Allow pages with a different grid to the main board (tick only if you mean it)
+      </label>
     </div>
   </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="flex items-start justify-between gap-4 mb-1">
+      <div>
+        <h2 class="text-sm font-medium text-t1">Pages <span class="text-t3 font-normal">(optional)</span></h2>
+        <p class="text-[11px] text-t3 mt-0.5">
+          A folder tile on the main board opens a page. Give each page a key, then point a tile at it
+          with <span class="font-mono">&gt;key</span>. Pages inherit the main board's grid unless you say otherwise.
+        </p>
+      </div>
+      <button type="button" id="add-page"
+              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+        Add a page
+      </button>
+    </div>
+
+    <div id="pages" class="flex flex-col gap-4 mt-4">
+      <% (@form[:children].presence || []).each_with_index do |child, index| %>
+        <div class="page-block admin-card-alt border rounded-lg p-4">
+          <div class="grid grid-cols-12 gap-2 mb-3">
+            <div class="col-span-3">
+              <label class="block text-[11px] font-medium text-t2 mb-1">Key</label>
+              <input type="text" name="children[<%= index %>][key]" value="<%= child[:key] %>" placeholder="food"
+                     class="admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="col-span-5">
+              <label class="block text-[11px] font-medium text-t2 mb-1">Page name</label>
+              <input type="text" name="children[<%= index %>][name]" value="<%= child[:name] %>" placeholder="Food"
+                     class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[11px] font-medium text-t2 mb-1">Cols</label>
+              <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_COLUMNS %>"
+                     name="children[<%= index %>][columns]" value="<%= child[:columns] %>" placeholder="—"
+                     class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="col-span-2 flex items-end gap-2">
+              <div class="flex-1">
+                <label class="block text-[11px] font-medium text-t2 mb-1">Rows</label>
+                <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_ROWS %>"
+                       name="children[<%= index %>][rows]" value="<%= child[:rows] %>" placeholder="—"
+                       class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+              </div>
+              <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
+            </div>
+          </div>
+          <textarea name="children[<%= index %>][words]" rows="6" spellcheck="false"
+                    placeholder="apple | noun&#10;hungry | adjective&#10;back | social | &gt;<%= Boards::AdminBuilder::Plan::ROOT_KEY %>"
+                    class="admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none"><%= child[:words] %></textarea>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @form[:children].blank? %>
+      <p class="text-xs text-t3 mt-4">No pages — this build is a single board.</p>
+    <% end %>
+  </div>
+
+  <template id="page-template">
+    <div class="page-block admin-card-alt border rounded-lg p-4">
+      <div class="grid grid-cols-12 gap-2 mb-3">
+        <div class="col-span-3">
+          <label class="block text-[11px] font-medium text-t2 mb-1">Key</label>
+          <input type="text" name="children[IDX][key]" value="" placeholder="food"
+                 class="admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div class="col-span-5">
+          <label class="block text-[11px] font-medium text-t2 mb-1">Page name</label>
+          <input type="text" name="children[IDX][name]" value="" placeholder="Food"
+                 class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-[11px] font-medium text-t2 mb-1">Cols</label>
+          <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_COLUMNS %>"
+                 name="children[IDX][columns]" value="" placeholder="—"
+                 class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div class="col-span-2 flex items-end gap-2">
+          <div class="flex-1">
+            <label class="block text-[11px] font-medium text-t2 mb-1">Rows</label>
+            <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_ROWS %>"
+                   name="children[IDX][rows]" value="" placeholder="—"
+                   class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+          </div>
+          <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
+        </div>
+      </div>
+      <textarea name="children[IDX][words]" rows="6" spellcheck="false"
+                class="admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none"></textarea>
+    </div>
+  </template>
 
   <div class="flex items-center gap-3">
     <%= submit_tag "Preview the art",
@@ -110,6 +218,32 @@
 
     [words, columns, rows].forEach(function (el) { el.addEventListener("input", update); });
     update();
+
+    // Page blocks are indexed, so every add/remove has to renumber the whole
+    // list or Rails collapses blocks that share an index.
+    var pages = document.getElementById("pages");
+    var pageTemplate = document.getElementById("page-template");
+
+    function reindexPages() {
+      pages.querySelectorAll(".page-block").forEach(function (block, i) {
+        block.querySelectorAll("input, textarea").forEach(function (field) {
+          field.name = field.name.replace(/children\[\w*\]/, "children[" + i + "]");
+        });
+      });
+    }
+
+    document.getElementById("add-page").addEventListener("click", function () {
+      pages.appendChild(pageTemplate.content.cloneNode(true));
+      reindexPages();
+    });
+
+    pages.addEventListener("click", function (event) {
+      if (!event.target.classList.contains("remove-page")) return;
+      event.target.closest(".page-block").remove();
+      reindexPages();
+    });
+
+    reindexPages();
 
     // Drafting replaces the textarea wholesale, so only confirm when there is
     // something to lose.
