@@ -8,6 +8,10 @@ RSpec.describe "Admin::Placeholders (dashboard)", type: :request do
   before do
     allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:stylesheet_link_tag).and_return("")
     allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:javascript_include_tag).and_return("")
+    # Creating the owner for a placeholder runs User.create_from_email, which
+    # provisions a Stripe customer. Without this the suite makes a real API
+    # call and dies on Stripe::AuthenticationError (CI has no key).
+    allow(User).to receive(:create_stripe_customer).and_return("cus_test_#{SecureRandom.hex(4)}")
   end
 
   describe "authorization" do
