@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Board printables got a real cover.** The four pages that bookend every
+  printable — cover, how-to-use, license, and About — were plain black text on
+  cream. They now carry the brand: a full-bleed gradient header, the SpeakAnyWay
+  typeface, numbered step cards in place of the how-to bullet list, and
+  side-by-side "You may" / "Please don't" cards on the license page. The board's
+  public URL is printed as text beside every QR code, so a photocopied or
+  laminated sheet still leads back to the board. The low-ink file now opens on
+  its own ink-light cover instead of a full-colour one.
+
 ### Added
 
 - **Cover-wrapped board printables can be generated in the app.** A sellable,

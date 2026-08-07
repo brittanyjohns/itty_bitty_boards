@@ -204,18 +204,15 @@ etc. plus a `layouts/pdf_printable.html.erb`; do not add branches to
 `layouts/pdf.html.erb`.
 
 QR generation uses `rqrcode`, already in the Gemfile;
-`app/services/boards/asset_rendering.rb` has the existing helpers. The pipeline
-renders its QR navy `#13496f` on cream `#FBF7F1` at 400px — match it so the
-in-app output looks like the pipeline's.
-
-**Fonts:** the pipeline's wrappers `@import` Nunito from Google Fonts at render
-time. Do not copy that — a network fetch inside PDF generation is a flaky
-failure mode. Match however `app/views/layouts/pdf.html.erb` already handles
-fonts.
+`app/services/boards/asset_rendering.rb` has the existing helpers.
 
 The how-to-use copy is worth lifting near-verbatim from the pipeline
 (`speakanyway-printables/src/plugins/aac/product-types/existing-board.ts`,
 `buildHowToUseHtml`) so in-app and pipeline products read identically.
+
+> **Superseded — the wrappers were redesigned.** Everything below about
+> matching the pipeline's *look* is history; the copy guidance above still
+> holds. See "Wrapper design" at the end of this doc.
 
 ### 4. `Boards::Printables::MergePdf` (pipeline step 09)
 
@@ -299,6 +296,39 @@ opening the PR.
   `/admin/board_printables` (`Admin::BoardPrintablesController`) — board
   search, generate form, and a status page that auto-refreshes while
   pending/generating and shows download links once complete.
+
+## Wrapper design (supersedes the look-and-feel notes above)
+
+The four wrapper pages started as a byte-for-byte port of the pipeline's
+wrapper CSS so the two products were indistinguishable. **That parity is over.**
+Rails is now the reference design and `speakanyway-printables` is the side that
+needs to catch up; porting the CSS back into its
+`src/templates/wrappers/{cover,wrapper-page}.css` is tracked separately.
+
+Invariants a future change has to keep:
+
+- **Nothing is fetched over the network at render time.** Nunito is vendored at
+  `app/assets/fonts/nunito` (SIL OFL 1.1, `OFL.txt` ships beside it) and
+  base64-inlined by `Boards::Printables::Fonts`. The pipeline `@import`s it from
+  Google Fonts; we don't, because a font that fails to load fails *silently*
+  into the fallback stack and nobody notices until it's on Etsy.
+- **No emoji anywhere in a wrapper.** Headless Chrome on the render box has no
+  guaranteed colour-emoji font, so a glyph prints as a tofu box. Use inline SVG.
+  Spec-enforced — including in CSS comments, which ship in the rendered HTML.
+- **Every ink-heavy surface needs an `.ink-light` override**, because the
+  low-ink cover renders through the same CSS with that class on `<body>`. The
+  overrides swap fills for outlines and never change sizes: if the two covers
+  could disagree about layout they could disagree about page count, and the
+  colour and low-ink files would stop being interchangeable.
+- **The QR is white-filled, not cream.** It sits inside a white card in both
+  variants, and contrast is the whole job of that image.
+- **The public `pb` URL is printed as text beside every QR.** These get
+  photocopied, laminated, and handed to people without a phone camera.
+
+`RenderWrappers#call` returns a fifth key, `cover_low_ink`, **only for a set** —
+a single board is one document holding both halves, so it has no low-ink file
+to give its own cover to. `MergePdf#cover_for` falls back to the colour cover
+rather than assuming the key is there.
 
 ## Wrap-up
 

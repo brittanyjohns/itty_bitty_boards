@@ -1,18 +1,61 @@
-<div class="wrapper-page">
-  <h2>License</h2>
-  <p>
-    This printable is licensed for personal and classroom use.
-  </p>
-  <p>You may:</p>
-  <ul class="tips">
-    <li>Print as many copies as you need for your family or classroom.</li>
-    <li>Share with your communicator's full team — therapists, teachers, caregivers.</li>
-  </ul>
-  <p>Please don't:</p>
-  <ul class="tips">
-    <li>Resell or redistribute this file.</li>
-    <li>Share the digital file outside that team.</li>
-    <li>Modify and republish as your own work.</li>
-  </ul>
-  <p class="note">© SpeakAnyWay. All rights reserved.</p>
+<%# Check and cross marks are inline SVG rather than ✓/✕ glyphs so they can't
+    fall back to a different face — or to nothing — on the render box. %>
+<div class="sheet license">
+  <div class="sheet-body">
+    <div class="page-head">
+      <p class="eyebrow">Terms</p>
+      <h2>License</h2>
+      <div class="rule"></div>
+      <p class="intro">
+        This printable is licensed for personal and classroom use.
+      </p>
+    </div>
+
+    <div class="terms">
+      <div class="card yes">
+        <h3>You may</h3>
+        <ul>
+          <li>
+            <span class="mark yes"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></span>
+            <span>Print as many copies as you need for your family or classroom.</span>
+          </li>
+          <li>
+            <span class="mark yes"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></span>
+            <span>Share with your communicator's full team — therapists, teachers, caregivers.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card no">
+        <h3>Please don't</h3>
+        <ul>
+          <li>
+            <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
+            <span>Resell or redistribute this file.</span>
+          </li>
+          <li>
+            <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
+            <span>Share the digital file outside that team.</span>
+          </li>
+          <li>
+            <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
+            <span>Modify and republish as your own work.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        Using this with a school, clinic, or caseload and not sure whether it's
+        covered? Ask us at speakanyway.com — we'd rather say yes than have you
+        guess.
+      </p>
+    </div>
+
+    <div class="license-foot">
+      <div class="rule"></div>
+      <p>© SpeakAnyWay. All rights reserved.</p>
+    </div>
+  </div>
 </div>

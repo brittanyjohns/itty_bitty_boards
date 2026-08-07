@@ -1,15 +1,22 @@
-<%# Layout for the cover / how-to-use / license / credits wrapper pages of a
+<%# Layout for the cover / how-to-use / license / about wrapper pages of a
     board printable. A separate layout+template pair rather than a branch
     inside layouts/pdf.html.erb, which backs real users' board exports and
     must stay byte-identical — same rule as pdf_marketing.html.erb.
 
-    Palette and page metrics are ported from the speakanyway-printables
-    pipeline (src/templates/shared/base.css, wrappers/cover.css,
-    wrappers/wrapper-page.css) so in-app output and pipeline output look
-    identical. The one deliberate difference: the pipeline @imports Nunito
-    from Google Fonts at render time. A network fetch inside PDF generation is
-    a flaky failure mode, so this matches layouts/pdf.html.erb and uses the
-    system stack instead. %>
+    This is now the REFERENCE DESIGN for SpeakAnyWay printable wrappers. It
+    started as a port of the speakanyway-printables pipeline's wrapper CSS
+    (src/templates/wrappers/*.css) and deliberately diverged from it — the
+    pipeline is the side that needs to catch up, not the other way round.
+
+    Two rails hold across every change here:
+
+    1. Nothing fetched over the network at render time. Nunito is inlined by
+       Boards::Printables::Fonts; a font (or anything else) fetched mid-render
+       fails silently into a fallback and nobody notices until it ships.
+    2. Every ink-heavy surface has a .ink-light override, because the low-ink
+       file's cover renders through this same CSS with that class on <body>.
+       The overrides only swap fills for outlines — never sizes — so both
+       variants lay out identically and can't disagree about page count. %>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -17,6 +24,8 @@
     <title>Board printable</title>
 
     <style>
+      <%= Boards::Printables::Fonts.face_css %>
+
       :root {
         --navy: #13496f;
         --blue-mid: #0163aa;
@@ -24,6 +33,11 @@
         --magenta: #C857E8;
         --cream: #FBF7F1;
         --ink: #1A1A1A;
+
+        --cream-deep: #F3EADC;
+        --cyan-tint: #E4F7FB;
+        --magenta-tint: #F8EAFD;
+        --brand-gradient: linear-gradient(135deg, #4ECDE6 0%, #0163AA 55%, #C857E8 100%);
       }
 
       * {
@@ -38,7 +52,7 @@
       }
 
       body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        font-family: Nunito, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
         color: var(--ink);
         background: var(--cream);
       }
@@ -50,180 +64,485 @@
         size: letter;
       }
 
-      /* ── Cover ───────────────────────────────────────────────────────── */
-      .cover {
+      /* ── Sheet: the shared 8.5×11 page every wrapper builds on ────────── */
+      .sheet {
         width: 8.5in;
         height: 11in;
+        overflow: hidden;
+        background: var(--cream);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .sheet-body {
+        flex: 1;
+        min-height: 0;
+        padding: 0.7in 0.9in 0.55in;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ── Shared primitives ───────────────────────────────────────────── */
+      .band {
+        flex: 0 0 auto;
+        background: var(--brand-gradient);
+        color: #fff;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: var(--cream);
-        padding: 1in 1in 0.75in;
-        position: relative;
-        text-align: center;
+        gap: 12pt;
       }
 
-      .cover .qr {
-        position: absolute;
-        top: 0.5in;
-        right: 0.5in;
-        width: 1in;
-        height: 1in;
+      .band .chip {
+        width: 1.5in;
+        height: 1.5in;
+        background: #fff;
+        border-radius: 26%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
-      .cover .qr-caption {
-        position: absolute;
-        top: 1.58in;
-        right: 0.5in;
-        width: 1.15in;
-        margin: 0;
-        font-size: 8pt;
-        font-weight: 600;
-        line-height: 1.25;
-        text-align: center;
+      .band .chip img {
+        width: 1.2in;
+        height: 1.2in;
+      }
+
+      .band .eyebrow {
+        color: #fff;
+      }
+
+      .eyebrow {
+        font-size: 9pt;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
         color: var(--blue-mid);
       }
 
-      .cover .logo {
-        width: 1.75in;
-        height: 1.75in;
-        margin-bottom: 0.5in;
+      .rule {
+        height: 4pt;
+        border-radius: 2pt;
+        background: var(--brand-gradient);
       }
 
-      .cover .title {
-        font-size: 48pt;
+      .card {
+        background: var(--cream-deep);
+        border-radius: 12pt;
+        padding: 14pt 16pt;
+        text-align: left;
+      }
+
+      .callout {
+        background: var(--cyan-tint);
+        border-left: 6pt solid var(--cyan);
+        border-radius: 0 10pt 10pt 0;
+        padding: 12pt 16pt;
+        text-align: left;
+      }
+
+      .pill {
+        display: inline-block;
+        background: var(--cyan-tint);
+        color: var(--blue-mid);
+        border-radius: 999pt;
+        padding: 8pt 22pt;
+        font-size: 15pt;
+        font-weight: 600;
+      }
+
+      .mark {
+        flex: 0 0 auto;
+        width: 15pt;
+        height: 15pt;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .mark svg {
+        width: 9pt;
+        height: 9pt;
+        stroke: #fff;
+        stroke-width: 3.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+
+      .mark.yes { background: var(--blue-mid); }
+      .mark.no  { background: var(--magenta); }
+
+      /* ── Page heading block ──────────────────────────────────────────── */
+      .page-head {
+        flex: 0 0 auto;
+        text-align: center;
+        margin-bottom: 0.3in;
+      }
+
+      .page-head h2 {
+        font-size: 34pt;
         font-weight: 800;
         color: var(--navy);
         line-height: 1.1;
-        max-width: 6.5in;
-        margin-bottom: 0.25in;
+        margin: 6pt 0 12pt;
       }
 
-      .cover .subtitle {
-        font-size: 20pt;
-        font-weight: 400;
+      .page-head .rule {
+        width: 1.6in;
+        margin: 0 auto;
+      }
+
+      .page-head .intro {
+        font-size: 13pt;
         color: var(--blue-mid);
-        max-width: 6in;
-        line-height: 1.3;
+        line-height: 1.45;
+        max-width: 5.6in;
+        margin: 14pt auto 0;
       }
 
-      .cover .footer {
-        position: absolute;
-        bottom: 0.6in;
-        left: 0;
-        right: 0;
+      /* ── Cover ───────────────────────────────────────────────────────── */
+      .cover .band {
+        height: 2.7in;
       }
 
-      .cover .footer .brand {
-        font-size: 12pt;
+      .cover-main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.42in;
+        padding: 0.5in 0.75in 0;
+        text-align: center;
+      }
+
+      .cover .title {
+        font-size: 50pt;
+        font-weight: 800;
         color: var(--navy);
-        font-weight: 600;
-        margin-bottom: 4pt;
+        line-height: 1.08;
+        max-width: 6.6in;
       }
 
-      .cover .footer .url {
+      .cover-main .rule {
+        width: 1.4in;
+      }
+
+      .qr-card {
+        background: #fff;
+        border-radius: 14pt;
+        border: 1pt solid #E7DFD2;
+        padding: 16pt 20pt 14pt;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8pt;
+      }
+
+      .qr-card img {
+        width: 1.15in;
+        height: 1.15in;
+        display: block;
+      }
+
+      .qr-card .qr-caption {
+        font-size: 10pt;
+        font-weight: 800;
+        color: var(--navy);
+        line-height: 1.25;
+      }
+
+      .qr-card .qr-url {
+        font-size: 8.5pt;
+        color: var(--blue-mid);
+      }
+
+      .cover-footer {
+        flex: 0 0 auto;
+        padding: 0 0.9in 0.55in;
+        text-align: center;
+      }
+
+      .cover-footer .rule {
+        width: 2.2in;
+        margin: 0 auto 12pt;
+      }
+
+      .cover-footer .brand {
+        font-size: 12pt;
+        font-weight: 800;
+        color: var(--navy);
+      }
+
+      .cover-footer .url {
+        font-size: 10pt;
+        color: var(--blue-mid);
+        margin-top: 3pt;
+      }
+
+      /* ── How to use ──────────────────────────────────────────────────── */
+      /* space-between, not start: the six steps never quite fill the page and
+         the leftover inch reads as a mistake when it all piles up at the
+         bottom. Distributing it between rows looks deliberate at any copy
+         length, which matters because the step text changes with @is_set. */
+      .steps {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.18in;
+        align-content: space-between;
+      }
+
+      .step {
+        display: flex;
+        gap: 11pt;
+        align-items: flex-start;
+        background: var(--cream-deep);
+        border-radius: 12pt;
+        padding: 13pt 15pt;
+      }
+
+      .step.wide {
+        grid-column: 1 / -1;
+      }
+
+      .step .num {
+        flex: 0 0 auto;
+        width: 21pt;
+        height: 21pt;
+        border-radius: 50%;
+        background: var(--cyan);
+        color: var(--navy);
+        font-size: 11pt;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .step .lead {
+        font-size: 11.5pt;
+        font-weight: 800;
+        color: var(--navy);
+        margin-bottom: 2pt;
+      }
+
+      .step p {
+        font-size: 10.5pt;
+        line-height: 1.42;
+        color: var(--ink);
+      }
+
+      .how-to .callout {
+        flex: 0 0 auto;
+        margin-top: 0.22in;
+      }
+
+      .how-to .callout p {
+        font-size: 11pt;
+        line-height: 1.45;
+        color: var(--navy);
+      }
+
+      /* ── License ─────────────────────────────────────────────────────── */
+      /* flex: 1 + align-content: center so the two cards float in the middle of
+         the page rather than clinging to the heading with six dead inches
+         underneath. Rows stay content-sized. */
+      .terms {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.25in;
+        align-content: center;
+      }
+
+      .terms .card {
+        padding: 24pt 22pt 26pt;
+      }
+
+      .terms .card.yes {
+        background: var(--cyan-tint);
+      }
+
+      .terms .card.no {
+        background: var(--magenta-tint);
+      }
+
+      .terms h3 {
+        font-size: 16pt;
+        font-weight: 800;
+        color: var(--navy);
+        margin-bottom: 16pt;
+      }
+
+      .terms li {
+        list-style: none;
+        display: flex;
+        gap: 10pt;
+        align-items: flex-start;
+        font-size: 11.5pt;
+        line-height: 1.45;
+        margin-bottom: 14pt;
+      }
+
+      .terms li:last-child {
+        margin-bottom: 0;
+      }
+
+      .license .callout {
+        flex: 0 0 auto;
+        margin-bottom: 0.35in;
+      }
+
+      .license .callout p {
+        font-size: 11pt;
+        line-height: 1.45;
+        color: var(--navy);
+      }
+
+      .license-foot {
+        flex: 0 0 auto;
+        text-align: center;
+      }
+
+      .license-foot .rule {
+        width: 1.6in;
+        margin: 0 auto 12pt;
+      }
+
+      .license-foot p {
         font-size: 10pt;
         color: var(--blue-mid);
       }
 
-      /* ── How-to-use / license / credits ──────────────────────────────── */
-      .wrapper-page {
-        width: 8.5in;
-        height: 11in;
-        background: var(--cream);
-        padding: 1.25in 1in 1in;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
+      /* ── About ───────────────────────────────────────────────────────── */
+      .about .band {
+        height: 1.5in;
       }
 
-      .wrapper-page h2 {
-        font-size: 36pt;
-        font-weight: 800;
-        color: var(--navy);
-        margin-bottom: 0.4in;
-      }
-
-      .wrapper-page p {
-        font-size: 14pt;
-        font-weight: 400;
-        color: var(--ink);
-        line-height: 1.5;
-        max-width: 5.5in;
-        margin-bottom: 0.25in;
-      }
-
-      .wrapper-page .intro {
-        font-size: 16pt;
-        color: var(--blue-mid);
-        max-width: 6in;
-        margin-bottom: 0.5in;
-      }
-
-      .wrapper-page .tips {
-        list-style: none;
-        padding: 0;
-        margin-bottom: 0.4in;
-        max-width: 5in;
-      }
-
-      .wrapper-page .tips li {
-        font-size: 13pt;
-        color: var(--ink);
-        line-height: 1.5;
-        padding-left: 1.5em;
-        text-indent: -1.5em;
-        margin-bottom: 0.15in;
-        text-align: left;
-      }
-
-      .wrapper-page .tips li::before {
-        content: "•";
-        color: var(--cyan);
-        font-weight: 800;
-        display: inline-block;
-        width: 1em;
-        margin-left: 0;
-        font-size: 18pt;
-      }
-
-      .wrapper-page .note {
-        font-size: 13pt;
-        color: var(--blue-mid);
-        font-style: italic;
-        margin-top: 0.4in;
-      }
-
-      .wrapper-page .logo-small {
+      .about .band .chip {
         width: 1in;
         height: 1in;
-        margin-bottom: 0.4in;
       }
 
-      .wrapper-page .qr-large {
-        width: 1.5in;
-        height: 1.5in;
-        margin: 0.4in 0;
+      .about .band .chip img {
+        width: 0.8in;
+        height: 0.8in;
       }
 
-      .wrapper-page .cta {
-        font-size: 14pt;
+      /* Centred rather than top-aligned: the About copy is short and a
+         bottom-pinned sign-off left a dead inch under the QR card. */
+      .about .sheet-body {
+        justify-content: center;
+      }
+
+      .about h2 {
+        font-size: 32pt;
+        font-weight: 800;
         color: var(--navy);
-        font-weight: 600;
+        text-align: center;
+        margin-bottom: 0.28in;
       }
 
-      .wrapper-page .thanks {
-        font-size: 13pt;
+      .about .quote {
+        border-left: 6pt solid var(--cyan);
+        padding: 4pt 0 4pt 16pt;
+        font-size: 20pt;
+        font-weight: 800;
+        line-height: 1.25;
+        color: var(--navy);
+        margin-bottom: 0.28in;
+      }
+
+      .about p.body {
+        font-size: 12pt;
+        line-height: 1.55;
+        color: var(--ink);
+      }
+
+      .about .cta {
+        font-size: 12pt;
+        font-weight: 800;
+        color: var(--navy);
+        margin-top: 0.22in;
+      }
+
+      .about .qr-card {
+        align-self: center;
+        margin-top: 0.3in;
+      }
+
+      .about .qr-card img {
+        width: 1.35in;
+        height: 1.35in;
+      }
+
+      .thanks {
+        padding-top: 0.4in;
+        text-align: center;
+        font-size: 12pt;
+        font-weight: 800;
         color: var(--magenta);
-        font-weight: 600;
-        margin-top: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7pt;
+      }
+
+      /* An SVG heart, not the emoji — headless Chrome on the render box has no
+         guaranteed colour-emoji font, so the glyph is a tofu-box risk. This
+         comment ships in the rendered HTML, so it can't contain one either. */
+      .thanks svg {
+        width: 13pt;
+        height: 13pt;
+        fill: var(--magenta);
+      }
+
+      /* ── Ink-light: fills become outlines, geometry never moves ───────── */
+      .ink-light .sheet,
+      .ink-light .band {
+        background: #fff;
+      }
+
+      /* Bottom edge only. A gradient rule flush against the top of the sheet
+         reads as a printer artifact, not as a design. */
+      .ink-light .band {
+        color: var(--navy);
+        border-bottom: 5pt solid transparent;
+        border-image: var(--brand-gradient) 1;
+      }
+
+      .ink-light .band .chip {
+        background: transparent;
+      }
+
+      .ink-light .band .eyebrow {
+        color: var(--blue-mid);
+      }
+
+      /* Only the cover renders ink-light today, so .pill and .qr-card are the
+         two that matter. The rest are here so the rule above stays true if
+         another page ever gets an ink-light variant — .terms .card is listed
+         explicitly because its tint selector out-specifies a bare .card. */
+      .ink-light .pill,
+      .ink-light .qr-card,
+      .ink-light .step,
+      .ink-light .card,
+      .ink-light .terms .card,
+      .ink-light .callout {
+        background: #fff;
+        border: 1pt solid var(--cyan);
       }
     </style>
   </head>
 
-  <body>
+  <body class="<%= "ink-light" if @ink_light %>">
     <%= yield %>
   </body>
 </html>

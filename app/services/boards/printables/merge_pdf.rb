@@ -53,7 +53,7 @@ module Boards
 
       def build(variant:, filename:, board_pages:)
         pdf = CombinePDF.new
-        pdf << CombinePDF.parse(wrappers[:cover])
+        pdf << CombinePDF.parse(cover_for(variant))
         pdf << CombinePDF.parse(wrappers[:how_to_use])
         board_pages.each { |page| pdf << CombinePDF.parse(page.pdf_bytes) }
         pdf << CombinePDF.parse(wrappers[:license])
@@ -65,6 +65,17 @@ module Boards
           bytes: pdf.to_pdf,
           page_count: pdf.pages.length,
         )
+      end
+
+      # The low-ink FILE opens on an ink-light cover so its first page doesn't
+      # contradict its filename. RenderWrappers only produces one for a set, so
+      # fall back to the colour cover rather than assuming the key is there —
+      # the single-board file is one document holding both halves and has no
+      # low-ink identity to honour.
+      def cover_for(variant)
+        return wrappers[:cover] unless variant == BoardPrintable::VARIANT_LOW_INK
+
+        wrappers[:cover_low_ink] || wrappers[:cover]
       end
     end
   end
