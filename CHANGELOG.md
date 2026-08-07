@@ -24,6 +24,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Admins can build a dense board from a word list, and see the symbols before
+  anything is created.** A new admin page takes a board name, a grid size, and a
+  typed word list, then shows the actual picture that would land on every tile —
+  flagging words the library has no art for, and words where it returned art
+  labelled with a different word. Nothing is written until you press Build, so a
+  wrong symbol is caught while it's still free to fix. Boards are created
+  unpublished; publishing stays a separate, confirmed step. The word list has to
+  fill the grid exactly, because a partial last row leaves visible dead cells on
+  a classroom screen — there's a checkbox to override it when you mean to.
 - **Cover-wrapped board printables can be generated in the app.** A sellable,
   print-ready PDF for a board previously required running the
   `speakanyway-printables` GitHub Actions pipeline; its PDF-producing core now

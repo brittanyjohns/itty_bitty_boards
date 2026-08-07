@@ -49,6 +49,12 @@
       <p class="text-xs text-t2 mt-1">Build video demo boards from YouTube clips, review, and publish</p>
     <% end %>
 
+    <%= link_to admin_dashboard_board_builds_path,
+          class: "group admin-card border hover:border-indigo-500 rounded-xl p-5 transition-colors" do %>
+      <p class="text-sm font-medium text-t1 group-hover:text-accent transition-colors">Board Builds</p>
+      <p class="text-xs text-t2 mt-1">Build a dense AAC board from a word list — review the symbol art, then publish</p>
+    <% end %>
+
     <%= link_to admin_dashboard_feedback_path,
           class: "group admin-card border hover:border-indigo-500 rounded-xl p-5 transition-colors" do %>
       <p class="text-sm font-medium text-t1 group-hover:text-accent transition-colors">Feedback</p>

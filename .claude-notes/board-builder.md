@@ -1028,3 +1028,45 @@ doesn't replace it; both can be set independently. Wiring:
 - **Publishing:** a built set publishes and unpublishes as a unit, behind a 409
   warn+confirm. See "Publish cascade (warn + confirm)" in
   `.claude-notes/boards-and-teams.md`.
+
+## Not this: the admin Board Builder (`/admin/board_builds`)
+
+Everything above is the **user-facing wizard** — communicator-scoped, template
+plus interest words, `POST /api/v1/board_builder`. There is a second, unrelated
+builder in the ERB admin, added in Phase 1 of
+`.claude-notes/admin-board-builder-handoff.md`. Don't confuse them.
+
+`Admin::BoardBuildsController` authors a single **dense public board** from a
+typed word list, owned by `User::DEFAULT_ADMIN_ID`. It shares the wizard's
+image-resolution seam (`Boards::ImageResolver`) and nothing else — no
+communicator, no templates, no interest routing, no `ChildBoard`.
+
+Its own invariants:
+
+- **Preview writes nothing.** `Boards::AdminBuilder::ArtPreview` resolves art
+  through `Images::LabelSearch` (whose `resolve` tier calls the read-only
+  `best_arted_for`), never `ImageResolver.resolve`/`resolve_all` — those create
+  a blank `Image` for any unmatched label, so a read-only path must not call
+  them. `resolve_all` runs only inside `Boards::AdminBuilder::Build`'s
+  transaction, where creating blanks is the intended outcome. Asserted by spec
+  on both `Board.count` and `Image.count`.
+- **Tile count must equal `columns × rows`.** Rows aren't stored
+  (`Board#rows_for_screen_size` derives them), so a short final row leaves dead
+  cells rather than a shorter board. `Boards::AdminBuilder::PlanValidator`
+  rejects it; an "allow a partial row" checkbox is the explicit escape hatch.
+- **Boards are marked `settings["admin_builder"] = true`** and every member
+  action is scoped through `AdminBoardBuild.builder_boards`, the same rail
+  `Admin::VideoBoardsController` runs on. Boards are created unpublished;
+  publishing is a separate confirmed POST that refuses an empty board.
+- **md/sm column counts are derived** via `Boards::ScreenColumns`, explicitly —
+  `Board#set_screen_sizes` only fills them when nil, and
+  `boards.medium/small_screen_columns` carry non-nil database defaults (8 and
+  3), so "set lg and let Rails handle it" silently gives a 6-column board an
+  8-column tablet layout.
+- **AI art for uncovered labels is queued after the commit**, in slices of 3,
+  matching `API::Internal::BoardImagesController#queue_missing_art!`. The
+  board's topic is written to `Image#image_prompt` as intent only — "swing in
+  the context of the playground" — because `Images::PromptBuilder` composes the
+  house style envelope at generation time and must not have it baked in twice.
+
+Phases 2 (AI word-list drafting) and 3 (linked child pages) are not built.

@@ -1,0 +1,99 @@
+<%# The authoring form. Rendered by `new` and again at the bottom of `preview`
+    so "change something and look again" is one round trip, not a re-type. %>
+<%= form_tag preview_admin_dashboard_board_builds_path, method: :post do %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="name">Board name</label>
+        <%= text_field_tag :name, @form[:name], id: "name", required: true,
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="topic">Topic <span class="text-t3">(optional)</span></label>
+        <%= text_field_tag :topic, @form[:topic], id: "topic", placeholder: "the playground",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Steers AI art for words the library doesn't cover — “swing” on a playground board, not a mood swing.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-t2 mb-1" for="columns">Columns</label>
+          <%= number_field_tag :columns, @form[:columns], id: "columns", min: 1, max: Admin::BoardBuildsController::MAX_COLUMNS,
+                class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-t2 mb-1" for="rows">Rows</label>
+          <%= number_field_tag :rows, @form[:rows], id: "rows", min: 1, max: Admin::BoardBuildsController::MAX_ROWS,
+                class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="voice">Voice</label>
+        <%= select_tag :voice,
+              options_for_select(VoiceService::VOICES.map { |v| ["#{v[:label]} (#{v[:value]})", v[:value]] }, @form[:voice]),
+              id: "voice",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Set at creation — changing it later re-queues audio for every tile.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="mb-3">
+      <h2 class="text-sm font-medium text-t1">Word list</h2>
+      <p class="text-[11px] text-t3 mt-0.5">
+        One tile per line. <span class="font-mono">word</span>,
+        <span class="font-mono">word | part_of_speech</span>, or
+        <span class="font-mono">word | part_of_speech | tile text</span>.
+        Parts of speech: <span class="font-mono"><%= ColorHelper::PARTS_OF_SPEECH.join(", ") %></span>.
+      </p>
+      <p class="text-[11px] text-t3 mt-1">
+        You need exactly <span id="cell-count" class="text-t1 font-medium">—</span> words
+        (<span id="word-count" class="text-t1 font-medium">0</span> so far).
+        A partial row leaves dead cells at the end of the last row.
+      </p>
+    </div>
+
+    <%= text_area_tag :words, @form[:words], id: "words", rows: 14, spellcheck: false,
+          placeholder: "I | pronoun\nwant | verb\nmore | important_function\nswing | noun",
+          class: "admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none" %>
+
+    <div class="flex flex-col gap-2 mt-4">
+      <label class="flex items-center gap-2 text-xs text-t2">
+        <%= check_box_tag :commercial_safe_only, "1", @form[:commercial_safe_only] %>
+        Prefer commercially-safe art only
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t2">
+        <%= check_box_tag :allow_partial_row, "1", @form[:allow_partial_row] %>
+        Allow a partial last row (leaves empty cells — tick only if you mean it)
+      </label>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <%= submit_tag "Preview the art",
+          class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>
+    <span class="text-[11px] text-t3">Preview writes nothing — no board, no images.</span>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    var words = document.getElementById("words");
+    var columns = document.getElementById("columns");
+    var rows = document.getElementById("rows");
+    var cellCount = document.getElementById("cell-count");
+    var wordCount = document.getElementById("word-count");
+    if (!words || !columns || !rows) return;
+
+    function update() {
+      var cells = (parseInt(columns.value, 10) || 0) * (parseInt(rows.value, 10) || 0);
+      var used = words.value.split("\n").filter(function (line) { return line.trim() !== ""; }).length;
+      cellCount.textContent = cells || "—";
+      wordCount.textContent = used;
+      wordCount.style.color = cells && used !== cells ? "#f87171" : "";
+    }
+
+    [words, columns, rows].forEach(function (el) { el.addEventListener("input", update); });
+    update();
+  })();
+</script>

@@ -1,0 +1,21 @@
+<% content_for :page_title, "New Board Build" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">New Board Build</h1>
+    <p class="text-sm text-t3 mt-0.5">Author a dense board, review every symbol, then build. The board lands unpublished.</p>
+  </div>
+  <%= link_to "← All board builds", admin_dashboard_board_builds_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<% if @problems.present? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm">
+    <ul class="list-disc pl-4 flex flex-col gap-1">
+      <% @problems.each do |problem| %>
+        <li><%= problem %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%= render "form" %>
