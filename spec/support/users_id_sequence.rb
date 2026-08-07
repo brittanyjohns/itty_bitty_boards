@@ -26,7 +26,9 @@
 #   * The guard is monotonic. It never moves the sequence backwards, so it can
 #     only ever widen the gap, and re-running it is always safe.
 module UsersIdSequence
-  # Well clear of User::DEFAULT_ADMIN_ID (1) and of any id a spec pins by hand.
+  # Must stay above every id a spec pins by hand: User::DEFAULT_ADMIN_ID (1)
+  # and the handful of literals in use (42, 4242, 9001). Raise it if a spec
+  # ever needs a larger one — `grep -rn "id: [0-9]" spec/` finds them.
   FLOOR = 10_000
 
   # A single statement per call: leave the sequence at the highest of (where it
