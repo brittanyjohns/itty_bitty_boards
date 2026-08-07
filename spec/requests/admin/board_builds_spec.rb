@@ -259,18 +259,46 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("Drafted 2 of 4 words")
     end
 
-    it "refuses to draft without a topic" do
-      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "")
+    # The board name already describes the board, so retyping it as a topic
+    # buys nothing.
+    it "falls back to the board name when no topic is given" do
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(topic: "Playground"))
+        .and_call_original
 
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Give the board a topic to draft from")
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "Playground", words: "")
+
+      expect(response).to have_http_status(:ok)
     end
 
-    it "does not require a name — a board can be drafted before it is named" do
+    it "prefers an explicitly typed topic over the name" do
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(topic: "the playground"))
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(name: "Playtime", words: "")
+    end
+
+    it "refuses to draft with neither a name nor a topic" do
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Give the board a name or a topic to draft from")
+    end
+
+    it "does not require a name — a board can be drafted from a topic alone" do
       post draft_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("I | pronoun")
+    end
+
+    it "defaults the audience rather than making the admin invent one" do
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(audience: Admin::BoardBuildsController::DEFAULT_AUDIENCE))
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "", words: "")
     end
 
     it "surfaces a generation failure without losing the form" do

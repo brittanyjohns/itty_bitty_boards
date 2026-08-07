@@ -20,6 +20,10 @@ module Admin
     DEFAULT_COLUMNS = 6
     DEFAULT_ROWS = 4
     DEFAULT_VOICE = "polly:kevin".freeze
+    # Who these boards are for unless the admin says otherwise. Pre-filled
+    # rather than left as a placeholder so it's visible and editable — an
+    # invisible default is one nobody remembers to override.
+    DEFAULT_AUDIENCE = "an early communicator".freeze
     # Marks the field in a word-list line that names the page a tile opens.
     LINK_TOKEN = ">".freeze
 
@@ -202,11 +206,12 @@ module Admin
       @voice_values ||= VoiceService::VOICES.map { |voice| voice[:value] }
     end
 
-    # Drafting needs a topic and a grid to size the list, and nothing else —
-    # a board can be drafted before it has a name.
+    # Drafting needs something to draft about and a grid to size the list. The
+    # topic falls back to the board name, so this only fires when both are
+    # empty.
     def draft_problems(form)
       problems = []
-      problems << "Give the board a topic to draft from." if form[:topic].blank?
+      problems << "Give the board a name or a topic to draft from." if form[:topic].blank?
 
       columns = form[:columns].to_i
       rows = form[:rows].to_i
@@ -233,7 +238,7 @@ module Admin
       {
         name: "",
         topic: "",
-        audience: "",
+        audience: DEFAULT_AUDIENCE,
         voice: DEFAULT_VOICE,
         columns: DEFAULT_COLUMNS.to_s,
         rows: DEFAULT_ROWS.to_s,
@@ -255,11 +260,17 @@ module Admin
     # Admin::VideoBoardsController.
     def submitted_form
       words = params[:words].to_s
+      name = params[:name].to_s.strip
 
       {
-        name: params[:name].to_s.strip,
-        topic: params[:topic].to_s.strip,
-        audience: params[:audience].to_s.strip,
+        name: name,
+        topic: params[:topic].to_s.strip.presence || name,
+        # Both fall back rather than being required. The board name is already a
+        # description of the board ("At the Playground"), so making the admin
+        # retype it as a topic buys nothing — and a blank topic is the
+        # difference between a playground `swing` and a mood swing when art is
+        # generated. An explicitly typed value always wins.
+        audience: params[:audience].to_s.strip.presence || DEFAULT_AUDIENCE,
         voice: params[:voice].to_s.strip.presence || DEFAULT_VOICE,
         columns: params[:columns].to_s.strip,
         rows: params[:rows].to_s.strip,

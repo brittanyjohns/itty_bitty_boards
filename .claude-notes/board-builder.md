@@ -1114,4 +1114,13 @@ Its own invariants:
   radius. Publishing refuses a set with any empty page; delete removes pages
   before the root.
 
+- **Topic and audience fill themselves in.** `topic` falls back to the board
+  name (the name already describes the board, and a blank topic is the
+  difference between a playground *swing* and a mood swing when art is
+  generated); `audience` falls back to `DEFAULT_AUDIENCE`. Both are plain
+  fallbacks in `submitted_form`, so an explicitly typed value always wins, and
+  the form mirrors name → topic until the field is edited — the same
+  suggest-until-touched idiom `Admin::VideoBoardsController`'s form uses for
+  columns. Drafting is therefore only refused when name *and* topic are empty.
+
 AI drafting (Phase 2) fills the main word list only — pages are authored by hand.
