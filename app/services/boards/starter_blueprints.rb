@@ -124,8 +124,8 @@ module Boards
     # can be added later. Resolution order: the user's own image, then a
     # public/admin image, else create.
     def resolve_or_create_image(label, user)
-      image = user.images.find_by(label: label)
-      image ||= Image.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil])
+      image = user.images.by_label(label).first
+      image ||= Image.public_img.by_label(label).find_by(user_id: [User::DEFAULT_ADMIN_ID, nil])
       image ||= Image.create!(label: label, user_id: user.id)
       image
     end

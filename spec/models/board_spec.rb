@@ -440,7 +440,7 @@ RSpec.describe Board, type: :model do
         queued = board.find_or_create_images_from_word_list(["Single"], menu_prompts: prompts)
 
         expect(queued).to eq(1)
-        expect(board.images.find_by(label: "Single").image_type).to eq("menu")
+        expect(board.images.by_label("Single").first.image_type).to eq("menu")
       end
 
       it "falls back to library reuse for menu items over the budget" do
@@ -527,24 +527,34 @@ RSpec.describe Board, type: :model do
         FactoryBot.create(:image, label: "Apple")
       end
 
-      # The lookup is case-sensitive — "Apple" and "apple" are treated as different images.
-      it "creates a new image for the differently-cased word" do
+      # `label` is a lowercase matching key, so "Apple" and "apple" are the same
+      # image. Reusing it is the whole point: a case-sensitive lookup used to
+      # miss the curated row and mint a blank, art-less twin beside it.
+      it "reuses the existing image instead of creating a differently-cased twin" do
         words = ["apple", "banana", "cherry"]
         expect {
           board.find_or_create_images_from_word_list(words)
-        }.to change(Image, :count).by(3)
+        }.to change(Image, :count).by(2)
+      end
+
+      it "keeps the authored casing available as display text" do
+        board.find_or_create_images_from_word_list(["apple"])
+
+        apple = Image.by_label("apple").first
+        expect(apple.label).to eq("apple")
+        expect(apple.display_label).to eq("Apple")
       end
     end
 
     context "when words contain leading/trailing whitespace" do
-      # The method does NOT currently strip whitespace — labels are stored as-is.
-      # This documents actual behavior; stripping would be a future improvement.
-      it "stores the labels with whitespace intact" do
+      # Whitespace is stripped as part of building the matching key, so
+      # "  apple  " and "apple" no longer land on two separate images.
+      it "strips the labels down to the matching key" do
         words = ["  apple  ", "banana", "  cherry"]
         expect {
           board.find_or_create_images_from_word_list(words)
         }.to change(Image, :count).by(3)
-        expect(board.images.pluck(:label)).to include("  apple  ", "  cherry", "banana")
+        expect(board.images.pluck(:label)).to include("apple", "cherry", "banana")
       end
     end
   end

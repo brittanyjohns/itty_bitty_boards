@@ -95,9 +95,9 @@ class Scenario < ApplicationRecord
     begin
       word_list.each do |word|
         item_name = prompt_image_name(word)
-        image = Image.find_by(label: item_name, user_id: self.user_id)
-        image = Image.find_by(label: item_name, private: false) unless image
-        image = Image.find_by(label: item_name, private: nil) unless image
+        image = Image.by_label(item_name).find_by(user_id: self.user_id)
+        image = Image.by_label(item_name).find_by(private: false) unless image
+        image = Image.by_label(item_name).find_by(private: nil) unless image
         new_image = Image.create(label: item_name, image_type: self.class.name) unless image
         image = new_image if new_image
         # A subject description only — Images::PromptBuilder supplies the style

@@ -38,7 +38,7 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect(root.name).to eq("Home")
 
       # Root's folder tile links to the Food board.
-      food_tile = root.board_images.find { |bi| bi.label == "Food" }
+      food_tile = root.board_images.find { |bi| bi.display_label == "Food" }
       expect(food_tile.predictive_board_id).to be_present
       expect(food_tile.is_dynamic?).to be(true)
 
@@ -46,7 +46,7 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect(food_board.name).to eq("Food")
 
       # Food board's folder tile links to the Drinks board (level 3).
-      drinks_tile = food_board.board_images.find { |bi| bi.label == "Drinks" }
+      drinks_tile = food_board.board_images.find { |bi| bi.display_label == "Drinks" }
       expect(drinks_tile.predictive_board_id).to be_present
       expect(drinks_tile.is_dynamic?).to be(true)
 
@@ -55,7 +55,7 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect(drinks_board.board_images.map(&:label)).to contain_exactly("water", "juice")
 
       # Leaf tiles never get a predictive board.
-      i_tile = root.board_images.find { |bi| bi.label == "I" }
+      i_tile = root.board_images.find { |bi| bi.display_label == "I" }
       expect(i_tile.predictive_board_id).to be_nil
     end
 
@@ -113,7 +113,7 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect(built.pluck(:name)).to contain_exactly("Level0", "Level1", "Level2")
 
       level2 = built.find_by(name: "Level2")
-      c_tile = level2.board_images.find { |bi| bi.label == "C" }
+      c_tile = level2.board_images.find { |bi| bi.display_label == "C" }
       expect(c_tile.predictive_board_id).to be_nil
     end
 
@@ -182,7 +182,7 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect(root.settings["builder_root"]).to be(true)
       expect(root.settings["builder_child"]).to be_falsey
 
-      food_tile = root.board_images.find { |bi| bi.label == "Food" }
+      food_tile = root.board_images.find { |bi| bi.display_label == "Food" }
       sub_board = Board.find(food_tile.predictive_board_id)
       expect(sub_board.settings["builder_child"]).to be(true)
       expect(sub_board.settings["builder_root"]).to be_falsey
@@ -232,8 +232,8 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
         }.to change { Board.where(user_id: owner.id).count }.by(1) # only the Food sub-board
 
         expect(returned.id).to eq(root.id)
-        expect(root.reload.board_images.map(&:label)).to contain_exactly("I", "Food")
-        food_tile = root.board_images.find { |bi| bi.label == "Food" }
+        expect(root.reload.board_images.map(&:display_label)).to contain_exactly("I", "Food")
+        food_tile = root.board_images.find { |bi| bi.display_label == "Food" }
         expect(Board.find(food_tile.predictive_board_id).settings["builder_child"]).to be(true)
       end
 
@@ -289,7 +289,7 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
         expect(root.user_id).to eq(owner.id)
         expect(root.settings["builder_root"]).to be(true)
 
-        food_tile = root.board_images.find { |bi| bi.label == "Food" }
+        food_tile = root.board_images.find { |bi| bi.display_label == "Food" }
         food_board = Board.find(food_tile.predictive_board_id)
         expect(food_board.board_images.map(&:label)).to eq(["apple"])
         expect(food_board.settings["builder_child"]).to be(true)

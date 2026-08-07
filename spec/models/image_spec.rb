@@ -34,6 +34,7 @@
 #  obf_id              :string
 #  language_settings   :jsonb
 #  language            :string           default("en")
+#  display_label       :string
 #
 require "rails_helper"
 
@@ -129,6 +130,90 @@ RSpec.describe Image, type: :model do
     let(:doc) { FactoryBot.create(:doc, documentable: image) }
 
     context ""
+  end
+
+  describe "label / display_label split" do
+    it "stores label as a lowercase, stripped matching key" do
+      image = FactoryBot.create(:image, label: "  Swing  ")
+
+      expect(image.label).to eq("swing")
+    end
+
+    it "keeps the authored casing in display_label" do
+      image = FactoryBot.create(:image, label: "iPad")
+
+      expect(image.label).to eq("ipad")
+      expect(image.display_label).to eq("iPad")
+    end
+
+    it "preserves punctuation in the matching key" do
+      image = FactoryBot.create(:image, label: "McDonald's")
+
+      expect(image.label).to eq("mcdonald's")
+      expect(image.display_label).to eq("McDonald's")
+    end
+
+    it "does not overwrite a display_label the caller supplied explicitly" do
+      image = FactoryBot.create(:image, label: "tv", display_label: "TV")
+
+      expect(image.label).to eq("tv")
+      expect(image.display_label).to eq("TV")
+    end
+
+    it "re-derives display_label when the label is renamed" do
+      image = FactoryBot.create(:image, label: "Swing")
+      image.update!(label: "Slide")
+
+      expect(image.label).to eq("slide")
+      expect(image.display_label).to eq("Slide")
+    end
+
+    it "keeps an explicit display_label set in the same write as a rename" do
+      image = FactoryBot.create(:image, label: "swing")
+      image.update!(label: "ipad", display_label: "iPad")
+
+      expect(image.label).to eq("ipad")
+      expect(image.display_label).to eq("iPad")
+    end
+
+    it "falls back to label when display_label was never stored" do
+      image = FactoryBot.create(:image, label: "swing")
+      image.update_column(:display_label, nil)
+
+      expect(image.reload.display_label).to eq("swing")
+    end
+  end
+
+  describe ".by_label" do
+    it "matches regardless of the casing the caller typed" do
+      image = FactoryBot.create(:image, label: "swing")
+
+      expect(Image.by_label("Swing")).to include(image)
+      expect(Image.by_label("SWING")).to include(image)
+      expect(Image.by_label("  swing ")).to include(image)
+    end
+
+    # The bug this whole change exists to kill: a case-sensitive lookup missed
+    # the curated image and the calling site's next line minted a blank twin.
+    it "finds the curated image a case-sensitive find_by would have missed" do
+      curated = FactoryBot.create(:image, label: "swing")
+
+      expect(Image.find_by(label: "Swing")).to be_nil
+      expect(Image.by_label("Swing").first).to eq(curated)
+    end
+
+    it "does not match a different label" do
+      FactoryBot.create(:image, label: "swing")
+
+      expect(Image.by_label("slide")).to be_empty
+    end
+
+    it "is chainable with other scopes" do
+      mine = FactoryBot.create(:image, label: "swing", user_id: 42)
+      FactoryBot.create(:image, label: "swing", user_id: 99)
+
+      expect(Image.by_label("Swing").find_by(user_id: 42)).to eq(mine)
+    end
   end
 
   describe "#localized_label" do

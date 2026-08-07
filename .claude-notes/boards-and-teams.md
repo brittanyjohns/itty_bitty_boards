@@ -165,10 +165,31 @@ Full permissions matrix and the rationale for the split lives in
 `../speakanyway/marketing/.claude-notes/handoff-workflow.md`.
 
 
-## Tile text casing (`display_label`)
+## `Image#label` vs `Image#display_label`
 
-`label` is a **lowercase matching key** used for image lookup — never display
-text, never normalized. `display_label` is what renders on the tile.
+**`label` is a lowercase, stripped matching key. `display_label` is the text.**
+The columns exist on both `images` and `board_images` and mean the same thing
+on each.
+
+`Image#set_label` enforces it on every write: `label` is downcased and
+stripped, and the authored casing is captured into `display_label` (on create,
+and re-derived on a rename unless the caller set `display_label` in the same
+write). Punctuation is deliberately **not** stripped — `McDonald's` must not
+collapse into `mcdonalds` and split from its own artwork.
+
+**Never look an image up with `find_by(label:)`.** Use the `Image.by_label`
+scope, which normalizes the caller's input and matches on `LOWER(label)`
+(backed by `index_images_on_lower_label`). The bare form is what let the
+library fill with blank twins: a user typing "Swing" missed the curated
+`swing` image, and the calling site's very next line created a new, art-less
+`Image`. `Boards::ImageResolver` layers art-preference on top of the same
+case-insensitive match and is the right entry point for **tile** resolution
+specifically.
+
+`board_images.label` inherits the image's key, so it is lowercase too. Tests
+and code that want the tile's *text* must read `display_label`.
+
+### Casing of a defaulted `display_label`
 
 `Labels::CaseNormalizer` normalizes **defaulted** `display_label` casing at
 creation. Two `BoardImage` paths default it, and both route through
@@ -177,18 +198,22 @@ creation. Two `BoardImage` paths default it, and both route through
 - `set_defaults` (`before_create`) — the `image.display_label` fallback. It
   runs **after** `part_of_speech` resolution so the phrase rule sees the real
   value.
-- `set_labels` — the `|| label` fall-through only. A `display_label` stored in
-  `language_settings` is an authored translation and is used verbatim.
+- `set_labels` — the fall-through when `language_settings` holds no authored
+  translation for the tile's language. It defaults from the translated label
+  if one exists, else from **`image.display_label`** — never from `self.label`,
+  which is the lowercase key and would flatten `Food` to `food`.
 
 Rules, in order: blank passes through; **any existing uppercase letter means
 the text was cased deliberately** (`iPad`, `TV`, `McDonald's`) and is returned
 untouched — that guard is what removes the need for an acronym exception list;
 non-English → sentence case (`todo listo` → `Todo listo`, since Title Case is
 an English convention); English `part_of_speech == "phrase"` → sentence case,
-because gestalt/GLP tiles are whole utterances; otherwise English Title Case
-(`all done` → `All Done`). A standalone `i` capitalizes anywhere in sentence
-case. The transform **only ever upcases a word's first letter** — it never
-downcases, so nothing that slips past the uppercase guard can be mangled.
+because gestalt/GLP tiles are whole utterances; otherwise **lowercase**, the
+AAC core-vocabulary convention (LAMP, Unity, Word Power) — `all done` stays
+`all done`. A standalone `i` capitalizes anywhere, since that is grammar rather
+than casing style. The transform **only ever upcases a word's first letter** —
+it never downcases, so nothing that slips past the uppercase guard can be
+mangled.
 
 An explicitly supplied `display_label` never reaches the normalizer:
 `display_label.blank?` is false, so the caller's casing wins. That's what keeps
@@ -196,9 +221,19 @@ the authored-casing pins (`pin_authored_label!`, `NavRowSync`,
 `ImageResolver#upgrade_board_tiles!`, `BoardFromScreenshot`, `SeededSetCloner`)
 and the bulk `label_case` endpoint working unchanged.
 
-Normalization is **forward-only** — no backfill. Rows created before this
+`Board#add_image` must **not** prime `image.language_settings` with the image's
+own label before calling `set_labels`. That in-memory write was read back as an
+authored translation, which both skipped the normalizer and — on a non-English
+board — overwrote that language's real translation with the English text.
+
+Existing `board_images` rows are **not** backfilled. Tiles created before this
 keep their casing; a backfill would have to distinguish deliberate casing from
-inherited casing on data where that signal is already lost.
+inherited casing on data where that signal is already lost. The `images`
+backfill is a different case and did run: `display_label` took each row's
+authored casing verbatim, and only single plain Title-Cased `category` folder
+tiles with an existing lowercase twin (`Animals`, `Play`, `Time`) were
+lowercased. The twin test is what protects the imported source-collection names
+(`CommuniKate weather`, `Core 24 - Small Words`).
 
 ## Make a Board From Screenshot
 

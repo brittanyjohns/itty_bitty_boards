@@ -93,7 +93,7 @@ RSpec.describe Boards::SetGraphBuilder do
 
   it "exposes each tile's BoardImage id and image_url" do
     home = graph[:boards].find { |b| b[:id] == set[:home].id }
-    bi = set[:home].board_images.find_by(label: "I")
+    bi = set[:home].board_images.find_by(display_label: "I")
     tile = home[:tiles].find { |t| t[:label] == "I" }
     expect(tile[:id]).to eq(bi.id)
     expect(tile).to have_key(:image_url)

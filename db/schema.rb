@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_06_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_07_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -547,7 +547,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_06_140000) do
     t.string "obf_id"
     t.jsonb "language_settings", default: {}
     t.string "language", default: "en"
+    t.string "display_label"
+    t.index "lower((label)::text)", name: "index_images_on_lower_label"
     t.index ["category"], name: "index_images_on_category"
+    t.index ["label"], name: "index_images_on_label"
     t.index ["language_settings"], name: "index_images_on_language_settings_gin", using: :gin
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"

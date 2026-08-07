@@ -15,7 +15,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      @images = @images.where(label: params[:query]).order(Arel.sql("#{sort_field} #{sort_order}")).page params[:page]
+      @images = @images.by_label(params[:query]).order(Arel.sql("#{sort_field} #{sort_order}")).page params[:page]
     else
       @images = @images.order(Arel.sql("#{sort_field} #{sort_order}")).page params[:page]
     end
@@ -56,7 +56,7 @@ class API::ImagesController < API::ApplicationController
   def user_docs
     @current_user = current_user
     label = params[:label]
-    @images = Image.with_artifacts.where(label: label, user_id: @current_user.id)
+    @images = Image.with_artifacts.by_label(label).where(user_id: @current_user.id)
     if @current_user.admin?
       @docs = UserDoc.where(image_id: @images.pluck(:id)).includes(:doc, :image).order(created_at: :desc).page params[:page]
     else
@@ -74,7 +74,7 @@ class API::ImagesController < API::ApplicationController
     label = image_params[:label]
     image_id = params["image"]["id"]
     @image = accessible_image(image_id) if image_id.present?
-    @image = Image.find_by(label: label, user_id: @current_user.id) unless @image
+    @image = Image.by_label(label).find_by(user_id: @current_user.id) unless @image
     @image = Image.create(label: label, user_id: @current_user.id) unless @image
     @doc = attach_doc_to_image(@image, @current_user, params[:cropped_image], params[:file_extension])
 
@@ -99,7 +99,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     label = params[:query]
-    @existing_image = Image.find_by(label: label, user_id: @current_user.id) unless @existing_image
+    @existing_image = Image.by_label(label).find_by(user_id: @current_user.id) unless @existing_image
     @image = nil
     if @existing_image
       @image = @existing_image
@@ -326,7 +326,7 @@ class API::ImagesController < API::ApplicationController
     duplicate_image = image_params[:duplicate] == "1"
 
     label = image_params[:label]
-    @existing_image = Image.find_by(label: label, user_id: @current_user.id)
+    @existing_image = Image.by_label(label).find_by(user_id: @current_user.id)
     @image = nil
     if @existing_image && find_first && !duplicate_image
       @image = @existing_image
@@ -535,7 +535,7 @@ class API::ImagesController < API::ApplicationController
       status: "generating",
       display_doc: {
         id: @current_doc&.id,
-        label: @image&.label,
+        label: @image&.display_label,
         user_id: @current_doc&.user_id,
         src: @current_doc&.image&.url,
         is_current: true,
@@ -546,7 +546,7 @@ class API::ImagesController < API::ApplicationController
       docs: @image_docs.map do |doc|
         {
           id: doc.id,
-          label: @image.label,
+          label: @image.display_label,
           user_id: doc.user_id,
           src: doc.image.url,
           is_current: doc.id == @current_doc_id,
@@ -573,8 +573,8 @@ class API::ImagesController < API::ApplicationController
     label = image_params["label"]
 
     is_private = image_params["private"] || false
-    @image = Image.find_by(label: label, user_id: @current_user.id)
-    @image = Image.public_img.find_by(label: label) unless @image
+    @image = Image.by_label(label).find_by(user_id: @current_user.id)
+    @image = Image.public_img.by_label(label).first unless @image
     @found_image = @image
     @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || (@found_image && duplicate_image)
 
@@ -613,8 +613,8 @@ class API::ImagesController < API::ApplicationController
   def find_by_label
     @current_user = current_user
     label = params[:label]
-    @image = Image.find_by(label: label, user_id: @current_user.id)
-    @image = Image.public_img.find_by(label: label) unless @image
+    @image = Image.by_label(label).find_by(user_id: @current_user.id)
+    @image = Image.public_img.by_label(label).first unless @image
     if @image
       @image_with_display_doc = @image.with_display_doc(@current_user)
       render json: @image_with_display_doc
@@ -676,7 +676,7 @@ class API::ImagesController < API::ApplicationController
     @images_with_display_doc = @images.map do |image|
       {
         id: image.id,
-        label: image.label,
+        label: image.display_label,
         image_prompt: image.image_prompt,
         src: image.display_image_url(@current_user),
         audio: image.default_audio_url,
@@ -692,7 +692,7 @@ class API::ImagesController < API::ApplicationController
     @images_with_display_doc = @images.map do |image|
       {
         id: image.id,
-        label: image.label,
+        label: image.display_label,
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
         audio: image.default_audio_url,

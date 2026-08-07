@@ -87,7 +87,7 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
     board.format_board_with_ai
     board.reload
 
-    expect(board.board_images.order(:position).pluck(:label)).to eq(words)
+    expect(board.board_images.order(:position).pluck(:display_label)).to eq(words)
   end
 
   it "does not place a w=2 tile so it overlaps the previous tile (regression)" do

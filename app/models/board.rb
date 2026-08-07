@@ -1058,9 +1058,9 @@ class Board < ApplicationRecord
         image_ids_to_generate << image.id
         queued_count += 1
       else
-        image = user.images.find_by(label: word) if user_id
+        image = user.images.by_label(word).first if user_id
 
-        image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+        image = Image.public_img.by_label(word).find_by(user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
         new_image = Image.create(label: word) unless image
         image ||= new_image
         display_doc = image.display_tile_url(user)
@@ -1118,8 +1118,15 @@ class Board < ApplicationRecord
     return if image_id.blank?
     @image = Image.with_artifacts.find_by(id: image_id)
 
-    language_settings = @image.language_settings || {}
-    language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
+    # No language_settings priming here. This used to write
+    # `{ "display_label" => @image.label }` into the image's in-memory
+    # language_settings purely as a side channel into set_labels — which reads
+    # that key as an *authored translation* and uses it verbatim. Two things
+    # broke as a result: the tile skipped Labels::CaseNormalizer entirely (it
+    # got the raw lowercase matching key instead of the image's display text),
+    # and on a non-English board it overwrote that language's real translation
+    # with the English label. set_labels already falls back to the image's own
+    # label/display_label when no translation exists, so this was never needed.
     self.voice = VoiceService.normalize_voice(self.voice)
     new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
     new_board_image.set_labels
@@ -1223,9 +1230,9 @@ class Board < ApplicationRecord
       # end
 
       if image.user_id
-        image = Image.find_by(label: image.label, user_id: @cloned_board.user_id) if image.user_id == @cloned_board.user_id
+        image = Image.by_label(image.label).find_by(user_id: @cloned_board.user_id) if image.user_id == @cloned_board.user_id
       else
-        image = Image.find_by(label: image.label, user_id: [nil, @cloned_board.user_id, User::DEFAULT_ADMIN_ID])
+        image = Image.by_label(image.label).find_by(user_id: [nil, @cloned_board.user_id, User::DEFAULT_ADMIN_ID])
       end
       image = Image.create(label: original_image.label, user_id: @cloned_board.user_id) unless image
       layout = @layouts.find { |l| l[0] == original_image.id }&.second
@@ -2249,7 +2256,7 @@ class Board < ApplicationRecord
         @predictive_images = @predictive_board&.board_images&.order(:position) || []
       end
       button = {
-        label: bi.label,
+        label: bi.display_label.presence || bi.label,
       # image_id: bi.id,
       # predictive_images: @predictive_images.map { |pi| { label: pi.label, image_id: pi.id } },
       # predictive_board_id: @predictive_board_id,
@@ -2275,13 +2282,15 @@ class Board < ApplicationRecord
     @board = Board.create!(name: obf_data["name"], board_type: "dynamic", user_id: user_id, parent_type: "User", parent_id: user_id)
     obf_data["images"].each do |image_data|
       image_data = image_data.with_indifferent_access
-      @image = Image.searchable.where(user_id: @board.user_id).find_by(label: image_data["label"])
+      @image = Image.searchable.where(user_id: @board.user_id).by_label(image_data["label"]).first
       @image = Image.create(label: image_data["label"]) unless @image
       new_board_image = @board.add_image(@image.id)
       if image_data["predictive_images"]&.any?
-        @predictive_board = Board.create!(name: @image.label, board_type: "predictive", user_id: user_id, parent_type: "Image", parent_id: @image.id)
+        # display_label, not label: a board name is text a human reads, and
+        # label is the lowercase matching key.
+        @predictive_board = Board.create!(name: @image.display_label, board_type: "predictive", user_id: user_id, parent_type: "Image", parent_id: @image.id)
         image_data["predictive_images"].each do |predictive_image_label|
-          @predictive_image = Image.searchable.where(user_id: @board.user_id).find_by(label: predictive_image_label)
+          @predictive_image = Image.searchable.where(user_id: @board.user_id).by_label(predictive_image_label).first
           @predictive_image = Image.create(label: predictive_image_label) unless @predictive_image
           @predictive_board.add_image(@predictive_image.id) if @predictive_image
         end
@@ -2484,8 +2493,8 @@ class Board < ApplicationRecord
 
   def matching_image
     normalized_name = name.downcase.strip
-    image = Image.find_by(label: normalized_name, user_id: user_id)
-    image = Image.find_by(label: normalized_name, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+    image = Image.by_label(normalized_name).find_by(user_id: user_id)
+    image = Image.by_label(normalized_name).find_by(user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
     image
   end
 

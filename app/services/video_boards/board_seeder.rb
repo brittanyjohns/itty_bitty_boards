@@ -24,7 +24,7 @@ module VideoBoards
     # Same reuse-don't-generate policy as core_boards: prefer an existing public
     # image with artwork, else create one without queuing generation.
     def find_or_build_image(label)
-      matches = Image.default_public.where(label: label).order(:created_at)
+      matches = Image.default_public.by_label(label).order(:created_at)
       matches.find { |img| img.docs.any? } || matches.last ||
         Image.default_public.new(label: label) do |img|
           img.image_prompt = label

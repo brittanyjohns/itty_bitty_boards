@@ -54,13 +54,13 @@ class OpenSymbol < ApplicationRecord
   end
 
   def matching_image
-    matching_image = Image.find_by(label: self.label, private: [false, nil])
+    matching_image = Image.by_label(self.label).find_by(private: [false, nil])
     return unless matching_image && matching_image.docs.where(processed: self.name.parameterize, raw: self.search_string).any?
     matching_image
   end
 
   def has_matching_image?
-    matching_image = Image.find_by(label: self.label, private: [false, nil])
+    matching_image = Image.by_label(self.label).find_by(private: [false, nil])
     return unless matching_image
     matching_image.docs.where(processed: self.name.parameterize, raw: self.search_string).any?
   end
@@ -110,7 +110,7 @@ class OpenSymbol < ApplicationRecord
 
   def add_to_matching_image
     return if has_matching_image?
-    matching_image = Image.find_by(label: self.label, private: [false, nil])
+    matching_image = Image.by_label(self.label).find_by(private: [false, nil])
     downloaded_image = get_downloaded_image
     puts "Downloaded Image: #{downloaded_image.inspect}"
     if matching_image
