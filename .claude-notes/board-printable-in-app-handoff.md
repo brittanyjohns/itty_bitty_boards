@@ -320,15 +320,28 @@ Invariants a future change has to keep:
   overrides swap fills for outlines and never change sizes: if the two covers
   could disagree about layout they could disagree about page count, and the
   colour and low-ink files would stop being interchangeable.
+- **A wrapper page describes only the file it sits in.** The how-to-use page's
+  step 1 is the one claim it makes about its own document, and a set is emitted
+  as two separate files, so it is rendered per variant: the colour file says
+  it's colour, the low-ink file says it's low-ink, and **neither mentions the
+  other**. A reader holding one print doesn't need to be told another exists
+  somewhere — it just raises a question the page can't answer. Only a single
+  board, which is one file genuinely holding both halves, describes a pair.
+- **Nothing is justified and nothing hyphenates.** Body copy carries
+  `text-wrap: pretty` to kill orphans; short centred blocks (headings, intros,
+  captions) carry `text-wrap: balance`. Both are ignored by an older Chrome
+  rather than breaking. Where a break still lands badly, fix the copy or use
+  `&nbsp;` — don't reach for hyphenation.
 - **The QR is white-filled, not cream.** It sits inside a white card in both
   variants, and contrast is the whole job of that image.
 - **The public `pb` URL is printed as text beside every QR.** These get
   photocopied, laminated, and handed to people without a phone camera.
 
-`RenderWrappers#call` returns a fifth key, `cover_low_ink`, **only for a set** —
-a single board is one document holding both halves, so it has no low-ink file
-to give its own cover to. `MergePdf#cover_for` falls back to the colour cover
-rather than assuming the key is there.
+`RenderWrappers#call` returns two extra keys for a set — `cover_low_ink` and
+`how_to_use_low_ink` — and neither for a single board, which is one document
+holding both halves and has no low-ink identity to honour.
+`MergePdf#wrapper_for(key, variant)` picks the `_low_ink` render for the low-ink
+file and falls back rather than assuming the key is there.
 
 ## Wrap-up
 

@@ -16,6 +16,7 @@ RSpec.describe Boards::Printables::MergePdf do
   let(:license) { 603 }
   let(:credits) { 604 }
   let(:cover_low_ink) { 605 }
+  let(:how_to_low_ink) { 606 }
 
   let(:wrappers) do
     {
@@ -24,6 +25,7 @@ RSpec.describe Boards::Printables::MergePdf do
       license: page_pdf(license),
       credits: page_pdf(credits),
       cover_low_ink: page_pdf(cover_low_ink),
+      how_to_use_low_ink: page_pdf(how_to_low_ink),
     }
   end
 
@@ -56,13 +58,13 @@ RSpec.describe Boards::Printables::MergePdf do
       described_class.new(wrappers: wrappers, pages: pages, boards: boards, slug: "core-words").call
     end
 
-    it "opens the low-ink file on the ink-light cover" do
+    it "gives the low-ink file its own cover and instructions" do
       low_ink = files.find { |f| f.variant == BoardPrintable::VARIANT_LOW_INK }
 
-      expect(widths(low_ink)).to eq([cover_low_ink, how_to, 201, 202, license, credits])
+      expect(widths(low_ink)).to eq([cover_low_ink, how_to_low_ink, 201, 202, license, credits])
     end
 
-    it "opens the colour file on the colour cover" do
+    it "gives the colour file the colour cover and instructions" do
       colour = files.find { |f| f.variant == BoardPrintable::VARIANT_COLOR }
 
       expect(widths(colour)).to eq([cover, how_to, 101, 102, license, credits])
@@ -77,18 +79,19 @@ RSpec.describe Boards::Printables::MergePdf do
     # RenderWrappers only produces an ink-light cover for a set, but MergePdf
     # must not assume the key is present — a missing one falls back rather than
     # merging nil and blowing up mid-job.
-    it "falls back to the colour cover when no ink-light cover was rendered" do
+    it "falls back to the colour pages when no low-ink variants were rendered" do
       wrappers.delete(:cover_low_ink)
+      wrappers.delete(:how_to_use_low_ink)
       low_ink = files.find { |f| f.variant == BoardPrintable::VARIANT_LOW_INK }
 
-      expect(widths(low_ink).first).to eq(cover)
+      expect(widths(low_ink).take(2)).to eq([cover, how_to])
     end
   end
 
   # One document holding both halves: there is no low-ink FILE to give its own
   # identity to, so it keeps the one colour cover.
   describe "a single board" do
-    it "wraps both halves in one file behind the colour cover" do
+    it "wraps both halves in one file behind the colour cover and instructions" do
       pages = [
         board_page(BoardPrintable::VARIANT_COLOR, 101),
         board_page(BoardPrintable::VARIANT_LOW_INK, 201),

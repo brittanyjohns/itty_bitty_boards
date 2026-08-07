@@ -64,6 +64,30 @@
         size: letter;
       }
 
+      /* Typesetting. Nothing is justified and nothing hyphenates — both produce
+         rivers and broken words at these short measures.
+         `pretty` costs Chrome a slower line-breaking pass in exchange for
+         killing orphans (a stranded last word); `balance` evens the line
+         lengths of the short centred blocks — headings, intros, captions —
+         where a long-then-tiny break is most obvious. Both are ignored by an
+         older Chrome rather than breaking, so the render degrades to the
+         default greedy wrap. */
+      p, li {
+        text-wrap: pretty;
+        hyphens: none;
+      }
+
+      .cover .title,
+      .page-head h2,
+      .page-head .intro,
+      .about h2,
+      .about .quote,
+      .pill,
+      .qr-card .qr-caption,
+      .license-foot p {
+        text-wrap: balance;
+      }
+
       /* ── Sheet: the shared 8.5×11 page every wrapper builds on ────────── */
       .sheet {
         width: 8.5in;
@@ -350,60 +374,34 @@
       }
 
       /* ── License ─────────────────────────────────────────────────────── */
-      /* flex: 1 + align-content: center so the two cards float in the middle of
-         the page rather than clinging to the heading with six dead inches
-         underneath. Rows stay content-sized. */
+      /* One centred column. Each term is a whole sentence, so a narrow
+         side-by-side column squeezed them to three and four lines each with
+         a stranded last word; at full measure they all fit on one or two. */
       .terms {
         flex: 1;
         min-height: 0;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.25in;
-        align-content: center;
-      }
-
-      .terms .card {
-        padding: 24pt 22pt 26pt;
-      }
-
-      .terms .card.yes {
-        background: var(--cyan-tint);
-      }
-
-      .terms .card.no {
-        background: var(--magenta-tint);
-      }
-
-      .terms h3 {
-        font-size: 16pt;
-        font-weight: 800;
-        color: var(--navy);
-        margin-bottom: 16pt;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 26pt;
+        width: 5.9in;
+        margin: 0 auto;
       }
 
       .terms li {
         list-style: none;
         display: flex;
-        gap: 10pt;
+        gap: 14pt;
         align-items: flex-start;
-        font-size: 11.5pt;
+        font-size: 14pt;
         line-height: 1.45;
-        margin-bottom: 14pt;
+        text-align: left;
       }
 
-      .terms li:last-child {
-        margin-bottom: 0;
-      }
-
-      .license .callout {
-        flex: 0 0 auto;
-        margin-bottom: 0.35in;
-      }
-
-      .license .callout p {
-        font-size: 11pt;
-        line-height: 1.45;
-        color: var(--navy);
+      .terms .mark {
+        /* Optical alignment with the cap height of the first line, not the
+           line box — a flex-start mark sits visibly high next to 13pt text. */
+        margin-top: 2.5pt;
       }
 
       .license-foot {
