@@ -18,6 +18,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   runs on Sidekiq; a tree over the board cap is refused up front with a 422
   rather than half-built.
 
+### Removed
+
+- **The Events, Placeholders and Organizations screens are gone from the HTML
+  admin dashboard.** None was still in use — Events managed one-off
+  giveaway/contest pages, Placeholders pre-generated MySpeak profiles for print
+  handouts, and Organizations was an unfinished multi-tenant admin — so all
+  three screens, their routes, and their nav entries have been dropped rather
+  than left to rot. The underlying `Event` and `Organization` models, the public
+  `/events/:slug` contest pages, and the MySpeak placeholder-claim API are
+  untouched, as are the React admin's own APIs for all three.
+
 ### Changed
 
 - **Staging no longer sends email to real people.** Staging runs against live
