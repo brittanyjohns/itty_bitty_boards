@@ -20,13 +20,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Removed
 
-- **The Events and Placeholders screens are gone from the HTML admin
-  dashboard.** Neither was still in use — Events managed one-off
-  giveaway/contest pages and Placeholders pre-generated MySpeak profiles for
-  print handouts — so both screens, their routes, and their nav entries have
-  been dropped rather than left to rot. The underlying `Event` model, the
-  public `/events/:slug` contest pages, and the MySpeak placeholder-claim API
-  are untouched, as is the React admin's own Events API.
+- **The Events, Placeholders and Organizations screens are gone from the HTML
+  admin dashboard.** None was still in use — Events managed one-off
+  giveaway/contest pages, Placeholders pre-generated MySpeak profiles for print
+  handouts, and Organizations was an unfinished multi-tenant admin — so all
+  three screens, their routes, and their nav entries have been dropped rather
+  than left to rot. The underlying `Event` and `Organization` models, the public
+  `/events/:slug` contest pages, and the MySpeak placeholder-claim API are
+  untouched, as are the React admin's own APIs for all three.
 
 ### Changed
 

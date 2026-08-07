@@ -41,17 +41,19 @@ RSpec.describe "Admin::Dashboard", type: :request do
       expect(response.body).to include(admin_dashboard_users_path(filter: "demo"))
     end
 
-    it "no longer offers the retired Events and Placeholders screens" do
+    it "no longer offers the retired Events, Placeholders and Organizations screens" do
       get admin_root_path
 
-      expect(response.body).not_to include("/admin/events")
-      expect(response.body).not_to include("/admin/placeholders")
-      # Both paths fall through to the catch-all 404 rather than a controller.
-      get "/admin/events"
-      expect(response).to have_http_status(:not_found)
+      ["/admin/events", "/admin/placeholders", "/admin/organizations"].each do |path|
+        expect(response.body).not_to include(path)
+      end
 
-      get "/admin/placeholders"
-      expect(response).to have_http_status(:not_found)
+      # Each path falls through to the catch-all 404 rather than a controller.
+      # The React admin keeps its own APIs for all three.
+      ["/admin/events", "/admin/placeholders", "/admin/organizations"].each do |path|
+        get path
+        expect(response).to have_http_status(:not_found), "expected #{path} to 404"
+      end
     end
 
     context "when signed in as non-admin" do
