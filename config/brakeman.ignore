@@ -70,72 +70,73 @@
       "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix \u2014 no user-supplied path traversal is possible."
     },
     {
-      "warning_type": "Cross-Site Scripting",
-      "warning_code": 4,
-      "fingerprint": "d86cd25c64fd6d9d7efd87e102ba27dbb3dc9633cd2c054a3742332994f925ff",
-      "check_name": "LinkToHref",
-      "message": "Potentially unsafe model attribute in `link_to` href",
-      "file": "app/views/admin/events/show.html.erb",
-      "line": 30,
-      "link": "https://brakemanscanner.org/docs/warning_types/link_to_href",
-      "code": "link_to(Event.includes(:contest_entries).find(params[:id]).public_url, Event.includes(:contest_entries).find(params[:id]).public_url, :target => \"_blank\", :rel => \"noopener\", :class => \"text-accent hover:underline text-xs break-all\")",
-      "render_path": [
-        {
-          "type": "controller",
-          "class": "Admin::EventsController",
-          "method": "show",
-          "line": 11,
-          "file": "app/controllers/admin/events_controller.rb",
-          "rendered": {
-            "name": "admin/events/show",
-            "file": "app/views/admin/events/show.html.erb"
-          }
-        }
-      ],
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "c3dab9541dd6e1e194a147ce3cb41da93e7e40cabf16c0eb453c71b71dffea58",
+      "check_name": "SQL",
+      "message": "Possible SQL injection",
+      "file": "app/controllers/admin/board_printables_controller.rb",
+      "line": 85,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "Arel.sql(\"LOWER(boards.name) #{@board_dir.upcase}\")",
+      "render_path": null,
       "location": {
-        "type": "template",
-        "template": "admin/events/show"
+        "type": "method",
+        "class": "Admin::BoardPrintablesController",
+        "method": "sorted_boards"
       },
-      "user_input": "Event.includes(:contest_entries).find(params[:id]).public_url",
-      "confidence": "Weak",
+      "user_input": "@board_dir.upcase",
+      "confidence": "Medium",
       "cwe_id": [
-        79
+        89
       ],
-      "user_note": "False positive: Event#public_url is built entirely from server-side values -- ENV['FRONT_END_URL'] (or the localhost default) joined to slug.parameterize. parameterize strips everything outside [a-z0-9-], so no scheme (javascript:, data:) can be injected, and no user input reaches the href unfiltered. The view is also admin-only (Admin::ApplicationController -> require_admin!)."
+      "user_note": "False positive: @board_dir is validated against an explicit allowlist (%w[asc desc]) via presence_in before being used in Arel.sql. No user input reaches this interpolation unchecked."
     },
     {
-      "warning_type": "Cross-Site Scripting",
-      "warning_code": 4,
-      "fingerprint": "8916492c3c2c9dd4864991433ce0b303fe6a9b89615e08e6d0e03edae90312bc",
-      "check_name": "LinkToHref",
-      "message": "Potentially unsafe model attribute in `link_to` href",
-      "file": "app/views/admin/placeholders/index.html.erb",
-      "line": 50,
-      "link": "https://brakemanscanner.org/docs/warning_types/link_to_href",
-      "code": "link_to((Unresolved Model).new.claim_url, (Unresolved Model).new.claim_url, :target => \"_blank\", :rel => \"noopener\", :class => \"text-accent hover:underline break-all\")",
-      "render_path": [
-        {
-          "type": "controller",
-          "class": "Admin::PlaceholdersController",
-          "method": "index",
-          "line": 5,
-          "file": "app/controllers/admin/placeholders_controller.rb",
-          "rendered": {
-            "name": "admin/placeholders/index",
-            "file": "app/views/admin/placeholders/index.html.erb"
-          }
-        }
-      ],
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "6a17815b3a9d7bc2dad3073a376f831de0c6e74f32e8dcc9123d45360c888971",
+      "check_name": "SQL",
+      "message": "Possible SQL injection",
+      "file": "app/controllers/admin/board_printables_controller.rb",
+      "line": 87,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "Arel.sql(\"#{SUBBOARD_COUNT_SQL} #{@board_dir.upcase}, #{name_order}\")",
+      "render_path": null,
       "location": {
-        "type": "template",
-        "template": "admin/placeholders/index"
+        "type": "method",
+        "class": "Admin::BoardPrintablesController",
+        "method": "sorted_boards"
       },
-      "user_input": "(Unresolved Model).new.claim_url",
-      "confidence": "Weak",
+      "user_input": "@board_dir.upcase",
+      "confidence": "Medium",
       "cwe_id": [
-        79
+        89
       ],
-      "user_note": "False positive: Profile#claim_url is built entirely from server-side values -- ENV['FRONT_END_URL'] (or the localhost default) joined to claim_token, which is generated by SecureRandom and never user-supplied. No scheme can be injected. The view is also admin-only (Admin::ApplicationController -> require_admin!)."
+      "user_note": "False positive: @board_dir is validated against an explicit allowlist (%w[asc desc]) via presence_in before being used in Arel.sql. SUBBOARD_COUNT_SQL and name_order are both frozen server-side constants, never user input."
+    },
+    {
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "269d7f3e2b0dee45ab3752e25c357a6035f298c2163c78201270bfc9374faed7",
+      "check_name": "SQL",
+      "message": "Possible SQL injection",
+      "file": "app/controllers/admin/board_printables_controller.rb",
+      "line": 89,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "Arel.sql(\"boards.#{@board_sort} #{@board_dir.upcase}, #{name_order}\")",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Admin::BoardPrintablesController",
+        "method": "sorted_boards"
+      },
+      "user_input": "@board_sort",
+      "confidence": "Medium",
+      "cwe_id": [
+        89
+      ],
+      "user_note": "False positive: @board_sort and @board_dir are both validated against explicit allowlists (SORTABLE_BOARD_COLUMNS and %w[asc desc]) via presence_in before being used in Arel.sql. No user input reaches this interpolation unchecked."
     }
   ],
   "updated": null,

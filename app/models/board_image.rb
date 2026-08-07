@@ -114,6 +114,10 @@ class BoardImage < ApplicationRecord
   # `part_of_speech || image.part_of_speech` chain can never fall through —
   # "default" is a stored placeholder, not a category. Mirrors the
   # `blank? || == "default"` test set_defaults uses on create so the two agree.
+  #
+  # The part of speech this tile will actually carry: an explicitly set value
+  # wins, otherwise the shared Image's. Mirrors the resolution in set_defaults,
+  # which runs after set_labels on the add_image path.
   def effective_part_of_speech
     own = part_of_speech.presence
     return own if own && own != "default"
@@ -163,14 +167,6 @@ class BoardImage < ApplicationRecord
   # for image lookup.
   def normalized_default_label(text, lang = language)
     Labels::CaseNormalizer.normalize(text, language: lang, part_of_speech: effective_part_of_speech)
-  end
-
-  # The part of speech this tile will actually carry: an explicitly set value
-  # wins, otherwise the shared Image's. Mirrors the resolution in set_defaults,
-  # which runs after set_labels on the add_image path.
-  def effective_part_of_speech
-    return part_of_speech if part_of_speech.present? && part_of_speech != "default"
-    image&.part_of_speech || "default"
   end
 
   # Delegates to the underlying Image's language_settings. Stored `label` /
