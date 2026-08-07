@@ -1,6 +1,29 @@
 {
   "ignored_warnings": [
     {
+      "warning_type": "Mass Assignment",
+      "warning_code": 105,
+      "fingerprint": "5dd6184726cef310292198ed511d5341b38621d33e2e3bdcc6c120e434a055df",
+      "check_name": "PermitAttributes",
+      "message": "Potentially dangerous key allowed for mass assignment",
+      "file": "app/controllers/admin/users_controller.rb",
+      "line": 235,
+      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
+      "code": "params.require(:user).permit(:name, :email, :role, :locked, :play_demo, :board_limit, :paid_communicator_limit, :demo_communicator_limit, :wait_to_speak, :disable_audit_logging, :enable_text_display, :enable_image_display, :voice => ([:name, :language]))",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Admin::UsersController",
+        "method": "user_params"
+      },
+      "user_input": ":role",
+      "confidence": "Medium",
+      "cwe_id": [
+        915
+      ],
+      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment \u2014 a non-listed role is ignored."
+    },
+    {
       "warning_type": "SQL Injection",
       "warning_code": 0,
       "fingerprint": "3cc2e3c76861366a0a310f3aefbff7cbdbc5002d95eafdec66a2f3bae327a827",
@@ -47,50 +70,74 @@
       "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix \u2014 no user-supplied path traversal is possible."
     },
     {
-      "warning_type": "Mass Assignment",
-      "warning_code": 105,
-      "fingerprint": "31f4c5d3cb5e430076abb74adbde989089663fcf39d7b4bc559abcbef32ad283",
-      "check_name": "PermitAttributes",
-      "message": "Potentially dangerous key allowed for mass assignment",
-      "file": "app/controllers/admin/users_controller.rb",
-      "line": 176,
-      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.require(:user).permit(:name, :email, :role, :locked, :play_demo, :board_limit, :paid_communicator_limit, :demo_communicator_limit)",
-      "render_path": null,
-      "location": {
-        "type": "method",
-        "class": "Admin::UsersController",
-        "method": "user_params"
-      },
-      "user_input": ":role",
-      "confidence": "Medium",
-      "cwe_id": [
-        915
+      "warning_type": "Cross-Site Scripting",
+      "warning_code": 4,
+      "fingerprint": "d86cd25c64fd6d9d7efd87e102ba27dbb3dc9633cd2c054a3742332994f925ff",
+      "check_name": "LinkToHref",
+      "message": "Potentially unsafe model attribute in `link_to` href",
+      "file": "app/views/admin/events/show.html.erb",
+      "line": 30,
+      "link": "https://brakemanscanner.org/docs/warning_types/link_to_href",
+      "code": "link_to(Event.includes(:contest_entries).find(params[:id]).public_url, Event.includes(:contest_entries).find(params[:id]).public_url, :target => \"_blank\", :rel => \"noopener\", :class => \"text-accent hover:underline text-xs break-all\")",
+      "render_path": [
+        {
+          "type": "controller",
+          "class": "Admin::EventsController",
+          "method": "show",
+          "line": 11,
+          "file": "app/controllers/admin/events_controller.rb",
+          "rendered": {
+            "name": "admin/events/show",
+            "file": "app/views/admin/events/show.html.erb"
+          }
+        }
       ],
-      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment \u2014 a non-listed role is ignored."
-    },
-    {
-      "warning_type": "Redirect",
-      "warning_code": 18,
-      "fingerprint": "3cd355279bb9290c80fa163656a9f402f4cc2d2d006640c595543657fabe3ad5",
-      "check_name": "Redirect",
-      "message": "Possible unprotected redirect",
-      "file": "app/controllers/api/board_exports_controller.rb",
-      "line": 16,
-      "link": "https://brakemanscanner.org/docs/warning_types/redirect/",
-      "code": "redirect_to(BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.url(:disposition => \"attachment\", :filename => BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.filename.to_s), :allow_other_host => true)",
-      "render_path": null,
       "location": {
-        "type": "method",
-        "class": "API::BoardExportsController",
-        "method": "download"
+        "type": "template",
+        "template": "admin/events/show"
       },
-      "user_input": "BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.url(:disposition => \"attachment\", :filename => BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.filename.to_s)",
+      "user_input": "Event.includes(:contest_entries).find(params[:id]).public_url",
       "confidence": "Weak",
       "cwe_id": [
-        601
+        79
       ],
-      "user_note": "False positive: allow_other_host is required here because the redirect target is our own Active Storage attachment's URL (S3/CDN), not user-supplied. set_board_export already scopes the lookup to user_id: current_user&.id (a stranger's export 404s before this line runs), and BoardExport#file uses a private, presigned S3 service in production (see BoardExport#file_service_name) \u2014 the target host is always our own storage service, never attacker-controlled."
+      "user_note": "False positive: Event#public_url is built entirely from server-side values -- ENV['FRONT_END_URL'] (or the localhost default) joined to slug.parameterize. parameterize strips everything outside [a-z0-9-], so no scheme (javascript:, data:) can be injected, and no user input reaches the href unfiltered. The view is also admin-only (Admin::ApplicationController -> require_admin!)."
+    },
+    {
+      "warning_type": "Cross-Site Scripting",
+      "warning_code": 4,
+      "fingerprint": "8916492c3c2c9dd4864991433ce0b303fe6a9b89615e08e6d0e03edae90312bc",
+      "check_name": "LinkToHref",
+      "message": "Potentially unsafe model attribute in `link_to` href",
+      "file": "app/views/admin/placeholders/index.html.erb",
+      "line": 50,
+      "link": "https://brakemanscanner.org/docs/warning_types/link_to_href",
+      "code": "link_to((Unresolved Model).new.claim_url, (Unresolved Model).new.claim_url, :target => \"_blank\", :rel => \"noopener\", :class => \"text-accent hover:underline break-all\")",
+      "render_path": [
+        {
+          "type": "controller",
+          "class": "Admin::PlaceholdersController",
+          "method": "index",
+          "line": 5,
+          "file": "app/controllers/admin/placeholders_controller.rb",
+          "rendered": {
+            "name": "admin/placeholders/index",
+            "file": "app/views/admin/placeholders/index.html.erb"
+          }
+        }
+      ],
+      "location": {
+        "type": "template",
+        "template": "admin/placeholders/index"
+      },
+      "user_input": "(Unresolved Model).new.claim_url",
+      "confidence": "Weak",
+      "cwe_id": [
+        79
+      ],
+      "user_note": "False positive: Profile#claim_url is built entirely from server-side values -- ENV['FRONT_END_URL'] (or the localhost default) joined to claim_token, which is generated by SecureRandom and never user-supplied. No scheme can be injected. The view is also admin-only (Admin::ApplicationController -> require_admin!)."
     }
-  ]
+  ],
+  "updated": null,
+  "brakeman_version": null
 }
