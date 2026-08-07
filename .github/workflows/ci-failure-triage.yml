@@ -11,11 +11,29 @@ name: CI Failure Triage (Claude)
 #
 # NOTE: workflow_run workflows only run from the default branch (main), so
 # this does nothing until merged — including for its own PR.
+#
+# ---------------------------------------------------------------------------
+# DISABLED (2026-08-07). The automatic trigger is commented out below.
+#
+# Why: on its first real outing the `anthropics/claude-code-action` step
+# failed, and because it fires on every red CI/Security run it re-triggered
+# on each one while main was red — noise on top of the failure it was meant
+# to explain.
+#
+# To re-enable: delete the `workflow_dispatch:` line and uncomment the
+# `workflow_run:` block. Nothing else in this file needs to change.
+#
+# While disabled the workflow is inert: `workflow_dispatch` keeps the YAML
+# valid, and a manual run no-ops because the job's `if:` tests
+# `github.event.workflow_run.conclusion`, which is empty outside a
+# workflow_run event.
+# ---------------------------------------------------------------------------
 
 on:
-  workflow_run:
-    workflows: ["CI", "Security"]
-    types: [completed]
+  workflow_dispatch:
+  # workflow_run:
+  #   workflows: ["CI", "Security"]
+  #   types: [completed]
 
 permissions:
   contents: read # cannot push code — comment-only guardrail
