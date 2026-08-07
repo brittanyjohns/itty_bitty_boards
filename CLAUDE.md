@@ -299,6 +299,14 @@ permissions matrix lives in
   `VocabSets`) need the admin created with that specific ID in specs —
   `create(:admin_user)` assigns a random ID and the lookups return nil.
   Use: `User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)`
+- That pinned-id insert is safe **because** `spec/support/users_id_sequence.rb`
+  parks the `users` primary-key sequence above every hand-picked id (an
+  explicit-id INSERT doesn't advance the Postgres sequence, and sequences
+  aren't rolled back between examples, so without the guard the next
+  `create(:user)` in the process is handed the admin's id and dies on
+  `users_pkey`). Never "fix" an ordering collision by resetting the sequence
+  down to `MAX(id) + 1` in a spec — that reinstates the zero-slack state the
+  guard exists to avoid.
 
 ## Documentation rules (this file + the spokes)
 
