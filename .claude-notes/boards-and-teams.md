@@ -776,6 +776,22 @@ collections of boards. CRUD is open to any signed-in user;
     then reads `group.boards` sees a stale, empty-looking cache —
     `BoardGroupCreator` reloads the group after populating/re-syncing so
     callers always see the current members.
+  - **On-demand groups are `builder: false` and must stay that way.** `builder`
+    means the group *owns* its member boards — `destroy_member_boards_if_builder`
+    deletes every one of them with the group — so a set assembled from someone's
+    pre-existing hand-linked boards can never carry the flag. The consequence is
+    that `builder` alone can't gate the set map: `Board#eligible_board_group` is
+    `builder || !predefined`, and the frontend's `eligibleSets`
+    (`ViewSetMapButton.tsx`) mirrors it. Keep the two in step — when they drifted
+    (the frontend read `builder ?? !predefined`, which nullish-coalesces to
+    `false` on exactly these groups) creating a set map never flipped the button
+    off "Create board group" and each click re-created the set.
+  - **The graph is not a tree.** `SetGraphBuilder` emits every folder→child edge,
+    and a real core set gives each category board a nav row back to home and
+    across to its siblings — board set 105 is 12 boards / 132 edges, a complete
+    digraph. Anything consuming the payload has to be shortest-path or otherwise
+    bounded; enumerating simple paths over one is factorial (~1.08e8 here) and
+    froze the map page.
 
 ## Responsive board layouts (sm/md derived from lg)
 
