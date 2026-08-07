@@ -13,9 +13,9 @@
             name and any words already typed in this same form. %>
         <button type="submit" formaction="<%= suggest_admin_dashboard_board_builds_path %>" formnovalidate
                 class="text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
-          Work out topic &amp; audience
+          Fill in the blanks
         </button>
-        <p class="text-[11px] text-t3 ml-3">Reads the board name and any words you've typed. Drafting does this on its own if they're blank.</p>
+        <p class="text-[11px] text-t3 ml-3">Works out the name, topic and audience from whichever of them you've given — or from a pasted word list. Drafting does it on its own too.</p>
       </div>
       <div>
         <label class="block text-xs font-medium text-t2 mb-1" for="topic">Topic <span class="text-t3">(optional)</span></label>
@@ -57,7 +57,10 @@
       <h2 class="text-sm font-medium text-t1">Word list</h2>
       <%# formaction, not a second form: drafting has to see the topic, audience
           and grid the admin just typed above. %>
-      <button type="submit" id="draft-button" formaction="<%= draft_admin_dashboard_board_builds_path %>"
+      <%# formnovalidate: the board name is `required` for preview and build,
+          but drafting infers a missing one — without this the browser blocks
+          the submit before the server ever gets to. %>
+      <button type="submit" id="draft-button" formaction="<%= draft_admin_dashboard_board_builds_path %>" formnovalidate
               class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
         Draft with AI
       </button>

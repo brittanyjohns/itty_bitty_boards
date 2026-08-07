@@ -1114,19 +1114,26 @@ Its own invariants:
   radius. Publishing refuses a set with any empty page; delete removes pages
   before the root.
 
-- **Topic and audience are inferred, not typed.**
-  `Boards::AdminBuilder::ContextSuggester` reads the board name and any words
-  already in the form and returns `{ topic:, audience: }` in one OpenAI call —
-  same shape as `WordListDrafter`. `POST .../board_builds/suggest` fills both
-  fields on their own; `draft` calls it first whenever the topic is blank, so
-  "Draft with AI" works from a board name alone. A value the admin typed is
-  never overwritten.
-  - **Gated on the topic only.** Audience is optional to the drafter, so a blank
-    audience alongside a known topic is not worth a round trip; the topic call
-    answers both anyway.
-  - Both values are prompt fragments, not display copy — `topic` completes
-    "`<label>` in the context of ___" for every generated tile on the board — so
-    the response is stripped of a trailing full stop and length-capped. A
-    runaway answer would otherwise end up inside every art prompt.
+- **Name, topic and audience are inferred, not typed.**
+  `Boards::AdminBuilder::ContextSuggester` reads whichever of a name, a topic
+  and the words already in the form it is given, and returns
+  `{ name:, topic:, audience: }` in one OpenAI call — same shape as
+  `WordListDrafter`. `POST .../board_builds/suggest` fills every blank field;
+  `draft` calls it first whenever the name **or** topic is blank, so a build can
+  start from a name, a topic, or a pasted word list alone. A value the admin
+  typed is never overwritten, the name included.
+  - **Not gated on a blank audience.** Audience is optional to the drafter, so
+    it isn't worth a round trip of its own — but name and topic both are
+    (preview and build require a name; topic steers every art prompt), and the
+    one call answers all three anyway.
+  - Topic and audience are prompt fragments, not display copy — `topic`
+    completes "`<label>` in the context of ___" for every generated tile on the
+    board — so the response is stripped of a trailing full stop and
+    length-capped. A runaway answer would otherwise end up inside every art
+    prompt. `name` is capped too: it is user-facing and seeds the slug.
+  - The board name input is `required`, which is right for preview and build but
+    would have the browser block a draft before the server could infer one — so
+    the draft and suggest buttons both carry `formnovalidate`. A request spec
+    can't catch that; it bypasses HTML validation.
 
 AI drafting (Phase 2) fills the main word list only — pages are authored by hand.
