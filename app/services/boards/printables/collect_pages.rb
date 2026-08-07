@@ -12,8 +12,14 @@ module Boards
       # would ship an incomplete product that looks complete.
       class TreeTooLargeError < StandardError; end
 
-      # The numeric /pb/ route is the canonical deep link. Slugs are for
-      # humans on the cover; IDs stay in the QR for routing.
+      # `/pb/:key` resolves either form — BoardsController#set_board tries
+      # `find_by(id:)` then `find_by(slug:)` — and Board#public_url already
+      # uses the slug, so the QR matches the link we hand out everywhere else.
+      #
+      # Slugs are only mostly stable: #update regenerates one when a client
+      # sends a different `slug` param, and the column defaults to "". Hence
+      # `qr_key_for` falling back to the id, which never changes. A printed QR
+      # is permanent paper — an editable key is a real (accepted) trade.
       QR_BASE_URL = "https://app.speakanyway.com/pb".freeze
 
       Page = Struct.new(:pdf_bytes, :board_id, :board_name, :variant, keyword_init: true)
@@ -123,7 +129,11 @@ module Boards
       # Every board page's QR targets ITS OWN board, so a buyer scanning page 5
       # of a 9-board bundle lands on that board rather than the root. Only the
       # cover's QR points at the root (see RenderWrappers).
-      def qr_target_url_for(target) = "#{QR_BASE_URL}/#{target.id}"
+      def qr_target_url_for(target) = "#{QR_BASE_URL}/#{self.class.qr_key_for(target)}"
+
+      # Slug when there is one, id otherwise. Class-level because RenderWrappers
+      # builds the cover's QR the same way and the two must never disagree.
+      def self.qr_key_for(board) = board.slug.presence || board.id
 
       # Board pages keep the automatic orientation from
       # RenderAssetData#resolved_landscape (anything with ≥6 tiles goes

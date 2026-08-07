@@ -69,7 +69,8 @@ module Boards
       # board (see CollectPages).
       def qr_data_url
         @qr_data_url ||= begin
-          png = RQRCode::QRCode.new("#{CollectPages::QR_BASE_URL}/#{board.id}").as_png(
+          key = CollectPages.qr_key_for(board)
+          png = RQRCode::QRCode.new("#{CollectPages::QR_BASE_URL}/#{key}").as_png(
             bit_depth: 8,
             border_modules: 0,
             color_mode: ChunkyPNG::COLOR_TRUECOLOR,
