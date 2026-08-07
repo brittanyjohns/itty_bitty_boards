@@ -94,18 +94,18 @@ RSpec.describe BuildBoardSetJob do
       expect(root.settings["builder_root"]).to be(true)
 
       # Core tiles landed on the SAME root the controller returned.
-      labels = root.board_images.map(&:label)
+      labels = root.board_images.map(&:display_label)
       expect(labels).to include("I", "want", "Food", "Feelings", "Play")
 
       # Folder tiles link to builder_child sub-boards.
-      play_tile = root.board_images.find { |bi| bi.label == "Play" }
+      play_tile = root.board_images.find { |bi| bi.display_label == "Play" }
       expect(play_tile.predictive_board_id).to be_present
       play_board = Board.find(play_tile.predictive_board_id)
       expect(play_board.settings["builder_child"]).to be(true)
       expect(play_board.board_images.map(&:label)).to include("dinosaurs", "ball")
 
       # Unmatched interest fell through to "My Favorites".
-      favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
+      favorites_tile = root.board_images.find { |bi| bi.display_label == "My Favorites" }
       favorites_board = Board.find(favorites_tile.predictive_board_id)
       expect(favorites_board.board_images.map(&:label)).to contain_exactly("grandma")
 
@@ -242,12 +242,12 @@ RSpec.describe BuildBoardSetJob do
       described_class.new.perform(root.id, communicator.id, "core-60", [])
 
       food = user.boards.find_by(name: "Food")
-      self_tile = food.board_images.find { |bi| bi.label == "Food" }
+      self_tile = food.board_images.find { |bi| bi.display_label == "Food" }
       expect(self_tile).to be_present
       expect(self_tile.predictive_board_id).to eq(root.id)
       expect(self_tile.data.to_h["mute_name"]).not_to be(true)
 
-      food_folder = root.board_images.find { |bi| bi.label == "Food" }
+      food_folder = root.board_images.find { |bi| bi.display_label == "Food" }
       expect(food_folder.data["mute_name"]).to be(true)
     end
 
@@ -272,7 +272,7 @@ RSpec.describe BuildBoardSetJob do
 
       root.reload
       expect(root.status).to eq("complete")
-      expect(root.board_images.map(&:label)).to include("I", "Food")
+      expect(root.board_images.map(&:display_label)).to include("I", "Food")
 
       cloned_food = user.boards.find_by(name: "Food")
       expect(cloned_food).to be_present
@@ -280,7 +280,7 @@ RSpec.describe BuildBoardSetJob do
       expect(cloned_food.board_images.map(&:label)).to include("apple", "pizza")
 
       # Folder tile points at the CLONED fringe, not the admin source.
-      food_tile = root.board_images.find { |bi| bi.label == "Food" }
+      food_tile = root.board_images.find { |bi| bi.display_label == "Food" }
       expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
       # Source set untouched; user's copy never surfaces as a pickable template.
@@ -321,7 +321,7 @@ RSpec.describe BuildBoardSetJob do
       root.reload
       expect(root.status).to eq("complete")
 
-      phrases_tile = root.board_images.find { |bi| bi.label == "Phrases" }
+      phrases_tile = root.board_images.find { |bi| bi.display_label == "Phrases" }
       expect(phrases_tile&.predictive_board_id).to be_present
 
       phrases_board = Board.find(phrases_tile.predictive_board_id)
@@ -332,7 +332,7 @@ RSpec.describe BuildBoardSetJob do
         .select { |bi| bi.predictive_board_id.present? }
       expect(function_tiles.size).to eq(6)
 
-      greetings = Board.find(function_tiles.find { |bi| bi.label == "Greetings & Social" }.predictive_board_id)
+      greetings = Board.find(function_tiles.find { |bi| bi.display_label == "Greetings & Social" }.predictive_board_id)
       expect(greetings.board_images.map(&:label)).to include("hi there!", "good morning")
       # Its own gestalt scripts are all phrases; the nav row it also carries is not.
       scripts = greetings.board_images.reject { |bi| bi.data&.dig("nav_tile") }
@@ -344,7 +344,7 @@ RSpec.describe BuildBoardSetJob do
 
       described_class.new.perform(root.id, communicator.id, "standard", [])
 
-      phrases_tile = root.reload.board_images.find { |bi| bi.label == "Phrases" }
+      phrases_tile = root.reload.board_images.find { |bi| bi.display_label == "Phrases" }
       phrases_board_id = phrases_tile.predictive_board_id
 
       expect(communicator.reload.settings["phrase_board_id"]).to eq(phrases_board_id)
@@ -382,7 +382,7 @@ RSpec.describe BuildBoardSetJob do
 
       root.reload
       expect(root.status).to eq("complete")
-      expect(root.board_images.map(&:label)).to include("I", "Food")
+      expect(root.board_images.map(&:display_label)).to include("I", "Food")
 
       cloned_food = user.boards.find_by(name: "Food")
       expect(cloned_food).to be_present
@@ -400,7 +400,7 @@ RSpec.describe BuildBoardSetJob do
       # to a real board. None are left dead (excluding authored seed pages used
       # to strip the sub-board while leaving its tile behind).
       dead = root.board_images.select do |bi|
-        label = bi.label.to_s
+        label = bi.display_label.to_s
         label.length > 2 && label[0] == label[0].upcase && bi.predictive_board_id.nil?
       end
       expect(dead).to be_empty
@@ -690,7 +690,7 @@ RSpec.describe BuildBoardSetJob do
       expect(root.status).to eq("complete")
       expect(root.board_images.count).to be > 0
 
-      play_tile = root.board_images.find { |bi| bi.label == "Play" }
+      play_tile = root.board_images.find { |bi| bi.display_label == "Play" }
       play_board = Board.find(play_tile.predictive_board_id)
       expect(play_board.board_images.map(&:label)).to include("dinosaurs")
     end
@@ -703,7 +703,7 @@ RSpec.describe BuildBoardSetJob do
 
       root.reload
       expect(root.status).to eq("complete")
-      expect(root.board_images.map(&:label)).to include("I", "Food")
+      expect(root.board_images.map(&:display_label)).to include("I", "Food")
       expect(ChildBoard.count).to eq(0)
     end
 

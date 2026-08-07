@@ -97,7 +97,9 @@ module Boards
           key: Boards::RobustSets.slug_for(root),
           name: root.name,
           kind: "robust",
-          tiles: root.board_images.order(:position).map(&:label),
+          # display_label: this preview list is shown to the user picking a
+          # template, so it needs the tile's text, not the matching key.
+          tiles: root.board_images.order(:position).map(&:display_label),
         }
       end
     end
@@ -124,8 +126,8 @@ module Boards
     # can be added later. Resolution order: the user's own image, then a
     # public/admin image, else create.
     def resolve_or_create_image(label, user)
-      image = user.images.find_by(label: label)
-      image ||= Image.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil])
+      image = user.images.by_label(label).first
+      image ||= Image.public_img.by_label(label).find_by(user_id: [User::DEFAULT_ADMIN_ID, nil])
       image ||= Image.create!(label: label, user_id: user.id)
       image
     end

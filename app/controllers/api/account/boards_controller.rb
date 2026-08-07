@@ -83,7 +83,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
         images: board.board_images.map do |board_image|
           {
             id: board_image.image.id,
-            label: board_image.image.label,
+            label: board_image.image.display_label,
             image_prompt: board_image.image.image_prompt,
             bg_color: board_image.image.bg_class,
             text_color: board_image.image.text_color,

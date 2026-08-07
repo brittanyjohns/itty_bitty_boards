@@ -182,7 +182,7 @@ module Boards
     # A whole-phrase Image tagged part_of_speech: "phrase" so the tile renders
     # (and downstream gating reads) as a gestalt script, not a single word.
     def find_or_create_phrase_image(phrase, admin)
-      image = Image.find_by(label: phrase, user_id: admin.id) || Image.new(label: phrase, user_id: admin.id)
+      image = Image.by_label(phrase).find_by(user_id: admin.id) || Image.new(label: phrase, user_id: admin.id)
       image.part_of_speech = TILE_PART_OF_SPEECH
       image.save!
       image

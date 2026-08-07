@@ -127,12 +127,18 @@ RSpec.describe BoardImage, type: :model do
       expect(tile.label).to eq("ipad")
     end
 
-    it "leaves brand and acronym casing on the image label alone" do
+    it "carries brand and acronym casing through from the image's display_label" do
       image = FactoryBot.create(:image, label: "TV")
       tile = tile_for(image)
 
+      # The Image split the two roles at write time: "tv" is the matching key,
+      # "TV" is the display text. The tile inherits each into its counterpart,
+      # and CaseNormalizer leaves the deliberate casing alone.
+      expect(image.label).to eq("tv")
+      expect(image.display_label).to eq("TV")
+
       expect(tile.display_label).to eq("TV")
-      expect(tile.label).to eq("TV")
+      expect(tile.label).to eq("tv")
     end
 
     it "sentence cases whole-utterance phrase tiles" do

@@ -34,6 +34,7 @@
 #  obf_id              :string
 #  language_settings   :jsonb
 #  language            :string           default("en")
+#  display_label       :string
 #
 
 require "open-uri"
@@ -89,6 +90,22 @@ class Image < ApplicationRecord
   scope :created_before, ->(date) { where("created_at < ?", date) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
+
+  # The only correct way to look an image up by its label.
+  #
+  # `label` is normalized to lowercase on write, but callers hand us whatever
+  # the user typed ("Swing", " swing "). A bare `find_by(label:)` misses on
+  # casing and the calling site's very next line creates a duplicate — that is
+  # how the library filled up with blank, art-less twins of curated images.
+  # Backed by index_images_on_lower_label.
+  scope :by_label, ->(label) { where("LOWER(images.label) = ?", normalize_label(label)) }
+
+  # The matching key for an arbitrary label string. Lowercase + stripped only;
+  # punctuation is preserved so "McDonald's" stays distinct from "mcdonalds".
+  def self.normalize_label(text)
+    text.to_s.strip.downcase
+  end
+
   before_save :set_label
   before_save :ensure_defaults
 
@@ -517,7 +534,7 @@ class Image < ApplicationRecord
   def create_words_from_next_words
     return unless next_words
     next_words.each do |word|
-      existing_word = Image.public_img.find_by(label: word)
+      existing_word = Image.public_img.by_label(word).first
       if existing_word
         Rails.logger.debug "Word already exists: #{existing_word.label}"
         if existing_word.next_words.blank?
@@ -706,7 +723,7 @@ class Image < ApplicationRecord
     audio_files = []
     voices = VoiceService.get_voice_options
     voices.each do |voice|
-      audio_image = Image.find_by(label: "This is the voice #{voice[:label]}", private: true, image_type: "SampleVoice", language: language)
+      audio_image = Image.by_label("This is the voice #{voice[:label]}").find_by(private: true, image_type: "SampleVoice", language: language)
       if audio_image
         Rails.logger.debug "Sample voice already exists: #{audio_image.id}"
         audio_files << audio_image.audio_files
@@ -733,7 +750,7 @@ class Image < ApplicationRecord
   end
 
   def self.find_sample_audio_for_voice(voice)
-    Image.find_by(label: "This is the voice #{voice}").audio_files&.last
+    Image.by_label("This is the voice #{voice}").first&.audio_files&.last
   end
 
   def sanitize_url(url)
@@ -1113,15 +1130,30 @@ class Image < ApplicationRecord
     label&.gsub(" ", "+")
   end
 
+  # Splits the two jobs `label` used to do at once.
+  #
+  # `label` is the lowercase matching key — the column every `find_by(label:)`
+  # in the app keys on. Storing the caller's casing there meant a user typing
+  # "Swing" missed the curated `swing` image (art and all) and minted a blank
+  # duplicate instead.
+  #
+  # `display_label` keeps the authored casing so normalizing the key costs us
+  # nothing renderable: "iPad", "McDonald's" and "PE" survive intact.
+  #
+  # Punctuation is deliberately NOT stripped here. The original commented-out
+  # form ran `gsub(/[^0-9a-zA-Z!? ]/, "")`, which would have turned
+  # "McDonald's" into "McDonalds" and split it from its own art.
   def set_label
-    item_name = label
-    # item_name.downcase!
-    # item_name.strip!
-    # item_name.gsub!(/[^0-9a-zA-Z!? ]/, "")
-    if item_name.blank?
-      item_name = "image #{id || "new"}"
+    item_name = label.to_s.strip
+    item_name = "image #{id || "new"}" if item_name.blank?
+
+    # Track the authored casing on create, and re-derive it on a rename — but
+    # never clobber a display_label the caller set explicitly in the same write.
+    if self[:display_label].blank? || (will_save_change_to_label? && !will_save_change_to_display_label?)
+      self.display_label = item_name
     end
-    self.label = item_name
+
+    self.label = Image.normalize_label(item_name)
   end
 
   def display_tile_url(viewing_user = nil)
@@ -1205,8 +1237,11 @@ class Image < ApplicationRecord
     base_doc
   end
 
+  # The authored casing, falling back to the matching key. The fallback covers
+  # rows written before the column existed and any path that builds an Image in
+  # memory without saving it.
   def display_label
-    label
+    self[:display_label].presence || label
   end
 
   # Looks up a translated label from language_settings; enqueues a background
@@ -1318,7 +1353,7 @@ class Image < ApplicationRecord
     {
       id: id,
       image_type: image_type,
-      label: localized_label(viewer_lang),
+      label: localized_display_label(viewer_lang),
       user_id: user_id,
       obf_id: obf_id,
       docs: docs.map(&:api_view),
@@ -1348,7 +1383,7 @@ class Image < ApplicationRecord
   def admin_view
     {
       id: id,
-      label: label,
+      label: display_label,
       image_type: image_type,
       src: display_tile_url(viewing_user) || display_image_url(viewing_user) || src_url,
       full_src: display_image_url(viewing_user) || src_url,
@@ -1378,7 +1413,7 @@ class Image < ApplicationRecord
   end
 
   def matching_viewer_images(viewing_user = nil)
-    imgs = Image.where(label: label, user_id: [nil, viewing_user&.id]).where.not(id: id)
+    imgs = Image.by_label(label).where(user_id: [nil, viewing_user&.id]).where.not(id: id)
     imgs = imgs.where.not(status: "marked_for_deletion")
     imgs.order(created_at: :desc)
   end
@@ -1441,7 +1476,7 @@ class Image < ApplicationRecord
     {
       id: id,
       image_type: image_type,
-      label: label,
+      label: display_label,
       image_prompt: image_prompt,
       display_doc: doc_img_url,
       data: data,
@@ -1489,7 +1524,7 @@ class Image < ApplicationRecord
       docs: image_docs.map do |doc|
         {
           id: doc.id,
-          label: label,
+          label: display_label,
           user_id: doc.user_id,
           src: doc.tile_url,
           display_url: doc.tile_url,
@@ -1614,7 +1649,7 @@ class Image < ApplicationRecord
 
   def self.create_image_from_google_search(img_url, label, title, snippet, file_format, user_id = User::DEFAULT_ADMIN_ID)
     return if Rails.env.test?
-    existing_image = Image.public_img.find_by(label: label)
+    existing_image = Image.public_img.by_label(label).first
     image = nil
     if existing_image
       image = existing_image

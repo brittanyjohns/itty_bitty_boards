@@ -42,13 +42,13 @@ RSpec.describe VocabSets do
       expect(c60_boards.pluck(:name)).to contain_exactly(*CORE_60_BOARD_NAMES)
       expect(c60_boards.all? { |b| b.predefined && b.published }).to be(true)
 
-      food_tile = @c60_root.board_images.find_by(label: "Food")
+      food_tile = @c60_root.board_images.find_by(display_label: "Food")
       expect(food_tile.predictive_board_id).to be_present
       expect(Board.find(food_tile.predictive_board_id).name).to eq("Food")
     end
 
     it "does not create self-link folder tiles on fringe pages" do
-      food_board = Board.find(@c60_root.board_images.find_by(label: "Food").predictive_board_id)
+      food_board = Board.find(@c60_root.board_images.find_by(display_label: "Food").predictive_board_id)
       food_self_links = food_board.board_images.where(predictive_board_id: food_board.id)
       expect(food_self_links).to be_empty
     end
@@ -76,15 +76,15 @@ RSpec.describe VocabSets do
     # Each People page's way home is its own "People" self tile; it must resolve
     # to ITS set's root, never the other set's (the pre-namespacing bug).
     it "seeds disjoint fringe boards per set, each fringe's self tile resolving to its own root" do
-      c60_people = Board.find(@c60_root.board_images.find_by(label: "People").predictive_board_id)
-      c84_people = Board.find(@c84_root.board_images.find_by(label: "People").predictive_board_id)
+      c60_people = Board.find(@c60_root.board_images.find_by(display_label: "People").predictive_board_id)
+      c84_people = Board.find(@c84_root.board_images.find_by(display_label: "People").predictive_board_id)
 
       expect(c60_people.id).not_to eq(c84_people.id)
       expect(c60_people.obf_id).to eq("core-60:people")
       expect(c84_people.obf_id).to eq("core-84:people")
 
-      expect(c60_people.board_images.find_by(label: "People").predictive_board_id).to eq(@c60_root.id)
-      expect(c84_people.board_images.find_by(label: "People").predictive_board_id).to eq(@c84_root.id)
+      expect(c60_people.board_images.find_by(display_label: "People").predictive_board_id).to eq(@c60_root.id)
+      expect(c84_people.board_images.find_by(display_label: "People").predictive_board_id).to eq(@c84_root.id)
     end
 
     it "shares no fringe boards between the two seeded sets" do
@@ -310,7 +310,7 @@ RSpec.describe VocabSets do
 
     def expect_authored_colors(board)
       EXPECTED_TILES.each do |label, expected|
-        tile = board.board_images.find_by(label: label)
+        tile = board.board_images.find_by(display_label: label)
         expect(tile).to be_present, "expected a '#{label}' tile on #{board.name}"
         expect(tile.part_of_speech).to eq(expected[:pos]),
           "expected '#{label}' part_of_speech #{expected[:pos]}, got #{tile.part_of_speech}"
@@ -324,7 +324,7 @@ RSpec.describe VocabSets do
     end
 
     it "restores authored colors on re-seed after a tile was mangled" do
-      tile = @c60_root.board_images.find_by(label: "I")
+      tile = @c60_root.board_images.find_by(display_label: "I")
       tile.update_columns(part_of_speech: "noun", bg_color: "#FFFFFF")
 
       VocabSets.seed_slug!("core-60")
@@ -332,24 +332,24 @@ RSpec.describe VocabSets do
     end
 
     it "heals a stale bg_color on re-seed even when part_of_speech is already right" do
-      tile = @c60_root.board_images.find_by(label: "I")
+      tile = @c60_root.board_images.find_by(display_label: "I")
       tile.update_columns(bg_color: "#FFFFFF")
 
       VocabSets.seed_slug!("core-60")
-      expect(@c60_root.reload.board_images.find_by(label: "I").bg_color).to eq("#FFEA75")
+      expect(@c60_root.reload.board_images.find_by(display_label: "I").bg_color).to eq("#FFEA75")
     end
 
     it "never overwrites a non-blank part_of_speech on the shared Image record" do
-      image = @c60_root.board_images.find_by(label: "I").image
+      image = @c60_root.board_images.find_by(display_label: "I").image
       image.update_column(:part_of_speech, "noun")
 
       VocabSets.seed_slug!("core-60")
       expect(image.reload.part_of_speech).to eq("noun")
-      expect(@c60_root.reload.board_images.find_by(label: "I").part_of_speech).to eq("pronoun")
+      expect(@c60_root.reload.board_images.find_by(display_label: "I").part_of_speech).to eq("pronoun")
     end
 
     it "backfills a blank Image part_of_speech from the authored OBF" do
-      image = @c60_root.board_images.find_by(label: "I").image
+      image = @c60_root.board_images.find_by(display_label: "I").image
       image.update_column(:part_of_speech, nil)
 
       VocabSets.seed_slug!("core-60")
@@ -392,7 +392,7 @@ RSpec.describe VocabSets do
     end
 
     it "wires the Drinks folder tile to the seeded Drinks board" do
-      drinks_tile = @c60_root.board_images.find_by(label: "Drinks")
+      drinks_tile = @c60_root.board_images.find_by(display_label: "Drinks")
       expect(drinks_tile).to be_present
       expect(drinks_tile.predictive_board_id).to be_present
       expect(Board.find(drinks_tile.predictive_board_id).name).to eq("Drinks")
@@ -418,7 +418,7 @@ RSpec.describe VocabSets do
     end
 
     it "wires the Drinks folder tile to the seeded Drinks board" do
-      drinks_tile = @c84_root.board_images.find_by(label: "Drinks")
+      drinks_tile = @c84_root.board_images.find_by(display_label: "Drinks")
       expect(drinks_tile).to be_present
       expect(drinks_tile.predictive_board_id).to be_present
       expect(Board.find(drinks_tile.predictive_board_id).name).to eq("Drinks")

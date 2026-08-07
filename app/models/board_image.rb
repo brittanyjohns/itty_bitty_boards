@@ -155,10 +155,16 @@ class BoardImage < ApplicationRecord
     image_language_settings = (image.language_settings || {})[lang] || {}
     self.language = lang
     self.label = image_language_settings["label"] || image.label
-    # A stored translation is authored text — use it verbatim. Only the
-    # fall-through to `label` (a lowercase matching key) gets case-normalized.
+    # A stored translation is authored text — use it verbatim. Everything else
+    # is *defaulted* and gets case-normalized.
+    #
+    # The default source is deliberately NOT `self.label`: that is the lowercase
+    # matching key, so defaulting from it would flatten the image's authored
+    # display text ("Food" -> "food", "iPad" -> "ipad"). Use the translated
+    # label when this tile has one, otherwise the image's own display text.
     translated = image_language_settings["display_label"]
-    self.display_label = translated.presence || normalized_default_label(label, lang)
+    default_source = image_language_settings["label"].presence || image.display_label
+    self.display_label = translated.presence || normalized_default_label(default_source, lang)
   end
 
   # Tile text defaulted from the Image gets consistent casing so tiles created
@@ -282,7 +288,7 @@ class BoardImage < ApplicationRecord
       image.display_tile_url(viewing_user) ||
       image.display_image_url(viewing_user) ||
       image.src_url.presence ||
-      Image.find_by(label: image.label, user_id: [nil, User::DEFAULT_ADMIN_ID])&.src_url
+      Image.by_label(image.label).find_by(user_id: [nil, User::DEFAULT_ADMIN_ID])&.src_url
   end
 
   def get_predictive_image_for(viewing_user)
@@ -435,7 +441,7 @@ class BoardImage < ApplicationRecord
   def to_obf_button_format(load_board_path: nil, boards_by_id: nil)
     btn = {
       id: id.to_s,
-      label: label,
+      label: display_label.presence || label,
       image_id: id.to_s,
       background_color: get_background_color_css,
       border_color: border_color || "rgb(68, 68, 68)",
@@ -590,7 +596,7 @@ class BoardImage < ApplicationRecord
     {
       id: id,
       image_id: image_id,
-      label: localized_label(viewer_lang),
+      label: localized_display_label(viewer_lang),
       board_id: board_id,
       board_name: board.name,
       board_type: board.board_type,

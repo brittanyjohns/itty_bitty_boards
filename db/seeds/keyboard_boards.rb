@@ -67,11 +67,19 @@ keyboards = [
   },
 ]
 
+# Letter images are scoped by image_type, NOT by label alone. `Image#label` is
+# a lowercase matching key, so the "A" and "I" keys would otherwise match the
+# article "a" and the pronoun "I" — both of which are real vocabulary images
+# carrying symbol artwork. A keyboard key must render its letter, never a word's
+# symbol, so letters get their own image namespace.
+LETTER_IMAGE_TYPE = "letter".freeze
+
 find_or_create_image = lambda do |label|
-  image = Image.find_by(label: label, user_id: admin.id)
+  image = Image.by_label(label).find_by(user_id: admin.id, image_type: LETTER_IMAGE_TYPE)
   return image if image
 
-  image = Image.new(label: label, user_id: admin.id, part_of_speech: "default")
+  image = Image.new(label: label, user_id: admin.id, part_of_speech: "default",
+                    image_type: LETTER_IMAGE_TYPE)
   # Single letters aren't dictionary words — without this flag ensure_defaults
   # would make a synchronous OpenAI categorization call per tile at seed time.
   image.skip_categorize = true
@@ -118,12 +126,16 @@ keyboards.each do |attrs|
       end
 
     image = find_or_create_image.call(tile[:label])
-    board_image = board.board_images.find_by(label: tile[:label])
+    # Keyed on display_label — the authored key text ("A", "Space"). `label` is
+    # the lowercase matching key, so keying on it here would miss on every
+    # re-seed and append a duplicate tile.
+    board_image = board.board_images.find_by(display_label: tile[:label])
     unless board_image
       board_image = board.board_images.new(
         image_id: image.id,
         voice: board.voice,
         language: board.language,
+        display_label: tile[:label],
         bg_color: color,
         text_color: text_color,
         position: position,

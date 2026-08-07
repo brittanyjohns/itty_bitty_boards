@@ -165,9 +165,9 @@ module Boards
         original_image = board_image.image
         image = original_image
         if image.user_id
-          image = Image.find_by(label: image.label, user_id: target.user_id) if image.user_id == target.user_id
+          image = Image.by_label(image.label).find_by(user_id: target.user_id) if image.user_id == target.user_id
         else
-          image = Image.find_by(label: image.label, user_id: [nil, target.user_id, User::DEFAULT_ADMIN_ID])
+          image = Image.by_label(image.label).find_by(user_id: [nil, target.user_id, User::DEFAULT_ADMIN_ID])
         end
         image ||= Image.create(label: original_image.label, user_id: target.user_id)
 

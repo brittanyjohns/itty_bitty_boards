@@ -731,7 +731,7 @@ RSpec.describe "API::Boards", type: :request do
 
       expect(response).to have_http_status(:ok)
 
-      new_image = Image.find_by(label: "I want more")
+      new_image = Image.by_label("I want more").first
       expect(new_image.part_of_speech).to eq("phrase")
 
       board_image = board.reload.board_images.find_by(image_id: new_image.id)

@@ -78,7 +78,7 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   # carry a predictive link — a dead folder tile opens nothing when tapped.
   def dead_folder_tiles(board)
     board.board_images.select do |bi|
-      label = bi.label.to_s
+      label = bi.display_label.to_s
       label.length > 2 && label[0] == label[0].upcase && bi.predictive_board_id.nil?
     end
   end
@@ -106,10 +106,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     # authored folders the planner used to strip are intact.
     expect(dead_folder_tiles(root)).to be_empty
 
-    labels = root.board_images.map(&:label)
+    labels = root.board_images.map(&:display_label)
     expect(labels).to include("More", "School", "Time", "Describe")
     %w[More School Time Describe].each do |name|
-      tile = root.board_images.find { |bi| bi.label == name }
+      tile = root.board_images.find { |bi| bi.display_label == name }
       expect(tile.predictive_board_id).to be_present, "#{name} folder tile has no linked board"
     end
 
@@ -149,7 +149,7 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
       expect(root.status).to eq("complete")
       expect(root.board_images.count).to eq(CORE_84_GRID_CELLS)
       # No non-authored default folder was injected.
-      expect(root.board_images.map(&:label)).not_to include("Social")
+      expect(root.board_images.map(&:display_label)).not_to include("Social")
       # The authored question word stays in-grid (row index 4), never orphaned
       # onto a stray 8th row.
       who = root.board_images.find { |bi| bi.label == "who" }
@@ -172,7 +172,7 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     # The default applies across the whole built set, not just the home board —
     # except each page's SELF tile, the one folder tile that speaks its label
     # (it's the you-are-here anchor and the way home). See Boards::NavRowSync.
-    animals = Board.find(root.board_images.find { |bi| bi.label == "Animals" }.predictive_board_id)
+    animals = Board.find(root.board_images.find { |bi| bi.display_label == "Animals" }.predictive_board_id)
     animals.board_images.select(&:is_dynamic?).each do |bi|
       next if bi.label.to_s.strip.casecmp?(animals.name.to_s.strip)
 
@@ -224,12 +224,12 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
       { "word" => "tummy", "category" => "Health & Body" },
     ])
 
-    people = Board.find(root.board_images.find { |bi| bi.label == "People" }.predictive_board_id)
-    body   = Board.find(root.board_images.find { |bi| bi.label == "Body" }.predictive_board_id)
+    people = Board.find(root.board_images.find { |bi| bi.display_label == "People" }.predictive_board_id)
+    body   = Board.find(root.board_images.find { |bi| bi.display_label == "Body" }.predictive_board_id)
     expect(people.board_images.map { |bi| bi.label.to_s.downcase }).to include("grandma")
     expect(body.board_images.map { |bi| bi.label.to_s.downcase }).to include("tummy")
 
-    favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
+    favorites_tile = root.board_images.find { |bi| bi.display_label == "My Favorites" }
     if favorites_tile
       fav = Board.find(favorites_tile.predictive_board_id)
       expect(fav.board_images.map { |bi| bi.label.to_s.downcase }).not_to include("grandma", "tummy")
@@ -263,8 +263,8 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
 
     root = build!([{ "word" => "dog", "category" => "Animals" }])
 
-    people_tile = root.board_images.find { |bi| bi.label == "People" }
-    animals_tile = root.board_images.find { |bi| bi.label == "Animals" }
+    people_tile = root.board_images.find { |bi| bi.display_label == "People" }
+    animals_tile = root.board_images.find { |bi| bi.display_label == "Animals" }
 
     expect(Boards::ImageResolver.art?(people_tile.image)).to be(true)
     expect(Boards::ImageResolver.art?(animals_tile.image)).to be(true)

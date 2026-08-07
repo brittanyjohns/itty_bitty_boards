@@ -15,8 +15,8 @@ class API::AuditsController < API::ApplicationController
     image = Image.find(params[:imageId]) if params[:imageId]
     board = Board.includes(:user).find(params[:boardId]) if params[:boardId]
     unless image
-      image = current_account.images.find_by(label: params[:word]) if current_account
-      image = current_user.images.find_by(label: params[:word]) if current_user
+      image = current_account.images.by_label(params[:word]).first if current_account
+      image = current_user.images.by_label(params[:word]).first if current_user
     end
 
     board_image_id = params[:boardImageId]

@@ -42,6 +42,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Adding a word to a board finds the picture that already exists for it.**
+  Image lookup was case-sensitive, so typing "Swing" (or pasting a Title Cased
+  word list) sailed past the curated `swing` symbol and silently created a
+  brand-new, art-less image beside it — a blank tile on the board and a
+  duplicate in the library, over and over. Every lookup now matches
+  case-insensitively and ignores stray whitespace, so the existing artwork gets
+  reused. The internal API already worked this way; the rest of the app now
+  matches it.
+
+- **Tile text no longer inherits whatever casing the creation path used.** An
+  image now stores the word twice: a plain lowercase key it is looked up by,
+  and the text as it was actually written. Tiles render from the second, so
+  "iPad", "TV" and "McDonald's" keep their capitals while ordinary words settle
+  to lowercase — and a folder tile still reads "Food", not "food". Existing
+  tiles keep their current text; nothing on a board you already built is
+  rewritten.
+
 - **Renaming a published board no longer breaks its printed QR codes.** A
   board's share link (`/pb/<slug>`) is derived from its name, and renaming the
   board used to rebuild that link — silently 404ing every QR code already

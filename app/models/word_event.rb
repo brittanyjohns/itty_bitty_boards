@@ -93,7 +93,7 @@ class WordEvent < ApplicationRecord
     without_image = WordEvent.where(image_id: nil)
     without_image.each do |event|
       user = event.user || event.child_account&.user
-      image = Image.find_by(label: event.word, user_id: [user.id, nil])
+      image = Image.by_label(event.word).find_by(user_id: [user.id, nil])
       event.update(image_id: image&.id)
     end
   end

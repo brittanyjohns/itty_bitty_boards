@@ -66,7 +66,7 @@ RSpec.describe Boards::SeededSetCloner do
       cloned_food = owner.boards.find_by(name: "Food")
       cloned_feelings = owner.boards.find_by(name: "Feelings")
 
-      food_tile = root.board_images.find_by(label: "Food")
+      food_tile = root.board_images.find_by(display_label: "Food")
       expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
       home_tile = cloned_feelings.board_images.find_by(label: "home")
@@ -135,7 +135,7 @@ RSpec.describe Boards::SeededSetCloner do
       expect(favorites.settings["builder_child"]).to be(true)
       expect(favorites.board_images.map(&:label)).to include("grandma")
 
-      fav_tile = root.board_images.find_by(label: "My Favorites")
+      fav_tile = root.board_images.find_by(display_label: "My Favorites")
       expect(fav_tile.predictive_board_id).to eq(favorites.id)
     end
 
@@ -170,7 +170,7 @@ RSpec.describe Boards::SeededSetCloner do
         expect(owner.boards.find_by(name: "Food")).to be_nil
         expect(owner.boards.find_by(name: "Feelings")).to be_present
 
-        food_tile = root.board_images.find_by(label: "Food")
+        food_tile = root.board_images.find_by(display_label: "Food")
         expect(food_tile.predictive_board_id).to be_nil
       end
 
@@ -224,10 +224,10 @@ RSpec.describe Boards::SeededSetCloner do
 
         expect(returned.id).to eq(root.id)
         root.reload
-        expect(root.board_images.map(&:label)).to include("I", "want", "help", "Food", "Feelings")
+        expect(root.board_images.map(&:display_label)).to include("I", "want", "help", "Food", "Feelings")
 
         cloned_food = owner.boards.find_by(name: "Food")
-        food_tile = root.board_images.find_by(label: "Food")
+        food_tile = root.board_images.find_by(display_label: "Food")
         expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
         cloned_feelings = owner.boards.find_by(name: "Feelings")
@@ -266,7 +266,7 @@ RSpec.describe Boards::SeededSetCloner do
 
         favorites = owner.boards.find_by(name: "My Favorites")
         expect(favorites.board_images.map(&:label)).to include("grandma")
-        fav_tile = root.reload.board_images.find_by(label: "My Favorites")
+        fav_tile = root.reload.board_images.find_by(display_label: "My Favorites")
         expect(fav_tile.predictive_board_id).to eq(favorites.id)
       end
 
@@ -300,7 +300,7 @@ RSpec.describe Boards::SeededSetCloner do
       expect(owner.boards.count).to eq(3)
 
       cloned_food = owner.boards.find_by(name: "Food")
-      expect(root.board_images.find_by(label: "Food").predictive_board_id).to eq(cloned_food.id)
+      expect(root.board_images.find_by(display_label: "Food").predictive_board_id).to eq(cloned_food.id)
     end
 
     it "routes interests into the cloned fringe pages and My Favorites" do
@@ -312,7 +312,7 @@ RSpec.describe Boards::SeededSetCloner do
 
       favorites = owner.boards.find_by(name: "My Favorites")
       expect(favorites.board_images.map(&:label)).to contain_exactly("grandma")
-      expect(root.board_images.find_by(label: "My Favorites")).to be_present
+      expect(root.board_images.find_by(display_label: "My Favorites")).to be_present
     end
 
     it "falls back to the owner's voice for boards it creates" do
@@ -351,7 +351,7 @@ RSpec.describe Boards::SeededSetCloner do
         expect(fringe.count).to be > 0
 
         fringe.each do |board|
-          self_tile = board.board_images.find_by(label: board.name)
+          self_tile = board.board_images.find_by(display_label: board.name)
           expect(self_tile).to be_present, "expected fringe '#{board.name}' to have a '#{board.name}' self tile"
           expect(self_tile.predictive_board_id).to eq(cloned_root.id),
             "expected '#{board.name}' self tile to link home to the cloned root"
@@ -376,7 +376,7 @@ RSpec.describe Boards::SeededSetCloner do
       { "I" => ["pronoun", "#FFEA75"],
         "want" => ["verb", "#A1F571"],
         "what" => ["question", "#A07AFF"] }.each do |label, (pos, hex)|
-        tile = cloned_root.board_images.find_by(label: label)
+        tile = cloned_root.board_images.find_by(display_label: label)
         expect(tile).to be_present, "expected a cloned '#{label}' tile"
         expect(tile.part_of_speech).to eq(pos)
         expect(tile.bg_color).to eq(hex)

@@ -44,7 +44,7 @@ RSpec.describe "board_builder:sync_nav_rows" do
     labels = food.board_images.reload.map(&:label)
     expect(labels).to include("Food", "this")
 
-    self_tile = food.board_images.find { |bi| bi.label == "Food" }
+    self_tile = food.board_images.find { |bi| bi.display_label == "Food" }
     expect(self_tile.predictive_board_id).to eq(root.id)
   end
 

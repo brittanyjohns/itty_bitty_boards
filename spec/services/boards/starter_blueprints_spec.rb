@@ -27,7 +27,7 @@ RSpec.describe Boards::StarterBlueprints, type: :service do
         # The capitalized folder labels — folder names, never seeded vocabulary —
         # are exactly what used to blow up. They now resolve to created images.
         %w[Food Feelings Play].each do |folder_label|
-          expect(Image.find_by(label: folder_label, user_id: user.id)).to be_present
+          expect(Image.by_label(folder_label).find_by(user_id: user.id)).to be_present
         end
       end
     end

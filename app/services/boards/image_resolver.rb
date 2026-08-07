@@ -24,7 +24,8 @@ module Boards
     # Matching is case-INSENSITIVE: folder labels are capitalized ("Animals",
     # "People") while curated library art is often stored lowercase, and a
     # case-sensitive `find_by(label:)` would miss it and fall through to a blank.
-    # A newly-created image keeps the normalized label's original casing.
+    # A newly-created image keeps the authored casing on `display_label`;
+    # `Image#set_label` normalizes `label` itself to the lowercase matching key.
     def resolve(label, owner:)
       word = Boards::InterestWords.normalize_word(label)
 

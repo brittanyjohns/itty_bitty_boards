@@ -55,7 +55,11 @@ RSpec.describe Boards::ImageResolver do
     it "keeps the authored casing on an image it has to create" do
       resolved = described_class.resolve_all(["BrandNewCased"], owner: owner)
 
-      expect(resolved["brandnewcased"].label).to eq("BrandNewCased")
+      # The authored casing now lives on display_label; label is the lowercase
+      # matching key, so the next resolve for "brandnewcased" finds this row
+      # instead of creating a second one.
+      expect(resolved["brandnewcased"].display_label).to eq("BrandNewCased")
+      expect(resolved["brandnewcased"].label).to eq("brandnewcased")
     end
 
     it "does not scale its query count with the number of labels" do

@@ -136,7 +136,7 @@ RSpec.describe Boards::ScreenReflow do
     end
 
     def labels_at(screen)
-      board.board_images.reload.map { |bi| [bi.label, bi.layout[screen]] }.to_h
+      board.board_images.reload.map { |bi| [bi.display_label, bi.layout[screen]] }.to_h
     end
 
     it "leaves the default path byte-identical" do

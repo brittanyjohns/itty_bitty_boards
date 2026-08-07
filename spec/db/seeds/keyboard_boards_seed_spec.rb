@@ -36,24 +36,24 @@ RSpec.describe "db/seeds/keyboard_boards.rb", type: :model do
     run_seed
     board = Board.find_by!(slug: "keyboard-abc")
 
-    letter = board.board_images.find_by!(label: "A")
+    letter = board.board_images.find_by!(display_label: "A")
     expect(letter.data).to include("tile_type" => "letter")
 
-    space = board.board_images.find_by!(label: "Space")
+    space = board.board_images.find_by!(display_label: "Space")
     expect(space.data).to include("tile_type" => "action", "tile_action" => "space")
 
-    delete = board.board_images.find_by!(label: "Delete")
+    delete = board.board_images.find_by!(display_label: "Delete")
     expect(delete.data).to include("tile_type" => "action", "tile_action" => "backspace")
   end
 
   it "authors keyboard-shaped layouts for every screen size" do
     run_seed
 
-    abc_space = Board.find_by!(slug: "keyboard-abc").board_images.find_by!(label: "Space")
+    abc_space = Board.find_by!(slug: "keyboard-abc").board_images.find_by!(display_label: "Space")
     qwerty = Board.find_by!(slug: "keyboard-qwerty")
-    qwerty_space = qwerty.board_images.find_by!(label: "Space")
-    qwerty_delete = qwerty.board_images.find_by!(label: "Delete")
-    qwerty_a = qwerty.board_images.find_by!(label: "A")
+    qwerty_space = qwerty.board_images.find_by!(display_label: "Space")
+    qwerty_delete = qwerty.board_images.find_by!(display_label: "Delete")
+    qwerty_a = qwerty.board_images.find_by!(display_label: "A")
 
     %w[lg md sm xs xxs].each do |screen|
       expect(abc_space.layout[screen]).to include("w" => 2, "y" => 4)
@@ -71,9 +71,9 @@ RSpec.describe "db/seeds/keyboard_boards.rb", type: :model do
     run_seed
     board = Board.find_by!(slug: "keyboard-abc")
 
-    expect(board.board_images.find_by!(label: "A").bg_color).to eq("#FDE68A")
-    expect(board.board_images.find_by!(label: "B").bg_color).to eq("#DBEAFE")
-    expect(board.board_images.find_by!(label: "Space").bg_color).to eq("#E5E7EB")
+    expect(board.board_images.find_by!(display_label: "A").bg_color).to eq("#FDE68A")
+    expect(board.board_images.find_by!(display_label: "B").bg_color).to eq("#DBEAFE")
+    expect(board.board_images.find_by!(display_label: "Space").bg_color).to eq("#E5E7EB")
   end
 
   it "is idempotent — re-running does not duplicate boards or tiles" do
@@ -129,8 +129,8 @@ RSpec.describe "db/seeds/keyboard_boards.rb", type: :model do
     expect(clone.predefined).to be(false)
     expect(clone.board_images.count).to eq(28)
 
-    cloned_space = clone.board_images.find_by!(label: "Space")
+    cloned_space = clone.board_images.find_by!(display_label: "Space")
     expect(cloned_space.data).to include("tile_type" => "action", "tile_action" => "space")
-    expect(clone.board_images.find_by!(label: "A").data).to include("tile_type" => "letter")
+    expect(clone.board_images.find_by!(display_label: "A").data).to include("tile_type" => "letter")
   end
 end

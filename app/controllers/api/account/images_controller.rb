@@ -14,8 +14,8 @@ class API::Account::ImagesController < API::Account::ApplicationController
     label = image_params["label"]
 
     is_private = image_params["private"] || false
-    @image = Image.find_by(label: label, user_id: @user.id)
-    @image = Image.public_img.find_by(label: label) unless @image
+    @image = Image.by_label(label).find_by(user_id: @user.id)
+    @image = Image.public_img.by_label(label).first unless @image
     @found_image = @image
     @image = Image.create(label: label, private: is_private, user_id: @user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || (@found_image && duplicate_image)
 

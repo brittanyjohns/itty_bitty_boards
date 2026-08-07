@@ -967,8 +967,8 @@ class API::BoardsController < API::ApplicationController
   def add_image
     set_board
     # @board = Board.with_artifacts.find(params[:id])
-    @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
-    @found_image ||= Image.find_by(label: image_params[:label])
+    @found_image = Image.by_label(image_params[:label]).find_by(user_id: current_user.id, private: true)
+    @found_image ||= Image.by_label(image_params[:label]).first
     if @found_image
       @image = @found_image
       img_saved = true
