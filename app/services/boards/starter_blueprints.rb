@@ -97,7 +97,9 @@ module Boards
           key: Boards::RobustSets.slug_for(root),
           name: root.name,
           kind: "robust",
-          tiles: root.board_images.order(:position).map(&:label),
+          # display_label: this preview list is shown to the user picking a
+          # template, so it needs the tile's text, not the matching key.
+          tiles: root.board_images.order(:position).map(&:display_label),
         }
       end
     end

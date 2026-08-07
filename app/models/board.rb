@@ -1327,7 +1327,11 @@ class Board < ApplicationRecord
   def set_current_word_list
     data = self.data || {}
 
-    words = board_images.order(:position).pluck(:label)
+    # display_label, not label: this list is surfaced as `word_list` in the
+    # board payload, and before `label` became a pure matching key it carried
+    # the tile's text. Both sides of the clone-dedup comparison in
+    # CloneBoardJob read this same field, so matching is unaffected.
+    words = board_images.order(:position).pluck(:display_label)
     return [] if words.blank?
 
     data["current_word_list"] = words
@@ -1933,7 +1937,7 @@ class Board < ApplicationRecord
         {
           id: @board_image.id,
           image_id: @image.id,
-          label: @board_image.localized_label(viewer_lang),
+          label: @board_image.localized_display_label(viewer_lang),
           display_label: @board_image.localized_display_label(viewer_lang),
           hidden: @board_image.hidden,
           root_board_id: @root_board&.id,
@@ -2142,7 +2146,7 @@ class Board < ApplicationRecord
         {
           id: @board_image.id,
           image_id: @image.id,
-          label: @board_image.localized_label(viewer_lang),
+          label: @board_image.localized_display_label(viewer_lang),
           display_label: @board_image.localized_display_label(viewer_lang),
           hidden: @board_image.hidden,
           root_board_id: @root_board&.id,

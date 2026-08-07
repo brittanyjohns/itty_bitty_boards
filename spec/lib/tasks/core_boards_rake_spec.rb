@@ -107,7 +107,7 @@ RSpec.describe "core_boards rake task", type: :task do
       expect(board).to be_present
       expect(board.board_images.count).to eq(40)
       expect(board.tags).to include("bedtime")
-      expect(board.board_images.order(:position).pluck(:label)[4]).to eq("bed")
+      expect(board.board_images.order(:position).pluck(:display_label)[4]).to eq("bed")
     end
   end
 

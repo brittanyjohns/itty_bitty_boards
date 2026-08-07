@@ -329,13 +329,13 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(root.status).to eq("complete")
 
         # "dinosaurs" was routed into the existing Play folder (alongside seeds).
-        play_tile = root.board_images.find { |bi| bi.label == "Play" }
+        play_tile = root.board_images.find { |bi| bi.display_label == "Play" }
         expect(play_tile.predictive_board_id).to be_present
         play_board = Board.find(play_tile.predictive_board_id)
         expect(play_board.board_images.map(&:label)).to include("dinosaurs", "ball")
 
         # "grandma" had no category folder, so it landed in "My Favorites".
-        favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
+        favorites_tile = root.board_images.find { |bi| bi.display_label == "My Favorites" }
         expect(favorites_tile.predictive_board_id).to be_present
         favorites_board = Board.find(favorites_tile.predictive_board_id)
         expect(favorites_board.board_images.map(&:label)).to contain_exactly("grandma")
@@ -364,7 +364,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
         root = Board.find(body["id"])
         # "grandma" has no dictionary category but was explicitly routed to Play
-        play_tile = root.board_images.find { |bi| bi.label == "Play" }
+        play_tile = root.board_images.find { |bi| bi.display_label == "Play" }
         play_board = Board.find(play_tile.predictive_board_id)
         expect(play_board.board_images.map(&:label)).to include("grandma")
 
@@ -439,11 +439,11 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(ChildBoard.count).to eq(0)
 
         # Interests route exactly as they do for an attached build.
-        play_tile = root.board_images.find { |bi| bi.label == "Play" }
+        play_tile = root.board_images.find { |bi| bi.display_label == "Play" }
         play_board = Board.find(play_tile.predictive_board_id)
         expect(play_board.board_images.map(&:label)).to include("dinosaurs")
 
-        favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
+        favorites_tile = root.board_images.find { |bi| bi.display_label == "My Favorites" }
         favorites_board = Board.find(favorites_tile.predictive_board_id)
         expect(favorites_board.board_images.map(&:label)).to contain_exactly("grandma")
       end
@@ -834,12 +834,12 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(User.find(user.id).countable_board_group_count).to eq(1)
 
         # Cloned core tiles landed on the SAME root the 201 returned.
-        expect(root.board_images.map(&:label)).to include("I", "Food")
+        expect(root.board_images.map(&:display_label)).to include("I", "Food")
 
         # "pizza" routed into the cloned Food fringe page, linked from the root.
         cloned_food = user.boards.find_by(name: "Food")
         expect(cloned_food.board_images.map(&:label)).to include("apple", "pizza")
-        food_tile = root.board_images.find { |bi| bi.label == "Food" }
+        food_tile = root.board_images.find { |bi| bi.display_label == "Food" }
         expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
         # The cloned fringe page is also a group member (not just the root), so
