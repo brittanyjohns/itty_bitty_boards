@@ -554,7 +554,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
         expect(response).to have_http_status(:created)
         BuildBoardSetJob.drain
-        expect(Image.find_by(label: "Food", user_id: no_seed_user.id)).to be_present
+        expect(Image.by_label("Food").find_by(user_id: no_seed_user.id)).to be_present
         expect(Board.find(JSON.parse(response.body)["id"]).status).to eq("complete")
       end
     end

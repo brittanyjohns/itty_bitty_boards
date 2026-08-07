@@ -50,7 +50,7 @@ RSpec.describe "core_boards rake task", type: :task do
     end
 
     it "places core words on the left half and topic words on the right half" do
-      labels = board.board_images.order(:position).pluck(:label)
+      labels = board.board_images.order(:position).pluck(:display_label)
       expect(labels[0, 4]).to eq(%w[I want help yes])
       expect(labels[4, 4]).to eq(%w[lunch eat hot cold])
       expect(labels[8]).to eq("you")
