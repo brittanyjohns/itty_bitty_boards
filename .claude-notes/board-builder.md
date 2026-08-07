@@ -1114,13 +1114,19 @@ Its own invariants:
   radius. Publishing refuses a set with any empty page; delete removes pages
   before the root.
 
-- **Topic and audience fill themselves in.** `topic` falls back to the board
-  name (the name already describes the board, and a blank topic is the
-  difference between a playground *swing* and a mood swing when art is
-  generated); `audience` falls back to `DEFAULT_AUDIENCE`. Both are plain
-  fallbacks in `submitted_form`, so an explicitly typed value always wins, and
-  the form mirrors name → topic until the field is edited — the same
-  suggest-until-touched idiom `Admin::VideoBoardsController`'s form uses for
-  columns. Drafting is therefore only refused when name *and* topic are empty.
+- **Topic and audience are inferred, not typed.**
+  `Boards::AdminBuilder::ContextSuggester` reads the board name and any words
+  already in the form and returns `{ topic:, audience: }` in one OpenAI call —
+  same shape as `WordListDrafter`. `POST .../board_builds/suggest` fills both
+  fields on their own; `draft` calls it first whenever the topic is blank, so
+  "Draft with AI" works from a board name alone. A value the admin typed is
+  never overwritten.
+  - **Gated on the topic only.** Audience is optional to the drafter, so a blank
+    audience alongside a known topic is not worth a round trip; the topic call
+    answers both anyway.
+  - Both values are prompt fragments, not display copy — `topic` completes
+    "`<label>` in the context of ___" for every generated tile on the board — so
+    the response is stripped of a trailing full stop and length-capped. A
+    runaway answer would otherwise end up inside every art prompt.
 
 AI drafting (Phase 2) fills the main word list only — pages are authored by hand.

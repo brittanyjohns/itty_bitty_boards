@@ -8,11 +8,20 @@
         <%= text_field_tag :name, @form[:name], id: "name", required: true,
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
       </div>
+      <div class="flex items-end">
+        <%# formaction, not a second form: the suggestion is worked out from the
+            name and any words already typed in this same form. %>
+        <button type="submit" formaction="<%= suggest_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Work out topic &amp; audience
+        </button>
+        <p class="text-[11px] text-t3 ml-3">Reads the board name and any words you've typed. Drafting does this on its own if they're blank.</p>
+      </div>
       <div>
         <label class="block text-xs font-medium text-t2 mb-1" for="topic">Topic <span class="text-t3">(optional)</span></label>
         <%= text_field_tag :topic, @form[:topic], id: "topic", placeholder: "the playground",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
-        <p class="text-[11px] text-t3 mt-1">Follows the board name until you change it. Steers AI art for words the library doesn't cover — “swing” on a playground board, not a mood swing. Also what the AI drafts a word list from.</p>
+        <p class="text-[11px] text-t3 mt-1">Steers AI art for words the library doesn't cover — “swing” on a playground board, not a mood swing. Also what the AI drafts a word list from.</p>
       </div>
       <div>
         <label class="block text-xs font-medium text-t2 mb-1" for="audience">Audience <span class="text-t3">(optional)</span></label>
@@ -209,20 +218,6 @@
 
     [words, columns, rows].forEach(function (el) { el.addEventListener("input", update); });
     update();
-
-    // Topic follows the board name until the admin edits it — same
-    // suggest-until-touched idiom the video board form uses for columns. The
-    // server falls back to the name too, so this is only about seeing it.
-    var nameInput = document.getElementById("name");
-    var topicInput = document.getElementById("topic");
-    if (nameInput && topicInput) {
-      var topicTouched = topicInput.value !== "" && topicInput.value !== nameInput.value;
-
-      topicInput.addEventListener("input", function () { topicTouched = true; });
-      nameInput.addEventListener("input", function () {
-        if (!topicTouched) topicInput.value = nameInput.value;
-      });
-    }
 
     // Page blocks are indexed, so every add/remove has to renumber the whole
     // list or Rails collapses blocks that share an index.

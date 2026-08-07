@@ -7,6 +7,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **The board builder works out the topic and audience for you.** Name a board
+  and it infers what the board is about and who it's for — the two things that
+  steer both the drafted word list and the art generated for words the library
+  doesn't cover. It runs on its own when you draft from a name alone, or on
+  demand from a button. Anything you've typed yourself is left alone.
 - **The admin board builder can build a linked set of pages, not just one
   board.** Add pages to a build, give each one a key, and point a tile at it —
   that tile becomes a folder that opens the page, and a tile on a page can point

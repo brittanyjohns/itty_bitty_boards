@@ -206,6 +206,73 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST /admin/board_builds/suggest" do
+    before do
+      sign_in admin
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ topic: "the playground", audience: "a preschooler" })
+    end
+
+    it "fills in both fields and writes nothing" do
+      expect { post suggest_admin_dashboard_board_builds_path, params: form_params(topic: "", audience: "") }
+        .to not_change(Board, :count)
+        .and not_change(Image, :count)
+        .and not_change(AdminBoardBuild, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("the playground")
+      expect(response.body).to include("a preschooler")
+      expect(response.body).to include("Suggested a topic and audience")
+    end
+
+    it "keeps the rest of the form" do
+      post suggest_admin_dashboard_board_builds_path,
+           params: form_params(topic: "", audience: "", name: "Playtime")
+
+      expect(response.body).to include("Playtime")
+      expect(response.body).to include("swing | noun")
+    end
+
+    it "reads the board name and the words already typed" do
+      expect(Boards::AdminBuilder::ContextSuggester).to receive(:new)
+        .with(name: "Playground", words: a_string_including("swing"))
+        .and_call_original
+
+      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "Playground", topic: "", audience: "")
+    end
+
+    it "leaves a value the admin already typed alone" do
+      post suggest_admin_dashboard_board_builds_path, params: form_params(audience: "a teenager")
+
+      expect(response.body).to include("a teenager")
+      expect(response.body).not_to include("a preschooler")
+    end
+
+    it "refuses when there is nothing to work from" do
+      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Give the board a name, or some words")
+    end
+
+    it "surfaces a generation failure without losing the form" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_raise(Boards::AdminBuilder::ContextSuggester::GenerationError, "OpenAI returned no content")
+
+      post suggest_admin_dashboard_board_builds_path, params: form_params(topic: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t suggest a topic")
+      expect(response.body).to include("Playground")
+    end
+
+    it "is closed to non-admins" do
+      sign_in create(:user)
+      post suggest_admin_dashboard_board_builds_path, params: form_params
+      expect(response).to redirect_to(root_path)
+    end
+  end
+
   describe "POST /admin/board_builds/draft" do
     let(:drafted) do
       [
@@ -259,28 +326,54 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("Drafted 2 of 4 words")
     end
 
-    # The board name already describes the board, so retyping it as a topic
-    # buys nothing.
-    it "falls back to the board name when no topic is given" do
+    # Topic and audience steer the draft and, later, the art prompts, so a
+    # blank one is inferred rather than being a prerequisite.
+    it "works out a blank topic and audience before drafting" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ topic: "the playground", audience: "a preschooler" })
+
       expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
-        .with(hash_including(topic: "Playground"))
+        .with(hash_including(topic: "the playground", audience: "a preschooler"))
         .and_call_original
 
-      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "Playground", words: "")
+      post draft_admin_dashboard_board_builds_path,
+           params: form_params(topic: "", audience: "", name: "At the Playground", words: "")
 
       expect(response).to have_http_status(:ok)
     end
 
-    it "prefers an explicitly typed topic over the name" do
+    it "never overwrites a topic the admin typed" do
+      expect(Boards::AdminBuilder::ContextSuggester).not_to receive(:new)
       expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
-        .with(hash_including(topic: "the playground"))
+        .with(hash_including(topic: "the playground", audience: "a preschooler"))
         .and_call_original
 
-      post draft_admin_dashboard_board_builds_path, params: form_params(name: "Playtime", words: "")
+      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "a preschooler", words: "")
+    end
+
+    it "fills a blank topic but keeps an audience the admin typed" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ topic: "the playground", audience: "someone else" })
+
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(hash_including(topic: "the playground", audience: "a teenager"))
+        .and_call_original
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", audience: "a teenager", words: "")
+    end
+
+    # Audience is optional to the drafter, so a known topic means no second
+    # round trip just to fill it in.
+    it "does not spend a call working out a blank audience when the topic is known" do
+      expect(Boards::AdminBuilder::ContextSuggester).not_to receive(:new)
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "", words: "")
+
+      expect(response).to have_http_status(:ok)
     end
 
     it "refuses to draft with neither a name nor a topic" do
-      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "")
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "", words: "")
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("Give the board a name or a topic to draft from")
@@ -293,12 +386,14 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("I | pronoun")
     end
 
-    it "defaults the audience rather than making the admin invent one" do
-      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
-        .with(hash_including(audience: Admin::BoardBuildsController::DEFAULT_AUDIENCE))
-        .and_call_original
+    it "surfaces a failure to work out the topic" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_raise(Boards::AdminBuilder::ContextSuggester::GenerationError, "OpenAI returned no content")
 
-      post draft_admin_dashboard_board_builds_path, params: form_params(audience: "", words: "")
+      post draft_admin_dashboard_board_builds_path, params: form_params(topic: "", name: "Playground")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t work out the topic")
     end
 
     it "surfaces a generation failure without losing the form" do
