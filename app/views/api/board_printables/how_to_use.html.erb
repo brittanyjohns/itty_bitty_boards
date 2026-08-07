@@ -2,10 +2,16 @@
     (speakanyway-printables/src/plugins/aac/product-types/existing-board.ts) so
     an in-app printable and a pipeline printable read identically.
 
-    Exception — the set branch. The pipeline merges a set into ONE PDF with a
-    colour half then a low-ink half; MergePdf here emits TWO fully-wrapped
-    files instead. This same page is bound into both, so the copy has to
-    describe the pair, not halves of one document.
+    Exception — step 1, which is the one claim this page makes about the
+    document it sits in, so it can only ever describe THAT document:
+
+      single board  → one file holding a colour half and a low-ink half
+      set, colour   → this file is all colour
+      set, low-ink  → this file is all low-ink
+
+    Neither set variant mentions the other file. A reader holding the low-ink
+    print doesn't need to be told a colour one exists somewhere; being told so
+    just raises a question the page can't answer.
 
     Steps 1 and 6 span both columns because they carry the longest copy; the
     four short ones sit in a 2×2 block between them. %>
@@ -30,18 +36,26 @@
       <div class="step wide">
         <span class="num">1</span>
         <div>
-          <p class="lead"><%= @is_set ? "Two files, same boards" : "Printed twice" %></p>
-          <p>
-            <% if @is_set %>
-              This printable comes as two files, each with all the same boards: one in
-              full color, and one with white tile backgrounds for a cleaner, lower-ink
-              print. Use whichever fits your printer.
-            <% else %>
-              This printable includes the board twice: once in full color, then again
+          <% if !@is_set %>
+            <p class="lead">Printed twice</p>
+            <p>
+              This file includes the board twice: once in full color, then again
               with white tile backgrounds for a cleaner, lower-ink print. Use
               whichever fits your printer.
-            <% end %>
-          </p>
+            </p>
+          <% elsif @low_ink %>
+            <p class="lead">Printed low-ink</p>
+            <p>
+              Every board in this file uses white tile backgrounds, so it prints
+              cleanly and goes easy on your ink.
+            </p>
+          <% else %>
+            <p class="lead">Printed in full color</p>
+            <p>
+              Every board in this file uses the same tile colors your
+              communicator sees on screen.
+            </p>
+          <% end %>
         </div>
       </div>
 
@@ -57,9 +71,11 @@
         <span class="num">3</span>
         <div>
           <p class="lead">Hear it out loud</p>
+          <%# Full stop rather than an em dash: at this measure the dash kept
+              landing at the start of a line, where it reads as a stray mark. %>
           <p>
             Scan the QR code on the cover<%= " or any page" if @is_set %> to open the
-            board<%= "s" if @is_set %> online — every word speaks out loud when you
+            board<%= "s" if @is_set %> online. Every word speaks out loud when you
             tap it. Nothing to install.
           </p>
         </div>
@@ -69,7 +85,9 @@
         <span class="num">4</span>
         <div>
           <p class="lead">Practice first</p>
-          <p>Practice with your communicator before you need it. Familiarity helps.</p>
+          <%# Kept short deliberately. This card sits beside step 5 in the grid
+              and any third line makes the pair visibly uneven. %>
+          <p>Practice together before you need&nbsp;it. Familiarity helps.</p>
         </div>
       </div>
 

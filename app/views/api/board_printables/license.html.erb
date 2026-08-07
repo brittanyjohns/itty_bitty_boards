@@ -1,4 +1,8 @@
-<%# Check and cross marks are inline SVG rather than ✓/✕ glyphs so they can't
+<%# One list, not two boxes. The mark carries the yes/no — a blue check or a
+    magenta cross — so the terms read as a single set of rules rather than a
+    permissions matrix the reader has to cross-reference.
+
+    Check and cross marks are inline SVG rather than ✓/✕ glyphs so they can't
     fall back to a different face — or to nothing — on the render box. %>
 <div class="sheet license">
   <div class="sheet-body">
@@ -11,47 +15,28 @@
       </p>
     </div>
 
-    <div class="terms">
-      <div class="card yes">
-        <h3>You may</h3>
-        <ul>
-          <li>
-            <span class="mark yes"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></span>
-            <span>Print as many copies as you need for your family or classroom.</span>
-          </li>
-          <li>
-            <span class="mark yes"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></span>
-            <span>Share with your communicator's full team — therapists, teachers, caregivers.</span>
-          </li>
-        </ul>
-      </div>
-
-      <div class="card no">
-        <h3>Please don't</h3>
-        <ul>
-          <li>
-            <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
-            <span>Resell or redistribute this file.</span>
-          </li>
-          <li>
-            <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
-            <span>Share the digital file outside that team.</span>
-          </li>
-          <li>
-            <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
-            <span>Modify and republish as your own work.</span>
-          </li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="callout">
-      <p>
-        Using this with a school, clinic, or caseload and not sure whether it's
-        covered? Ask us at speakanyway.com — we'd rather say yes than have you
-        guess.
-      </p>
-    </div>
+    <ul class="terms">
+      <li>
+        <span class="mark yes"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></span>
+        <span>Print as many copies as you need for your family or classroom.</span>
+      </li>
+      <li>
+        <span class="mark yes"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></span>
+        <span>Share it with your communicator's full team — therapists, teachers, caregivers.</span>
+      </li>
+      <li>
+        <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
+        <span>Don't resell or redistribute this file.</span>
+      </li>
+      <li>
+        <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
+        <span>Don't share the digital file outside that team.</span>
+      </li>
+      <li>
+        <span class="mark no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg></span>
+        <span>Don't modify it and republish it as your own work.</span>
+      </li>
+    </ul>
 
     <div class="license-foot">
       <div class="rule"></div>
