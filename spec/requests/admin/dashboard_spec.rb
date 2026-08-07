@@ -56,6 +56,16 @@ RSpec.describe "Admin::Dashboard", type: :request do
       end
     end
 
+    it "opens the Sidekiq links in a new tab so the dashboard stays put" do
+      get admin_root_path
+
+      # Both the nav link and the tile card point at the mounted Sidekiq web UI.
+      sidekiq_links = response.body.scan(/<a[^>]*href="\/sidekiq"[^>]*>/)
+      expect(sidekiq_links.size).to eq(2)
+      expect(sidekiq_links).to all(include('target="_blank"'))
+      expect(sidekiq_links).to all(include('rel="noopener"'))
+    end
+
     context "when signed in as non-admin" do
       before do
         sign_out admin
