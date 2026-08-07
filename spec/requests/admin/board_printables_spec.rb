@@ -72,6 +72,40 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       expect(response.body).not_to include("Menu Public Board")
     end
 
+    it "shows each public board's direct subboard count, deduped and ignoring self-links" do
+      sign_in admin
+      parent = create(:board, user: default_admin, predefined: true, published: true, name: "Public Parent")
+      child = create(:board, user: owner, name: "Child One")
+      link(parent, child, position: 0)
+      link(parent, child, position: 1)
+      link(parent, parent, position: 2)
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("1 subboard")
+      expect(response.body).not_to include("2 subboards")
+    end
+
+    it "labels a public board with no subboards" do
+      sign_in admin
+      create(:board, user: default_admin, predefined: true, published: true, name: "Public Solo")
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("No subboards")
+    end
+
+    it "links each public board to its public page in a new tab" do
+      sign_in admin
+      public_board = create(:board, user: default_admin, predefined: true, published: true, name: "Public Mealtime")
+      key = Boards::Printables::CollectPages.qr_key_for(public_board)
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("/pb/#{key}")
+      expect(response.body).to include('target="_blank"')
+    end
+
     it "searches boards by name" do
       sign_in admin
 

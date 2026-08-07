@@ -14,6 +14,8 @@ module Admin
       public_boards = Board.public_boards
       @public_boards_count = public_boards.count
       @public_boards = public_boards.alphabetical.limit(PUBLIC_BOARD_LIMIT)
+
+      @subboard_counts = direct_subboard_counts(@public_boards + @boards)
     end
 
     def show
@@ -52,6 +54,27 @@ module Admin
       redirect_to admin_dashboard_board_printable_path(printable), notice: "Generating printable for \"#{board.name}\"…"
     rescue Boards::Printables::CollectPages::TreeTooLargeError => e
       redirect_to admin_dashboard_board_printables_path, alert: e.message
+    end
+
+    private
+
+    # Directly linked subboards per board, in one grouped query — the full tree
+    # would need a walk per row, and the list can be 100 boards long. Self-links
+    # are excluded because the tree walk skips them too.
+    def direct_subboard_counts(boards)
+      ids = boards.map(&:id).uniq
+      return {} if ids.empty?
+
+      # reorder(nil) drops BoardImage's default position ordering — Postgres
+      # rejects an ORDER BY column that isn't in the GROUP BY.
+      BoardImage
+        .reorder(nil)
+        .where(board_id: ids)
+        .where.not(predictive_board_id: nil)
+        .where("predictive_board_id != board_id")
+        .group(:board_id)
+        .distinct
+        .count(:predictive_board_id)
     end
   end
 end

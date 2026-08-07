@@ -8,20 +8,22 @@
 </div>
 
 <div class="admin-card border rounded-xl p-5 mb-6">
-  <div class="flex items-baseline justify-between gap-3 mb-3">
-    <h2 class="text-sm font-medium text-t1">Public boards</h2>
-    <span class="text-xs text-t3">
-      <%= pluralize(@public_boards_count, "published public board") %><%= " · showing first #{@public_boards.size}" if @public_boards_count > @public_boards.size %>
-    </span>
-  </div>
+  <details>
+    <summary class="flex items-baseline justify-between gap-3 cursor-pointer list-none">
+      <h2 class="text-sm font-medium text-t1">Public boards <span class="text-t3 font-normal">(click to expand)</span></h2>
+      <span class="text-xs text-t3">
+        <%= pluralize(@public_boards_count, "published public board") %><%= " · showing first #{@public_boards.size}" if @public_boards_count > @public_boards.size %>
+      </span>
+    </summary>
 
-  <% if @public_boards.any? %>
-    <div class="flex flex-col gap-3">
-      <%= render partial: "board_option", collection: @public_boards, as: :board %>
-    </div>
-  <% else %>
-    <p class="text-xs text-t3">No published public boards yet — use the search below to find any board.</p>
-  <% end %>
+    <% if @public_boards.any? %>
+      <div class="flex flex-col gap-3 mt-3 max-h-96 overflow-y-auto pr-1">
+        <%= render partial: "board_option", collection: @public_boards, as: :board, locals: { subboard_counts: @subboard_counts } %>
+      </div>
+    <% else %>
+      <p class="text-xs text-t3 mt-3">No published public boards yet — use the search below to find any board.</p>
+    <% end %>
+  </details>
 </div>
 
 <div class="admin-card border rounded-xl p-5 mb-6">
@@ -37,8 +39,8 @@
 
   <% if @board_search.present? %>
     <% if @boards.any? %>
-      <div class="flex flex-col gap-3">
-        <%= render partial: "board_option", collection: @boards, as: :board %>
+      <div class="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
+        <%= render partial: "board_option", collection: @boards, as: :board, locals: { subboard_counts: @subboard_counts } %>
       </div>
     <% else %>
       <p class="text-xs text-t3">No boards match "<%= @board_search %>".</p>

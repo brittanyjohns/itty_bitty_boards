@@ -16,7 +16,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   returns two fully-wrapped files — a colour bundle and a low-ink bundle —
   with each board page's QR pointing at that board rather than the root. Work
   runs on Sidekiq; a tree over the board cap is refused up front with a 422
-  rather than half-built.
+  rather than half-built. The board picker collapses behind a toggle and
+  scrolls instead of running the length of the page, and each board shows how
+  many subboards it links to plus a link that opens its public page in a new
+  tab.
 
 ### Removed
 

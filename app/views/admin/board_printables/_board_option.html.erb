@@ -1,3 +1,4 @@
+<% subboard_count = (defined?(subboard_counts) && subboard_counts ? subboard_counts[board.id] : nil).to_i %>
 <div class="admin-card-alt border-t rounded-lg p-3 flex flex-wrap items-end justify-between gap-3">
   <div class="text-xs">
     <span class="text-t1 font-medium"><%= board.name %></span>
@@ -5,6 +6,16 @@
     <% if board.category.present? %>
       <span class="text-t3">· <%= board.category %></span>
     <% end %>
+    <% if subboard_count.positive? %>
+      <span class="ml-1 inline-block text-[11px] rounded px-1.5 py-0.5 bg-indigo-900/60 text-indigo-300" title="Directly linked subboards">
+        <%= pluralize(subboard_count, "subboard") %>
+      </span>
+    <% else %>
+      <span class="ml-1 text-[11px] text-t3">No subboards</span>
+    <% end %>
+    <%= link_to "Open ↗", board_public_page_url(board), target: "_blank", rel: "noopener",
+                class: "ml-1 text-[11px] text-t2 hover:text-accent underline transition-colors",
+                title: "Open this board in a new tab" %>
   </div>
   <%= form_tag admin_dashboard_board_printables_path, method: :post, class: "flex flex-wrap items-end gap-2" do %>
     <input type="hidden" name="board_id" value="<%= board.id %>">
