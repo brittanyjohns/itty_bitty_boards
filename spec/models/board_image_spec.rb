@@ -45,6 +45,18 @@ RSpec.describe BoardImage, type: :model do
     end
   end
 
+  describe "#effective_part_of_speech" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    it "falls back to \"default\" when the image's part_of_speech is a blank string" do
+      image = FactoryBot.create(:image)
+      image.update_column(:part_of_speech, "")
+      board_image = FactoryBot.create(:board_image, board: board, image: image, part_of_speech: "default")
+      expect(board_image.effective_part_of_speech).to eq("default")
+    end
+  end
+
   describe "#set_labels" do
     let(:user) { FactoryBot.create(:user) }
     let(:image) do
