@@ -1,15 +1,35 @@
-<div class="cover">
-  <% if @qr_data_url.present? %>
-    <img class="qr" src="<%= @qr_data_url %>" alt="QR code" />
-    <p class="qr-caption">Scan to hear these words out loud</p>
-  <% end %>
-  <% if @logo.present? %>
-    <img class="logo" src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
-  <% end %>
-  <h1 class="title"><%= @title %></h1>
-  <p class="subtitle"><%= @subtitle %></p>
-  <div class="footer">
-    <p class="brand">A SpeakAnyWay printable</p>
+<%# The public URL is printed as text under the QR on purpose: a printable that
+    has been photocopied, laminated badly, or handed to someone without a phone
+    camera still has to lead back to the board. %>
+<div class="sheet cover">
+  <div class="band">
+    <% if @logo.present? %>
+      <div class="chip">
+        <img src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
+      </div>
+    <% end %>
+    <p class="eyebrow">A SpeakAnyWay printable</p>
+  </div>
+
+  <div class="cover-main">
+    <h1 class="title"><%= @title %></h1>
+    <div class="rule"></div>
+    <p class="pill"><%= @subtitle %></p>
+
+    <% if @qr_data_url.present? %>
+      <div class="qr-card">
+        <img src="<%= @qr_data_url %>" alt="QR code" />
+        <p class="qr-caption">Scan to hear these words out loud</p>
+        <% if @public_url.present? %>
+          <p class="qr-url"><%= @public_url %></p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="cover-footer">
+    <div class="rule"></div>
+    <p class="brand">Everyone's voice matters.</p>
     <p class="url">speakanyway.com</p>
   </div>
 </div>

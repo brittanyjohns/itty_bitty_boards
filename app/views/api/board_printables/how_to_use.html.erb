@@ -5,51 +5,102 @@
     Exception — the set branch. The pipeline merges a set into ONE PDF with a
     colour half then a low-ink half; MergePdf here emits TWO fully-wrapped
     files instead. This same page is bound into both, so the copy has to
-    describe the pair, not halves of one document. %>
-<div class="wrapper-page">
-  <h2>How to use this</h2>
+    describe the pair, not halves of one document.
 
-  <p class="intro">
-    <% if @topic.present? %>
-      This <%= @noun %> helps everyone participate in <strong><%= @topic %></strong>.
-      Print it, hang it, or laminate it for everyday use.
-    <% else %>
-      This <%= @noun %> gives your communicator words at their fingertips.
-      Print it, hang it, or laminate it for everyday use.
-    <% end %>
-  </p>
+    Steps 1 and 6 span both columns because they carry the longest copy; the
+    four short ones sit in a 2×2 block between them. %>
+<div class="sheet how-to">
+  <div class="sheet-body">
+    <div class="page-head">
+      <p class="eyebrow">Start here</p>
+      <h2>How to use this</h2>
+      <div class="rule"></div>
+      <p class="intro">
+        <% if @topic.present? %>
+          This <%= @noun %> helps everyone participate in <strong><%= @topic %></strong>.
+          Print it, hang it, or laminate it for everyday use.
+        <% else %>
+          This <%= @noun %> gives your communicator words at their fingertips.
+          Print it, hang it, or laminate it for everyday use.
+        <% end %>
+      </p>
+    </div>
 
-  <ul class="tips">
-    <li>
-      <% if @is_set %>
-        This printable comes as two files, each with all the same boards: one in
-        full color, and one with white tile backgrounds for a cleaner, lower-ink
-        print. Use whichever fits your printer.
-      <% else %>
-        This printable includes the board twice: once in full color, then again
-        with white tile backgrounds for a cleaner, lower-ink print. Use
-        whichever fits your printer.
-      <% end %>
-    </li>
-    <li>Print at home or at a print shop, Letter size.</li>
-    <li>
-      Scan the QR code on the cover<%= " or any page" if @is_set %> to open the
-      board<%= "s" if @is_set %> online — every word speaks out loud when you
-      tap it. Nothing to install.
-    </li>
-    <li>Practice with your communicator before you need it. Familiarity helps.</li>
-    <li>Add or swap words as your communicator's vocabulary grows.</li>
-    <li>
-      To change a picture or a word online, create a free account at
-      speakanyway.com and save your own copy first — the shared version isn't
-      yours to edit. Your copy also keeps this exact set of words, since a
-      shared board can change over time and may stop matching this print.
-    </li>
-  </ul>
+    <div class="steps">
+      <div class="step wide">
+        <span class="num">1</span>
+        <div>
+          <p class="lead"><%= @is_set ? "Two files, same boards" : "Printed twice" %></p>
+          <p>
+            <% if @is_set %>
+              This printable comes as two files, each with all the same boards: one in
+              full color, and one with white tile backgrounds for a cleaner, lower-ink
+              print. Use whichever fits your printer.
+            <% else %>
+              This printable includes the board twice: once in full color, then again
+              with white tile backgrounds for a cleaner, lower-ink print. Use
+              whichever fits your printer.
+            <% end %>
+          </p>
+        </div>
+      </div>
 
-  <p class="note">
-    <%= @is_set ? "Every board" : "The same board" %> is free to use online —
-    scan the QR code on the cover and tap any word to hear it spoken out loud.
-    No sign-in, no subscription.
-  </p>
+      <div class="step">
+        <span class="num">2</span>
+        <div>
+          <p class="lead">Print it</p>
+          <p>Print at home or at a print shop, Letter size.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="num">3</span>
+        <div>
+          <p class="lead">Hear it out loud</p>
+          <p>
+            Scan the QR code on the cover<%= " or any page" if @is_set %> to open the
+            board<%= "s" if @is_set %> online — every word speaks out loud when you
+            tap it. Nothing to install.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="num">4</span>
+        <div>
+          <p class="lead">Practice first</p>
+          <p>Practice with your communicator before you need it. Familiarity helps.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="num">5</span>
+        <div>
+          <p class="lead">Make it theirs</p>
+          <p>Add or swap words as your communicator's vocabulary grows.</p>
+        </div>
+      </div>
+
+      <div class="step wide">
+        <span class="num">6</span>
+        <div>
+          <p class="lead">Editing online</p>
+          <p>
+            To change a picture or a word online, create a free account at
+            speakanyway.com and save your own copy first — the shared version isn't
+            yours to edit. Your copy also keeps this exact set of words, since a
+            shared board can change over time and may stop matching this print.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <%= @is_set ? "Every board" : "The same board" %> is free to use online —
+        scan the QR code on the cover and tap any word to hear it spoken out loud.
+        No sign-in, no subscription.
+      </p>
+    </div>
+  </div>
 </div>

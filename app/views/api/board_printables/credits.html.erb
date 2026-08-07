@@ -1,19 +1,43 @@
-<div class="wrapper-page">
-  <% if @logo.present? %>
-    <img class="logo-small" src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
-  <% end %>
-  <h2>About SpeakAnyWay</h2>
-  <p>
-    SpeakAnyWay is an AAC app built by a mom of two communicators. Scan any QR
-    code in this file and the board opens online, where every word speaks out
-    loud when you tap it — free, no sign-in, no subscription. We make tools that
-    help families connect without the price tag of traditional AAC.
-  </p>
-  <p class="cta">
-    Find more printables and the free app at <strong>speakanyway.com</strong>
-  </p>
-  <% if @qr_data_url.present? %>
-    <img class="qr-large" src="<%= @qr_data_url %>" alt="QR code to the board" />
-  <% end %>
-  <p class="thanks">Thank you for supporting SpeakAnyWay. 💙</p>
+<div class="sheet about">
+  <div class="band">
+    <% if @logo.present? %>
+      <div class="chip">
+        <img src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
+      </div>
+    <% end %>
+  </div>
+
+  <div class="sheet-body">
+    <h2>About SpeakAnyWay</h2>
+
+    <p class="quote">Built by a mom of two communicators.</p>
+
+    <p class="body">
+      SpeakAnyWay is an AAC app — augmentative and alternative communication,
+      the tools people use to say what they mean when speech isn't enough. Scan
+      any QR code in this file and the board opens online, where every word
+      speaks out loud when you tap it — free, no sign-in, no subscription. We
+      make tools that help families connect without the price tag of
+      traditional AAC.
+    </p>
+
+    <p class="cta">
+      Find more printables and the free app at speakanyway.com
+    </p>
+
+    <% if @qr_data_url.present? %>
+      <div class="qr-card">
+        <img src="<%= @qr_data_url %>" alt="QR code to the board" />
+        <p class="qr-caption">Open this board online — free, no sign-in</p>
+        <% if @public_url.present? %>
+          <p class="qr-url"><%= @public_url %></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <p class="thanks">
+      <span>Thank you for supporting SpeakAnyWay.</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8-4.9-8-10.2A4.8 4.8 0 0 1 12 7a4.8 4.8 0 0 1 8 3.8C20 16.1 12 21 12 21z" /></svg>
+    </p>
+  </div>
 </div>

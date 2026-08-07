@@ -11,7 +11,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
   let(:rendered) { {} }
 
   before do
-    order = %i[cover how_to_use license credits]
+    order = %i[cover how_to_use license credits cover_low_ink]
     index = 0
     allow(Grover).to receive(:new) do |html, **_opts|
       rendered[order[index]] = html
@@ -45,8 +45,19 @@ RSpec.describe Boards::Printables::RenderWrappers do
     it "embeds a QR image" do
       render
 
-      expect(rendered[:cover]).to include('class="qr"')
+      expect(rendered[:cover]).to include('class="qr-card"')
       expect(rendered[:cover]).to include("data:image/png;base64,")
+    end
+
+    # A printable gets photocopied, laminated, and handed to people without a
+    # phone camera. The QR is the convenient path back to the board, not the
+    # only one, so the URL is printed as text beside it.
+    it "prints the board URL as readable text, not only inside the QR" do
+      board.update!(slug: "core-words")
+
+      render
+
+      expect(rendered[:cover]).to include("app.speakanyway.com/pb/core-words")
     end
 
     # The QR is a PNG by the time it reaches the template, so the encoded URL
@@ -157,12 +168,67 @@ RSpec.describe Boards::Printables::RenderWrappers do
     expect(rendered[:credits]).to include("data:image/png;base64,")
   end
 
+  # MergePdf emits a separate low-ink FILE for a set, and it opens on its own
+  # cover so page one doesn't contradict the filename. A single board is one
+  # document holding both halves, so there is nothing to distinguish.
+  describe "the ink-light cover" do
+    it "is rendered for a set and marked ink-light" do
+      result = render(board_count: 4)
+
+      expect(result).to have_key(:cover_low_ink)
+      expect(rendered[:cover_low_ink]).to include('<body class="ink-light">')
+    end
+
+    it "is not rendered for a single board" do
+      result = render
+
+      expect(result).not_to have_key(:cover_low_ink)
+    end
+
+    # Asserted on <body> specifically: the .ink-light rules live in the shared
+    # layout, so the string appears in every render regardless.
+    it "leaves the colour cover unmarked" do
+      render(board_count: 4)
+
+      expect(rendered[:cover]).to include('<body class="">')
+      expect(rendered[:cover_low_ink]).to include('<body class="ink-light">')
+    end
+
+    # Same copy, same boxes — only fills differ. If the two covers could
+    # disagree about layout they could disagree about page count, and the two
+    # files would stop being interchangeable.
+    it "says exactly what the colour cover says" do
+      render(board_count: 4)
+
+      expect(rendered[:cover_low_ink]).to include("Core Words")
+      expect(rendered[:cover_low_ink]).to include("A set of 4 communication boards")
+      expect(rendered[:cover_low_ink]).to include("Scan to hear these words out loud")
+    end
+  end
+
   # The pipeline's base.css @imports Nunito from Google Fonts. A network fetch
-  # inside PDF generation is a flaky failure mode, so the layout must not.
+  # inside PDF generation is a flaky failure mode — and a font that fails to
+  # load fails *silently* into the fallback — so the layout inlines it instead.
   it "never reaches out to the network for fonts" do
     render
 
     expect(rendered[:cover]).not_to include("fonts.googleapis.com")
+    expect(rendered[:cover]).not_to include("fonts.gstatic.com")
+    expect(rendered[:cover]).to include("data:font/woff2;base64,")
+    expect(rendered[:cover]).to include("font-family: Nunito")
     expect(rendered[:cover]).to include("system-ui")
+  end
+
+  # Headless Chrome on the render box has no guaranteed colour-emoji font, so
+  # an emoji in a wrapper prints as a tofu box. The About page shipped a 💙
+  # until it was swapped for an inline SVG; nothing may bring one back.
+  it "renders no emoji on any wrapper page" do
+    emoji = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/
+
+    render(board_count: 4)
+
+    rendered.each do |page, html|
+      expect(html).not_to match(emoji), "expected no emoji on the #{page} page"
+    end
   end
 end
