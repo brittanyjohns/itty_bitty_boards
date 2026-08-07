@@ -9,5 +9,12 @@ module Admin
       else "admin-card-alt text-t2"
       end
     end
+
+    # Same key the printable's cover QR uses, so the link an admin opens is the
+    # page the printed board points at.
+    def board_public_page_url(board)
+      base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+      "#{base_url}/pb/#{Boards::Printables::CollectPages.qr_key_for(board)}"
+    end
   end
 end
