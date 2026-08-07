@@ -73,15 +73,18 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render
 
       expect(rendered[:how_to_use]).to include("This communication board")
-      expect(rendered[:how_to_use]).to include("page 1 in full color")
+      expect(rendered[:how_to_use]).to include("includes the board twice")
       expect(rendered[:how_to_use]).to include("The same board")
     end
 
-    it "explains the colour/low-ink halves for a set" do
+    # A set ships as two separate files (MergePdf#call), not one document with
+    # a colour half and a low-ink half — the copy must not promise otherwise.
+    it "describes a set as two files rather than one two-part document" do
       render(board_count: 4)
 
       expect(rendered[:how_to_use]).to include("set of 4 communication boards")
-      expect(rendered[:how_to_use]).to include("prints every board twice")
+      expect(rendered[:how_to_use]).to include("comes as two files")
+      expect(rendered[:how_to_use]).not_to include("prints every board twice")
       expect(rendered[:how_to_use]).to include("Every board")
     end
 
