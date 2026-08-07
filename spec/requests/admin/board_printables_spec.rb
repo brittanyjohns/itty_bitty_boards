@@ -5,6 +5,9 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
 
   let(:admin) { create(:admin_user) }
   let(:owner) { create(:user) }
+  let(:default_admin) do
+    User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+  end
   let!(:board) { create(:board, user: owner, name: "Core Words") }
 
   def link(from, to, position: 0)
@@ -44,6 +47,29 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Core Words")
       expect(response.body).to include("complete")
+    end
+
+    it "lists published public boards without needing a search" do
+      sign_in admin
+      public_board = create(:board, user: default_admin, predefined: true, published: true, name: "Public Mealtime")
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("Public Mealtime")
+      expect(response.body).to include("value=\"#{public_board.id}\"")
+      # A private board isn't offered up front — it stays behind the search.
+      expect(response.body).not_to include("Core Words")
+    end
+
+    it "leaves unpublished and menu boards out of the public list" do
+      sign_in admin
+      create(:board, user: default_admin, predefined: true, published: false, name: "Draft Public Board")
+      create(:board, user: default_admin, predefined: true, published: true, parent_type: "Menu", name: "Menu Public Board")
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).not_to include("Draft Public Board")
+      expect(response.body).not_to include("Menu Public Board")
     end
 
     it "searches boards by name" do

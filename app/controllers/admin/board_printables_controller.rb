@@ -1,5 +1,7 @@
 module Admin
   class BoardPrintablesController < Admin::ApplicationController
+    PUBLIC_BOARD_LIMIT = 100
+
     def index
       @printables = BoardPrintable.includes(:board).recent.limit(50)
       @board_search = params[:board_search]
@@ -8,6 +10,10 @@ module Admin
       else
         []
       end
+
+      public_boards = Board.public_boards
+      @public_boards_count = public_boards.count
+      @public_boards = public_boards.alphabetical.limit(PUBLIC_BOARD_LIMIT)
     end
 
     def show

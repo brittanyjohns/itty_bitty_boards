@@ -67,7 +67,7 @@
       <p class="text-xs text-t2 mt-1">Generate cover-wrapped, print-ready PDFs from a board or subboard tree</p>
     <% end %>
 
-    <%= link_to "/sidekiq",
+    <%= link_to "/sidekiq", target: "_blank", rel: "noopener",
           class: "group admin-card border hover:border-indigo-500 rounded-xl p-5 transition-colors" do %>
       <p class="text-sm font-medium text-t1 group-hover:text-accent transition-colors">Sidekiq</p>
       <p class="text-xs text-t2 mt-1">Background job queues, retries, and dead jobs</p>

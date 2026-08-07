@@ -121,7 +121,7 @@
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/board_printables") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
-          <%= link_to "Sidekiq", "/sidekiq",
+          <%= link_to "Sidekiq", "/sidekiq", target: "_blank", rel: "noopener",
                 class: "text-xs px-3 py-1.5 rounded text-t2 hover:text-t1 transition-colors" %>
         </nav>
       </div>

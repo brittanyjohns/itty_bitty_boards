@@ -8,7 +8,24 @@
 </div>
 
 <div class="admin-card border rounded-xl p-5 mb-6">
-  <h2 class="text-sm font-medium text-t1 mb-3">Find a board</h2>
+  <div class="flex items-baseline justify-between gap-3 mb-3">
+    <h2 class="text-sm font-medium text-t1">Public boards</h2>
+    <span class="text-xs text-t3">
+      <%= pluralize(@public_boards_count, "published public board") %><%= " · showing first #{@public_boards.size}" if @public_boards_count > @public_boards.size %>
+    </span>
+  </div>
+
+  <% if @public_boards.any? %>
+    <div class="flex flex-col gap-3">
+      <%= render partial: "board_option", collection: @public_boards, as: :board %>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3">No published public boards yet — use the search below to find any board.</p>
+  <% end %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-3">Find any board</h2>
   <%= form_tag admin_dashboard_board_printables_path, method: :get, class: "flex items-center gap-2 mb-4", data: { turbo: false } do %>
     <input type="text" name="board_search" value="<%= @board_search %>" placeholder="Search by board name or ID…"
            class="admin-input border rounded px-3 py-1.5 text-sm w-72 focus:border-indigo-500 focus:outline-none">
@@ -21,28 +38,7 @@
   <% if @board_search.present? %>
     <% if @boards.any? %>
       <div class="flex flex-col gap-3">
-        <% @boards.each do |board| %>
-          <div class="admin-card-alt border-t rounded-lg p-3 flex flex-wrap items-end justify-between gap-3">
-            <div class="text-xs">
-              <span class="text-t1 font-medium"><%= board.name %></span>
-              <span class="text-t3">· ID <%= board.id %></span>
-            </div>
-            <%= form_tag admin_dashboard_board_printables_path, method: :post, class: "flex flex-wrap items-end gap-2" do %>
-              <input type="hidden" name="board_id" value="<%= board.id %>">
-              <label class="flex items-center gap-1 text-[11px] text-t2">
-                <input type="checkbox" name="include_subboards" value="1">
-                Include subboards
-              </label>
-              <div>
-                <input type="number" name="max_boards" value="<%= BoardPrintable::DEFAULT_MAX_BOARDS %>" min="1" max="<%= BoardPrintable::MAX_BOARDS_CEILING %>"
-                       class="admin-input border rounded px-2 py-1 text-xs w-20 focus:border-indigo-500 focus:outline-none" title="Max boards in tree">
-              </div>
-              <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0">
-                Generate
-              </button>
-            <% end %>
-          </div>
-        <% end %>
+        <%= render partial: "board_option", collection: @boards, as: :board %>
       </div>
     <% else %>
       <p class="text-xs text-t3">No boards match "<%= @board_search %>".</p>

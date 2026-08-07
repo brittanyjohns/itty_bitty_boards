@@ -31,6 +31,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Board Printables opens on the public board list instead of an empty search
+  box.** Every published public board is now listed up front with its own
+  Generate controls, so the common case — printing one of the curated public
+  boards — no longer starts by guessing a board name. The search box is still
+  there for any other board. The admin's Sidekiq links (nav and dashboard tile)
+  now open in a new tab so leaving for the job queue doesn't lose the admin
+  page.
+
 - **Staging no longer sends email to real people.** Staging runs against live
   SMTP credentials, so anything exercised there — signups, invitations, alerts
   — used to deliver genuine mail to whatever address was on the record. Mail is

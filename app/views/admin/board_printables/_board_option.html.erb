@@ -1,0 +1,23 @@
+<div class="admin-card-alt border-t rounded-lg p-3 flex flex-wrap items-end justify-between gap-3">
+  <div class="text-xs">
+    <span class="text-t1 font-medium"><%= board.name %></span>
+    <span class="text-t3">· ID <%= board.id %></span>
+    <% if board.category.present? %>
+      <span class="text-t3">· <%= board.category %></span>
+    <% end %>
+  </div>
+  <%= form_tag admin_dashboard_board_printables_path, method: :post, class: "flex flex-wrap items-end gap-2" do %>
+    <input type="hidden" name="board_id" value="<%= board.id %>">
+    <label class="flex items-center gap-1 text-[11px] text-t2">
+      <input type="checkbox" name="include_subboards" value="1">
+      Include subboards
+    </label>
+    <div>
+      <input type="number" name="max_boards" value="<%= BoardPrintable::DEFAULT_MAX_BOARDS %>" min="1" max="<%= BoardPrintable::MAX_BOARDS_CEILING %>"
+             class="admin-input border rounded px-2 py-1 text-xs w-20 focus:border-indigo-500 focus:outline-none" title="Max boards in tree">
+    </div>
+    <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0">
+      Generate
+    </button>
+  <% end %>
+</div>
