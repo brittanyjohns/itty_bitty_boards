@@ -39,13 +39,15 @@ module Admin
     # it, then previews the art, then builds.
     def draft
       @form = submitted_form
-      # Topic steers the draft and, later, every art prompt, so infer it from
-      # the board rather than making it a prerequisite — "Draft with AI" then
-      # works from a name alone. Gated on the topic ONLY: audience is genuinely
-      # optional to the drafter, and spending a second API call to fill it in
-      # when the topic is already known buys nothing. It gets filled anyway when
-      # the topic call runs, since that answers both.
-      @form = @form.merge(suggested_context(@form)) if @form[:topic].blank?
+      # Neither a name nor a topic is a prerequisite for drafting: whichever is
+      # missing is inferred from whatever else the form has, so a draft can
+      # start from a name, a topic, or a pasted word list alone.
+      #
+      # Deliberately NOT gated on a blank audience. Audience is optional to the
+      # drafter, so it isn't worth a round trip of its own — but name and topic
+      # both are (preview and build require a name; topic steers every art
+      # prompt), and the one call answers all three anyway.
+      @form = @form.merge(suggested_context(@form)) if @form[:topic].blank? || @form[:name].blank?
       @problems = draft_problems(@form)
       return render(:new, status: :unprocessable_entity) if @problems.any?
 
@@ -71,13 +73,13 @@ module Admin
     # before a whole word list is drafted from them.
     def suggest
       @form = submitted_form
-      if @form[:name].blank? && @form[:words].strip.blank?
-        @problems = ["Give the board a name, or some words, to work the topic out from."]
+      if nothing_to_infer_from?(@form)
+        @problems = ["Give the board a name, a topic, or some words to work from."]
         return render(:new, status: :unprocessable_entity)
       end
 
       @form = @form.merge(suggest_context(@form))
-      flash.now[:notice] = "Suggested a topic and audience — edit them, or draft a word list."
+      flash.now[:notice] = "Filled in what was blank — edit it, or draft a word list."
       render :new
     rescue Boards::AdminBuilder::ContextSuggester::GenerationError => e
       @problems = ["Couldn't suggest a topic: #{e.message}"]
@@ -229,21 +231,28 @@ module Admin
       @voice_values ||= VoiceService::VOICES.map { |voice| voice[:value] }
     end
 
-    # The whole suggestion, so a partially-filled form only has the blank half
-    # replaced — an explicitly typed topic or audience is never overwritten.
+    def nothing_to_infer_from?(form)
+      form[:name].blank? && form[:topic].blank? && form[:words].strip.blank?
+    end
+
+    # Only the blanks are filled — anything the admin typed is never
+    # overwritten, including the name.
     def suggest_context(form)
-      context = Boards::AdminBuilder::ContextSuggester.new(name: form[:name], words: form[:words]).call
+      context = Boards::AdminBuilder::ContextSuggester.new(
+        name: form[:name], topic: form[:topic], words: form[:words],
+      ).call
 
       {
+        name: form[:name].presence || context[:name],
         topic: form[:topic].presence || context[:topic],
         audience: form[:audience].presence || context[:audience],
       }
     end
 
-    # Same, but a failure here is not fatal: drafting can still go ahead if the
-    # admin typed a topic themselves, and `draft_problems` reports it if not.
+    # Same, but skipped rather than raised when there is nothing to work from —
+    # `draft_problems` reports that more usefully than a generation error would.
     def suggested_context(form)
-      return {} if form[:name].blank? && form[:words].strip.blank?
+      return {} if nothing_to_infer_from?(form)
 
       suggest_context(form)
     end

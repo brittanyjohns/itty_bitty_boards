@@ -210,10 +210,10 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     before do
       sign_in admin
       allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
-        .and_return({ topic: "the playground", audience: "a preschooler" })
+        .and_return({ name: "At the Playground", topic: "the playground", audience: "a preschooler" })
     end
 
-    it "fills in both fields and writes nothing" do
+    it "fills in every blank field and writes nothing" do
       expect { post suggest_admin_dashboard_board_builds_path, params: form_params(topic: "", audience: "") }
         .to not_change(Board, :count)
         .and not_change(Image, :count)
@@ -222,7 +222,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("the playground")
       expect(response.body).to include("a preschooler")
-      expect(response.body).to include("Suggested a topic and audience")
+      expect(response.body).to include("Filled in what was blank")
     end
 
     it "keeps the rest of the form" do
@@ -233,12 +233,28 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("swing | noun")
     end
 
-    it "reads the board name and the words already typed" do
+    it "reads the name, topic and words already typed" do
       expect(Boards::AdminBuilder::ContextSuggester).to receive(:new)
-        .with(name: "Playground", words: a_string_including("swing"))
+        .with(name: "Playground", topic: "", words: a_string_including("swing"))
         .and_call_original
 
       post suggest_admin_dashboard_board_builds_path, params: form_params(name: "Playground", topic: "", audience: "")
+    end
+
+    # The whole point: an admin shouldn't have to invent a board name first.
+    it "names a board that has only a topic" do
+      post suggest_admin_dashboard_board_builds_path,
+           params: form_params(name: "", audience: "", words: "")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("At the Playground")
+    end
+
+    it "leaves a name the admin typed alone" do
+      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "My Board", topic: "", audience: "")
+
+      expect(response.body).to include("My Board")
+      expect(response.body).not_to include("At the Playground")
     end
 
     it "leaves a value the admin already typed alone" do
@@ -248,11 +264,11 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).not_to include("a preschooler")
     end
 
-    it "refuses when there is nothing to work from" do
-      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
+    it "refuses when there is nothing at all to work from" do
+      post suggest_admin_dashboard_board_builds_path, params: form_params(name: "", topic: "", words: "")
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Give the board a name, or some words")
+      expect(response.body).to include("Give the board a name, a topic, or some words")
     end
 
     it "surfaces a generation failure without losing the form" do
@@ -286,6 +302,10 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     before do
       sign_in admin
       allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call).and_return(drafted)
+      # A blank name or topic makes draft infer first, so nothing here can
+      # reach the real API by accident.
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ name: "At the Playground", topic: "the playground", audience: "an early communicator" })
     end
 
     # The draft only ever populates the form — it is never fed to a preview or
@@ -330,7 +350,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     # blank one is inferred rather than being a prerequisite.
     it "works out a blank topic and audience before drafting" do
       allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
-        .and_return({ topic: "the playground", audience: "a preschooler" })
+        .and_return({ name: "At the Playground", topic: "the playground", audience: "a preschooler" })
 
       expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
         .with(hash_including(topic: "the playground", audience: "a preschooler"))
@@ -340,6 +360,19 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
            params: form_params(topic: "", audience: "", name: "At the Playground", words: "")
 
       expect(response).to have_http_status(:ok)
+    end
+
+    # Preview and build require a name, so drafting fills a blank one rather
+    # than handing back a word list that can't be submitted.
+    it "names an unnamed board while drafting it" do
+      allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
+        .and_return({ name: "At the Playground", topic: "the playground", audience: "a preschooler" })
+
+      post draft_admin_dashboard_board_builds_path, params: form_params(name: "", words: "")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("At the Playground")
+      expect(response.body).to include("I | pronoun")
     end
 
     it "never overwrites a topic the admin typed" do
@@ -353,7 +386,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
     it "fills a blank topic but keeps an audience the admin typed" do
       allow_any_instance_of(Boards::AdminBuilder::ContextSuggester).to receive(:call)
-        .and_return({ topic: "the playground", audience: "someone else" })
+        .and_return({ name: "Playground", topic: "the playground", audience: "someone else" })
 
       expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
         .with(hash_including(topic: "the playground", audience: "a teenager"))
