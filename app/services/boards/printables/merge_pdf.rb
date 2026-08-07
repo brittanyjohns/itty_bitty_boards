@@ -53,8 +53,8 @@ module Boards
 
       def build(variant:, filename:, board_pages:)
         pdf = CombinePDF.new
-        pdf << CombinePDF.parse(cover_for(variant))
-        pdf << CombinePDF.parse(wrappers[:how_to_use])
+        pdf << CombinePDF.parse(wrapper_for(:cover, variant))
+        pdf << CombinePDF.parse(wrapper_for(:how_to_use, variant))
         board_pages.each { |page| pdf << CombinePDF.parse(page.pdf_bytes) }
         pdf << CombinePDF.parse(wrappers[:license])
         pdf << CombinePDF.parse(wrappers[:credits])
@@ -67,15 +67,18 @@ module Boards
         )
       end
 
-      # The low-ink FILE opens on an ink-light cover so its first page doesn't
-      # contradict its filename. RenderWrappers only produces one for a set, so
-      # fall back to the colour cover rather than assuming the key is there —
-      # the single-board file is one document holding both halves and has no
-      # low-ink identity to honour.
-      def cover_for(variant)
-        return wrappers[:cover] unless variant == BoardPrintable::VARIANT_LOW_INK
+      # The cover and the how-to-use page both make claims about the file they
+      # sit in, so the low-ink FILE gets its own render of each: an ink-light
+      # cover, and instructions that describe a low-ink print rather than the
+      # colour one it doesn't contain.
+      #
+      # RenderWrappers only produces those for a set, so fall back rather than
+      # assuming the key is there — the single-board file is one document
+      # holding both halves and has no low-ink identity to honour.
+      def wrapper_for(key, variant)
+        return wrappers[key] unless variant == BoardPrintable::VARIANT_LOW_INK
 
-        wrappers[:cover_low_ink] || wrappers[:cover]
+        wrappers[:"#{key}_low_ink"] || wrappers[key]
       end
     end
   end

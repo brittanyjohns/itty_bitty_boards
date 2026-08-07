@@ -11,7 +11,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
   let(:rendered) { {} }
 
   before do
-    order = %i[cover how_to_use license credits cover_low_ink]
+    order = %i[cover how_to_use license credits cover_low_ink how_to_use_low_ink]
     index = 0
     allow(Grover).to receive(:new) do |html, **_opts|
       rendered[order[index]] = html
@@ -110,15 +110,39 @@ RSpec.describe Boards::Printables::RenderWrappers do
       expect(rendered[:how_to_use]).to include("The same board")
     end
 
-    # A set ships as two separate files (MergePdf#call), not one document with
-    # a colour half and a low-ink half — the copy must not promise otherwise.
-    it "describes a set as two files rather than one two-part document" do
-      render(board_count: 4)
+    # A set ships as two separate FILES (MergePdf#call), and this page is bound
+    # into each one, so it describes the file it's in and nothing else. Naming
+    # the other file would raise a question this page can't answer — the reader
+    # is holding one print, not a pair.
+    describe "for a set" do
+      it "tells the colour file it is the colour print" do
+        render(board_count: 4)
 
-      expect(rendered[:how_to_use]).to include("set of 4 communication boards")
-      expect(rendered[:how_to_use]).to include("comes as two files")
-      expect(rendered[:how_to_use]).not_to include("prints every board twice")
-      expect(rendered[:how_to_use]).to include("Every board")
+        expect(rendered[:how_to_use]).to include("set of 4 communication boards")
+        expect(rendered[:how_to_use]).to include("Printed in full color")
+        expect(rendered[:how_to_use]).to include("Every board")
+      end
+
+      it "tells the low-ink file it is the low-ink print" do
+        render(board_count: 4)
+
+        expect(rendered[:how_to_use_low_ink]).to include("Printed low-ink")
+        expect(rendered[:how_to_use_low_ink]).to include("white tile backgrounds")
+      end
+
+      it "never mentions the other file from either one" do
+        render(board_count: 4)
+
+        [rendered[:how_to_use], rendered[:how_to_use_low_ink]].each do |html|
+          expect(html).not_to include("two files")
+          expect(html).not_to include("twice")
+        end
+      end
+
+      it "renders a low-ink how-to only for a set" do
+        expect(render(board_count: 4)).to have_key(:how_to_use_low_ink)
+        expect(render).not_to have_key(:how_to_use_low_ink)
+      end
     end
 
     it "names the topic when one was given" do
@@ -153,12 +177,16 @@ RSpec.describe Boards::Printables::RenderWrappers do
     end
   end
 
-  it "renders the personal-use license terms" do
+  # One list, not two boxes: the check/cross mark carries the yes/no, so both
+  # the permissions and the restrictions sit in a single <ul class="terms">.
+  it "renders the personal-use license terms as one list" do
     render
 
     expect(rendered[:license]).to include("License")
     expect(rendered[:license]).to include("personal and classroom use")
-    expect(rendered[:license]).to include("Resell or redistribute")
+    expect(rendered[:license]).to include("Print as many copies as you need")
+    expect(rendered[:license]).to include("resell or redistribute")
+    expect(rendered[:license].scan('<ul class="terms">').length).to eq(1)
   end
 
   it "renders the credits page with a QR back to the board" do

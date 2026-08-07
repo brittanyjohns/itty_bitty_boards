@@ -10,11 +10,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Board printables got a real cover.** The four pages that bookend every
   printable — cover, how-to-use, license, and About — were plain black text on
   cream. They now carry the brand: a full-bleed gradient header, the SpeakAnyWay
-  typeface, numbered step cards in place of the how-to bullet list, and
-  side-by-side "You may" / "Please don't" cards on the license page. The board's
+  typeface, numbered step cards in place of the how-to bullet list, and a
+  license page whose terms are marked with checks and crosses. The board's
   public URL is printed as text beside every QR code, so a photocopied or
-  laminated sheet still leads back to the board. The low-ink file now opens on
-  its own ink-light cover instead of a full-colour one.
+  laminated sheet still leads back to the board.
+- **Each printable file now describes only itself.** A set is delivered as two
+  files, and both used to carry the same cover and the same "this comes as two
+  files" instructions. The colour file now says it's the colour print and the
+  low-ink file says it's the low-ink print — neither mentions the other — and
+  the low-ink file opens on its own ink-light cover rather than a full-colour
+  one. A single board, which really is one file holding both a colour and a
+  low-ink copy, still says so.
 
 ### Added
 
