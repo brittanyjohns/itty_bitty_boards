@@ -186,8 +186,12 @@ library fill with blank twins: a user typing "Swing" missed the curated
 case-insensitive match and is the right entry point for **tile** resolution
 specifically.
 
-`board_images.label` inherits the image's key, so it is lowercase too. Tests
-and code that want the tile's *text* must read `display_label`.
+`board_images.label` is **not** normalized by a callback. It is lowercase when
+`set_labels` derives it from the image, but builders that assign it directly
+(`NavRowSync`, `PhrasesPageBuilder`, `SeededSetCloner`'s favorites tile) keep
+whatever casing they wrote. So tile `label` casing is *mixed* by design, and
+tests or code that want the tile's **text** must read `display_label` —
+matching a tile by `label` against a capitalized literal is unreliable.
 
 ### Casing of a defaulted `display_label`
 

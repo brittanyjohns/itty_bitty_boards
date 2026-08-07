@@ -209,13 +209,16 @@ an explicit decision, not a drive-by edit.
   Client-called endpoints may reflect plan state but never grant credits. All
   credit movement goes through `CreditService` and the immutable
   `credit_transactions` ledger; grants are idempotent on event id.
-- **`label` is a lowercase matching key; `display_label` is the text.** True on
-  both `images` and `board_images`. `Image#set_label` downcases and strips
-  `label` on every write and captures the authored casing into `display_label`.
-  Never look an image up with `find_by(label:)` — use the `Image.by_label`
-  scope (or `Boards::ImageResolver` when resolving a *tile*, which adds
-  art-preference). A case-sensitive lookup misses the curated symbol and the
-  calling site then creates a blank duplicate.
+- **`images.label` is a lowercase matching key; `display_label` is the text.**
+  `Image#set_label` downcases and strips `label` on every write and captures
+  the authored casing into `display_label`. Never look an image up with
+  `find_by(label:)` — use the `Image.by_label` scope (or
+  `Boards::ImageResolver` when resolving a *tile*, which adds art-preference).
+  A case-sensitive lookup misses the curated symbol and the calling site then
+  creates a blank duplicate. `board_images.label` is **not** normalized by any
+  callback: it is lowercase when `set_labels` derives it from the image, but
+  builders that write it directly (`NavRowSync`, `PhrasesPageBuilder`) keep
+  their own casing — read `display_label` for tile text either way.
 - **A published board's slug is frozen.** `/pb/<slug>` is printed into QR codes
   and pasted into IEPs, with no redirect behind it. `Board#freeze_published_slug`
   silently reverts a slug change on a published board (reverts, never raises —
