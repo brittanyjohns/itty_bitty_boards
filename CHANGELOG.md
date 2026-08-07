@@ -29,6 +29,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   everything else is stripped from to/cc/bcc. Production and development are
   unaffected.
 
+### Removed
+
+- Removed the orphaned `User#handle_myspeak_setup`. It built a `ChildAccount`
+  plus `Profile` for a MySpeak signup flow that no longer exists, and had zero
+  callers anywhere in the app.
+
 ### Added
 
 - **The internal API can now correct a tile, not just create one.**
