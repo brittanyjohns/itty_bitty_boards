@@ -467,6 +467,77 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST /admin/board_builds/add_words" do
+    let(:new_tiles) do
+      [
+        { label: "slide", part_of_speech: "noun" },
+        { label: "go", part_of_speech: "verb" },
+      ]
+    end
+
+    before do
+      sign_in admin
+      allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call).and_return(new_tiles)
+    end
+
+    # form_params already has 4 words; asking for 6 leaves 2 missing.
+    it "appends only the missing words and writes nothing" do
+      expect { post add_words_admin_dashboard_board_builds_path, params: form_params(tile_count: "6") }
+        .to not_change(Board, :count)
+        .and not_change(Image, :count)
+        .and not_change(AdminBoardBuild, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("i | pronoun")
+      expect(response.body).to include("swing | noun")
+      expect(response.body).to include("slide | noun")
+      expect(response.body).to include("go | verb")
+      expect(response.body).to include("Added 2 words")
+    end
+
+    it "passes the missing count and the existing labels to the drafter, not the whole tile_count" do
+      expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
+        .with(topic: "the playground", tile_count: 2, audience: "", existing_labels: %w[i want more swing])
+        .and_call_original
+
+      post add_words_admin_dashboard_board_builds_path, params: form_params(tile_count: "6")
+    end
+
+    it "refuses when the list already meets the tile count" do
+      expect(Boards::AdminBuilder::WordListDrafter).not_to receive(:new)
+
+      post add_words_admin_dashboard_board_builds_path, params: form_params(tile_count: "4")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Already have 4 of 4 words")
+    end
+
+    it "says so when the top-up comes back short" do
+      allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call).and_return(new_tiles.first(1))
+
+      post add_words_admin_dashboard_board_builds_path, params: form_params(tile_count: "6")
+
+      expect(response.body).to include("Added 1 of 2 more words (5 of 6 so far)")
+    end
+
+    it "surfaces a generation failure without losing the form" do
+      allow_any_instance_of(Boards::AdminBuilder::WordListDrafter).to receive(:call)
+        .and_raise(Boards::AdminBuilder::WordListDrafter::GenerationError, "OpenAI returned no content")
+
+      post add_words_admin_dashboard_board_builds_path, params: form_params(tile_count: "6")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t draft more words")
+      expect(response.body).to include("i | pronoun")
+    end
+
+    it "is closed to non-admins" do
+      sign_in create(:user)
+      post add_words_admin_dashboard_board_builds_path, params: form_params(tile_count: "6")
+      expect(response).to redirect_to(root_path)
+    end
+  end
+
   describe "POST /admin/board_builds/preview" do
     before { sign_in admin }
 

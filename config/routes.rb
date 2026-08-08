@@ -89,6 +89,7 @@ Rails.application.routes.draw do
       collection do
         post :suggest
         post :draft
+        post :add_words
         post :draft_set
         post :describe, to: "board_builds#describe_board"
         post :preview

@@ -88,6 +88,22 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
     end
   end
 
+  describe "topping up an existing list" do
+    it "drops a word the model repeats from existing_labels" do
+      stub_ai(ai_tiles(["I", "pronoun"], ["slide", "noun"]))
+
+      result = described_class.new(topic: "the playground", tile_count: 2, existing_labels: %w[i want]).call
+      expect(result.map { |tile| tile[:label] }).to eq(["slide"])
+    end
+
+    it "matches existing_labels case-insensitively" do
+      stub_ai(ai_tiles(["Swing", "noun"], ["push", "verb"]))
+
+      result = described_class.new(topic: "the playground", tile_count: 2, existing_labels: %w[swing]).call
+      expect(result.map { |tile| tile[:label] }).to eq(["push"])
+    end
+  end
+
   describe "failures" do
     it "raises when OpenAI returns nothing" do
       stub_ai("")
@@ -162,6 +178,22 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
       expect(prompt_for(topic: "the playground", tile_count: 4, audience: "a preschooler"))
         .to include("It is for: a preschooler")
       expect(prompt_for(topic: "the playground", tile_count: 4)).not_to include("It is for:")
+    end
+
+    context "with existing_labels" do
+      it "switches to the top-up prompt and lists the words to avoid" do
+        prompt = prompt_for(topic: "the playground", tile_count: 2, existing_labels: %w[i want])
+
+        expect(prompt).to include("do not repeat any of them")
+        expect(prompt).to include("i, want")
+        expect(prompt).to include("EXACTLY 2 NEW tiles")
+      end
+
+      it "drops the mandatory core-spine recitation" do
+        prompt = prompt_for(topic: "the playground", tile_count: 2, existing_labels: %w[i want])
+
+        expect(prompt).not_to include("before any topic words")
+      end
     end
   end
 end

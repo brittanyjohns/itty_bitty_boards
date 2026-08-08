@@ -68,6 +68,40 @@ module Admin
       render :new, status: :unprocessable_entity
     end
 
+    # Additive form of `draft`: tops up whatever the admin already typed with
+    # only the words missing to reach tile_count, instead of replacing it.
+    def add_words
+      @form = submitted_form
+      @form = @form.merge(suggested_context(@form)) if @form[:topic].blank? || @form[:name].blank?
+      @problems = draft_problems(@form)
+
+      existing = @form[:tiles]
+      missing = @form[:tile_count].to_i - existing.size
+      if @problems.empty? && missing <= 0
+        @problems << "Already have #{existing.size} of #{@form[:tile_count]} words — " \
+                      "raise Tiles or remove some before adding more."
+      end
+      return render(:new, status: :unprocessable_entity) if @problems.any?
+
+      new_tiles = Boards::AdminBuilder::WordListDrafter.new(
+        topic: @form[:topic],
+        tile_count: missing,
+        audience: @form[:audience],
+        existing_labels: existing.map { |tile| tile[:label] },
+      ).call
+
+      all_tiles = existing + new_tiles
+      @form = @form.merge(words: tiles_to_words(all_tiles), tiles: all_tiles)
+      flash.now[:notice] = add_words_notice(new_tiles, missing, @form)
+      render :new
+    rescue Boards::AdminBuilder::WordListDrafter::GenerationError => e
+      @problems = ["Couldn't draft more words: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    rescue Boards::AdminBuilder::ContextSuggester::GenerationError => e
+      @problems = ["Couldn't work out the topic: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
     # Optional step zero, the multi-page form of `draft`. Drafts the whole set
     # — root word list with its folder tiles already linked, plus each page —
     # into the form and stops there. Nothing is previewed or built from it.
@@ -441,6 +475,20 @@ module Admin
       return "Drafted #{tiles.size} words. Edit them, then preview the art." if tiles.size == wanted
 
       "Drafted #{tiles.size} of #{wanted} words — add #{wanted - tiles.size} more before previewing."
+    end
+
+    # Same shortfall handling as draft_notice, but against the top-up ask
+    # (`wanted_new`) rather than the board's total tile_count.
+    def add_words_notice(new_tiles, wanted_new, form)
+      total = form[:tiles].size
+      target = form[:tile_count].to_i
+      if new_tiles.size == wanted_new
+        return "Added #{new_tiles.size} #{"word".pluralize(new_tiles.size)} " \
+               "(#{total} of #{target} so far). Edit them, then preview the art."
+      end
+
+      "Added #{new_tiles.size} of #{wanted_new} more words (#{total} of #{target} so far) — " \
+        "add #{target - total} more before previewing."
     end
 
     def blank_form

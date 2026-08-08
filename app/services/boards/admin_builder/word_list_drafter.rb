@@ -27,10 +27,14 @@ module Boards
       # 12x12, matching the controller's grid ceiling.
       MAX_TILES = 144
 
-      def initialize(topic:, tile_count:, audience: nil)
+      # existing_labels switches the prompt from "draft a whole board" to "add
+      # N more tiles to one that already has these" — used when topping up a
+      # list an admin already started rather than replacing it.
+      def initialize(topic:, tile_count:, audience: nil, existing_labels: [])
         @topic = topic.to_s.strip
         @tile_count = tile_count.to_i.clamp(1, MAX_TILES)
         @audience = audience.to_s.strip
+        @existing_labels = Array(existing_labels).map(&:to_s)
       end
 
       def call
@@ -41,7 +45,7 @@ module Boards
 
       private
 
-      attr_reader :topic, :tile_count, :audience
+      attr_reader :topic, :tile_count, :audience, :existing_labels
 
       def generate_via_openai
         client = OpenAiClient.new(
@@ -63,6 +67,8 @@ module Boards
       end
 
       def build_prompt
+        return topup_prompt if existing_labels.any?
+
         <<~PROMPT
           You are building an AAC (Augmentative and Alternative Communication) board for a
           nonspeaking communicator. The board's topic is: #{topic}
@@ -105,6 +111,45 @@ module Boards
         PROMPT
       end
 
+      # Tops up a list the admin already started rather than drafting a whole
+      # board — no core spine recitation, since it may already be on the list
+      # (or the admin left it off on purpose).
+      def topup_prompt
+        <<~PROMPT
+          You are extending an existing AAC (Augmentative and Alternative Communication)
+          board for a nonspeaking communicator. The board's topic is: #{topic}
+          #{audience.present? ? "It is for: #{audience}" : ""}
+
+          The board already has these tiles — do not repeat any of them:
+          #{existing_labels.join(", ")}
+
+          Generate EXACTLY #{tile_count} NEW tiles that round out the existing list with
+          topic words the board doesn't have yet.
+
+          Rules:
+          - A board for talking, not a vocabulary list. Favour words that finish a
+            sentence over words that name a thing.
+          - No near-duplicates of each other or of the existing words ("happy" next to
+            "glad", "big" next to "large"). Each tile costs a cell.
+          - Keep each label short — 1-2 words.
+          - Concrete and age-appropriate.
+          - Give every tile a part_of_speech from exactly this list:
+            #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
+          - Classify by communicative function, not strict grammar: "more", "yes" and
+            "please" are social; "no", "not" and "stop" are important_function.
+
+          Respond in JSON format:
+          {
+            "tiles": [
+              { "label": "swing", "part_of_speech": "noun" },
+              { "label": "push", "part_of_speech": "verb" }
+            ]
+          }
+
+          Return ONLY the JSON, no other text.
+        PROMPT
+      end
+
       def parse_response(raw)
         data = JSON.parse(raw)
         tiles = dedupe(Array(data["tiles"])).first(tile_count)
@@ -124,8 +169,12 @@ module Boards
       # PlanValidator: `images.label` is a lowercase matching key, so "Go" and
       # "go" are one symbol, and a draft that fails validation on arrival is
       # worse than a short one. Near-duplicates are the prompt's job.
+      #
+      # Seeded with existing_labels too, so a top-up drops anything the AI
+      # repeats from the list it was told to avoid, on top of repeats within
+      # its own response.
       def dedupe(raw_tiles)
-        seen = Set.new
+        seen = Set.new(existing_labels.map(&:downcase))
 
         raw_tiles.filter_map do |tile|
           next unless tile.is_a?(Hash)
