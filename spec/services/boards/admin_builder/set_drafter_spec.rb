@@ -31,7 +31,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
   before { stub_ai(valid_set) }
 
   def draft(**overrides)
-    described_class.new(**{ topic: "the playground", columns: 2, rows: 2, page_count: 1 }.merge(overrides)).call
+    described_class.new(**{ topic: "the playground", columns: 2, tile_count: 4, page_count: 1 }.merge(overrides)).call
   end
 
   describe "#call" do
@@ -59,7 +59,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     # what WordListDrafter already does would be paying twice for one answer.
     it "delegates a zero-page draft to WordListDrafter" do
       expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
-        .with(topic: "the playground", columns: 2, rows: 2, audience: nil)
+        .with(topic: "the playground", tile_count: 4, audience: nil)
         .and_return(instance_double(Boards::AdminBuilder::WordListDrafter,
                                     call: [{ label: "swing", part_of_speech: "noun" }]))
 
@@ -81,7 +81,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     it "drops a link pointing at a page that isn't in the set" do
       stub_ai(ai_set(root: [tile("Toys", "noun", "toys")], pages: []))
 
-      expect(draft(columns: 1, rows: 1, page_count: 1)[:root_tiles])
+      expect(draft(columns: 1, tile_count: 1, page_count: 1)[:root_tiles])
         .to eq([{ label: "Toys", part_of_speech: "noun" }])
     end
 
@@ -89,7 +89,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
       stub_ai(ai_set(root: [tile("Food", "noun", "food")],
                      pages: [{ "key" => "food", "name" => "Food", "tiles" => [tile("back", "social", "__root__")] }]))
 
-      expect(draft(columns: 1, rows: 1)[:children].first[:tiles].first[:links_to]).to eq("__root__")
+      expect(draft(columns: 1, tile_count: 1)[:children].first[:tiles].first[:links_to]).to eq("__root__")
     end
 
     # The root linking to itself would build a tile that opens the board it is
@@ -97,21 +97,21 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     it "drops a root tile linking to the root" do
       stub_ai(ai_set(root: [tile("Home", "social", "__root__")], pages: []))
 
-      expect(draft(columns: 1, rows: 1)[:root_tiles]).to eq([{ label: "Home", part_of_speech: "social" }])
+      expect(draft(columns: 1, tile_count: 1)[:root_tiles]).to eq([{ label: "Home", part_of_speech: "social" }])
     end
 
     it "normalizes a page key to lowercase letters, numbers and underscores" do
       stub_ai(ai_set(root: [tile("Food", "noun", "food")],
                      pages: [{ "key" => "Food Time!", "name" => "Food", "tiles" => [tile("apple", "noun")] }]))
 
-      expect(draft(columns: 1, rows: 1)[:children].first[:key]).to eq("food_time")
+      expect(draft(columns: 1, tile_count: 1)[:children].first[:key]).to eq("food_time")
     end
 
     it "drops a page with no usable key" do
       stub_ai(ai_set(root: [tile("I", "pronoun")],
                      pages: [{ "key" => "  ", "name" => "Food", "tiles" => [tile("apple", "noun")] }]))
 
-      expect(draft(columns: 1, rows: 1)[:children]).to be_empty
+      expect(draft(columns: 1, tile_count: 1)[:children]).to be_empty
     end
 
     it "drops a page whose key repeats an earlier one" do
@@ -121,27 +121,27 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
                        { "key" => "food", "name" => "More Food", "tiles" => [tile("pear", "noun")] },
                      ]))
 
-      children = draft(columns: 1, rows: 1, page_count: 2)[:children]
+      children = draft(columns: 1, tile_count: 1, page_count: 2)[:children]
       expect(children.map { |child| child[:name] }).to eq(["Food"])
     end
 
     it "drops a casing-only duplicate within a page" do
       stub_ai(ai_set(root: [tile("go", "verb"), tile("Go", "verb"), tile("stop", "important_function")], pages: []))
 
-      expect(draft(columns: 3, rows: 1, page_count: 1)[:root_tiles].map { |t| t[:label] })
+      expect(draft(columns: 3, tile_count: 3, page_count: 1)[:root_tiles].map { |t| t[:label] })
         .to eq(%w[go stop])
     end
 
     it "falls back to default for a part of speech outside the Fitzgerald key" do
       stub_ai(ai_set(root: [tile("swing", "gerund")], pages: []))
 
-      expect(draft(columns: 1, rows: 1)[:root_tiles].first[:part_of_speech]).to eq("default")
+      expect(draft(columns: 1, tile_count: 1)[:root_tiles].first[:part_of_speech]).to eq("default")
     end
 
-    it "trims a page longer than the grid" do
+    it "trims a page longer than the requested tile count" do
       stub_ai(ai_set(root: [tile("I", "pronoun"), tile("want", "verb"), tile("more", "social")], pages: []))
 
-      expect(draft(columns: 1, rows: 2)[:root_tiles].size).to eq(2)
+      expect(draft(columns: 1, tile_count: 2)[:root_tiles].size).to eq(2)
     end
 
     # Same tolerance as WordListDrafter: this only fills a form, and the
@@ -149,7 +149,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     it "returns a short draft rather than raising" do
       stub_ai(ai_set(root: [tile("I", "pronoun")], pages: []))
 
-      expect(draft(columns: 3, rows: 3)[:root_tiles].size).to eq(1)
+      expect(draft(columns: 3, tile_count: 9)[:root_tiles].size).to eq(1)
     end
   end
 
@@ -178,11 +178,11 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
         instance_double(OpenAiClient, create_chat: { role: "assistant", content: valid_set })
           .tap { |double| allow(double).to receive(:instance_variable_set) }
       end
-      described_class.new(**{ topic: "the playground", columns: 6, rows: 4, page_count: 2 }.merge(args)).call
+      described_class.new(**{ topic: "the playground", columns: 6, tile_count: 24, page_count: 2 }.merge(args)).call
       captured
     end
 
-    it "asks for exactly the grid's worth of tiles on every page" do
+    it "asks for exactly the requested tile count on every page" do
       expect(prompt_for).to include("EXACTLY 24 tiles")
     end
 

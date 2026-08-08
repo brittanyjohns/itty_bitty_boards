@@ -872,7 +872,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       stub_set_drafter(drafted)
 
       post draft_set_admin_dashboard_board_builds_path,
-           params: form_params(words: "", page_count: "1", columns: "1", rows: "2")
+           params: form_params(words: "", page_count: "1", columns: "1", tile_count: "2")
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Food | noun | &gt;food")
@@ -885,7 +885,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
       expect {
         post draft_set_admin_dashboard_board_builds_path,
-             params: form_params(words: "", page_count: "1", columns: "1", rows: "2")
+             params: form_params(words: "", page_count: "1", columns: "1", tile_count: "2")
       }.to not_change(Board, :count).and not_change(Image, :count).and not_change(AdminBoardBuild, :count)
     end
 

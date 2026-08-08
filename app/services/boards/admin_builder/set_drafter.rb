@@ -24,13 +24,12 @@ module Boards
       # 12x12, matching the controller's grid ceiling.
       MAX_TILES_PER_PAGE = 144
 
-      def initialize(topic:, columns:, rows:, page_count:, audience: nil)
+      def initialize(topic:, columns:, tile_count:, page_count:, audience: nil)
         @topic = topic.to_s.strip
-        @tile_count = (columns.to_i * rows.to_i).clamp(1, MAX_TILES_PER_PAGE)
+        @tile_count = tile_count.to_i.clamp(1, MAX_TILES_PER_PAGE)
         @page_count = page_count.to_i.clamp(0, MAX_PAGES)
         @audience = audience.to_s.strip
         @columns = columns.to_i
-        @rows = rows.to_i
       end
 
       def call
@@ -42,12 +41,12 @@ module Boards
 
       private
 
-      attr_reader :topic, :tile_count, :page_count, :audience, :columns, :rows
+      attr_reader :topic, :tile_count, :page_count, :audience, :columns
 
       # A set with no pages is exactly what WordListDrafter already answers.
       def single_page_set
         tiles = WordListDrafter.new(
-          topic: topic, columns: columns, rows: rows, audience: audience.presence,
+          topic: topic, tile_count: tile_count, audience: audience.presence,
         ).call
 
         { root_tiles: tiles, children: [] }
@@ -78,8 +77,8 @@ module Boards
           folder tile on the main board.
 
           Generate EXACTLY #{tile_count} tiles for the main board AND EXACTLY #{tile_count}
-          tiles for each page — every board in the set is the same fixed grid, and a partial
-          last row leaves visible dead cells.
+          tiles for each page — every board in the set is #{columns} columns wide with the
+          same tile count, and a count that doesn't fill whole rows leaves visible dead cells.
 
           Structure rules:
           - Give every page a "key": lowercase letters, numbers and underscores only.
