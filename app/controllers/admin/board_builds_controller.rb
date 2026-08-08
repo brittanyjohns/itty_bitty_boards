@@ -455,16 +455,27 @@ module Admin
     end
 
     def draft_set_notice(set, form)
-      wanted = form[:tile_count].to_i
+      wanted_tiles = form[:tile_count].to_i
+      wanted_pages = form[:page_count].to_i
       pages = set[:children].size
-      short = ([set[:root_tiles]] + set[:children].map { |child| child[:tiles] })
-              .count { |tiles| tiles.size != wanted }
+      short_boards = ([set[:root_tiles]] + set[:children].map { |child| child[:tiles] })
+                     .count { |tiles| tiles.size != wanted_tiles }
 
       base = "Drafted the main board and #{pages} #{"page".pluralize(pages)}."
-      return "#{base} Edit them, then preview the art." if short.zero?
+      return "#{base} Edit them, then preview the art." if short_boards.zero? && pages == wanted_pages
 
-      "#{base} #{short} #{"board".pluralize(short)} didn't come back with exactly #{wanted} words — " \
-        "check the counts before previewing."
+      warnings = []
+      if pages < wanted_pages
+        missing = wanted_pages - pages
+        warnings << "the AI came back #{missing} #{"page".pluralize(missing)} short of the #{wanted_pages} " \
+                     "you asked for"
+      end
+      if short_boards.positive?
+        warnings << "#{short_boards} #{"board".pluralize(short_boards)} didn't come back with exactly " \
+                     "#{wanted_tiles} words"
+      end
+
+      "#{base} #{warnings.join("; ").capitalize} — check the counts before previewing."
     end
 
     # The drafter can come back short (near-duplicates get dropped), which is
