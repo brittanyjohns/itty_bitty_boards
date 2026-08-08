@@ -1,6 +1,12 @@
 <%# The authoring form. Rendered by `new` and again at the bottom of `preview`
     so "change something and look again" is one round trip, not a re-type. %>
-<%= form_tag preview_admin_dashboard_board_builds_path, method: :post do %>
+<%# turbo: false is load-bearing. Every action this form posts to — suggest,
+    draft, preview — answers with a rendered 200, not a redirect, because each
+    one hands the admin's own submission back to them. Turbo Drive refuses a
+    2xx form response that isn't a redirect ("Form responses must redirect to
+    another location"), throws, and leaves the page untouched — so with Turbo
+    on, every button here is a no-op. %>
+<%= form_tag preview_admin_dashboard_board_builds_path, method: :post, data: { turbo: false } do %>
   <div class="admin-card border rounded-xl p-5 mb-6">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>

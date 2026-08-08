@@ -87,6 +87,26 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  # Turbo Drive discards a 2xx form response that isn't a redirect ("Form
+  # responses must redirect to another location") — so every action this form
+  # posts to that renders instead of redirecting (suggest, draft, preview)
+  # silently does nothing in a browser unless the form opts out.
+  describe "the authoring form opts out of Turbo" do
+    before { sign_in admin }
+
+    it "marks the form on the new page" do
+      get new_admin_dashboard_board_build_path
+
+      expect(response.body).to include('data-turbo="false"')
+    end
+
+    it "marks the form re-rendered under the art preview" do
+      post preview_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response.body).to include('data-turbo="false"')
+    end
+  end
+
   describe "child pages" do
     before { sign_in admin }
 
