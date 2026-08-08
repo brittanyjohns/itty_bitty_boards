@@ -153,6 +153,7 @@ module Admin
         pages: pages_for(@form),
         commercial_safe_only: @form[:commercial_safe_only],
       ).call
+      @name_matches = duplicate_name_matches(@form[:name])
 
       render :preview
     end
@@ -282,6 +283,18 @@ module Admin
     def set_build
       @build = AdminBoardBuild.find_by(id: params[:id])
       redirect_to admin_dashboard_board_builds_path, alert: "Board build not found." unless @build
+    end
+
+    # Advisory only. Two boards with one name is sometimes right; shipping it
+    # by accident is what's worth catching. Both scopes are searched because a
+    # board built here last week and still awaiting review isn't public yet.
+    def duplicate_name_matches(name)
+      return Board.none if name.blank?
+
+      Board.where(id: Board.public_boards.select(:id))
+           .or(Board.where(id: AdminBoardBuild.builder_boards.select(:id)))
+           .where("lower(boards.name) = ?", name.strip.downcase)
+           .limit(5)
     end
 
     # A board is only reachable from here if it carries this page's marker, so

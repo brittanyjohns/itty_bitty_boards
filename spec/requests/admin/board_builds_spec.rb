@@ -1091,4 +1091,41 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response).to redirect_to(admin_dashboard_board_builds_path)
     end
   end
+
+  describe "POST preview duplicate-name warning" do
+    before { sign_in admin }
+
+    it "warns about an existing public board with the same name, ignoring case" do
+      Board.create!(name: "playground", slug: "playground-public", user: seed_admin, predefined: true, published: true)
+
+      post preview_admin_dashboard_board_builds_path, params: form_params(name: "Playground")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("already a board called")
+    end
+
+    # An unpublished board built here last week is exactly the collision worth
+    # catching, and it isn't in public_boards yet.
+    it "warns about an unpublished board this page built" do
+      built_board(name: "Playground")
+
+      post preview_admin_dashboard_board_builds_path, params: form_params(name: "Playground")
+
+      expect(response.body).to include("already a board called")
+    end
+
+    it "says nothing when the name is free" do
+      post preview_admin_dashboard_board_builds_path, params: form_params(name: "Something Else Entirely")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("already a board called")
+    end
+
+    it "warns without blocking the build" do
+      built_board(name: "Playground")
+
+      expect { post admin_dashboard_board_builds_path, params: form_params(name: "Playground") }
+        .to change(AdminBoardBuild, :count).by(1)
+    end
+  end
 end
