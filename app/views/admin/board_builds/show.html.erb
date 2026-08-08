@@ -152,10 +152,6 @@
         <%= page[:key] == Boards::AdminBuilder::Plan::ROOT_KEY ? "Main board" : "#{page[:key]} — #{page[:name]}" %>
       </p>
     <% end %>
-    <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= page[:tiles].map { |tile|
-          fields = [tile[:label], tile[:part_of_speech], tile[:display_label]].compact.reject(&:blank?)
-          fields << ">#{tile[:links_to]}" if tile[:links_to].present?
-          fields.join(" | ")
-        }.join("\n") %></pre>
+    <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= Boards::AdminBuilder::WordList.render(page[:tiles]) %></pre>
   <% end %>
 </div>

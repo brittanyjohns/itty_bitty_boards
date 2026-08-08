@@ -21,8 +21,6 @@ module Admin
     DEFAULT_COLUMNS = 6
     DEFAULT_TILES = 24
     DEFAULT_VOICE = "polly:kevin".freeze
-    # Marks the field in a word-list line that names the page a tile opens.
-    LINK_TOKEN = ">".freeze
 
     before_action :require_seed_admin!
     before_action :set_build, only: %i[show destroy publish unpublish]
@@ -272,7 +270,7 @@ module Admin
     end
 
     def tiles_to_words(tiles)
-      tiles.map { |tile| "#{tile[:label]} | #{tile[:part_of_speech]}" }.join("\n")
+      Boards::AdminBuilder::WordList.render(tiles)
     end
 
     # The drafter can come back short (near-duplicates get dropped), which is
@@ -352,29 +350,8 @@ module Admin
       ActiveModel::Type::Boolean.new.cast(value) || false
     end
 
-    # One tile per line: `word`, `word | part_of_speech`, or
-    # `word | part_of_speech | tile text`. A textarea rather than N inputs
-    # because a dense board is 24-84 words and pasting a list is the job.
-    #
-    # A field beginning with `>` names the page the tile opens, wherever it
-    # appears in the line — so `Food | noun | >food` doesn't force an empty
-    # tile-text field just to reach a fourth position.
     def parse_tiles(words)
-      words.to_s.split("\n").filter_map do |line|
-        line = line.strip
-        next if line.blank?
-
-        label, *rest = line.split("|").map { |part| part.to_s.strip }
-        links_to = rest.find { |field| field.start_with?(LINK_TOKEN) }
-        part_of_speech, display_label = rest - [links_to].compact
-
-        {
-          label: label.to_s,
-          part_of_speech: part_of_speech.presence || "default",
-          display_label: display_label.presence,
-          links_to: links_to&.delete_prefix(LINK_TOKEN)&.strip&.downcase.presence,
-        }.compact
-      end
+      Boards::AdminBuilder::WordList.parse(words)
     end
 
     def validation_problems(form)
