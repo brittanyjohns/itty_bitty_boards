@@ -24,14 +24,24 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     end
 
     it "rejects a short plan and says how many to add" do
-      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more")))
-      expect(problems.first).to include("3 words for a 4-tile board (needs exactly 4)")
-      expect(problems.first).to include("Add 1")
+      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more"), tile_count: 8))
+      expect(problems.first).to include("3 words for a 8-tile board (needs to be within 2 of 8)")
+      expect(problems.first).to include("Add 5")
+    end
+
+    it "accepts a plan within tolerance of the tile count" do
+      expect(validate(pages: pages(root_tiles: tiles("i", "want"), tile_count: 4))).to eq([])
+    end
+
+    it "rejects a plan just past the tolerance" do
+      problems = validate(pages: pages(root_tiles: tiles("i"), tile_count: 4))
+      expect(problems.first).to include("1 words for a 4-tile board")
+      expect(problems.first).to include("Add 3")
     end
 
     # A one-board build must read exactly as it did before pages existed.
     it "does not prefix messages with a page name" do
-      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more")))
+      problems = validate(pages: pages(root_tiles: tiles("i"), tile_count: 4))
       expect(problems.first).not_to include("Playground:")
     end
 
@@ -39,8 +49,8 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     # columns × rows, so "allow a partial row" no longer excuses a short list —
     # it excuses a tile count that doesn't fill whole rows.
     it "rejects a short plan even with the partial-row escape hatch ticked" do
-      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more")), allow_partial_row: true)
-      expect(problems.first).to include("needs exactly 4")
+      problems = validate(pages: pages(root_tiles: tiles("i"), tile_count: 4), allow_partial_row: true)
+      expect(problems.first).to include("needs to be within 2 of 4")
     end
 
     it "accepts a short list once the tile count is lowered to match" do
@@ -51,9 +61,11 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     end
 
     it "rejects an over-full plan and says how many to remove" do
-      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more", "help", "stop")))
-      expect(problems.first).to include("5 words for a 4-tile board")
-      expect(problems.first).to include("Remove 1")
+      problems = validate(pages: pages(
+        root_tiles: tiles("i", "want", "more", "help", "stop", "go", "yes", "no"), tile_count: 4,
+      ))
+      expect(problems.first).to include("8 words for a 4-tile board")
+      expect(problems.first).to include("Remove 4")
     end
 
     # The dead-cell rail, now stated on the size rather than on the word list.
