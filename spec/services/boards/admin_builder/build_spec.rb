@@ -15,7 +15,7 @@ RSpec.describe Boards::AdminBuilder::Build do
     image
   end
 
-  def build_record(tiles:, columns: 2, rows: 2, children: [], **overrides)
+  def build_record(tiles:, columns: 2, tile_count: 4, children: [], **overrides)
     AdminBoardBuild.create!(
       {
         created_by: requester,
@@ -23,7 +23,7 @@ RSpec.describe Boards::AdminBuilder::Build do
         topic: "the playground",
         voice: "polly:kevin",
         columns_count: columns,
-        rows_count: rows,
+        tile_count: tile_count,
         plan: { "tiles" => tiles, "children" => children },
       }.merge(overrides),
     )
@@ -61,7 +61,7 @@ RSpec.describe Boards::AdminBuilder::Build do
     # Hand-setting md/sm writes settings["custom_screen_layouts"] and
     # permanently stops reflow — only the authored lg count may be set.
     it "sets only the large column count and lets md/sm derive from it" do
-      board = described_class.new(admin_board_build: build_record(tiles: four_tiles, columns: 6, rows: 1)).call
+      board = described_class.new(admin_board_build: build_record(tiles: four_tiles, columns: 6, tile_count: 6)).call
 
       expect(board.large_screen_columns).to eq(6)
       expect(board.medium_screen_columns).to eq(Boards::ScreenColumns.derive(6, "md"))
@@ -219,7 +219,7 @@ RSpec.describe Boards::AdminBuilder::Build do
 
     it "gives every page the root's grid" do
       root = described_class.new(admin_board_build: build_record(
-        tiles: root_with_folder, columns: 4, rows: 1, children: [food_page],
+        tiles: root_with_folder, columns: 4, tile_count: 4, children: [food_page],
       )).call
       child = Board.find(root.board_images.find { |bi| bi.predictive_board_id }.predictive_board_id)
 
@@ -230,7 +230,7 @@ RSpec.describe Boards::AdminBuilder::Build do
     it "lets a page override the grid when one was authored" do
       root = described_class.new(admin_board_build: build_record(
         tiles: root_with_folder,
-        children: [food_page.merge("columns" => 2, "rows" => 2)],
+        children: [food_page.merge("columns" => 2, "tile_count" => 4)],
       )).call
       child = Board.find(root.board_images.find { |bi| bi.predictive_board_id }.predictive_board_id)
 

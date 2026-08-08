@@ -16,9 +16,10 @@ module Admin
   #      board this page didn't create.
   class BoardBuildsController < Admin::ApplicationController
     MAX_COLUMNS = 12
-    MAX_ROWS = 12
+    # 12x12, the old grid ceiling expressed as tiles.
+    MAX_TILES = 144
     DEFAULT_COLUMNS = 6
-    DEFAULT_ROWS = 4
+    DEFAULT_TILES = 24
     DEFAULT_VOICE = "polly:kevin".freeze
     # Marks the field in a word-list line that names the page a tile opens.
     LINK_TOKEN = ">".freeze
@@ -53,8 +54,7 @@ module Admin
 
       tiles = Boards::AdminBuilder::WordListDrafter.new(
         topic: @form[:topic],
-        columns: @form[:columns].to_i,
-        rows: @form[:rows].to_i,
+        tile_count: @form[:tile_count].to_i,
         audience: @form[:audience],
       ).call
 
@@ -116,7 +116,7 @@ module Admin
         topic: @form[:topic].presence,
         voice: @form[:voice],
         columns_count: @form[:columns].to_i,
-        rows_count: @form[:rows].to_i,
+        tile_count: @form[:tile_count].to_i,
         commercial_safe_only: @form[:commercial_safe_only],
         plan: {
           "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(@form[:tiles]),
@@ -125,7 +125,7 @@ module Admin
               "key" => child[:key],
               "name" => child[:name],
               "columns" => child[:columns].presence&.to_i,
-              "rows" => child[:rows].presence&.to_i,
+              "tile_count" => child[:tile_count].presence&.to_i,
               "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(child[:tiles]),
             }.compact
           end,
@@ -257,7 +257,7 @@ module Admin
       suggest_context(form)
     end
 
-    # Drafting needs something to draft about and a grid to size the list. The
+    # Drafting needs something to draft about and a size for the list. The
     # topic is inferred from the board first, so this only fires when there was
     # nothing to infer it from.
     def draft_problems(form)
@@ -265,9 +265,9 @@ module Admin
       problems << "Give the board a name or a topic to draft from." if form[:topic].blank?
 
       columns = form[:columns].to_i
-      rows = form[:rows].to_i
+      tiles = form[:tile_count].to_i
       problems << "Columns must be between 1 and #{MAX_COLUMNS}." unless columns.between?(1, MAX_COLUMNS)
-      problems << "Rows must be between 1 and #{MAX_ROWS}." unless rows.between?(1, MAX_ROWS)
+      problems << "Tiles must be between 1 and #{MAX_TILES}." unless tiles.between?(1, MAX_TILES)
       problems
     end
 
@@ -279,7 +279,7 @@ module Admin
     # survivable because this only fills the textarea — but say so rather than
     # letting the admin discover it at preview.
     def draft_notice(tiles, form)
-      wanted = form[:columns].to_i * form[:rows].to_i
+      wanted = form[:tile_count].to_i
       return "Drafted #{tiles.size} words. Edit them, then preview the art." if tiles.size == wanted
 
       "Drafted #{tiles.size} of #{wanted} words — add #{wanted - tiles.size} more before previewing."
@@ -292,7 +292,7 @@ module Admin
         audience: "",
         voice: DEFAULT_VOICE,
         columns: DEFAULT_COLUMNS.to_s,
-        rows: DEFAULT_ROWS.to_s,
+        tile_count: DEFAULT_TILES.to_s,
         words: "",
         tiles: [],
         children: [],
@@ -303,7 +303,7 @@ module Admin
     end
 
     def blank_child
-      { key: "", name: "", columns: "", rows: "", words: "", tiles: [] }
+      { key: "", name: "", columns: "", tile_count: "", words: "", tiles: [] }
     end
 
     # Keeps the raw submitted strings so a failed submit re-renders exactly what
@@ -318,7 +318,7 @@ module Admin
         audience: params[:audience].to_s.strip,
         voice: params[:voice].to_s.strip.presence || DEFAULT_VOICE,
         columns: params[:columns].to_s.strip,
-        rows: params[:rows].to_s.strip,
+        tile_count: params[:tile_count].to_s.strip,
         words: words,
         tiles: parse_tiles(words),
         children: submitted_children,
@@ -338,7 +338,7 @@ module Admin
           key: child[:key].to_s.strip.downcase,
           name: child[:name].to_s.strip,
           columns: child[:columns].to_s.strip,
-          rows: child[:rows].to_s.strip,
+          tile_count: child[:tile_count].to_s.strip,
           words: words,
           tiles: parse_tiles(words),
         }
@@ -386,9 +386,9 @@ module Admin
       problems << "Pick a voice from the list." unless voice_values.include?(form[:voice])
 
       columns = form[:columns].to_i
-      rows = form[:rows].to_i
+      tiles = form[:tile_count].to_i
       problems << "Columns must be between 1 and #{MAX_COLUMNS}." unless columns.between?(1, MAX_COLUMNS)
-      problems << "Rows must be between 1 and #{MAX_ROWS}." unless rows.between?(1, MAX_ROWS)
+      problems << "Tiles must be between 1 and #{MAX_TILES}." unless tiles.between?(1, MAX_TILES)
       problems.concat(child_grid_range_problems(form))
       return problems if problems.any?
 
@@ -409,8 +409,8 @@ module Admin
         if child[:columns].present? && !child[:columns].to_i.between?(1, MAX_COLUMNS)
           problems << "#{label}: columns must be between 1 and #{MAX_COLUMNS}."
         end
-        if child[:rows].present? && !child[:rows].to_i.between?(1, MAX_ROWS)
-          problems << "#{label}: rows must be between 1 and #{MAX_ROWS}."
+        if child[:tile_count].present? && !child[:tile_count].to_i.between?(1, MAX_TILES)
+          problems << "#{label}: tiles must be between 1 and #{MAX_TILES}."
         end
         problems
       end
@@ -421,7 +421,7 @@ module Admin
         root: {
           name: form[:name],
           columns: form[:columns].to_i,
-          rows: form[:rows].to_i,
+          tile_count: form[:tile_count].to_i,
           tiles: form[:tiles],
         },
         children: form[:children],

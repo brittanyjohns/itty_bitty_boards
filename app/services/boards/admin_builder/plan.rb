@@ -4,9 +4,14 @@ module Boards
     # all in the same shape so validation, preview and build can iterate one
     # list instead of special-casing the root everywhere.
     #
-    # A page is `{ key:, name:, columns:, rows:, tiles: }`; a tile is
+    # A page is `{ key:, name:, columns:, tile_count:, tiles: }`; a tile is
     # `{ label:, part_of_speech:, display_label:, links_to: }`. The root's key
     # is ROOT_KEY, which is also what a child's "back to home" tile links to.
+    #
+    # `tile_count` is the authored SIZE of the page; `tiles` is what was written
+    # for it. Validation is what makes them agree. A row count is deliberately
+    # not part of the shape — `Board#rows_for_screen_size` derives rows from the
+    # tiles, so a stored one would be fiction.
     #
     # Children inherit the root's grid unless they carry their own — every board
     # in a set shares the root's grid, so a communicator moving into a folder
@@ -16,14 +21,14 @@ module Boards
 
       module_function
 
-      # `root` is `{ name:, columns:, rows:, tiles: }`; each child adds `key:`
-      # and may override `columns`/`rows`.
+      # `root` is `{ name:, columns:, tile_count:, tiles: }`; each child adds
+      # `key:` and may override `columns`/`tile_count`.
       def pages(root:, children: [])
         root_page = {
           key: ROOT_KEY,
           name: root[:name].to_s,
           columns: root[:columns].to_i,
-          rows: root[:rows].to_i,
+          tile_count: root[:tile_count].to_i,
           tiles: Array(root[:tiles]),
         }
 
@@ -35,11 +40,11 @@ module Boards
           key: child[:key].to_s.strip,
           name: child[:name].to_s,
           columns: child[:columns].presence&.to_i || root_page[:columns],
-          rows: child[:rows].presence&.to_i || root_page[:rows],
+          tile_count: child[:tile_count].presence&.to_i || root_page[:tile_count],
           tiles: Array(child[:tiles]),
           # Whether the grid was authored on this page or inherited — the
           # mixed-grid check only has something to say about an authored one.
-          inherits_grid: child[:columns].blank? && child[:rows].blank?,
+          inherits_grid: child[:columns].blank? && child[:tile_count].blank?,
         }
       end
 
@@ -56,17 +61,17 @@ module Boards
       end
 
       # Round-trips a stored `plan` jsonb back into page hashes.
-      def from_stored(stored, name:, columns:, rows:)
+      def from_stored(stored, name:, columns:, tile_count:)
         stored = stored || {}
 
         pages(
-          root: { name: name, columns: columns, rows: rows, tiles: symbolize_tiles(stored["tiles"]) },
+          root: { name: name, columns: columns, tile_count: tile_count, tiles: symbolize_tiles(stored["tiles"]) },
           children: Array(stored["children"]).map do |child|
             {
               key: child["key"],
               name: child["name"],
               columns: child["columns"],
-              rows: child["rows"],
+              tile_count: child["tile_count"],
               tiles: symbolize_tiles(child["tiles"]),
             }
           end,

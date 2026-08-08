@@ -1050,10 +1050,15 @@ Its own invariants:
   them. `resolve_all` runs only inside `Boards::AdminBuilder::Build`'s
   transaction, where creating blanks is the intended outcome. Asserted by spec
   on both `Board.count` and `Image.count`.
-- **Tile count must equal `columns × rows`.** Rows aren't stored
-  (`Board#rows_for_screen_size` derives them), so a short final row leaves dead
-  cells rather than a shorter board. `Boards::AdminBuilder::PlanValidator`
-  rejects it; an "allow a partial row" checkbox is the explicit escape hatch.
+- **A board is authored as columns + a tile count, never rows.** Rows aren't
+  stored anywhere — `Board#rows_for_screen_size` derives them from the tiles —
+  so `admin_board_builds.tile_count` (and a child page's `tile_count` override
+  inside `plan`) is the size. `Boards::AdminBuilder::PlanValidator` enforces two
+  separate things: the word list must be **exactly** `tile_count` long, and
+  `tile_count` must be a whole number of rows for the column count. Only the
+  second has an escape hatch ("allow a partial row") — a tile count that isn't a
+  multiple of the columns leaves dead cells at the right end of the last row.
+  Shrinking the board is the fix for a short word list, not ticking the box.
 - **Boards are marked `settings["admin_builder"] = true`** and every member
   action is scoped through `AdminBoardBuild.builder_boards`, the same rail
   `Admin::VideoBoardsController` runs on. Boards are created unpublished;
@@ -1113,6 +1118,17 @@ Its own invariants:
   re-scoped through `builder_boards`, so a hand-edited id can't widen the blast
   radius. Publishing refuses a set with any empty page; delete removes pages
   before the root.
+- **Both review grids render the authored column count**, via the `.builder-grid`
+  class in the admin layout plus an inline `--cols`. Tailwind can't compile a
+  class assembled at runtime, so a hardcoded six-across grid was showing every
+  board — 4-wide, 8-wide — at a width it would never be used at, which defeats
+  the point of reviewing before publishing.
+- **The review page links out with `board_app_url`, not the `/pb/` page.**
+  `Admin::BoardBuildsHelper#board_app_url` points at `FRONT_END_URL/boards/:id`,
+  which resolves for an unpublished board — the whole point of the review step.
+  `board_published_page_url` (`/pb/<slug>`) is only rendered once
+  `board.published?`, because `Board#viewable_by?` gates the public page on that
+  flag and an unpublished link would 404 the admin who clicked it.
 
 - **Name, topic and audience are inferred, not typed.**
   `Boards::AdminBuilder::ContextSuggester` reads whichever of a name, a topic

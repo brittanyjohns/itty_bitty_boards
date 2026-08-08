@@ -42,8 +42,8 @@
                 class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
         </div>
         <div>
-          <label class="block text-xs font-medium text-t2 mb-1" for="rows">Rows</label>
-          <%= number_field_tag :rows, @form[:rows], id: "rows", min: 1, max: Admin::BoardBuildsController::MAX_ROWS,
+          <label class="block text-xs font-medium text-t2 mb-1" for="tile_count">Tiles</label>
+          <%= number_field_tag :tile_count, @form[:tile_count], id: "tile_count", min: 1, max: Admin::BoardBuildsController::MAX_TILES,
                 class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
         </div>
       </div>
@@ -86,7 +86,7 @@
       <p class="text-[11px] text-t3 mt-1">
         You need exactly <span id="cell-count" class="text-t1 font-medium">—</span> words
         (<span id="word-count" class="text-t1 font-medium">0</span> so far).
-        A partial row leaves dead cells at the end of the last row.
+        A tile count that isn’t a whole number of rows leaves dead cells at the end of the last row.
       </p>
     </div>
 
@@ -147,9 +147,9 @@
             </div>
             <div class="col-span-2 flex items-end gap-2">
               <div class="flex-1">
-                <label class="block text-[11px] font-medium text-t2 mb-1">Rows</label>
-                <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_ROWS %>"
-                       name="children[<%= index %>][rows]" value="<%= child[:rows] %>" placeholder="—"
+                <label class="block text-[11px] font-medium text-t2 mb-1">Tiles</label>
+                <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_TILES %>"
+                       name="children[<%= index %>][tile_count]" value="<%= child[:tile_count] %>" placeholder="—"
                        class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
               </div>
               <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
@@ -188,9 +188,9 @@
         </div>
         <div class="col-span-2 flex items-end gap-2">
           <div class="flex-1">
-            <label class="block text-[11px] font-medium text-t2 mb-1">Rows</label>
-            <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_ROWS %>"
-                   name="children[IDX][rows]" value="" placeholder="—"
+            <label class="block text-[11px] font-medium text-t2 mb-1">Tiles</label>
+            <input type="number" min="1" max="<%= Admin::BoardBuildsController::MAX_TILES %>"
+                   name="children[IDX][tile_count]" value="" placeholder="—"
                    class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
           </div>
           <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
@@ -212,20 +212,20 @@
   (function () {
     var words = document.getElementById("words");
     var columns = document.getElementById("columns");
-    var rows = document.getElementById("rows");
+    var tileCount = document.getElementById("tile_count");
     var cellCount = document.getElementById("cell-count");
     var wordCount = document.getElementById("word-count");
-    if (!words || !columns || !rows) return;
+    if (!words || !columns || !tileCount) return;
 
     function update() {
-      var cells = (parseInt(columns.value, 10) || 0) * (parseInt(rows.value, 10) || 0);
+      var cells = parseInt(tileCount.value, 10) || 0;
       var used = words.value.split("\n").filter(function (line) { return line.trim() !== ""; }).length;
       cellCount.textContent = cells || "—";
       wordCount.textContent = used;
       wordCount.style.color = cells && used !== cells ? "#f87171" : "";
     }
 
-    [words, columns, rows].forEach(function (el) { el.addEventListener("input", update); });
+    [words, columns, tileCount].forEach(function (el) { el.addEventListener("input", update); });
     update();
 
     // Page blocks are indexed, so every add/remove has to renumber the whole

@@ -6,8 +6,9 @@ module Boards
     #
     # Two rules carry the weight:
     #
-    #   * **Tile count must equal columns × rows on every page.** Rows are never
-    #     stored (`Board#rows_for_screen_size` derives them from the tiles), so a
+    #   * **The word list must be exactly the page's tile count, and that count
+    #     must fill whole rows.** Rows are never stored
+    #     (`Board#rows_for_screen_size` derives them from the tiles), so a
     #     partial final row doesn't shorten the board — it leaves conspicuous
     #     empty cells at the right end of the last row, which reads as broken on
     #     a classroom TV.
@@ -95,26 +96,33 @@ module Boards
 
       def count_problems(page)
         columns = page[:columns].to_i
-        rows = page[:rows].to_i
-        return [prefixed(page, "set both a column count and a row count.")] if columns < 1 || rows < 1
+        wanted = page[:tile_count].to_i
+        return [prefixed(page, "set both a column count and a tile count.")] if columns < 1 || wanted < 1
 
         tiles = page[:tiles]
         return [prefixed(page, "add at least one word.")] if tiles.empty?
 
-        cells = columns * rows
+        count_mismatch(page, tiles.size, wanted) + partial_row_problems(page, columns, wanted)
+      end
 
-        # Overflow is always an error: there is no cell for the extra tiles, so
-        # "allow a partial row" can't rescue it.
-        if tiles.size > cells
-          return [prefixed(page, "#{tiles.size} words won't fit a #{columns}×#{rows} grid " \
-                                 "(#{cells} cells). Remove #{tiles.size - cells}.")]
-        end
+      def count_mismatch(page, written, wanted)
+        return [] if written == wanted
 
-        return [] if tiles.size == cells || allow_partial_row
+        verb = written > wanted ? "Remove #{written - wanted}" : "Add #{wanted - written}"
+        [prefixed(page, "#{written} words for a #{wanted}-tile board (needs exactly #{wanted}). #{verb}. " \
+                        "Change the tile count if the board should be a different size.")]
+      end
 
-        [prefixed(page, "#{tiles.size} words for a #{columns}×#{rows} grid (needs exactly #{cells}). " \
-                        "Add #{cells - tiles.size}. A partial row leaves dead cells at the end of the " \
-                        "last row — tick “allow a partial row” if you meant it.")]
+      # The dead-cell rail, moved off the word list and onto the size itself: a
+      # tile count that isn't a whole number of rows leaves empty cells at the
+      # right end of the last row no matter how well the words are chosen.
+      def partial_row_problems(page, columns, wanted)
+        return [] if allow_partial_row || (wanted % columns).zero?
+
+        full = (wanted / columns) * columns
+        [prefixed(page, "#{wanted} tiles across #{columns} columns leaves #{wanted - full} in a partial " \
+                        "last row, which reads as dead cells. Use #{full} or #{full + columns} — or tick " \
+                        "“allow a partial row” if you meant it.")]
       end
 
       def label_problems(page)
@@ -147,16 +155,16 @@ module Boards
       def grid_problems
         return [] if allow_mixed_grids || !multi_page?
 
-        root_grid = [root_page[:columns].to_i, root_page[:rows].to_i]
+        root_grid = [root_page[:columns].to_i, root_page[:tile_count].to_i]
 
         pages.drop(1).filter_map do |page|
           next if page[:inherits_grid]
 
-          grid = [page[:columns].to_i, page[:rows].to_i]
+          grid = [page[:columns].to_i, page[:tile_count].to_i]
           next if grid == root_grid
 
-          "#{label_for(page)}: grid #{grid[0]}×#{grid[1]} differs from the main board's " \
-            "#{root_grid[0]}×#{root_grid[1]}. Every page in a set shares the main board's grid. " \
+          "#{label_for(page)}: grid #{grid[0]} columns / #{grid[1]} tiles differs from the main board's " \
+            "#{root_grid[0]} columns / #{root_grid[1]} tiles. Every page in a set shares the main board's grid. " \
             "If this page can't fill it on good words, widen its remit, merge it into a sibling, or " \
             "cut the folder tile — don't shrink it. Tick “allow mixed grids” only if you meant it."
         end

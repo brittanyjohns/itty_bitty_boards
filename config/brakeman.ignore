@@ -21,7 +21,7 @@
       "cwe_id": [
         915
       ],
-      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment \u2014 a non-listed role is ignored."
+      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment — a non-listed role is ignored."
     },
     {
       "warning_type": "SQL Injection",
@@ -67,7 +67,7 @@
       "cwe_id": [
         22
       ],
-      "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix \u2014 no user-supplied path traversal is possible."
+      "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix — no user-supplied path traversal is possible."
     },
     {
       "warning_type": "SQL Injection",
@@ -137,6 +137,25 @@
         89
       ],
       "user_note": "False positive: @board_sort and @board_dir are both validated against explicit allowlists (SORTABLE_BOARD_COLUMNS and %w[asc desc]) via presence_in before being used in Arel.sql. No user input reaches this interpolation unchecked."
+    },
+    {
+      "warning_type": "Unmaintained Dependency",
+      "warning_code": 122,
+      "fingerprint": "21ab0fe00fdd5899ffc405cff75aadb91b805ee996a614f7e27b08a287e9062d",
+      "check_name": "EOLRails",
+      "message": "Support for Rails 8.0.5 ends on 2026-10-07",
+      "file": "Gemfile.lock",
+      "line": 439,
+      "link": "https://brakemanscanner.org/docs/warning_types/unmaintained_dependency/",
+      "code": null,
+      "render_path": null,
+      "location": null,
+      "user_input": null,
+      "confidence": "Weak",
+      "cwe_id": [
+        1104
+      ],
+      "user_note": "Not a vulnerability — Brakeman warns 60 days before a Rails series goes EOL, so this fired on its own on 2026-08-08 and turned the Security workflow red on main. Rails 8.0 support ends 2026-10-07; the fix is the 8.1 upgrade, tracked separately. Remove this entry with that upgrade — the fingerprint is version-specific, so it will not silence the next series' warning."
     }
   ],
   "updated": null,

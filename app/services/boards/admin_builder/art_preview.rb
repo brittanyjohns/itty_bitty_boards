@@ -42,7 +42,16 @@ module Boards
 
       def call
         previewed = pages.map do |page|
-          { key: page[:key], name: page[:name], rows: page[:tiles].map { |tile| row_for(tile) } }
+          # `columns`/`tile_count` carry the page's OWN grid through to the view:
+          # with mixed grids a page needn't match the main board, so the review
+          # grid can't be drawn from the form's top-level columns.
+          {
+            key: page[:key],
+            name: page[:name],
+            columns: page[:columns].to_i,
+            tile_count: page[:tile_count].to_i,
+            rows: page[:tiles].map { |tile| row_for(tile) },
+          }
         end
 
         # Coverage is over distinct labels: the same word on two pages is one

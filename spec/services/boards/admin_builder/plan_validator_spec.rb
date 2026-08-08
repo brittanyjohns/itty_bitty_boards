@@ -5,9 +5,9 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     labels.map { |label| { label: label, part_of_speech: "noun" } }
   end
 
-  def pages(root_tiles:, columns: 2, rows: 2, children: [])
+  def pages(root_tiles:, columns: 2, tile_count: 4, children: [])
     Boards::AdminBuilder::Plan.pages(
-      root: { name: "Playground", columns: columns, rows: rows, tiles: root_tiles },
+      root: { name: "Playground", columns: columns, tile_count: tile_count, tiles: root_tiles },
       children: children,
     )
   end
@@ -25,7 +25,7 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
 
     it "rejects a short plan and says how many to add" do
       problems = validate(pages: pages(root_tiles: tiles("i", "want", "more")))
-      expect(problems.first).to include("3 words for a 2×2 grid (needs exactly 4)")
+      expect(problems.first).to include("3 words for a 4-tile board (needs exactly 4)")
       expect(problems.first).to include("Add 1")
     end
 
@@ -35,23 +35,41 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
       expect(problems.first).not_to include("Playground:")
     end
 
-    it "allows a short plan when the partial-row escape hatch is ticked" do
-      expect(validate(pages: pages(root_tiles: tiles("i", "want", "more")), allow_partial_row: true)).to eq([])
+    # The word list is measured against the authored tile count now, not against
+    # columns × rows, so "allow a partial row" no longer excuses a short list —
+    # it excuses a tile count that doesn't fill whole rows.
+    it "rejects a short plan even with the partial-row escape hatch ticked" do
+      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more")), allow_partial_row: true)
+      expect(problems.first).to include("needs exactly 4")
     end
 
-    it "rejects an over-full plan even with the escape hatch ticked" do
-      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more", "help", "stop")), allow_partial_row: true)
-      expect(problems.first).to include("won't fit")
+    it "accepts a short list once the tile count is lowered to match" do
+      expect(validate(
+        pages: pages(root_tiles: tiles("i", "want", "more"), tile_count: 3),
+        allow_partial_row: true,
+      )).to eq([])
+    end
+
+    it "rejects an over-full plan and says how many to remove" do
+      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more", "help", "stop")))
+      expect(problems.first).to include("5 words for a 4-tile board")
       expect(problems.first).to include("Remove 1")
+    end
+
+    # The dead-cell rail, now stated on the size rather than on the word list.
+    it "rejects a tile count that doesn't fill whole rows" do
+      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more"), tile_count: 3))
+      expect(problems.first).to include("3 tiles across 2 columns leaves 1 in a partial last row")
+      expect(problems.first).to include("Use 2 or 4")
     end
 
     it "rejects an empty word list" do
       expect(validate(pages: pages(root_tiles: []))).to eq(["Add at least one word."])
     end
 
-    it "rejects a grid with no columns or rows" do
+    it "rejects a grid with no columns or no tile count" do
       expect(validate(pages: pages(root_tiles: tiles("i"), columns: 0)))
-        .to eq(["Set both a column count and a row count."])
+        .to eq(["Set both a column count and a tile count."])
     end
 
     it "rejects a blank label" do
@@ -78,13 +96,13 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
 
     it "accepts every canonical part of speech" do
       ColorHelper::PARTS_OF_SPEECH.each do |pos|
-        problems = validate(pages: pages(root_tiles: [{ label: "word", part_of_speech: pos }], columns: 1, rows: 1))
+        problems = validate(pages: pages(root_tiles: [{ label: "word", part_of_speech: pos }], columns: 1, tile_count: 1))
         expect(problems).to eq([]), "expected #{pos} to be accepted"
       end
     end
 
     it "defaults a missing part of speech rather than rejecting it" do
-      expect(validate(pages: pages(root_tiles: [{ label: "word" }], columns: 1, rows: 1))).to eq([])
+      expect(validate(pages: pages(root_tiles: [{ label: "word" }], columns: 1, tile_count: 1))).to eq([])
     end
   end
 
@@ -103,7 +121,7 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
 
     it "names the page in its own problems" do
       problems = validate(pages: pages(root_tiles: root_with_folder, children: [child(tiles_list: tiles("apple"))]))
-      expect(problems).to include(a_string_including("Food: 1 words for a 2×2 grid"))
+      expect(problems).to include(a_string_including("Food: 1 words for a 4-tile board"))
     end
 
     it "rejects a tile pointing at a page that doesn't exist" do
@@ -163,9 +181,9 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
       tiles("i", "want", "more") + [{ label: "Food", part_of_speech: "noun", links_to: "food" }]
     end
 
-    def sized_child(columns:, rows:, count:)
+    def sized_child(columns:, tile_count:, count:)
       {
-        key: "food", name: "Food", columns: columns, rows: rows,
+        key: "food", name: "Food", columns: columns, tile_count: tile_count,
         tiles: Array.new(count) { |i| { label: "word#{i}", part_of_speech: "noun" } },
       }
     end
@@ -173,13 +191,13 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     # A communicator moving into a folder page shouldn't have the cell size
     # change under their finger.
     it "rejects a page whose authored grid differs from the main board's" do
-      problems = validate(pages: pages(root_tiles: root_with_folder, children: [sized_child(columns: 3, rows: 3, count: 9)]))
-      expect(problems).to include(a_string_including("grid 3×3 differs from the main board's 2×2"))
+      problems = validate(pages: pages(root_tiles: root_with_folder, children: [sized_child(columns: 3, tile_count: 9, count: 9)]))
+      expect(problems).to include(a_string_including("grid 3 columns / 9 tiles differs from the main board's 2 columns / 4 tiles"))
     end
 
     it "allows a different grid when the escape hatch is ticked" do
       problems = validate(
-        pages: pages(root_tiles: root_with_folder, children: [sized_child(columns: 3, rows: 3, count: 9)]),
+        pages: pages(root_tiles: root_with_folder, children: [sized_child(columns: 3, tile_count: 9, count: 9)]),
         allow_mixed_grids: true,
       )
       expect(problems).to eq([])
@@ -195,7 +213,7 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
 
     # Matching the root explicitly is the same board as inheriting it.
     it "accepts a page that restates the main board's grid" do
-      problems = validate(pages: pages(root_tiles: root_with_folder, children: [sized_child(columns: 2, rows: 2, count: 4)]))
+      problems = validate(pages: pages(root_tiles: root_with_folder, children: [sized_child(columns: 2, tile_count: 4, count: 4)]))
       expect(problems).to eq([])
     end
   end
