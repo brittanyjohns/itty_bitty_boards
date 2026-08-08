@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_08_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_08_140036) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -72,6 +72,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_08_120000) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "description"
+    t.string "tags", default: [], null: false, array: true
+    t.string "audience"
     t.index ["board_id"], name: "index_admin_board_builds_on_board_id"
     t.index ["created_by_id"], name: "index_admin_board_builds_on_created_by_id"
     t.index ["status", "created_at"], name: "index_admin_board_builds_on_status_and_created_at"
