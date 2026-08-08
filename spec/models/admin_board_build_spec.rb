@@ -20,4 +20,13 @@ RSpec.describe AdminBoardBuild do
     expect(build.description).to eq("A board for the playground.")
     expect(build.audience).to eq("an early communicator")
   end
+
+  it "survives its board being destroyed, with board_id nullified" do
+    board = FactoryBot.create(:board)
+    build = described_class.create!(name: "Playground", columns_count: 2, tile_count: 4, board: board)
+
+    expect { board.destroy! }.not_to raise_error
+
+    expect(build.reload.board_id).to be_nil
+  end
 end

@@ -93,6 +93,10 @@ class Board < ApplicationRecord
   # audit trail) it has no reason to outlive the board, and its belongs_to
   # is required so nullify would raise NOT NULL anyway.
   has_many :board_printables, dependent: :destroy
+  # AdminBoardBuild is a build-run record (audit trail), not board content —
+  # it must survive board deletion, so the back-pointer is nullified
+  # (AdminBoardBuild#board is belongs_to optional).
+  has_many :admin_board_builds, dependent: :nullify
 
   include WordEventsHelper
 
