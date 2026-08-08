@@ -100,10 +100,18 @@
       <%# formnovalidate: the board name is `required` for preview and build,
           but drafting infers a missing one — without this the browser blocks
           the submit before the server ever gets to. %>
-      <button type="submit" id="draft-button" formaction="<%= draft_admin_dashboard_board_builds_path %>" formnovalidate
-              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
-        Draft with AI
-      </button>
+      <div class="flex items-center gap-2">
+        <button type="submit" id="draft-button" formaction="<%= draft_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Draft with AI
+        </button>
+        <%# Additive: tops up whatever's already typed with only the missing
+            words, so nothing here needs a confirm() before overwriting. %>
+        <button type="submit" id="add-words-button" formaction="<%= add_words_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Add more
+        </button>
+      </div>
     </div>
 
     <div class="mb-3">
@@ -261,6 +269,7 @@
     var tileCount = document.getElementById("tile_count");
     var cellCount = document.getElementById("cell-count");
     var wordCount = document.getElementById("word-count");
+    var allowPartialRow = document.getElementById("allow_partial_row");
     if (!words || !columns || !tileCount) return;
 
     function update() {
@@ -271,7 +280,33 @@
       wordCount.style.color = cells && used !== cells ? "#f87171" : "";
     }
 
+    // Rounds up to the next full row for the given column count; if that
+    // overshoots the field's max, rounds down to the last full row instead
+    // so a full-grid ceiling (144) is never exceeded by rounding.
+    function snappedTileCount(tiles, cols, max) {
+      var remainder = tiles % cols;
+      var roundedUp = remainder === 0 ? tiles : tiles + (cols - remainder);
+      return roundedUp > max ? Math.floor(max / cols) * cols : roundedUp;
+    }
+
+    // "Rows have to be complete" is only relaxed by the partial-row checkbox
+    // — everywhere else, a tile count that isn't cols x rows leaves dead
+    // cells at the end of the grid, so snap it the moment either field
+    // settles (not on every keystroke, which would fight the admin's typing).
+    function snapTileCount() {
+      if (allowPartialRow && allowPartialRow.checked) return;
+      var cols = parseInt(columns.value, 10) || 0;
+      var tiles = parseInt(tileCount.value, 10) || 0;
+      if (!cols || !tiles) return;
+      var max = parseInt(tileCount.max, 10) || tiles;
+      var snapped = snappedTileCount(tiles, cols, max);
+      if (snapped !== tiles) tileCount.value = snapped;
+      update();
+    }
+
     [words, columns, tileCount].forEach(function (el) { el.addEventListener("input", update); });
+    [columns, tileCount].forEach(function (el) { el.addEventListener("change", snapTileCount); });
+    if (allowPartialRow) allowPartialRow.addEventListener("change", snapTileCount);
     update();
 
     // Page blocks are indexed, so every add/remove has to renumber the whole
