@@ -171,6 +171,13 @@ instead of silently producing a short board.
   synthesis. Constrain voice to a select box; don't take free text.
 - Setting `voice` on a Board cascades to tiles and re-queues audio — set it at
   create time rather than patching after.
+- **The authoring form must stay `data: { turbo: false }`.** `suggest`, `draft`
+  and `preview` all answer a POST with a rendered 200, because each hands the
+  admin's own submission back to them. Turbo Drive refuses a 2xx form response
+  that isn't a redirect (`Form responses must redirect to another location`),
+  throws, and leaves the page untouched — so with Turbo on, every button on the
+  form is a silent no-op. Request specs can't see this: they assert the rendered
+  body and never run Turbo. A spec asserts the attribute is present instead.
 
 ## Work items
 
