@@ -52,7 +52,7 @@ RSpec.describe Boards::ImageResolver do
       expect(resolved["brand_new_batch_word"].label).to eq("brand_new_batch_word")
     end
 
-    it "keeps the authored casing on an image it has to create" do
+    it "keeps genuinely stylized casing on an image it has to create" do
       resolved = described_class.resolve_all(["BrandNewCased"], owner: owner)
 
       # The authored casing now lives on display_label; label is the lowercase
@@ -60,6 +60,19 @@ RSpec.describe Boards::ImageResolver do
       # instead of creating a second one.
       expect(resolved["brandnewcased"].display_label).to eq("BrandNewCased")
       expect(resolved["brandnewcased"].label).to eq("brandnewcased")
+    end
+
+    # A plain leading capital is indistinguishable from someone just typing a
+    # word-list line normally, or an LLM defaulting to Title Case in its JSON
+    # — not a deliberate stylistic choice like "iPad" or "TV". Baking it in as
+    # the image's display_label would permanently exempt every future tile for
+    # this word from the AAC lowercase convention, since
+    # Labels::CaseNormalizer treats any existing uppercase as deliberate.
+    it "folds a plain leading capital down when it has to create the image" do
+      resolved = described_class.resolve_all(["Zorblequax"], owner: owner)
+
+      expect(resolved["zorblequax"].display_label).to eq("zorblequax")
+      expect(resolved["zorblequax"].label).to eq("zorblequax")
     end
 
     it "does not scale its query count with the number of labels" do
@@ -121,6 +134,16 @@ RSpec.describe Boards::ImageResolver do
         expect(result.label).to eq("brand_new_word")
         expect(result.user_id).to eq(owner.id)
       }.to change(Image, :count).by(1)
+    end
+
+    it "folds a plain leading capital down on a brand-new image, but leaves stylized casing alone" do
+      plain = described_class.resolve("Swing", owner: owner)
+      stylized = described_class.resolve("iPad", owner: owner)
+      shouty = described_class.resolve("TV", owner: owner)
+
+      expect(plain.display_label).to eq("swing")
+      expect(stylized.display_label).to eq("iPad")
+      expect(shouty.display_label).to eq("TV")
     end
 
     it "normalizes the label before resolving" do

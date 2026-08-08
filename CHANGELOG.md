@@ -3,6 +3,20 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Words made from the admin dashboard could permanently stick in Title Case.**
+  Creating a tile for a brand-new word (no matching image in the library yet)
+  baked in whatever casing it was authored with — a word-list line typed with
+  a capital, or an AI-drafted label — as that image's display text forever,
+  since any existing capital reads as deliberate styling ("iPad", "TV") to the
+  tile-casing default. New images now fold a plain leading capital down before
+  it's captured, so a first-time word defaults to lowercase like the rest of
+  the board; genuinely stylized casing is untouched. Same underlying path the
+  regular board editor uses, so it's fixed there too.
+
 ## [1.4.1] — 2026-08-08
 
 ### Changed
