@@ -266,11 +266,11 @@ module Admin
     def regenerate_art
       set = @build.set_boards
       root = builder_board_for(@build)
-      image_ids = set.flat_map { |page| art_less_image_ids(page) }.uniq
+      image_ids = set.flat_map { |page| queueable_image_ids(page) }.uniq
 
       if root.nil? || image_ids.empty?
         return redirect_to admin_dashboard_board_build_path(@build),
-                           notice: "Every tile already has a picture — nothing to generate."
+                           notice: "Every tile already has a picture, or art is still generating for the rest — nothing new to queue."
       end
 
       queued = Boards::AdminBuilder::ArtQueue.call(board: root, image_ids: image_ids, topic: @build.topic)
@@ -338,6 +338,19 @@ module Admin
 
     def art_less_image_ids(board)
       Image.where(id: board.board_images.select(:image_id)).where.missing(:docs).pluck(:id)
+    end
+
+    # regenerate_art must not re-queue an image that's already mid-flight from
+    # a prior GenerateImagesJob — art_less_image_ids alone can't tell "never
+    # queued" from "queued and still generating" (both have no docs yet).
+    # missing_art_count keeps using art_less_image_ids unchanged: it's a
+    # display count of "still no picture," and in-flight images belong in it.
+    def queueable_image_ids(board)
+      # `where.not(status: "generating")` would also exclude NULL-status rows
+      # (SQL's `!=` against NULL is unknown, not true) — most art-less images
+      # have never had a status set at all, so that would drop them too.
+      # IS DISTINCT FROM is NULL-safe: NULL is kept, only "generating" is cut.
+      Image.where(id: art_less_image_ids(board)).where("status IS DISTINCT FROM ?", "generating").pluck(:id)
     end
 
     def missing_art_count(board)

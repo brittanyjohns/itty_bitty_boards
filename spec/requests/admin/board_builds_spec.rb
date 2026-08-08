@@ -520,6 +520,23 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("--cols: 2")
       expect(response.body).to include("--cols: 3")
     end
+
+    # Finding 1: the preview page's build-resubmit form is a separate <form>
+    # from the authoring form, so description/tags must be threaded through
+    # explicitly as hidden fields or they silently vanish on "Build this
+    # board" — see app/views/admin/board_builds/preview.html.erb.
+    it "carries description and tags through the build-resubmit form" do
+      params = form_params(description: "A board for outdoor play.", tags: "playground, outdoor play")
+
+      post preview_admin_dashboard_board_builds_path, params: params
+
+      doc = Nokogiri::HTML::Document.parse(response.body)
+      description_field = doc.at_css(%(input[type="hidden"][name="description"]))
+      tags_field = doc.at_css(%(input[type="hidden"][name="tags"]))
+
+      expect(description_field["value"]).to eq("A board for outdoor play.")
+      expect(tags_field["value"]).to eq("playground, outdoor play")
+    end
   end
 
   describe "validation" do
@@ -1171,6 +1188,25 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       post regenerate_art_admin_dashboard_board_build_path(build)
 
       expect(GenerateImagesJob.jobs).to be_empty
+    end
+
+    # Finding 2: the "missing art" count (used for display) includes images
+    # that are already mid-flight from a prior GenerateImagesJob — but
+    # queueing must not re-fire generation for one of those. Only a
+    # genuinely-untouched image (no docs, not "generating") should be queued.
+    it "does not re-queue an image that is already generating" do
+      board = built_board
+      generating_image = Image.create!(label: "swing", user: seed_admin, status: "generating")
+      board.add_image(generating_image.id)
+      untouched_image = board_with_art_less_tile(board)
+      build = create_build(board: board, status: "complete", topic: "the playground")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(GenerateImagesJob.jobs.size).to eq(1)
+      queued_ids = GenerateImagesJob.jobs.first["args"].first
+      expect(queued_ids).to include(untouched_image.id)
+      expect(queued_ids).not_to include(generating_image.id)
     end
   end
 end
