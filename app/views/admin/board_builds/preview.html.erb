@@ -5,7 +5,7 @@
     <h1 class="text-2xl font-semibold text-t1 tracking-tight">Review the art — <%= @form[:name] %></h1>
     <p class="text-sm text-t3 mt-0.5">
       Nothing has been written yet. <%= @preview[:total] %> distinct <%= "word".pluralize(@preview[:total]) %> ·
-      <%= @form[:columns] %>×<%= @form[:rows] %> grid<%= " · #{@preview[:pages].size} pages" if @preview[:pages].size > 1 %>.
+      <%= @form[:columns] %> columns · <%= @form[:tile_count] %> tiles<%= " · #{@preview[:pages].size} pages" if @preview[:pages].size > 1 %>.
     </p>
   </div>
   <%= link_to "← All board builds", admin_dashboard_board_builds_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
@@ -54,10 +54,12 @@
     <% else %>
       Page “<%= page[:key] %>” — <%= page[:name] %>
     <% end %>
-    <span class="text-t3 font-normal normal-case tracking-normal">· <%= page[:rows].size %> tiles, in reading order</span>
+    <span class="text-t3 font-normal normal-case tracking-normal">
+      · <%= page[:columns] %> columns · <%= page[:rows].size %> of <%= page[:tile_count] %> tiles, in reading order
+    </span>
   </h2>
 
-  <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
+  <div class="builder-grid mb-8" style="--cols: <%= page[:columns] %>;">
     <% page[:rows].each do |row| %>
       <div class="admin-card border rounded-xl overflow-hidden <%= "border-amber-500" if row.found? && !row.exact %><%= "border-red-500" unless row.found? %>">
         <div class="aspect-square admin-card-alt flex items-center justify-center overflow-hidden">
@@ -101,13 +103,13 @@
     <%= hidden_field_tag :audience, @form[:audience] %>
     <%= hidden_field_tag :voice, @form[:voice] %>
     <%= hidden_field_tag :columns, @form[:columns] %>
-    <%= hidden_field_tag :rows, @form[:rows] %>
+    <%= hidden_field_tag :tile_count, @form[:tile_count] %>
     <%= hidden_field_tag :words, @form[:words] %>
     <%= hidden_field_tag :commercial_safe_only, @form[:commercial_safe_only] ? "1" : "0" %>
     <%= hidden_field_tag :allow_partial_row, @form[:allow_partial_row] ? "1" : "0" %>
     <%= hidden_field_tag :allow_mixed_grids, @form[:allow_mixed_grids] ? "1" : "0" %>
     <% @form[:children].each_with_index do |child, index| %>
-      <% %i[key name columns rows words].each do |field| %>
+      <% %i[key name columns tile_count words].each do |field| %>
         <%= hidden_field_tag "children[#{index}][#{field}]", child[field], id: nil %>
       <% end %>
     <% end %>

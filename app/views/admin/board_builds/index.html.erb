@@ -27,7 +27,7 @@
               <div class="text-[10px] text-t3"><%= build.topic %></div>
             <% end %>
           </td>
-          <td class="px-5 py-3 text-xs text-t2 whitespace-nowrap"><%= build.columns_count %>×<%= build.rows_count %></td>
+          <td class="px-5 py-3 text-xs text-t2 whitespace-nowrap"><%= build.columns_count %> cols · <%= build.tile_count %> tiles</td>
           <td class="px-5 py-3 whitespace-nowrap">
             <% case build.status %>
             <% when "complete" %>

@@ -18,7 +18,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       topic: "the playground",
       voice: "polly:kevin",
       columns: "2",
-      rows: "2",
+      tile_count: "4",
       words: "i | pronoun\nwant | verb\nmore | important_function\nswing | noun",
       commercial_safe_only: "1",
     }.merge(overrides)
@@ -31,7 +31,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
         name: "Playground",
         voice: "polly:kevin",
         columns_count: 2,
-        rows_count: 2,
+        tile_count: 4,
         plan: { "tiles" => [{ "label" => "i", "part_of_speech" => "pronoun" }] },
       }.merge(overrides),
     )
@@ -115,7 +115,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
         words: "i | pronoun\nwant | verb\nmore | social\nFood | noun | >food",
         children: {
           "0" => {
-            key: "food", name: "Food", columns: "", rows: "",
+            key: "food", name: "Food", columns: "", tile_count: "",
             words: "apple | noun\nbanana | noun\nhungry | adjective\nback | social | >__root__",
           },
         },
@@ -168,7 +168,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
     it "drops a wholly blank page block rather than failing on it" do
       params = set_params
-      params[:children]["1"] = { key: "", name: "", columns: "", rows: "", words: "  " }
+      params[:children]["1"] = { key: "", name: "", columns: "", tile_count: "", words: "  " }
 
       expect { post admin_dashboard_board_builds_path, params: params }
         .to change(AdminBoardBuild, :count).by(1)
@@ -185,7 +185,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
     it "rejects a page whose grid differs from the main board's" do
       params = set_params
-      params[:children]["0"] = params[:children]["0"].merge(columns: "3", rows: "3",
+      params[:children]["0"] = params[:children]["0"].merge(columns: "3", tile_count: "9",
                                                             words: (1..9).map { |i| "word#{i} | noun" }.join("\n"))
 
       expect { post admin_dashboard_board_builds_path, params: params }.not_to change(AdminBoardBuild, :count)
@@ -194,7 +194,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
     it "allows a different grid when the escape hatch is ticked" do
       params = set_params(allow_mixed_grids: "1")
-      params[:children]["0"] = params[:children]["0"].merge(columns: "3", rows: "3",
+      params[:children]["0"] = params[:children]["0"].merge(columns: "3", tile_count: "9",
                                                             words: (1..9).map { |i| "word#{i} | noun" }.join("\n"))
 
       expect { post admin_dashboard_board_builds_path, params: params }.to change(AdminBoardBuild, :count).by(1)
@@ -350,9 +350,9 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("a preschooler")
     end
 
-    it "passes the topic, grid and audience to the drafter" do
+    it "passes the topic, tile count and audience to the drafter" do
       expect(Boards::AdminBuilder::WordListDrafter).to receive(:new)
-        .with(topic: "the playground", columns: 2, rows: 2, audience: "a preschooler")
+        .with(topic: "the playground", tile_count: 4, audience: "a preschooler")
         .and_call_original
 
       post draft_admin_dashboard_board_builds_path, params: form_params(audience: "a preschooler")
@@ -495,13 +495,38 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("will be generated")
       expect(response.body).to include("0%")
     end
+
+    # The review grid used to be a hardcoded 6 columns, so a 4-wide board was
+    # reviewed at a width it would never be used at.
+    it "draws the review grid at the authored column count" do
+      params = form_params(columns: "4", tile_count: "4", words: "i | pronoun\nwant | verb\nmore | important_function\nswing | noun")
+
+      post preview_admin_dashboard_board_builds_path, params: params
+
+      expect(response.body).to include("--cols: 4")
+      expect(response.body).not_to include("lg:grid-cols-6")
+    end
+
+    it "draws each page of a mixed-grid set at its own column count" do
+      params = form_params(
+        columns: "2", tile_count: "4",
+        words: "i | pronoun\nwant | verb\nmore | important_function\nFood | noun | >food",
+        allow_mixed_grids: "1",
+        children: { "0" => { key: "food", name: "Food", columns: "3", tile_count: "3", words: "apple\nbanana\nhungry" } },
+      )
+
+      post preview_admin_dashboard_board_builds_path, params: params
+
+      expect(response.body).to include("--cols: 2")
+      expect(response.body).to include("--cols: 3")
+    end
   end
 
   describe "validation" do
     before { sign_in admin }
 
-    it "rejects a tile count that doesn't fill the grid and preserves what was typed" do
-      params = form_params(rows: "3")
+    it "rejects a word list that doesn't match the tile count and preserves what was typed" do
+      params = form_params(tile_count: "6")
 
       expect { post preview_admin_dashboard_board_builds_path, params: params }
         .to not_change(Board, :count).and not_change(Image, :count)
@@ -512,11 +537,25 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("swing | noun")
     end
 
-    it "accepts a partial last row when the escape hatch is ticked" do
-      post preview_admin_dashboard_board_builds_path, params: form_params(rows: "3", allow_partial_row: "1")
+    # The escape hatch now governs the SIZE, not the word list: 3 tiles across
+    # 2 columns is a partial last row, and the words still have to match it.
+    it "accepts a tile count that doesn't fill whole rows when the escape hatch is ticked" do
+      params = form_params(tile_count: "3", words: "i | pronoun\nwant | verb\nmore | important_function",
+                           allow_partial_row: "1")
+
+      post preview_admin_dashboard_board_builds_path, params: params
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Review the art")
+    end
+
+    it "rejects a tile count that leaves a partial last row without the escape hatch" do
+      params = form_params(tile_count: "3", words: "i | pronoun\nwant | verb\nmore | important_function")
+
+      post preview_admin_dashboard_board_builds_path, params: params
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("partial last row")
     end
 
     it "rejects duplicate words" do
@@ -569,7 +608,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(build.name).to eq("Playground")
       expect(build.topic).to eq("the playground")
       expect(build.columns_count).to eq(2)
-      expect(build.rows_count).to eq(2)
+      expect(build.tile_count).to eq(4)
       expect(build.labels).to eq(%w[i want more swing])
       expect(build.tiles.map { |t| t["part_of_speech"] }).to eq(%w[pronoun verb important_function noun])
       expect(BuildAdminBoardJob.jobs.map { |job| job["args"].first }).to eq([build.id])
@@ -658,6 +697,20 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       get admin_dashboard_board_build_path(build)
 
       expect(response.body).to include("http://localhost:8100/boards/#{page.id}")
+    end
+
+    # The tile grid mirrors the board's own lg layout, so what the review page
+    # shows is what a communicator gets.
+    it "draws the tile grid at the board's own column count" do
+      board = built_board
+      board.update!(large_screen_columns: 8)
+      board.add_image(Image.create!(label: "i", user_id: seed_admin.id).id)
+      build = create_build(status: "complete", board: board)
+
+      get admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include("--cols: 8")
+      expect(response.body).not_to include("lg:grid-cols-6")
     end
   end
 

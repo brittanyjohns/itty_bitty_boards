@@ -27,9 +27,9 @@ module Boards
       # 12x12, matching the controller's grid ceiling.
       MAX_TILES = 144
 
-      def initialize(topic:, columns:, rows:, audience: nil)
+      def initialize(topic:, tile_count:, audience: nil)
         @topic = topic.to_s.strip
-        @tile_count = (columns.to_i * rows.to_i).clamp(1, MAX_TILES)
+        @tile_count = tile_count.to_i.clamp(1, MAX_TILES)
         @audience = audience.to_s.strip
       end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_07_150000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_08_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -65,7 +65,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_150000) do
     t.string "topic"
     t.string "voice", default: "polly:kevin", null: false
     t.integer "columns_count", null: false
-    t.integer "rows_count", null: false
+    t.integer "tile_count", null: false
     t.boolean "commercial_safe_only", default: true, null: false
     t.jsonb "plan", default: {}, null: false
     t.jsonb "art_report", default: {}, null: false

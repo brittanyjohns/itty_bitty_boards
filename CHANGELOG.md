@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **The board builder asks for a tile count instead of rows.** The board never
+  stored a row count — it works out rows from how many tiles there are — so
+  "6 × 4" was really just "24 tiles" wearing a disguise. The field now says what
+  it does. The rail against dead cells moved with it: a tile count that doesn't
+  fill whole rows is flagged, with the two nearest counts that would, and
+  "allow a partial row" is still there for when you mean it.
+- **The board build preview shows the real layout.** The review grid was always
+  six tiles across no matter what you authored, so an 8-wide board was reviewed
+  at a width it would never be used at. Both the art preview and the built-board
+  page now draw the board at its own column count, and each page of a linked set
+  at its own.
+
 ### Added
 
 - **The board build review page opens the board in a new tab.** Every built

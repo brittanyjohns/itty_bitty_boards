@@ -18,7 +18,7 @@ class AdminBoardBuild < ApplicationRecord
 
   validates :status, inclusion: { in: STATUSES }
   validates :name, presence: true
-  validates :columns_count, :rows_count, numericality: { greater_than: 0 }
+  validates :columns_count, :tile_count, numericality: { greater_than: 0 }
 
   scope :recent, -> { order(created_at: :desc) }
 
@@ -31,7 +31,7 @@ class AdminBoardBuild < ApplicationRecord
 
   # The root page plus any child pages, normalized into one iterable list.
   def pages
-    Boards::AdminBuilder::Plan.from_stored(plan, name: name, columns: columns_count, rows: rows_count)
+    Boards::AdminBuilder::Plan.from_stored(plan, name: name, columns: columns_count, tile_count: tile_count)
   end
 
   def tiles
@@ -57,10 +57,6 @@ class AdminBoardBuild < ApplicationRecord
 
     ordered = self.class.builder_boards.where(id: ids).index_by(&:id)
     [board_id, *ids].uniq.filter_map { |id| ordered[id] }
-  end
-
-  def cell_count
-    columns_count.to_i * rows_count.to_i
   end
 
   def complete? = status == "complete"

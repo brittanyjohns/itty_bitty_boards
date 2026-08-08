@@ -16,7 +16,7 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
 
   def pages_for(labels, children: [])
     Boards::AdminBuilder::Plan.pages(
-      root: { name: "Board", columns: 2, rows: 2, tiles: labels.map { |label| { label: label } } },
+      root: { name: "Board", columns: 2, tile_count: 4, tiles: labels.map { |label| { label: label } } },
       children: children,
     )
   end
@@ -131,6 +131,20 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
 
       expect(root_rows.last).not_to be_folder
       expect(root_rows.map(&:links_to)).to eq([nil, nil, nil, nil])
+    end
+
+    # The review grid is drawn from these, not from the form's top-level
+    # columns — with mixed grids a page needn't match the main board.
+    it "carries each page's own grid through" do
+      pages = pages_for(
+        %w[i want more Food],
+        children: [{ key: "food", name: "Food", columns: 3, tile_count: 3, tiles: %w[apple banana more].map { |l| { label: l } } }],
+      )
+
+      result = described_class.new(pages: pages, commercial_safe_only: false).call
+
+      expect(result[:pages].first).to include(columns: 2, tile_count: 4)
+      expect(result[:pages].last).to include(columns: 3, tile_count: 3)
     end
 
     it "carries links_to through to the row" do

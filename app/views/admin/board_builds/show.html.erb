@@ -4,7 +4,7 @@
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @build.name %></h1>
     <p class="text-sm text-t3 mt-0.5">
-      <%= @build.columns_count %>×<%= @build.rows_count %> · <%= @build.tiles.size %> tiles<%= " · #{@build.children.size} #{"page".pluralize(@build.children.size)}" if @build.multi_page? %>
+      <%= @build.columns_count %> columns · <%= @build.tiles.size %> tiles<%= " · #{@build.children.size} #{"page".pluralize(@build.children.size)}" if @build.multi_page? %>
       <% if @build.topic.present? %> · topic: <%= @build.topic %><% end %>
       <% if @board %> · <span class="font-mono text-xs"><%= @board.slug %></span><% end %>
     </p>
@@ -113,6 +113,7 @@
       <%= page.id == @board.id ? "Main board" : "Page" %> — <%= page.name %>
       <span class="text-t3 font-normal normal-case tracking-normal">
         · <span class="font-mono"><%= page.slug %></span>
+        · <%= page.large_screen_columns %> columns
         · <%= page.published? ? "published" : "unpublished" %>
         · <%= link_to "open ↗", board_app_url(page), target: "_blank", rel: "noopener",
                 class: "text-t2 hover:text-accent underline transition-colors",
@@ -120,7 +121,7 @@
       </span>
     </h2>
 
-    <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
+    <div class="builder-grid mb-8" style="--cols: <%= page.large_screen_columns %>;">
       <% @tiles_by_board[page].each do |tile| %>
         <div class="admin-card border rounded-xl overflow-hidden">
           <div class="aspect-square flex items-center justify-center overflow-hidden" style="background-color: <%= tile.bg_color || "transparent" %>;">
