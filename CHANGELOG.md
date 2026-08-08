@@ -5,6 +5,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Board builder word-count validation now allows a small margin.** A word
+  list within 2 tiles of the page's tile count is accepted instead of
+  requiring an exact match — the message and the live word-count hint on the
+  form now say "within 2" rather than "exactly." A gap larger than that still
+  blocks preview/build with the same "Add N" / "Remove N" guidance.
+
 ### Fixed
 
 - **Words made from the admin dashboard could permanently stick in Title Case.**

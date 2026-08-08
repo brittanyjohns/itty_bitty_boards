@@ -126,8 +126,9 @@
         <span class="font-mono">Food | noun | &gt;food</span>. From a page, <span class="font-mono">&gt;<%= Boards::AdminBuilder::Plan::ROOT_KEY %></span> goes back to the main board.
       </p>
       <p class="text-[11px] text-t3 mt-1">
-        You need exactly <span id="cell-count" class="text-t1 font-medium">—</span> words
-        (<span id="word-count" class="text-t1 font-medium">0</span> so far).
+        You need about <span id="cell-count" class="text-t1 font-medium">—</span> words
+        (within <%= Boards::AdminBuilder::PlanValidator::TILE_COUNT_TOLERANCE %>) —
+        <span id="word-count" class="text-t1 font-medium">0</span> so far.
         A tile count that isn’t a whole number of rows leaves dead cells at the end of the last row.
       </p>
     </div>
@@ -272,12 +273,15 @@
     var allowPartialRow = document.getElementById("allow_partial_row");
     if (!words || !columns || !tileCount) return;
 
+    // Kept in sync with Boards::AdminBuilder::PlanValidator::TILE_COUNT_TOLERANCE.
+    var TILE_COUNT_TOLERANCE = <%= Boards::AdminBuilder::PlanValidator::TILE_COUNT_TOLERANCE %>;
+
     function update() {
       var cells = parseInt(tileCount.value, 10) || 0;
       var used = words.value.split("\n").filter(function (line) { return line.trim() !== ""; }).length;
       cellCount.textContent = cells || "—";
       wordCount.textContent = used;
-      wordCount.style.color = cells && used !== cells ? "#f87171" : "";
+      wordCount.style.color = cells && Math.abs(used - cells) > TILE_COUNT_TOLERANCE ? "#f87171" : "";
     }
 
     // Rounds up to the next full row for the given column count; if that

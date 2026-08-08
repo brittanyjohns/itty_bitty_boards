@@ -614,15 +614,25 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     before { sign_in admin }
 
     it "rejects a word list that doesn't match the tile count and preserves what was typed" do
-      params = form_params(tile_count: "6")
+      params = form_params(tile_count: "8")
 
       expect { post preview_admin_dashboard_board_builds_path, params: params }
         .to not_change(Board, :count).and not_change(Image, :count)
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("needs exactly 6")
+      expect(response.body).to include("needs to be within 2 of 8")
       expect(response.body).to include("Playground")
       expect(response.body).to include("swing | noun")
+    end
+
+    # A word list a tile or two off the target is close enough to not fuss over.
+    it "accepts a word list within tolerance of the tile count" do
+      params = form_params(tile_count: "6")
+
+      post preview_admin_dashboard_board_builds_path, params: params
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Review the art")
     end
 
     # The escape hatch now governs the SIZE, not the word list: 3 tiles across

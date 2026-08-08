@@ -6,8 +6,8 @@ module Boards
     #
     # Two rules carry the weight:
     #
-    #   * **The word list must be exactly the page's tile count, and that count
-    #     must fill whole rows.** Rows are never stored
+    #   * **The word list must be within `TILE_COUNT_TOLERANCE` of the page's
+    #     tile count, and that count must fill whole rows.** Rows are never stored
     #     (`Board#rows_for_screen_size` derives them from the tiles), so a
     #     partial final row doesn't shorten the board — it leaves conspicuous
     #     empty cells at the right end of the last row, which reads as broken on
@@ -20,6 +20,11 @@ module Boards
     #
     # Both have an explicit, unticked escape hatch rather than being advisory.
     class PlanValidator
+      # A word list within this many tiles of the target is accepted as-is —
+      # close enough to not fuss over, without opening the door to a board
+      # that's meaningfully sparse or overflowing.
+      TILE_COUNT_TOLERANCE = 2
+
       def initialize(pages:, allow_partial_row: false, allow_mixed_grids: false)
         @pages = Array(pages)
         @allow_partial_row = allow_partial_row
@@ -106,10 +111,12 @@ module Boards
       end
 
       def count_mismatch(page, written, wanted)
-        return [] if written == wanted
+        diff = written - wanted
+        return [] if diff.abs <= TILE_COUNT_TOLERANCE
 
-        verb = written > wanted ? "Remove #{written - wanted}" : "Add #{wanted - written}"
-        [prefixed(page, "#{written} words for a #{wanted}-tile board (needs exactly #{wanted}). #{verb}. " \
+        verb = diff.positive? ? "Remove #{diff}" : "Add #{-diff}"
+        [prefixed(page, "#{written} words for a #{wanted}-tile board (needs to be within " \
+                        "#{TILE_COUNT_TOLERANCE} of #{wanted}). #{verb} to land on #{wanted} exactly. " \
                         "Change the tile count if the board should be a different size.")]
       end
 
