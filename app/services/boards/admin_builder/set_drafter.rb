@@ -96,6 +96,9 @@ module Boards
             and words like "more", "stop", "help". Pages carry their own subject's words.
           - No near-duplicates within a board ("happy" and "glad"). Each tile costs a cell.
           - Keep each label short — 1-2 words.
+          - A label is display text, not an identifier: separate words with a plain
+            space, never an underscore. (Page "key" values are the one exception —
+            those are underscored on purpose, per the structure rules above.)
           - Give every tile a part_of_speech from exactly this list:
             #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
           - Classify by communicative function, not strict grammar: "more", "yes" and
@@ -175,7 +178,7 @@ module Boards
         raw_tiles.filter_map do |tile|
           next unless tile.is_a?(Hash)
 
-          label = (tile["label"] || tile["word"]).to_s.strip
+          label = sanitize_label(tile["label"] || tile["word"])
           next if label.blank?
           next unless seen.add?(label.downcase)
 
@@ -185,6 +188,15 @@ module Boards
             links_to: link_for(tile, known_keys),
           }.compact
         end.first(tile_count)
+      end
+
+      # The model occasionally answers a multi-word label snake_cased, like an
+      # identifier rather than the tile text it's meant to be — underscores
+      # have no legitimate place in display text, so they're folded to spaces
+      # rather than left for the admin to notice and retype. Distinct from
+      # normalize_key: a page "key" is meant to be underscored.
+      def sanitize_label(raw)
+        raw.to_s.strip.tr("_", " ").squeeze(" ").strip
       end
 
       def part_of_speech_for(tile)

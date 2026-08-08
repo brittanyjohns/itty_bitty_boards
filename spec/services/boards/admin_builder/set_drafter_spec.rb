@@ -138,6 +138,22 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
       expect(draft(columns: 1, tile_count: 1)[:root_tiles].first[:part_of_speech]).to eq("default")
     end
 
+    # The model sometimes answers a multi-word label snake_cased, like an
+    # identifier, instead of the tile text it's meant to be — in both the root
+    # board and a child page. The page "key" itself is untouched: underscores
+    # are correct there.
+    it "folds underscores in a label to spaces, root and page alike" do
+      stub_ai(ai_set(
+        root: [tile("please_wait", "social", "food")],
+        pages: [{ "key" => "food", "name" => "Food", "tiles" => [tile("all__done", "important_function")] }],
+      ))
+
+      result = draft(columns: 1, tile_count: 1, page_count: 1)
+      expect(result[:root_tiles].first[:label]).to eq("please wait")
+      expect(result[:children].first[:key]).to eq("food")
+      expect(result[:children].first[:tiles].first[:label]).to eq("all done")
+    end
+
     it "trims a page longer than the requested tile count" do
       stub_ai(ai_set(root: [tile("I", "pronoun"), tile("want", "verb"), tile("more", "social")], pages: []))
 
@@ -200,6 +216,10 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
 
     it "constrains the part of speech to the Fitzgerald key" do
       expect(prompt_for).to include(ColorHelper::PARTS_OF_SPEECH.join(", "))
+    end
+
+    it "tells the model a label is display text, never underscored" do
+      expect(prompt_for).to include("never an underscore")
     end
 
     it "includes the audience only when one is given" do

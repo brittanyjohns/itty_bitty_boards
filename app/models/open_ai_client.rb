@@ -553,7 +553,7 @@ class OpenAiClient
   def get_word_suggestions_from_prompt(prompt, language: "en", profile: nil)
     @model = GTP_MODEL
     text = prompt
-    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word_or_phrase_1\", \"word_or_phrase_2\", \"word_or_phrase_3\", ...]}"
+    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word or phrase 1\", \"word or phrase 2\", \"word or phrase 3\", ...]}. Use spaces between words in a phrase, never underscores."
     text += format_instructions
     text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
