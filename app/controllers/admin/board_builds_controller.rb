@@ -117,6 +117,30 @@ module Admin
       render :new, status: :unprocessable_entity
     end
 
+    # Fills the public description and catalogue tags from whatever the form
+    # currently holds. Separate from drafting on purpose — the word list is
+    # usually edited after a draft, and a description written from the pre-edit
+    # list would be stale.
+    def describe_board
+      @form = submitted_form
+      pages = pages_for(@form)
+
+      metadata = Boards::AdminBuilder::MetadataSuggester.new(
+        name: @form[:name],
+        topic: @form[:topic],
+        audience: @form[:audience],
+        labels: Boards::AdminBuilder::Plan.labels(pages),
+        page_names: pages.drop(1).map { |page| page[:name] },
+      ).call
+
+      @form = @form.merge(description: metadata[:description], tags: metadata[:tags].join(", "))
+      flash.now[:notice] = "Suggested a description and tags — edit them before you build."
+      render :new
+    rescue Boards::AdminBuilder::MetadataSuggester::GenerationError => e
+      @problems = ["Couldn't suggest a description: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
     # Step one. Read-only: resolves what the library would attach to each tile
     # and renders it for a human to look at. Asserted by spec to change neither
     # Board.count nor Image.count.
@@ -149,6 +173,9 @@ module Admin
         columns_count: @form[:columns].to_i,
         tile_count: @form[:tile_count].to_i,
         commercial_safe_only: @form[:commercial_safe_only],
+        description: @form[:description].presence,
+        tags: submitted_tags(tags: @form[:tags]),
+        audience: @form[:audience].presence,
         plan: {
           "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(@form[:tiles]),
           "children" => @form[:children].map do |child|
@@ -349,6 +376,8 @@ module Admin
         name: "",
         topic: "",
         audience: "",
+        description: "",
+        tags: "",
         voice: DEFAULT_VOICE,
         columns: DEFAULT_COLUMNS.to_s,
         tile_count: DEFAULT_TILES.to_s,
@@ -376,6 +405,8 @@ module Admin
         name: params[:name].to_s.strip,
         topic: params[:topic].to_s.strip,
         audience: params[:audience].to_s.strip,
+        description: params[:description].to_s.strip,
+        tags: params[:tags].to_s,
         voice: params[:voice].to_s.strip.presence || DEFAULT_VOICE,
         columns: params[:columns].to_s.strip,
         tile_count: params[:tile_count].to_s.strip,
@@ -411,6 +442,14 @@ module Admin
 
     def checked?(value)
       ActiveModel::Type::Boolean.new.cast(value) || false
+    end
+
+    # The form carries tags as one comma-separated string (the shape
+    # Admin::VideoBoardsController uses). Normalized here so nothing downstream
+    # has to care how they were typed. Takes the raw string rather than the
+    # form hash because Task 7's `update` reads them straight off params.
+    def submitted_tags(tags:)
+      tags.to_s.split(",").map { |tag| Board.normalize_tag_value(tag) }.reject(&:blank?).uniq
     end
 
     def parse_tiles(words)

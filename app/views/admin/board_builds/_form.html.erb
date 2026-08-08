@@ -33,7 +33,7 @@
         <label class="block text-xs font-medium text-t2 mb-1" for="audience">Audience <span class="text-t3">(optional)</span></label>
         <%= text_field_tag :audience, @form[:audience], id: "audience", placeholder: "an early communicator, preschool age",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
-        <p class="text-[11px] text-t3 mt-1">Used only when drafting. Not saved on the board.</p>
+        <p class="text-[11px] text-t3 mt-1">Steers the AI draft and the suggested description. Saved on the build, not on the board.</p>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -54,6 +54,40 @@
               id: "voice",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
         <p class="text-[11px] text-t3 mt-1">Set at creation — changing it later re-queues audio for every tile.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="flex items-start justify-between gap-4 mb-3">
+      <div>
+        <h2 class="text-sm font-medium text-t1">Catalogue listing <span class="text-t3 font-normal">(optional)</span></h2>
+        <p class="text-[11px] text-t3 mt-0.5">
+          How the board reads in the public library. Tags are what the filter chips are built from —
+          reuse an existing one wherever it fits.
+        </p>
+      </div>
+      <%# formaction, not a second form: the suggestion is worked out from the
+          words and pages typed in this same form. %>
+      <button type="submit" formaction="<%= describe_admin_dashboard_board_builds_path %>" formnovalidate
+              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+        Suggest description &amp; tags
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="description">Description</label>
+        <%= text_area_tag :description, @form[:description], id: "description", rows: 3,
+              placeholder: "A board for talking at the playground.",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Plain text — no HTML. Most places render it as text, so tags would show up literally.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="tags">Tags</label>
+        <%= text_field_tag :tags, @form[:tags], id: "tags", placeholder: "playground, outdoor play",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Comma separated. Lowercased on save. Applied to the main board only.</p>
       </div>
     </div>
   </div>

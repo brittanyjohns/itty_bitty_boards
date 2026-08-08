@@ -360,4 +360,35 @@ RSpec.describe Boards::AdminBuilder::Build do
       expect(build.reload.board_id).to eq(board.id)
     end
   end
+
+  describe "description and tags" do
+    it "applies them to the root board only" do
+      build = AdminBoardBuild.create!(
+        name: "Playground",
+        columns_count: 1,
+        tile_count: 1,
+        description: "A board for the playground.",
+        tags: %w[playground outdoor],
+        plan: {
+          "tiles" => [{ "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" }],
+          "children" => [{ "key" => "food", "name" => "Food",
+                           "tiles" => [{ "label" => "apple", "part_of_speech" => "noun" }] }],
+        },
+      )
+
+      root = described_class.new(admin_board_build: build).call
+      child = build.reload.set_boards.last
+
+      expect(root.description).to eq("A board for the playground.")
+      expect(root.tags).to eq(%w[playground outdoor])
+      expect(child.id).not_to eq(root.id)
+      expect(child.description).to be_blank
+      # Not `eq([])`: Board#check_is_sub_board (a pre-existing, unrelated
+      # invariant) auto-tags any board with a parent link as "sub-board" on
+      # save — orthogonal to catalogue metadata. What this spec is actually
+      # verifying is that none of the ROOT's catalogue tags leaked onto the
+      # child.
+      expect(child.tags).not_to include(*build.tags)
+    end
+  end
 end

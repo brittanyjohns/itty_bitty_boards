@@ -120,6 +120,12 @@ module Boards
           small_screen_columns: Boards::ScreenColumns.derive(columns, "sm"),
           number_of_columns: columns,
           settings: settings_for(page),
+          # Catalogue metadata belongs to the root alone: child pages are
+          # created with `predefined: false` and never appear in
+          # `Board.public_boards`, so tagging them would fill the public tag
+          # filter with folder-page noise.
+          description: root ? build.description : nil,
+          tags: root ? Array(build.tags) : [],
         )
         # Assigns only — a collision gets a hex suffix rather than an error, so
         # the final slug is worth surfacing in the UI.

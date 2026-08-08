@@ -90,6 +90,7 @@ Rails.application.routes.draw do
         post :suggest
         post :draft
         post :draft_set
+        post :describe, to: "board_builds#describe_board"
         post :preview
       end
       member do

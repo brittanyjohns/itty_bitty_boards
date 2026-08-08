@@ -911,6 +911,62 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST describe" do
+    before { sign_in admin }
+
+    def stub_suggester(result)
+      allow(Boards::AdminBuilder::MetadataSuggester).to receive(:new).and_return(
+        instance_double(Boards::AdminBuilder::MetadataSuggester, call: result),
+      )
+    end
+
+    it "fills the description and tags fields" do
+      stub_suggester({ description: "A board for the playground.", tags: %w[playground outdoor] })
+
+      post describe_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("A board for the playground.")
+      expect(response.body).to include("playground, outdoor")
+    end
+
+    it "writes nothing" do
+      stub_suggester({ description: "A board.", tags: %w[playground] })
+
+      expect { post describe_admin_dashboard_board_builds_path, params: form_params }
+        .to not_change(Board, :count).and not_change(AdminBoardBuild, :count)
+    end
+
+    it "reports a generation failure without losing what was typed" do
+      allow(Boards::AdminBuilder::MetadataSuggester).to receive(:new).and_raise(
+        Boards::AdminBuilder::MetadataSuggester::GenerationError, "OpenAI returned no content",
+      )
+
+      post describe_admin_dashboard_board_builds_path, params: form_params(name: "Playground")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t suggest a description")
+      expect(response.body).to include("Playground")
+    end
+  end
+
+  describe "POST create with metadata" do
+    before { sign_in admin }
+
+    it "stores the description, normalized tags and audience on the build" do
+      post admin_dashboard_board_builds_path, params: form_params(
+        description: "  A board for the playground.  ",
+        tags: " PlayGround , Outdoor   Play ,, playground ",
+        audience: "an early communicator",
+      )
+
+      build = AdminBoardBuild.last
+      expect(build.description).to eq("A board for the playground.")
+      expect(build.tags).to eq(["playground", "outdoor play"])
+      expect(build.audience).to eq("an early communicator")
+    end
+  end
+
   describe "when no default admin exists" do
     it "refuses to build rather than seeding a board under the wrong owner" do
       seed_admin.destroy
