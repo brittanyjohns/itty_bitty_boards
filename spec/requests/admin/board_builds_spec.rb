@@ -926,6 +926,17 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("draft from")
     end
+
+    it "warns rather than claiming success when the AI comes back short on pages" do
+      stub_set_drafter(root_tiles: drafted[:root_tiles], children: [])
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(words: "", page_count: "2", columns: "1", tile_count: "2")
+
+      expect(response).to have_http_status(:ok)
+      expect(flash[:notice]).to match(/short|didn.t come back|asked for 2/i)
+      expect(flash[:notice]).not_to eq("Drafted the main board and 0 pages. Edit them, then preview the art.")
+    end
   end
 
   describe "POST describe" do
