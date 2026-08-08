@@ -626,6 +626,39 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
       expect(response.body).to include(board.slug)
     end
+
+    # The app URL works before publishing; /pb/ does not, so an unpublished
+    # build must not offer a public link that 404s.
+    it "links the built board into the app in a new tab" do
+      board = built_board
+      build = create_build(status: "complete", board: board)
+
+      get admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include("http://localhost:8100/boards/#{board.id}")
+      expect(response.body).to include('target="_blank"')
+      expect(response.body).not_to include("http://localhost:8100/pb/#{board.slug}")
+    end
+
+    it "links the public page too once the board is published" do
+      board = built_board(published: true)
+      build = create_build(status: "complete", board: board)
+
+      get admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include("http://localhost:8100/pb/#{board.slug}")
+    end
+
+    it "links every page of a linked set" do
+      root = built_board
+      page = built_board(name: "Food page")
+      build = create_build(status: "complete", board: root)
+      build.update!(art_report: { "boards" => { "__root__" => root.id, "food" => page.id } })
+
+      get admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include("http://localhost:8100/boards/#{page.id}")
+    end
   end
 
   describe "publish / unpublish" do

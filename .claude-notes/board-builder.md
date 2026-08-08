@@ -1113,6 +1113,12 @@ Its own invariants:
   re-scoped through `builder_boards`, so a hand-edited id can't widen the blast
   radius. Publishing refuses a set with any empty page; delete removes pages
   before the root.
+- **The review page links out with `board_app_url`, not the `/pb/` page.**
+  `Admin::BoardBuildsHelper#board_app_url` points at `FRONT_END_URL/boards/:id`,
+  which resolves for an unpublished board — the whole point of the review step.
+  `board_published_page_url` (`/pb/<slug>`) is only rendered once
+  `board.published?`, because `Board#viewable_by?` gates the public page on that
+  flag and an unpublished link would 404 the admin who clicked it.
 
 - **Name, topic and audience are inferred, not typed.**
   `Boards::AdminBuilder::ContextSuggester` reads whichever of a name, a topic

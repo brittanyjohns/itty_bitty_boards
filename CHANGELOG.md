@@ -7,6 +7,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **The board build review page opens the board in a new tab.** Every built
+  board — and every page of a linked set — now has an "open" link straight into
+  the app, so you can try the real thing before publishing instead of judging it
+  from the tile grid. Once a board is published, the `/pb/` public URL becomes a
+  link too.
 - **The board builder works out the name, topic and audience for you.** Give it
   any one of them — or just paste a word list — and it fills in the rest: what
   the board should be called, what it's about, and who it's for. The last two

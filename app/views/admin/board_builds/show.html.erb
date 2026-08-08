@@ -47,15 +47,26 @@
           <%= @board.board_images.size %> tiles ·
           lg <%= @board.large_screen_columns %> / md <%= @board.medium_screen_columns %> / sm <%= @board.small_screen_columns %> columns
         </p>
-        <p class="text-xs text-t2 mt-1">
-          Public URL when published: <span class="font-mono">/pb/<%= @board.slug %></span> —
-          a published slug is frozen, so check it now.
-        </p>
+        <% if @board.published? %>
+          <p class="text-xs text-t2 mt-1">
+            Public URL:
+            <%= link_to "/pb/#{@board.slug}", board_published_page_url(@board), target: "_blank", rel: "noopener",
+                  class: "font-mono text-accent hover:underline", title: "Open the public page in a new tab" %>
+          </p>
+        <% else %>
+          <p class="text-xs text-t2 mt-1">
+            Public URL when published: <span class="font-mono">/pb/<%= @board.slug %></span> —
+            a published slug is frozen, so check it now.
+          </p>
+        <% end %>
       <% end %>
     </div>
 
     <div class="flex items-center gap-2">
       <% if @board %>
+        <%= link_to "Open board ↗", board_app_url(@board), target: "_blank", rel: "noopener",
+              class: "text-xs font-medium px-3 py-2 rounded border admin-input text-t1 hover:text-accent transition-colors",
+              title: "Open this board in the app in a new tab" %>
         <% if @board.published? %>
           <%= button_to "Unpublish", unpublish_admin_dashboard_board_build_path(@build), method: :post,
                 class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
@@ -103,6 +114,9 @@
       <span class="text-t3 font-normal normal-case tracking-normal">
         · <span class="font-mono"><%= page.slug %></span>
         · <%= page.published? ? "published" : "unpublished" %>
+        · <%= link_to "open ↗", board_app_url(page), target: "_blank", rel: "noopener",
+                class: "text-t2 hover:text-accent underline transition-colors",
+                title: "Open this page in the app in a new tab" %>
       </span>
     </h2>
 
