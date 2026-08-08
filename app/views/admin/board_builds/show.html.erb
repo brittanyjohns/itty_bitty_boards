@@ -86,6 +86,31 @@
   </div>
 </div>
 
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Catalogue listing</h2>
+  <p class="text-[11px] text-t3 mb-3">
+    Applied to the main board. The word list can't be edited from here — that's still delete and rebuild.
+  </p>
+  <%= form_tag admin_dashboard_board_build_path(@build), method: :patch, data: { turbo: false } do %>
+    <div class="flex flex-col gap-3">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="build_description">Description</label>
+        <%= text_area_tag :description, @build.description, id: "build_description", rows: 3,
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="build_tags">Tags</label>
+        <%= text_field_tag :tags, @build.tags.join(", "), id: "build_tags",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <%= submit_tag "Save listing",
+              class: "text-xs font-medium px-4 py-2 rounded border admin-input cursor-pointer text-t1" %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
 <% if @board %>
   <div class="admin-card border rounded-xl p-5 mb-6">
     <h2 class="text-sm font-medium text-t1 mb-1">Art coverage</h2>

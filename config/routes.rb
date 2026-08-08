@@ -85,7 +85,7 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
-    resources :board_builds, only: [:index, :new, :create, :show, :destroy], as: :dashboard_board_builds do
+    resources :board_builds, only: [:index, :new, :create, :show, :update, :destroy], as: :dashboard_board_builds do
       collection do
         post :suggest
         post :draft

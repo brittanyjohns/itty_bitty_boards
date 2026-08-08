@@ -24,7 +24,7 @@ module Admin
     DEFAULT_VOICE = "polly:kevin".freeze
 
     before_action :require_seed_admin!
-    before_action :set_build, only: %i[show destroy publish unpublish]
+    before_action :set_build, only: %i[show update destroy publish unpublish]
 
     def index
       @builds = AdminBoardBuild.includes(:board, :created_by).recent.limit(100)
@@ -200,6 +200,19 @@ module Admin
       @set_boards = @build.set_boards
       @tiles_by_board = @set_boards.index_with { |board| board.board_images.includes(:image).order(:position) }
       @missing_art_count = @set_boards.sum { |board| missing_art_count(board) }
+    end
+
+    # The only mutable part of a finished build. The word list stays frozen —
+    # fixing words is still delete-and-rebuild — but a description or a tag is
+    # exactly the kind of thing that is wrong once and cheap to correct.
+    def update
+      description = params[:description].to_s.strip.presence
+      tags = submitted_tags(tags: params[:tags])
+
+      @build.update!(description: description, tags: tags)
+      builder_board_for(@build)&.update!(description: description, tags: tags)
+
+      redirect_to admin_dashboard_board_build_path(@build), notice: "Updated the description and tags."
     end
 
     # Publishing is a set-wide operation. `Board#viewable_by?` gates each board

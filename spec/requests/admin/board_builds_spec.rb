@@ -978,4 +978,57 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(flash[:alert]).to include("No default admin user configured")
     end
   end
+
+  describe "PATCH update" do
+    before { sign_in admin }
+
+    it "updates the description and tags on the build and its root board" do
+      board = built_board
+      build = create_build(board: board, status: "complete")
+
+      patch admin_dashboard_board_build_path(build),
+            params: { description: "  A playground board.  ", tags: " PlayGround , outdoor play " }
+
+      expect(response).to redirect_to(admin_dashboard_board_build_path(build))
+      expect(build.reload.description).to eq("A playground board.")
+      expect(build.tags).to eq(["playground", "outdoor play"])
+      expect(board.reload.description).to eq("A playground board.")
+      expect(board.tags).to eq(["playground", "outdoor play"])
+    end
+
+    it "clears both when submitted empty" do
+      board = built_board
+      board.update!(description: "old", tags: %w[old])
+      build = create_build(board: board, status: "complete", description: "old", tags: %w[old])
+
+      patch admin_dashboard_board_build_path(build), params: { description: "", tags: "" }
+
+      expect(build.reload.description).to be_nil
+      expect(build.tags).to eq([])
+      expect(board.reload.description).to be_blank
+      expect(board.tags).to eq([])
+    end
+
+    # The word list is immutable from here — fixing words is delete-and-rebuild.
+    it "ignores anything other than description and tags" do
+      board = built_board(name: "Built Board")
+      build = create_build(board: board, status: "complete")
+
+      patch admin_dashboard_board_build_path(build),
+            params: { description: "New.", tags: "", name: "Hijacked", words: "nope | noun" }
+
+      expect(build.reload.name).to eq("Playground")
+      expect(board.reload.name).to eq("Built Board")
+    end
+
+    it "cannot reach a board this page didn't create" do
+      other = Board.create!(name: "Someone Else's", slug: "someone-elses", user: seed_admin)
+      build = create_build(board: other, status: "complete")
+
+      patch admin_dashboard_board_build_path(build), params: { description: "Hijacked.", tags: "" }
+
+      expect(other.reload.description).to be_blank
+      expect(build.reload.description).to eq("Hijacked.")
+    end
+  end
 end

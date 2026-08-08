@@ -41,6 +41,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   anything is written, and publishing moves the whole set at once — a published
   board whose folder pages were still private would have led to dead ends.
 - Admin Board Builder can draft a whole linked board set — main board plus up to four pages — in one AI call.
+- Admin Board Builder suggests a public description and catalogue tags, and both can be corrected after a build.
 
 ### Changed
 

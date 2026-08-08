@@ -1161,3 +1161,12 @@ AI drafting (Phase 2) fills the main word list only — pages are authored by ha
   never gives a child a grid of its own. Like every other AI path here it only
   fills the form. `Boards::AdminBuilder::WordList` is the single parser/renderer
   for the textarea format; `.render` is the exact inverse of `.parse`.
+
+- **`Boards::AdminBuilder::MetadataSuggester` fills the catalogue listing** —
+  a plain-text description (`boards.description` renders as text on three of
+  four frontend surfaces, so HTML would show up literally) and tags steered by
+  the live `Board.public_boards_tags`, rationing genuinely new tags so the
+  public filter chips don't fragment. **Description and tags are applied to the
+  ROOT board only** — child pages are `predefined: false` and never enter
+  `Board.public_boards`. `PATCH /admin/board_builds/:id` can fix both after a
+  build; nothing else about a finished build is editable.
