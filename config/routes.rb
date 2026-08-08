@@ -96,6 +96,7 @@ Rails.application.routes.draw do
       member do
         post :publish
         post :unpublish
+        get :duplicate
       end
     end
     get "feedback", to: "feedback#index", as: :dashboard_feedback

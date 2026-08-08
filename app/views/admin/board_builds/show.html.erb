@@ -82,6 +82,8 @@
               class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
               form: { data: { turbo_confirm: "Delete this build and its board? This can't be undone." } } %>
       <% end %>
+      <%= link_to "Duplicate", duplicate_admin_dashboard_board_build_path(@build),
+            class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1" %>
     </div>
   </div>
 </div>

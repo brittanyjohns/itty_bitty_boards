@@ -24,7 +24,7 @@ module Admin
     DEFAULT_VOICE = "polly:kevin".freeze
 
     before_action :require_seed_admin!
-    before_action :set_build, only: %i[show update destroy publish unpublish]
+    before_action :set_build, only: %i[show update destroy publish unpublish duplicate]
 
     def index
       @builds = AdminBoardBuild.includes(:board, :created_by).recent.limit(100)
@@ -200,6 +200,16 @@ module Admin
       @set_boards = @build.set_boards
       @tiles_by_board = @set_boards.index_with { |board| board.board_images.includes(:image).order(:position) }
       @missing_art_count = @set_boards.sum { |board| missing_art_count(board) }
+    end
+
+    # Loads a past build back into the authoring form. Writes nothing — it is
+    # `new` with the fields filled in, so a revision is a tweak instead of a
+    # re-type. The name is copied verbatim; `preview` warns about the
+    # collision rather than forcing an edit up front.
+    def duplicate
+      @form = form_from_build(@build)
+      flash.now[:notice] = "Loaded “#{@build.name}” into the form. Nothing is written until you build."
+      render :new
     end
 
     # The only mutable part of a finished build. The word list stays frozen —
@@ -406,6 +416,33 @@ module Admin
 
     def blank_child
       { key: "", name: "", columns: "", tile_count: "", words: "", tiles: [] }
+    end
+
+    def form_from_build(build)
+      pages = build.pages
+      root = pages.first
+
+      blank_form.merge(
+        name: build.name.to_s,
+        topic: build.topic.to_s,
+        audience: build.audience.to_s,
+        description: build.description.to_s,
+        tags: Array(build.tags).join(", "),
+        voice: build.voice.presence || DEFAULT_VOICE,
+        columns: build.columns_count.to_s,
+        tile_count: build.tile_count.to_s,
+        words: tiles_to_words(root[:tiles]),
+        tiles: root[:tiles],
+        # Grids are left blank so every page keeps inheriting the root's, which
+        # is what the stored plan meant when it omitted them.
+        children: pages.drop(1).map do |page|
+          {
+            key: page[:key], name: page[:name], columns: "", tile_count: "",
+            words: tiles_to_words(page[:tiles]), tiles: page[:tiles],
+          }
+        end,
+        commercial_safe_only: build.commercial_safe_only,
+      )
     end
 
     # Keeps the raw submitted strings so a failed submit re-renders exactly what

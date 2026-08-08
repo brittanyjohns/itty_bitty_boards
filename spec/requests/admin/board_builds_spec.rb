@@ -1031,4 +1031,64 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(build.reload.description).to eq("Hijacked.")
     end
   end
+
+  describe "GET duplicate" do
+    before { sign_in admin }
+
+    it "rehydrates the form from a stored plan, links and tile text intact" do
+      build = create_build(
+        topic: "the playground",
+        audience: "an early communicator",
+        description: "A playground board.",
+        tags: %w[playground outdoor],
+        plan: {
+          "tiles" => [
+            { "label" => "I", "part_of_speech" => "pronoun" },
+            { "label" => "Food", "part_of_speech" => "noun", "display_label" => "Snacks", "links_to" => "food" },
+          ],
+          "children" => [
+            { "key" => "food", "name" => "Food",
+              "tiles" => [{ "label" => "back", "part_of_speech" => "social", "links_to" => "__root__" }] },
+          ],
+        },
+      )
+
+      get duplicate_admin_dashboard_board_build_path(build)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Food | noun | Snacks | &gt;food")
+      expect(response.body).to include("back | social | &gt;__root__")
+      expect(response.body).to include("the playground")
+      expect(response.body).to include("an early communicator")
+      expect(response.body).to include("A playground board.")
+      expect(response.body).to include("playground, outdoor")
+      expect(response.body).to include("children[0][key]")
+    end
+
+    it "writes nothing" do
+      build = create_build
+
+      expect { get duplicate_admin_dashboard_board_build_path(build) }
+        .to not_change(AdminBoardBuild, :count).and not_change(Board, :count)
+    end
+
+    # Child pages inherit the root grid; copying a blank grid keeps it that way.
+    it "leaves a child's grid blank" do
+      build = create_build(
+        plan: { "tiles" => [{ "label" => "I", "part_of_speech" => "pronoun" }],
+                "children" => [{ "key" => "food", "name" => "Food",
+                                 "tiles" => [{ "label" => "apple", "part_of_speech" => "noun" }] }] },
+      )
+
+      get duplicate_admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include('name="children[0][columns]" value=""')
+    end
+
+    it "redirects when the build is gone" do
+      get duplicate_admin_dashboard_board_build_path(id: 0)
+
+      expect(response).to redirect_to(admin_dashboard_board_builds_path)
+    end
+  end
 end
