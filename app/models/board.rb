@@ -88,6 +88,11 @@ class Board < ApplicationRecord
   has_many :word_events
   has_many :subgroups, class_name: "BoardGroup", foreign_key: "root_board_id", dependent: :nullify
   has_many :predictive_board_images, class_name: "BoardImage", foreign_key: "predictive_board_id", dependent: :nullify
+  # A BoardPrintable is a rendered PDF derived from the board's content, not
+  # independent content of its own — unlike AdminBoardBuild (nullified, an
+  # audit trail) it has no reason to outlive the board, and its belongs_to
+  # is required so nullify would raise NOT NULL anyway.
+  has_many :board_printables, dependent: :destroy
   # AdminBoardBuild is a build-run record (audit trail), not board content —
   # it must survive board deletion, so the back-pointer is nullified
   # (AdminBoardBuild#board is belongs_to optional).
