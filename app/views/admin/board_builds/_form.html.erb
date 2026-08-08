@@ -119,10 +119,22 @@
           with <span class="font-mono">&gt;key</span>. Pages inherit the main board's grid unless you say otherwise.
         </p>
       </div>
-      <button type="button" id="add-page"
-              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
-        Add a page
-      </button>
+      <div class="flex items-center gap-2">
+        <%= select_tag :page_count,
+              options_for_select((0..Boards::AdminBuilder::SetDrafter::MAX_PAGES).map { |n| [n.zero? ? "no pages" : "#{n} #{"page".pluralize(n)}", n.to_s] }, @form[:page_count]),
+              class: "admin-input border rounded px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none" %>
+        <%# formaction, not a second form: the drafter has to see the topic,
+            audience and grid typed above. formnovalidate for the same reason
+            the word-list drafter has it — a missing name is inferred. %>
+        <button type="submit" id="draft-set-button" formaction="<%= draft_set_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Draft the whole set with AI
+        </button>
+        <button type="button" id="add-page"
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Add a page
+        </button>
+      </div>
     </div>
 
     <div id="pages" class="flex flex-col gap-4 mt-4">
@@ -261,6 +273,18 @@
       draftButton.addEventListener("click", function (event) {
         if (words.value.trim() === "") return;
         if (!window.confirm("Replace the word list you've typed with an AI draft?")) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    // Drafting the set replaces the root list AND every page.
+    var draftSetButton = document.getElementById("draft-set-button");
+    if (draftSetButton) {
+      draftSetButton.addEventListener("click", function (event) {
+        var hasPages = pages.querySelectorAll(".page-block").length > 0;
+        if (words.value.trim() === "" && !hasPages) return;
+        if (!window.confirm("Replace the word list and every page with an AI draft?")) {
           event.preventDefault();
         }
       });

@@ -40,6 +40,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   finger as they move between pages. The art review covers every page before
   anything is written, and publishing moves the whole set at once — a published
   board whose folder pages were still private would have led to dead ends.
+- Admin Board Builder can draft a whole linked board set — main board plus up to four pages — in one AI call.
 
 ### Changed
 

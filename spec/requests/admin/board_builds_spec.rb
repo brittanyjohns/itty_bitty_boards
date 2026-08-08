@@ -845,6 +845,72 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST draft_set" do
+    before { sign_in admin }
+
+    def stub_set_drafter(result)
+      allow(Boards::AdminBuilder::SetDrafter).to receive(:new).and_return(
+        instance_double(Boards::AdminBuilder::SetDrafter, call: result),
+      )
+    end
+
+    let(:drafted) do
+      {
+        root_tiles: [
+          { label: "I", part_of_speech: "pronoun" },
+          { label: "Food", part_of_speech: "noun", links_to: "food" },
+        ],
+        children: [
+          { key: "food", name: "Food",
+            tiles: [{ label: "apple", part_of_speech: "noun" },
+                    { label: "back", part_of_speech: "social", links_to: "__root__" }] },
+        ],
+      }
+    end
+
+    it "fills the root textarea with link tokens and renders the page block" do
+      stub_set_drafter(drafted)
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(words: "", page_count: "1", columns: "1", rows: "2")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Food | noun | &gt;food")
+      expect(response.body).to include("apple | noun")
+      expect(response.body).to include("children[0][key]")
+    end
+
+    it "writes nothing" do
+      stub_set_drafter(drafted)
+
+      expect {
+        post draft_set_admin_dashboard_board_builds_path,
+             params: form_params(words: "", page_count: "1", columns: "1", rows: "2")
+      }.to not_change(Board, :count).and not_change(Image, :count).and not_change(AdminBoardBuild, :count)
+    end
+
+    it "reports a generation failure without losing what was typed" do
+      allow(Boards::AdminBuilder::SetDrafter).to receive(:new).and_raise(
+        Boards::AdminBuilder::SetDrafter::GenerationError, "OpenAI returned no content",
+      )
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(name: "Playground", page_count: "1")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t draft the set")
+      expect(response.body).to include("Playground")
+    end
+
+    it "refuses to draft with nothing to work from" do
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(name: "", topic: "", words: "", page_count: "1")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("draft from")
+    end
+  end
+
   describe "when no default admin exists" do
     it "refuses to build rather than seeding a board under the wrong owner" do
       seed_admin.destroy

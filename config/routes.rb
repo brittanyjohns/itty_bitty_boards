@@ -89,6 +89,7 @@ Rails.application.routes.draw do
       collection do
         post :suggest
         post :draft
+        post :draft_set
         post :preview
       end
       member do

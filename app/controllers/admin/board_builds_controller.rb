@@ -20,6 +20,7 @@ module Admin
     MAX_TILES = 144
     DEFAULT_COLUMNS = 6
     DEFAULT_TILES = 24
+    DEFAULT_PAGE_COUNT = 0
     DEFAULT_VOICE = "polly:kevin".freeze
 
     before_action :require_seed_admin!
@@ -61,6 +62,38 @@ module Admin
       render :new
     rescue Boards::AdminBuilder::WordListDrafter::GenerationError => e
       @problems = ["Couldn't draft a word list: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    rescue Boards::AdminBuilder::ContextSuggester::GenerationError => e
+      @problems = ["Couldn't work out the topic: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
+    # Optional step zero, the multi-page form of `draft`. Drafts the whole set
+    # — root word list with its folder tiles already linked, plus each page —
+    # into the form and stops there. Nothing is previewed or built from it.
+    def draft_set
+      @form = submitted_form
+      @form = @form.merge(suggested_context(@form)) if @form[:topic].blank? || @form[:name].blank?
+      @problems = draft_problems(@form)
+      return render(:new, status: :unprocessable_entity) if @problems.any?
+
+      set = Boards::AdminBuilder::SetDrafter.new(
+        topic: @form[:topic],
+        columns: @form[:columns].to_i,
+        tile_count: @form[:tile_count].to_i,
+        page_count: @form[:page_count].to_i,
+        audience: @form[:audience],
+      ).call
+
+      @form = @form.merge(
+        words: tiles_to_words(set[:root_tiles]),
+        tiles: set[:root_tiles],
+        children: children_form_from(set[:children]),
+      )
+      flash.now[:notice] = draft_set_notice(set, @form)
+      render :new
+    rescue Boards::AdminBuilder::SetDrafter::GenerationError => e
+      @problems = ["Couldn't draft the set: #{e.message}"]
       render :new, status: :unprocessable_entity
     rescue Boards::AdminBuilder::ContextSuggester::GenerationError => e
       @problems = ["Couldn't work out the topic: #{e.message}"]
@@ -273,6 +306,34 @@ module Admin
       Boards::AdminBuilder::WordList.render(tiles)
     end
 
+    # Children arrive as tile hashes; the form wants a rendered textarea per
+    # page. Grids are deliberately left blank so each page inherits the root's.
+    def children_form_from(children)
+      Array(children).map do |child|
+        {
+          key: child[:key].to_s,
+          name: child[:name].to_s,
+          columns: "",
+          tile_count: "",
+          words: tiles_to_words(child[:tiles]),
+          tiles: child[:tiles],
+        }
+      end
+    end
+
+    def draft_set_notice(set, form)
+      wanted = form[:tile_count].to_i
+      pages = set[:children].size
+      short = ([set[:root_tiles]] + set[:children].map { |child| child[:tiles] })
+              .count { |tiles| tiles.size != wanted }
+
+      base = "Drafted the main board and #{pages} #{"page".pluralize(pages)}."
+      return "#{base} Edit them, then preview the art." if short.zero?
+
+      "#{base} #{short} #{"board".pluralize(short)} didn't come back with exactly #{wanted} words — " \
+        "check the counts before previewing."
+    end
+
     # The drafter can come back short (near-duplicates get dropped), which is
     # survivable because this only fills the textarea — but say so rather than
     # letting the admin discover it at preview.
@@ -291,6 +352,7 @@ module Admin
         voice: DEFAULT_VOICE,
         columns: DEFAULT_COLUMNS.to_s,
         tile_count: DEFAULT_TILES.to_s,
+        page_count: DEFAULT_PAGE_COUNT.to_s,
         words: "",
         tiles: [],
         children: [],
@@ -317,6 +379,7 @@ module Admin
         voice: params[:voice].to_s.strip.presence || DEFAULT_VOICE,
         columns: params[:columns].to_s.strip,
         tile_count: params[:tile_count].to_s.strip,
+        page_count: params[:page_count].to_s.strip,
         words: words,
         tiles: parse_tiles(words),
         children: submitted_children,

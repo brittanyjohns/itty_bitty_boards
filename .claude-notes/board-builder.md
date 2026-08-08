@@ -1153,3 +1153,11 @@ Its own invariants:
     can't catch that; it bypasses HTML validation.
 
 AI drafting (Phase 2) fills the main word list only — pages are authored by hand.
+
+- **`Boards::AdminBuilder::SetDrafter` drafts a whole linked set in one call**
+  — root word list with its folder tiles already carrying `links_to`, plus each
+  page's key, name and words. It honours the two `PlanValidator` rules by
+  construction: it states the exact per-page tile count in the prompt, and it
+  never gives a child a grid of its own. Like every other AI path here it only
+  fills the form. `Boards::AdminBuilder::WordList` is the single parser/renderer
+  for the textarea format; `.render` is the exact inverse of `.parse`.
