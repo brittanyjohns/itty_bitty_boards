@@ -82,8 +82,35 @@
               class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
               form: { data: { turbo_confirm: "Delete this build and its board? This can't be undone." } } %>
       <% end %>
+      <%= link_to "Duplicate", duplicate_admin_dashboard_board_build_path(@build),
+            class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1" %>
     </div>
   </div>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Catalogue listing</h2>
+  <p class="text-[11px] text-t3 mb-3">
+    Applied to the main board. The word list can't be edited from here — that's still delete and rebuild.
+  </p>
+  <%= form_tag admin_dashboard_board_build_path(@build), method: :patch, data: { turbo: false } do %>
+    <div class="flex flex-col gap-3">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="build_description">Description</label>
+        <%= text_area_tag :description, @build.description, id: "build_description", rows: 3,
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="build_tags">Tags</label>
+        <%= text_field_tag :tags, @build.tags.join(", "), id: "build_tags",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <%= submit_tag "Save listing",
+              class: "text-xs font-medium px-4 py-2 rounded border admin-input cursor-pointer text-t1" %>
+      </div>
+    </div>
+  <% end %>
 </div>
 
 <% if @board %>
@@ -105,6 +132,11 @@
       <p class="text-[11px] text-t3 mt-2">
         Generated: <%= Array(@build.art_report["missing_labels"]).join(", ") %>
       </p>
+    <% end %>
+    <% if @missing_art_count.positive? %>
+      <%= button_to "Generate the missing art", regenerate_art_admin_dashboard_board_build_path(@build), method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 mt-3",
+            form: { data: { turbo_confirm: "Queue AI art for #{@missing_art_count} #{"tile".pluralize(@missing_art_count)}?" } } %>
     <% end %>
   </div>
 
@@ -152,10 +184,6 @@
         <%= page[:key] == Boards::AdminBuilder::Plan::ROOT_KEY ? "Main board" : "#{page[:key]} — #{page[:name]}" %>
       </p>
     <% end %>
-    <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= page[:tiles].map { |tile|
-          fields = [tile[:label], tile[:part_of_speech], tile[:display_label]].compact.reject(&:blank?)
-          fields << ">#{tile[:links_to]}" if tile[:links_to].present?
-          fields.join(" | ")
-        }.join("\n") %></pre>
+    <pre class="text-[11px] text-t2 font-mono whitespace-pre-wrap"><%= Boards::AdminBuilder::WordList.render(page[:tiles]) %></pre>
   <% end %>
 </div>

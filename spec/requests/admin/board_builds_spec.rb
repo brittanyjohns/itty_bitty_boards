@@ -520,6 +520,23 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response.body).to include("--cols: 2")
       expect(response.body).to include("--cols: 3")
     end
+
+    # Finding 1: the preview page's build-resubmit form is a separate <form>
+    # from the authoring form, so description/tags must be threaded through
+    # explicitly as hidden fields or they silently vanish on "Build this
+    # board" — see app/views/admin/board_builds/preview.html.erb.
+    it "carries description and tags through the build-resubmit form" do
+      params = form_params(description: "A board for outdoor play.", tags: "playground, outdoor play")
+
+      post preview_admin_dashboard_board_builds_path, params: params
+
+      doc = Nokogiri::HTML::Document.parse(response.body)
+      description_field = doc.at_css(%(input[type="hidden"][name="description"]))
+      tags_field = doc.at_css(%(input[type="hidden"][name="tags"]))
+
+      expect(description_field["value"]).to eq("A board for outdoor play.")
+      expect(tags_field["value"]).to eq("playground, outdoor play")
+    end
   end
 
   describe "validation" do
@@ -845,6 +862,128 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST draft_set" do
+    before { sign_in admin }
+
+    def stub_set_drafter(result)
+      allow(Boards::AdminBuilder::SetDrafter).to receive(:new).and_return(
+        instance_double(Boards::AdminBuilder::SetDrafter, call: result),
+      )
+    end
+
+    let(:drafted) do
+      {
+        root_tiles: [
+          { label: "I", part_of_speech: "pronoun" },
+          { label: "Food", part_of_speech: "noun", links_to: "food" },
+        ],
+        children: [
+          { key: "food", name: "Food",
+            tiles: [{ label: "apple", part_of_speech: "noun" },
+                    { label: "back", part_of_speech: "social", links_to: "__root__" }] },
+        ],
+      }
+    end
+
+    it "fills the root textarea with link tokens and renders the page block" do
+      stub_set_drafter(drafted)
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(words: "", page_count: "1", columns: "1", tile_count: "2")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Food | noun | &gt;food")
+      expect(response.body).to include("apple | noun")
+      expect(response.body).to include("children[0][key]")
+    end
+
+    it "writes nothing" do
+      stub_set_drafter(drafted)
+
+      expect {
+        post draft_set_admin_dashboard_board_builds_path,
+             params: form_params(words: "", page_count: "1", columns: "1", tile_count: "2")
+      }.to not_change(Board, :count).and not_change(Image, :count).and not_change(AdminBoardBuild, :count)
+    end
+
+    it "reports a generation failure without losing what was typed" do
+      allow(Boards::AdminBuilder::SetDrafter).to receive(:new).and_raise(
+        Boards::AdminBuilder::SetDrafter::GenerationError, "OpenAI returned no content",
+      )
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(name: "Playground", page_count: "1")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t draft the set")
+      expect(response.body).to include("Playground")
+    end
+
+    it "refuses to draft with nothing to work from" do
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(name: "", topic: "", words: "", page_count: "1")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("draft from")
+    end
+  end
+
+  describe "POST describe" do
+    before { sign_in admin }
+
+    def stub_suggester(result)
+      allow(Boards::AdminBuilder::MetadataSuggester).to receive(:new).and_return(
+        instance_double(Boards::AdminBuilder::MetadataSuggester, call: result),
+      )
+    end
+
+    it "fills the description and tags fields" do
+      stub_suggester({ description: "A board for the playground.", tags: %w[playground outdoor] })
+
+      post describe_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("A board for the playground.")
+      expect(response.body).to include("playground, outdoor")
+    end
+
+    it "writes nothing" do
+      stub_suggester({ description: "A board.", tags: %w[playground] })
+
+      expect { post describe_admin_dashboard_board_builds_path, params: form_params }
+        .to not_change(Board, :count).and not_change(AdminBoardBuild, :count)
+    end
+
+    it "reports a generation failure without losing what was typed" do
+      allow(Boards::AdminBuilder::MetadataSuggester).to receive(:new).and_raise(
+        Boards::AdminBuilder::MetadataSuggester::GenerationError, "OpenAI returned no content",
+      )
+
+      post describe_admin_dashboard_board_builds_path, params: form_params(name: "Playground")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t suggest a description")
+      expect(response.body).to include("Playground")
+    end
+  end
+
+  describe "POST create with metadata" do
+    before { sign_in admin }
+
+    it "stores the description, normalized tags and audience on the build" do
+      post admin_dashboard_board_builds_path, params: form_params(
+        description: "  A board for the playground.  ",
+        tags: " PlayGround , Outdoor   Play ,, playground ",
+        audience: "an early communicator",
+      )
+
+      build = AdminBoardBuild.last
+      expect(build.description).to eq("A board for the playground.")
+      expect(build.tags).to eq(["playground", "outdoor play"])
+      expect(build.audience).to eq("an early communicator")
+    end
+  end
+
   describe "when no default admin exists" do
     it "refuses to build rather than seeding a board under the wrong owner" do
       seed_admin.destroy
@@ -854,6 +993,220 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
 
       expect(response).to redirect_to(admin_root_path)
       expect(flash[:alert]).to include("No default admin user configured")
+    end
+  end
+
+  describe "PATCH update" do
+    before { sign_in admin }
+
+    it "updates the description and tags on the build and its root board" do
+      board = built_board
+      build = create_build(board: board, status: "complete")
+
+      patch admin_dashboard_board_build_path(build),
+            params: { description: "  A playground board.  ", tags: " PlayGround , outdoor play " }
+
+      expect(response).to redirect_to(admin_dashboard_board_build_path(build))
+      expect(build.reload.description).to eq("A playground board.")
+      expect(build.tags).to eq(["playground", "outdoor play"])
+      expect(board.reload.description).to eq("A playground board.")
+      expect(board.tags).to eq(["playground", "outdoor play"])
+    end
+
+    it "clears both when submitted empty" do
+      board = built_board
+      board.update!(description: "old", tags: %w[old])
+      build = create_build(board: board, status: "complete", description: "old", tags: %w[old])
+
+      patch admin_dashboard_board_build_path(build), params: { description: "", tags: "" }
+
+      expect(build.reload.description).to be_nil
+      expect(build.tags).to eq([])
+      expect(board.reload.description).to be_blank
+      expect(board.tags).to eq([])
+    end
+
+    # The word list is immutable from here — fixing words is delete-and-rebuild.
+    it "ignores anything other than description and tags" do
+      board = built_board(name: "Built Board")
+      build = create_build(board: board, status: "complete")
+
+      patch admin_dashboard_board_build_path(build),
+            params: { description: "New.", tags: "", name: "Hijacked", words: "nope | noun" }
+
+      expect(build.reload.name).to eq("Playground")
+      expect(board.reload.name).to eq("Built Board")
+    end
+
+    it "cannot reach a board this page didn't create" do
+      other = Board.create!(name: "Someone Else's", slug: "someone-elses", user: seed_admin)
+      build = create_build(board: other, status: "complete")
+
+      patch admin_dashboard_board_build_path(build), params: { description: "Hijacked.", tags: "" }
+
+      expect(other.reload.description).to be_blank
+      expect(build.reload.description).to eq("Hijacked.")
+    end
+  end
+
+  describe "GET duplicate" do
+    before { sign_in admin }
+
+    it "rehydrates the form from a stored plan, links and tile text intact" do
+      build = create_build(
+        topic: "the playground",
+        audience: "an early communicator",
+        description: "A playground board.",
+        tags: %w[playground outdoor],
+        plan: {
+          "tiles" => [
+            { "label" => "I", "part_of_speech" => "pronoun" },
+            { "label" => "Food", "part_of_speech" => "noun", "display_label" => "Snacks", "links_to" => "food" },
+          ],
+          "children" => [
+            { "key" => "food", "name" => "Food",
+              "tiles" => [{ "label" => "back", "part_of_speech" => "social", "links_to" => "__root__" }] },
+          ],
+        },
+      )
+
+      get duplicate_admin_dashboard_board_build_path(build)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Food | noun | Snacks | &gt;food")
+      expect(response.body).to include("back | social | &gt;__root__")
+      expect(response.body).to include("the playground")
+      expect(response.body).to include("an early communicator")
+      expect(response.body).to include("A playground board.")
+      expect(response.body).to include("playground, outdoor")
+      expect(response.body).to include("children[0][key]")
+    end
+
+    it "writes nothing" do
+      build = create_build
+
+      expect { get duplicate_admin_dashboard_board_build_path(build) }
+        .to not_change(AdminBoardBuild, :count).and not_change(Board, :count)
+    end
+
+    # Child pages inherit the root grid; copying a blank grid keeps it that way.
+    it "leaves a child's grid blank" do
+      build = create_build(
+        plan: { "tiles" => [{ "label" => "I", "part_of_speech" => "pronoun" }],
+                "children" => [{ "key" => "food", "name" => "Food",
+                                 "tiles" => [{ "label" => "apple", "part_of_speech" => "noun" }] }] },
+      )
+
+      get duplicate_admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include('name="children[0][columns]" value=""')
+    end
+
+    it "redirects when the build is gone" do
+      get duplicate_admin_dashboard_board_build_path(id: 0)
+
+      expect(response).to redirect_to(admin_dashboard_board_builds_path)
+    end
+  end
+
+  describe "POST preview duplicate-name warning" do
+    before { sign_in admin }
+
+    it "warns about an existing public board with the same name, ignoring case" do
+      Board.create!(name: "playground", slug: "playground-public", user: seed_admin, predefined: true, published: true)
+
+      post preview_admin_dashboard_board_builds_path, params: form_params(name: "Playground")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("already a board called")
+    end
+
+    # An unpublished board built here last week is exactly the collision worth
+    # catching, and it isn't in public_boards yet.
+    it "warns about an unpublished board this page built" do
+      built_board(name: "Playground")
+
+      post preview_admin_dashboard_board_builds_path, params: form_params(name: "Playground")
+
+      expect(response.body).to include("already a board called")
+    end
+
+    it "says nothing when the name is free" do
+      post preview_admin_dashboard_board_builds_path, params: form_params(name: "Something Else Entirely")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("already a board called")
+    end
+
+    it "warns without blocking the build" do
+      built_board(name: "Playground")
+
+      expect { post admin_dashboard_board_builds_path, params: form_params(name: "Playground") }
+        .to change(AdminBoardBuild, :count).by(1)
+    end
+  end
+
+  describe "POST regenerate_art" do
+    before do
+      sign_in admin
+      GenerateImagesJob.jobs.clear
+    end
+
+    def board_with_art_less_tile(board)
+      image = Image.create!(label: "swing", user: seed_admin)
+      board.add_image(image.id)
+      image
+    end
+
+    it "queues generation for tiles with no picture" do
+      board = built_board
+      image = board_with_art_less_tile(board)
+      build = create_build(board: board, status: "complete", topic: "the playground")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(response).to redirect_to(admin_dashboard_board_build_path(build))
+      expect(GenerateImagesJob.jobs.size).to eq(1)
+      expect(GenerateImagesJob.jobs.first["args"].first).to include(image.id)
+    end
+
+    it "says so and queues nothing when every tile has a picture" do
+      board = built_board
+      build = create_build(board: board, status: "complete")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(GenerateImagesJob.jobs).to be_empty
+      expect(flash[:notice]).to match(/every tile/i)
+    end
+
+    it "cannot reach a board this page didn't create" do
+      other = Board.create!(name: "Someone Else's", slug: "someone-elses-art", user: seed_admin)
+      board_with_art_less_tile(other)
+      build = create_build(board: other, status: "complete")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(GenerateImagesJob.jobs).to be_empty
+    end
+
+    # Finding 2: the "missing art" count (used for display) includes images
+    # that are already mid-flight from a prior GenerateImagesJob — but
+    # queueing must not re-fire generation for one of those. Only a
+    # genuinely-untouched image (no docs, not "generating") should be queued.
+    it "does not re-queue an image that is already generating" do
+      board = built_board
+      generating_image = Image.create!(label: "swing", user: seed_admin, status: "generating")
+      board.add_image(generating_image.id)
+      untouched_image = board_with_art_less_tile(board)
+      build = create_build(board: board, status: "complete", topic: "the playground")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(GenerateImagesJob.jobs.size).to eq(1)
+      queued_ids = GenerateImagesJob.jobs.first["args"].first
+      expect(queued_ids).to include(untouched_image.id)
+      expect(queued_ids).not_to include(generating_image.id)
     end
   end
 end

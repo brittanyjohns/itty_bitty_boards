@@ -1153,3 +1153,31 @@ Its own invariants:
     can't catch that; it bypasses HTML validation.
 
 AI drafting (Phase 2) fills the main word list only — pages are authored by hand.
+
+- **`Boards::AdminBuilder::SetDrafter` drafts a whole linked set in one call**
+  — root word list with its folder tiles already carrying `links_to`, plus each
+  page's key, name and words. It honours the two `PlanValidator` rules by
+  construction: it states the exact per-page tile count in the prompt, and it
+  never gives a child a grid of its own. Like every other AI path here it only
+  fills the form. `Boards::AdminBuilder::WordList` is the single parser/renderer
+  for the textarea format; `.render` is the exact inverse of `.parse`.
+
+- **`Boards::AdminBuilder::MetadataSuggester` fills the catalogue listing** —
+  a plain-text description (`boards.description` renders as text on three of
+  four frontend surfaces, so HTML would show up literally) and tags steered by
+  the live `Board.public_boards_tags`, rationing genuinely new tags so the
+  public filter chips don't fragment. **Description and tags are applied to the
+  ROOT board only** — child pages are `predefined: false` and never enter
+  `Board.public_boards`. `PATCH /admin/board_builds/:id` can fix both after a
+  build; nothing else about a finished build is editable.
+
+- **`Boards::AdminBuilder::ArtQueue` is the single art-queueing path** — the
+  build and the build page's "generate the missing art" button both go through
+  it, so the batch size, the topic-flavoured `image_prompt` seed, and the rule
+  that an existing prompt is never rewritten are stated once. The button
+  recomputes what has no picture from the boards rather than replaying
+  `art_report`, so a tile whose art arrived since isn't generated twice.
+- **`GET /admin/board_builds/:id/duplicate`** loads a past build back into the
+  form (writes nothing), and `preview` warns — never blocks — when a board of
+  the same name already exists in `Board.public_boards` or
+  `AdminBoardBuild.builder_boards`.

@@ -33,7 +33,7 @@
         <label class="block text-xs font-medium text-t2 mb-1" for="audience">Audience <span class="text-t3">(optional)</span></label>
         <%= text_field_tag :audience, @form[:audience], id: "audience", placeholder: "an early communicator, preschool age",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
-        <p class="text-[11px] text-t3 mt-1">Used only when drafting. Not saved on the board.</p>
+        <p class="text-[11px] text-t3 mt-1">Steers the AI draft and the suggested description. Saved on the build, not on the board.</p>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -54,6 +54,40 @@
               id: "voice",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
         <p class="text-[11px] text-t3 mt-1">Set at creation — changing it later re-queues audio for every tile.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="flex items-start justify-between gap-4 mb-3">
+      <div>
+        <h2 class="text-sm font-medium text-t1">Catalogue listing <span class="text-t3 font-normal">(optional)</span></h2>
+        <p class="text-[11px] text-t3 mt-0.5">
+          How the board reads in the public library. Tags are what the filter chips are built from —
+          reuse an existing one wherever it fits.
+        </p>
+      </div>
+      <%# formaction, not a second form: the suggestion is worked out from the
+          words and pages typed in this same form. %>
+      <button type="submit" formaction="<%= describe_admin_dashboard_board_builds_path %>" formnovalidate
+              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+        Suggest description &amp; tags
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="description">Description</label>
+        <%= text_area_tag :description, @form[:description], id: "description", rows: 3,
+              placeholder: "A board for talking at the playground.",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Plain text — no HTML. Most places render it as text, so tags would show up literally.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="tags">Tags</label>
+        <%= text_field_tag :tags, @form[:tags], id: "tags", placeholder: "playground, outdoor play",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Comma separated. Lowercased on save. Applied to the main board only.</p>
       </div>
     </div>
   </div>
@@ -119,10 +153,22 @@
           with <span class="font-mono">&gt;key</span>. Pages inherit the main board's grid unless you say otherwise.
         </p>
       </div>
-      <button type="button" id="add-page"
-              class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
-        Add a page
-      </button>
+      <div class="flex items-center gap-2">
+        <%= select_tag :page_count,
+              options_for_select((0..Boards::AdminBuilder::SetDrafter::MAX_PAGES).map { |n| [n.zero? ? "no pages" : "#{n} #{"page".pluralize(n)}", n.to_s] }, @form[:page_count]),
+              class: "admin-input border rounded px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none" %>
+        <%# formaction, not a second form: the drafter has to see the topic,
+            audience and grid typed above. formnovalidate for the same reason
+            the word-list drafter has it — a missing name is inferred. %>
+        <button type="submit" id="draft-set-button" formaction="<%= draft_set_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Draft the whole set with AI
+        </button>
+        <button type="button" id="add-page"
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Add a page
+        </button>
+      </div>
     </div>
 
     <div id="pages" class="flex flex-col gap-4 mt-4">
@@ -261,6 +307,18 @@
       draftButton.addEventListener("click", function (event) {
         if (words.value.trim() === "") return;
         if (!window.confirm("Replace the word list you've typed with an AI draft?")) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    // Drafting the set replaces the root list AND every page.
+    var draftSetButton = document.getElementById("draft-set-button");
+    if (draftSetButton) {
+      draftSetButton.addEventListener("click", function (event) {
+        var hasPages = pages.querySelectorAll(".page-block").length > 0;
+        if (words.value.trim() === "" && !hasPages) return;
+        if (!window.confirm("Replace the word list and every page with an AI draft?")) {
           event.preventDefault();
         }
       });

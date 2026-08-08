@@ -85,15 +85,19 @@ Rails.application.routes.draw do
         post :unpublish
       end
     end
-    resources :board_builds, only: [:index, :new, :create, :show, :destroy], as: :dashboard_board_builds do
+    resources :board_builds, only: [:index, :new, :create, :show, :update, :destroy], as: :dashboard_board_builds do
       collection do
         post :suggest
         post :draft
+        post :draft_set
+        post :describe, to: "board_builds#describe_board"
         post :preview
       end
       member do
         post :publish
         post :unpublish
+        get :duplicate
+        post :regenerate_art
       end
     end
     get "feedback", to: "feedback#index", as: :dashboard_feedback

@@ -20,12 +20,11 @@ module Admin
     MAX_TILES = 144
     DEFAULT_COLUMNS = 6
     DEFAULT_TILES = 24
+    DEFAULT_PAGE_COUNT = 0
     DEFAULT_VOICE = "polly:kevin".freeze
-    # Marks the field in a word-list line that names the page a tile opens.
-    LINK_TOKEN = ">".freeze
 
     before_action :require_seed_admin!
-    before_action :set_build, only: %i[show destroy publish unpublish]
+    before_action :set_build, only: %i[show update destroy publish unpublish duplicate regenerate_art]
 
     def index
       @builds = AdminBoardBuild.includes(:board, :created_by).recent.limit(100)
@@ -69,6 +68,38 @@ module Admin
       render :new, status: :unprocessable_entity
     end
 
+    # Optional step zero, the multi-page form of `draft`. Drafts the whole set
+    # — root word list with its folder tiles already linked, plus each page —
+    # into the form and stops there. Nothing is previewed or built from it.
+    def draft_set
+      @form = submitted_form
+      @form = @form.merge(suggested_context(@form)) if @form[:topic].blank? || @form[:name].blank?
+      @problems = draft_problems(@form)
+      return render(:new, status: :unprocessable_entity) if @problems.any?
+
+      set = Boards::AdminBuilder::SetDrafter.new(
+        topic: @form[:topic],
+        columns: @form[:columns].to_i,
+        tile_count: @form[:tile_count].to_i,
+        page_count: @form[:page_count].to_i,
+        audience: @form[:audience],
+      ).call
+
+      @form = @form.merge(
+        words: tiles_to_words(set[:root_tiles]),
+        tiles: set[:root_tiles],
+        children: children_form_from(set[:children]),
+      )
+      flash.now[:notice] = draft_set_notice(set, @form)
+      render :new
+    rescue Boards::AdminBuilder::SetDrafter::GenerationError => e
+      @problems = ["Couldn't draft the set: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    rescue Boards::AdminBuilder::ContextSuggester::GenerationError => e
+      @problems = ["Couldn't work out the topic: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
     # Fills in topic and audience on their own, so they can be read and edited
     # before a whole word list is drafted from them.
     def suggest
@@ -86,6 +117,30 @@ module Admin
       render :new, status: :unprocessable_entity
     end
 
+    # Fills the public description and catalogue tags from whatever the form
+    # currently holds. Separate from drafting on purpose — the word list is
+    # usually edited after a draft, and a description written from the pre-edit
+    # list would be stale.
+    def describe_board
+      @form = submitted_form
+      pages = pages_for(@form)
+
+      metadata = Boards::AdminBuilder::MetadataSuggester.new(
+        name: @form[:name],
+        topic: @form[:topic],
+        audience: @form[:audience],
+        labels: Boards::AdminBuilder::Plan.labels(pages),
+        page_names: pages.drop(1).map { |page| page[:name] },
+      ).call
+
+      @form = @form.merge(description: metadata[:description], tags: metadata[:tags].join(", "))
+      flash.now[:notice] = "Suggested a description and tags — edit them before you build."
+      render :new
+    rescue Boards::AdminBuilder::MetadataSuggester::GenerationError => e
+      @problems = ["Couldn't suggest a description: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
     # Step one. Read-only: resolves what the library would attach to each tile
     # and renders it for a human to look at. Asserted by spec to change neither
     # Board.count nor Image.count.
@@ -98,6 +153,7 @@ module Admin
         pages: pages_for(@form),
         commercial_safe_only: @form[:commercial_safe_only],
       ).call
+      @name_matches = duplicate_name_matches(@form[:name])
 
       render :preview
     end
@@ -118,6 +174,9 @@ module Admin
         columns_count: @form[:columns].to_i,
         tile_count: @form[:tile_count].to_i,
         commercial_safe_only: @form[:commercial_safe_only],
+        description: @form[:description].presence,
+        tags: submitted_tags(tags: @form[:tags]),
+        audience: @form[:audience].presence,
         plan: {
           "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(@form[:tiles]),
           "children" => @form[:children].map do |child|
@@ -142,6 +201,29 @@ module Admin
       @set_boards = @build.set_boards
       @tiles_by_board = @set_boards.index_with { |board| board.board_images.includes(:image).order(:position) }
       @missing_art_count = @set_boards.sum { |board| missing_art_count(board) }
+    end
+
+    # Loads a past build back into the authoring form. Writes nothing — it is
+    # `new` with the fields filled in, so a revision is a tweak instead of a
+    # re-type. The name is copied verbatim; `preview` warns about the
+    # collision rather than forcing an edit up front.
+    def duplicate
+      @form = form_from_build(@build)
+      flash.now[:notice] = "Loaded “#{@build.name}” into the form. Nothing is written until you build."
+      render :new
+    end
+
+    # The only mutable part of a finished build. The word list stays frozen —
+    # fixing words is still delete-and-rebuild — but a description or a tag is
+    # exactly the kind of thing that is wrong once and cheap to correct.
+    def update
+      description = params[:description].to_s.strip.presence
+      tags = submitted_tags(tags: params[:tags])
+
+      @build.update!(description: description, tags: tags)
+      builder_board_for(@build)&.update!(description: description, tags: tags)
+
+      redirect_to admin_dashboard_board_build_path(@build), notice: "Updated the description and tags."
     end
 
     # Publishing is a set-wide operation. `Board#viewable_by?` gates each board
@@ -177,6 +259,25 @@ module Admin
       redirect_to admin_dashboard_board_build_path(@build), notice: publish_notice(board, set, "no longer public")
     end
 
+    # Art generation can fail or be missed; the build page already counts what
+    # has no picture, so give it a way to act on the count. Recomputed from the
+    # boards rather than replayed from art_report, so a tile whose art arrived
+    # since isn't generated twice.
+    def regenerate_art
+      set = @build.set_boards
+      root = builder_board_for(@build)
+      image_ids = set.flat_map { |page| queueable_image_ids(page) }.uniq
+
+      if root.nil? || image_ids.empty?
+        return redirect_to admin_dashboard_board_build_path(@build),
+                           notice: "Every tile already has a picture, or art is still generating for the rest — nothing new to queue."
+      end
+
+      queued = Boards::AdminBuilder::ArtQueue.call(board: root, image_ids: image_ids, topic: @build.topic)
+      redirect_to admin_dashboard_board_build_path(@build),
+                  notice: "Queued art for #{queued} #{"tile".pluralize(queued)}."
+    end
+
     def destroy
       board = builder_board_for(@build)
       if board&.published?
@@ -203,6 +304,18 @@ module Admin
       redirect_to admin_dashboard_board_builds_path, alert: "Board build not found." unless @build
     end
 
+    # Advisory only. Two boards with one name is sometimes right; shipping it
+    # by accident is what's worth catching. Both scopes are searched because a
+    # board built here last week and still awaiting review isn't public yet.
+    def duplicate_name_matches(name)
+      return Board.none if name.blank?
+
+      Board.where(id: Board.public_boards.select(:id))
+           .or(Board.where(id: AdminBoardBuild.builder_boards.select(:id)))
+           .where("lower(boards.name) = ?", name.strip.downcase)
+           .limit(5)
+    end
+
     # A board is only reachable from here if it carries this page's marker, so
     # a hand-edited board_id can't turn publish into a lever on any board.
     def builder_board_for(build)
@@ -223,8 +336,25 @@ module Admin
       redirect_to admin_root_path, alert: "No default admin user configured — cannot build boards."
     end
 
+    def art_less_image_ids(board)
+      Image.where(id: board.board_images.select(:image_id)).where.missing(:docs).pluck(:id)
+    end
+
+    # regenerate_art must not re-queue an image that's already mid-flight from
+    # a prior GenerateImagesJob — art_less_image_ids alone can't tell "never
+    # queued" from "queued and still generating" (both have no docs yet).
+    # missing_art_count keeps using art_less_image_ids unchanged: it's a
+    # display count of "still no picture," and in-flight images belong in it.
+    def queueable_image_ids(board)
+      # `where.not(status: "generating")` would also exclude NULL-status rows
+      # (SQL's `!=` against NULL is unknown, not true) — most art-less images
+      # have never had a status set at all, so that would drop them too.
+      # IS DISTINCT FROM is NULL-safe: NULL is kept, only "generating" is cut.
+      Image.where(id: art_less_image_ids(board)).where("status IS DISTINCT FROM ?", "generating").pluck(:id)
+    end
+
     def missing_art_count(board)
-      Image.where(id: board.board_images.select(:image_id)).where.missing(:docs).count
+      art_less_image_ids(board).size
     end
 
     def voice_values
@@ -272,7 +402,35 @@ module Admin
     end
 
     def tiles_to_words(tiles)
-      tiles.map { |tile| "#{tile[:label]} | #{tile[:part_of_speech]}" }.join("\n")
+      Boards::AdminBuilder::WordList.render(tiles)
+    end
+
+    # Children arrive as tile hashes; the form wants a rendered textarea per
+    # page. Grids are deliberately left blank so each page inherits the root's.
+    def children_form_from(children)
+      Array(children).map do |child|
+        {
+          key: child[:key].to_s,
+          name: child[:name].to_s,
+          columns: "",
+          tile_count: "",
+          words: tiles_to_words(child[:tiles]),
+          tiles: child[:tiles],
+        }
+      end
+    end
+
+    def draft_set_notice(set, form)
+      wanted = form[:tile_count].to_i
+      pages = set[:children].size
+      short = ([set[:root_tiles]] + set[:children].map { |child| child[:tiles] })
+              .count { |tiles| tiles.size != wanted }
+
+      base = "Drafted the main board and #{pages} #{"page".pluralize(pages)}."
+      return "#{base} Edit them, then preview the art." if short.zero?
+
+      "#{base} #{short} #{"board".pluralize(short)} didn't come back with exactly #{wanted} words — " \
+        "check the counts before previewing."
     end
 
     # The drafter can come back short (near-duplicates get dropped), which is
@@ -290,9 +448,12 @@ module Admin
         name: "",
         topic: "",
         audience: "",
+        description: "",
+        tags: "",
         voice: DEFAULT_VOICE,
         columns: DEFAULT_COLUMNS.to_s,
         tile_count: DEFAULT_TILES.to_s,
+        page_count: DEFAULT_PAGE_COUNT.to_s,
         words: "",
         tiles: [],
         children: [],
@@ -306,6 +467,33 @@ module Admin
       { key: "", name: "", columns: "", tile_count: "", words: "", tiles: [] }
     end
 
+    def form_from_build(build)
+      pages = build.pages
+      root = pages.first
+
+      blank_form.merge(
+        name: build.name.to_s,
+        topic: build.topic.to_s,
+        audience: build.audience.to_s,
+        description: build.description.to_s,
+        tags: Array(build.tags).join(", "),
+        voice: build.voice.presence || DEFAULT_VOICE,
+        columns: build.columns_count.to_s,
+        tile_count: build.tile_count.to_s,
+        words: tiles_to_words(root[:tiles]),
+        tiles: root[:tiles],
+        # Grids are left blank so every page keeps inheriting the root's, which
+        # is what the stored plan meant when it omitted them.
+        children: pages.drop(1).map do |page|
+          {
+            key: page[:key], name: page[:name], columns: "", tile_count: "",
+            words: tiles_to_words(page[:tiles]), tiles: page[:tiles],
+          }
+        end,
+        commercial_safe_only: build.commercial_safe_only,
+      )
+    end
+
     # Keeps the raw submitted strings so a failed submit re-renders exactly what
     # the admin typed. Reads raw params rather than strong params, matching
     # Admin::VideoBoardsController.
@@ -316,9 +504,12 @@ module Admin
         name: params[:name].to_s.strip,
         topic: params[:topic].to_s.strip,
         audience: params[:audience].to_s.strip,
+        description: params[:description].to_s.strip,
+        tags: params[:tags].to_s,
         voice: params[:voice].to_s.strip.presence || DEFAULT_VOICE,
         columns: params[:columns].to_s.strip,
         tile_count: params[:tile_count].to_s.strip,
+        page_count: params[:page_count].to_s.strip,
         words: words,
         tiles: parse_tiles(words),
         children: submitted_children,
@@ -352,29 +543,16 @@ module Admin
       ActiveModel::Type::Boolean.new.cast(value) || false
     end
 
-    # One tile per line: `word`, `word | part_of_speech`, or
-    # `word | part_of_speech | tile text`. A textarea rather than N inputs
-    # because a dense board is 24-84 words and pasting a list is the job.
-    #
-    # A field beginning with `>` names the page the tile opens, wherever it
-    # appears in the line — so `Food | noun | >food` doesn't force an empty
-    # tile-text field just to reach a fourth position.
+    # The form carries tags as one comma-separated string (the shape
+    # Admin::VideoBoardsController uses). Normalized here so nothing downstream
+    # has to care how they were typed. Takes the raw string rather than the
+    # form hash because Task 7's `update` reads them straight off params.
+    def submitted_tags(tags:)
+      tags.to_s.split(",").map { |tag| Board.normalize_tag_value(tag) }.reject(&:blank?).uniq
+    end
+
     def parse_tiles(words)
-      words.to_s.split("\n").filter_map do |line|
-        line = line.strip
-        next if line.blank?
-
-        label, *rest = line.split("|").map { |part| part.to_s.strip }
-        links_to = rest.find { |field| field.start_with?(LINK_TOKEN) }
-        part_of_speech, display_label = rest - [links_to].compact
-
-        {
-          label: label.to_s,
-          part_of_speech: part_of_speech.presence || "default",
-          display_label: display_label.presence,
-          links_to: links_to&.delete_prefix(LINK_TOKEN)&.strip&.downcase.presence,
-        }.compact
-      end
+      Boards::AdminBuilder::WordList.parse(words)
     end
 
     def validation_problems(form)

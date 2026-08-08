@@ -11,6 +11,24 @@
   <%= link_to "← All board builds", admin_dashboard_board_builds_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
 </div>
 
+<% if @name_matches.any? %>
+  <div class="admin-card border border-amber-500/40 rounded-xl p-4 mb-6">
+    <p class="text-xs text-amber-400 font-medium">
+      There's already a board called "<%= @form[:name] %>".
+    </p>
+    <ul class="text-[11px] text-t2 mt-2 flex flex-col gap-1">
+      <% @name_matches.each do |match| %>
+        <li>
+          <span class="font-mono">#<%= match.id %></span> ·
+          <span class="font-mono"><%= match.slug %></span> ·
+          <%= match.published? ? "published" : "unpublished" %>
+        </li>
+      <% end %>
+    </ul>
+    <p class="text-[11px] text-t3 mt-2">Not a blocker — rename it above if this isn't a deliberate second board.</p>
+  </div>
+<% end %>
+
 <div class="admin-card border rounded-xl p-5 mb-6">
   <div class="flex flex-wrap items-center gap-6">
     <div>
@@ -101,6 +119,8 @@
     <%= hidden_field_tag :name, @form[:name] %>
     <%= hidden_field_tag :topic, @form[:topic] %>
     <%= hidden_field_tag :audience, @form[:audience] %>
+    <%= hidden_field_tag :description, @form[:description] %>
+    <%= hidden_field_tag :tags, @form[:tags] %>
     <%= hidden_field_tag :voice, @form[:voice] %>
     <%= hidden_field_tag :columns, @form[:columns] %>
     <%= hidden_field_tag :tile_count, @form[:tile_count] %>
