@@ -1128,4 +1128,49 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
         .to change(AdminBoardBuild, :count).by(1)
     end
   end
+
+  describe "POST regenerate_art" do
+    before do
+      sign_in admin
+      GenerateImagesJob.jobs.clear
+    end
+
+    def board_with_art_less_tile(board)
+      image = Image.create!(label: "swing", user: seed_admin)
+      board.add_image(image.id)
+      image
+    end
+
+    it "queues generation for tiles with no picture" do
+      board = built_board
+      image = board_with_art_less_tile(board)
+      build = create_build(board: board, status: "complete", topic: "the playground")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(response).to redirect_to(admin_dashboard_board_build_path(build))
+      expect(GenerateImagesJob.jobs.size).to eq(1)
+      expect(GenerateImagesJob.jobs.first["args"].first).to include(image.id)
+    end
+
+    it "says so and queues nothing when every tile has a picture" do
+      board = built_board
+      build = create_build(board: board, status: "complete")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(GenerateImagesJob.jobs).to be_empty
+      expect(flash[:notice]).to match(/every tile/i)
+    end
+
+    it "cannot reach a board this page didn't create" do
+      other = Board.create!(name: "Someone Else's", slug: "someone-elses-art", user: seed_admin)
+      board_with_art_less_tile(other)
+      build = create_build(board: other, status: "complete")
+
+      post regenerate_art_admin_dashboard_board_build_path(build)
+
+      expect(GenerateImagesJob.jobs).to be_empty
+    end
+  end
 end

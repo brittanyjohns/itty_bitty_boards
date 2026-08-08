@@ -133,6 +133,11 @@
         Generated: <%= Array(@build.art_report["missing_labels"]).join(", ") %>
       </p>
     <% end %>
+    <% if @missing_art_count.positive? %>
+      <%= button_to "Generate the missing art", regenerate_art_admin_dashboard_board_build_path(@build), method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 mt-3",
+            form: { data: { turbo_confirm: "Queue AI art for #{@missing_art_count} #{"tile".pluralize(@missing_art_count)}?" } } %>
+    <% end %>
   </div>
 
   <% @set_boards.each do |page| %>

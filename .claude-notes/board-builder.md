@@ -1170,3 +1170,14 @@ AI drafting (Phase 2) fills the main word list only — pages are authored by ha
   ROOT board only** — child pages are `predefined: false` and never enter
   `Board.public_boards`. `PATCH /admin/board_builds/:id` can fix both after a
   build; nothing else about a finished build is editable.
+
+- **`Boards::AdminBuilder::ArtQueue` is the single art-queueing path** — the
+  build and the build page's "generate the missing art" button both go through
+  it, so the batch size, the topic-flavoured `image_prompt` seed, and the rule
+  that an existing prompt is never rewritten are stated once. The button
+  recomputes what has no picture from the boards rather than replaying
+  `art_report`, so a tile whose art arrived since isn't generated twice.
+- **`GET /admin/board_builds/:id/duplicate`** loads a past build back into the
+  form (writes nothing), and `preview` warns — never blocks — when a board of
+  the same name already exists in `Board.public_boards` or
+  `AdminBoardBuild.builder_boards`.

@@ -97,6 +97,7 @@ Rails.application.routes.draw do
         post :publish
         post :unpublish
         get :duplicate
+        post :regenerate_art
       end
     end
     get "feedback", to: "feedback#index", as: :dashboard_feedback

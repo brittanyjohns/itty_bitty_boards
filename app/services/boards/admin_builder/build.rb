@@ -21,10 +21,6 @@ module Boards
     class Build
       class BuildError < StandardError; end
 
-      # Matches API::Internal::BoardImagesController's slicing: the job fans out
-      # to an image API and a whole set in one call would stampede it.
-      GENERATE_BATCH_SIZE = 3
-
       def initialize(admin_board_build:)
         @build = admin_board_build
       end
@@ -237,34 +233,10 @@ module Boards
         }
       end
 
-      # Queued after commit, in slices of 3, mirroring
-      # API::Internal::BoardImagesController#queue_missing_art!.
+      # Queued after commit: Sidekiq can otherwise pick the job up before the
+      # rows it references exist.
       def queue_missing_art!(root, image_ids)
-        return if image_ids.empty?
-
-        seed_art_prompts!(image_ids)
-        image_ids.each_slice(GENERATE_BATCH_SIZE) do |batch|
-          GenerateImagesJob.perform_async(batch, root.id)
-        end
-      end
-
-      # The board's topic is what keeps "swing" on a playground board from
-      # coming back as a mood swing. `image_prompt` carries the INTENT only —
-      # Images::PromptBuilder composes the house style envelope at generation
-      # time and must never have it baked in here, or it gets wrapped twice.
-      def seed_art_prompts!(image_ids)
-        Image.where(id: image_ids).each do |image|
-          next if image.image_prompt.present?
-
-          image.update_column(:image_prompt, art_intent_for(image.label))
-        end
-      end
-
-      def art_intent_for(label)
-        topic = build.topic.to_s.strip
-        return label.to_s if topic.blank?
-
-        "#{label} in the context of #{topic}"
+        ArtQueue.call(board: root, image_ids: image_ids, topic: build.topic)
       end
     end
   end

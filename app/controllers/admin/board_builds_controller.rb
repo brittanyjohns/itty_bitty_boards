@@ -24,7 +24,7 @@ module Admin
     DEFAULT_VOICE = "polly:kevin".freeze
 
     before_action :require_seed_admin!
-    before_action :set_build, only: %i[show update destroy publish unpublish duplicate]
+    before_action :set_build, only: %i[show update destroy publish unpublish duplicate regenerate_art]
 
     def index
       @builds = AdminBoardBuild.includes(:board, :created_by).recent.limit(100)
@@ -259,6 +259,25 @@ module Admin
       redirect_to admin_dashboard_board_build_path(@build), notice: publish_notice(board, set, "no longer public")
     end
 
+    # Art generation can fail or be missed; the build page already counts what
+    # has no picture, so give it a way to act on the count. Recomputed from the
+    # boards rather than replayed from art_report, so a tile whose art arrived
+    # since isn't generated twice.
+    def regenerate_art
+      set = @build.set_boards
+      root = builder_board_for(@build)
+      image_ids = set.flat_map { |page| art_less_image_ids(page) }.uniq
+
+      if root.nil? || image_ids.empty?
+        return redirect_to admin_dashboard_board_build_path(@build),
+                           notice: "Every tile already has a picture — nothing to generate."
+      end
+
+      queued = Boards::AdminBuilder::ArtQueue.call(board: root, image_ids: image_ids, topic: @build.topic)
+      redirect_to admin_dashboard_board_build_path(@build),
+                  notice: "Queued art for #{queued} #{"tile".pluralize(queued)}."
+    end
+
     def destroy
       board = builder_board_for(@build)
       if board&.published?
@@ -317,8 +336,12 @@ module Admin
       redirect_to admin_root_path, alert: "No default admin user configured — cannot build boards."
     end
 
+    def art_less_image_ids(board)
+      Image.where(id: board.board_images.select(:image_id)).where.missing(:docs).pluck(:id)
+    end
+
     def missing_art_count(board)
-      Image.where(id: board.board_images.select(:image_id)).where.missing(:docs).count
+      art_less_image_ids(board).size
     end
 
     def voice_values
