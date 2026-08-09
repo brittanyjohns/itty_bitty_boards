@@ -1149,8 +1149,17 @@ class Image < ApplicationRecord
 
     # Track the authored casing on create, and re-derive it on a rename — but
     # never clobber a display_label the caller set explicitly in the same write.
+    #
+    # Folded through Labels::CaseNormalizer on the way in. This is the ONE place
+    # authored casing becomes an image's display text, so it is the only place
+    # the fold belongs: ~20 call sites build an Image straight from a raw
+    # user/AI/import label (`api/boards_controller#add_image`, the images
+    # controllers, board word lists, scenarios, clones), and patching them one
+    # at a time is how a plain "Giraffe" kept getting into the library. The
+    # normalizer keeps deliberate casing ("iPad", "TV", "McDonald's") and the
+    # standalone pronoun "I" intact.
     if self[:display_label].blank? || (will_save_change_to_label? && !will_save_change_to_display_label?)
-      self.display_label = item_name
+      self.display_label = Labels::CaseNormalizer.normalize(item_name, part_of_speech: part_of_speech)
     end
 
     self.label = Image.normalize_label(item_name)

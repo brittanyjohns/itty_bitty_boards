@@ -18,6 +18,10 @@ RSpec.describe Labels::CaseNormalizer do
       expect(described_class.normalize("was it i")).to eq("was it I")
     end
 
+    # "Deliberate" means a capital the author could only have typed on purpose —
+    # one PAST the first letter. A plain leading capital is what a word-list
+    # line, an LLM's JSON label, or ordinary typing produces, so it carries no
+    # intent and must not exempt a tile from the lowercase default.
     context "when the text already carries deliberate casing" do
       it "leaves brand casing alone" do
         expect(described_class.normalize("iPad")).to eq("iPad")
@@ -31,8 +35,26 @@ RSpec.describe Labels::CaseNormalizer do
         expect(described_class.normalize("McDonald's")).to eq("McDonald's")
       end
 
-      it "leaves an already Title Cased phrase alone" do
-        expect(described_class.normalize("All Done")).to eq("All Done")
+      it "judges each word on its own, so styling survives beside a folded word" do
+        expect(described_class.normalize("My iPad")).to eq("my iPad")
+      end
+    end
+
+    context "when the text carries only an accidental leading capital" do
+      it "folds a single Title Cased word down to the lowercase default" do
+        expect(described_class.normalize("Fun")).to eq("fun")
+      end
+
+      it "folds every word of a Title Cased label" do
+        expect(described_class.normalize("All Done")).to eq("all done")
+      end
+
+      it "still capitalizes a standalone I" do
+        expect(described_class.normalize("Me And I")).to eq("me and I")
+      end
+
+      it "preserves the original spacing while folding" do
+        expect(described_class.normalize("All  Done")).to eq("all  done")
       end
     end
 
@@ -55,6 +77,21 @@ RSpec.describe Labels::CaseNormalizer do
       it "does not capitalize words that merely start with i" do
         expect(described_class.normalize("put it in there", part_of_speech: "phrase"))
           .to eq("Put it in there")
+      end
+
+      it "folds a Title Cased phrase down to sentence case" do
+        expect(described_class.normalize("All Done Now", part_of_speech: "phrase"))
+          .to eq("All done now")
+      end
+
+      it "keeps a styled word styled mid-phrase" do
+        expect(described_class.normalize("i want my iPad", part_of_speech: "phrase"))
+          .to eq("I want my iPad")
+      end
+
+      it "does not force a sentence capital onto a styled leading word" do
+        expect(described_class.normalize("iPad is broken", part_of_speech: "phrase"))
+          .to eq("iPad is broken")
       end
     end
 
@@ -85,8 +122,9 @@ RSpec.describe Labels::CaseNormalizer do
       expect(described_class.normalize("was  it  i")).to eq("was  it  I")
     end
 
-    it "never downcases" do
+    it "never downcases a word whose casing was deliberate" do
       expect(described_class.normalize("HELP", part_of_speech: "phrase")).to eq("HELP")
+      expect(described_class.normalize("HELP")).to eq("HELP")
     end
   end
 end

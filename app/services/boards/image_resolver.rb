@@ -18,13 +18,6 @@ module Boards
   module ImageResolver
     module_function
 
-    # Matches a word that is capitalized ONLY on its first letter ("Zorblequax",
-    # "Swing") — the shape a word-list line or an LLM's JSON label naturally
-    # comes out in, not a deliberate stylistic choice. An uppercase letter
-    # anywhere past the first ("iPad", "TV", "McDonald's") reads as genuinely
-    # stylized and doesn't match.
-    PLAIN_LEADING_CAP = /\A\p{Upper}[^\p{Upper}]*\z/
-
     # Returns a persisted Image for `label`. `owner` is the User who owns any
     # newly-created image and whose private images are preferred.
     #
@@ -42,22 +35,11 @@ module Boards
       return arted if arted
 
       # 3. No art anywhere — keep an existing (blank) image, else create one.
-      #
-      # A plain leading capital is folded down before it's captured as
-      # display_label: Labels::CaseNormalizer treats ANY existing uppercase as
-      # deliberate when a tile later defaults its text from this image, so
-      # baking in an accidental capital here would permanently exempt every
-      # future tile for this word from the AAC lowercase convention — the same
-      # "Higher" next to "swing" defect #583/#617 fixed, just re-opened at
-      # image-creation time instead of tile-default time.
+      #    `Image#set_label` folds an accidental leading capital out of the
+      #    authored casing for every creation path, this one included.
       owner.images.where(ci_label, word).first ||
         default_public_scope.where(ci_label, word).first ||
-        Image.create!(label: fold_accidental_leading_cap(word), user_id: owner.id)
-    end
-
-    def fold_accidental_leading_cap(word)
-      text = word.to_s
-      text.match?(PLAIN_LEADING_CAP) ? text.sub(/\A\p{Upper}/) { |char| char.downcase } : text
+        Image.create!(label: word, user_id: owner.id)
     end
 
     # Batch form of `resolve` for a whole request's worth of labels. Returns a

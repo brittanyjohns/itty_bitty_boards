@@ -10,8 +10,11 @@ RSpec.describe Boards::ScreenReflow do
   end
 
   # A tile with an explicit lg cell (callbacks bypassed so x/y/w/h are exact).
+  # display_label is pinned so tiles stay addressable by the exact text these
+  # layout examples look them up with. This spec is about geometry; the
+  # lowercase default that Labels::CaseNormalizer applies is covered elsewhere.
   def tile(label, x:, y:, position:, w: 1, h: 1)
-    bi = create(:board_image, board: board, position: position,
+    bi = create(:board_image, board: board, position: position, display_label: label,
                               image: create(:image, label: label, user_id: user.id))
     bi.update_column(:layout, { "lg" => { "i" => bi.id.to_s, "x" => x, "y" => y, "w" => w, "h" => h } })
     bi

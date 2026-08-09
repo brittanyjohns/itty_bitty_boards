@@ -59,7 +59,11 @@ RSpec.describe "Images label casing", type: :request do
 
       created = Image.by_label("trampoline").first
       expect(created.label).to eq("trampoline")
-      expect(created.display_label).to eq("Trampoline")
+      # The capital a user happens to type carries no intent, so it is folded to
+      # the lowercase AAC default rather than becoming this word's permanent
+      # display text. Deliberate casing survives — see the "iPad" examples in
+      # spec/services/labels/case_normalizer_spec.rb.
+      expect(created.display_label).to eq("trampoline")
     end
   end
 

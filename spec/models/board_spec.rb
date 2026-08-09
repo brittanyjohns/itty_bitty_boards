@@ -537,12 +537,16 @@ RSpec.describe Board, type: :model do
         }.to change(Image, :count).by(2)
       end
 
-      it "keeps the authored casing available as display text" do
+      # A bare leading capital carries no intent — it's just how a word-list
+      # line gets typed — so it is folded to the lowercase AAC default rather
+      # than becoming this image's permanent display text. Deliberate casing
+      # ("iPad", "TV") is what survives; see Labels::CaseNormalizer.
+      it "folds an accidental leading capital out of the display text" do
         board.find_or_create_images_from_word_list(["apple"])
 
         apple = Image.by_label("apple").first
         expect(apple.label).to eq("apple")
-        expect(apple.display_label).to eq("Apple")
+        expect(apple.display_label).to eq("apple")
       end
     end
 
