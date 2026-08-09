@@ -1192,6 +1192,10 @@ class API::BoardsController < API::ApplicationController
   # are nullified by the predictive_board_images dependent: :nullify
   # association (all board types — the old manual loop here only covered
   # board_type "predictive" and was redundant).
+  #
+  # A board with subboards of its own (folder tiles pointing OUT at other
+  # boards) also counts as in use, so the confirm carries a subboard summary
+  # and the client can opt into the cascade with delete_subboards=true.
   def destroy
     usage = Boards::UsageCheck.new(@board)
     if usage.in_use? && params[:confirm].to_s != "true"
@@ -1210,6 +1214,15 @@ class API::BoardsController < API::ApplicationController
     # group would recurse with the group's destroy_all of its members.
     if (group = usage.builder_group)
       group.destroy!
+    elsif params[:delete_subboards].to_s == "true"
+      # Opt-in cascade: also destroy the board's own subboard tree, minus any
+      # subboard something outside the tree still depends on (Boards::SubboardTree
+      # decides). All-or-nothing so a mid-tree failure can't leave a half-deleted
+      # set behind.
+      ActiveRecord::Base.transaction do
+        Board.where(id: usage.subboard_tree&.deletable_ids).find_each(&:destroy!)
+        @board.destroy!
+      end
     else
       @board.destroy!
     end

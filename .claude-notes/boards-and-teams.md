@@ -654,8 +654,20 @@ communicator dashboards (`child_boards`), team shares (`team_boards`), and
 whether it's a Board Builder root. When anything matches and the request lacks
 `confirm=true`, destroy returns **409** `{ error: "board_in_use", message,
 board: { id, name }, usage: { referencing_boards, communicators, teams,
-builder_set } }` (counts exact, name lists capped at 10). Unreferenced boards
-delete in one step as before.
+builder_set, subboards } }` (counts exact, name lists capped at 10).
+Unreferenced boards delete in one step as before.
+
+- **Subboards count as usage, and the cascade is opt-in.** `Boards::SubboardTree`
+  walks the board's *outbound* folder links (`Boards::LinkedBoardsFinder`, which
+  handles cycles and caps the walk) and splits the tree into boards safe to
+  cascade and boards that must be kept — kept when predefined/template, owned by
+  someone else, on a communicator dashboard, shared with a team, or reachable
+  from a folder tile outside the deleted set. The summary
+  (`{ total, deletable_count, kept_count, names, kept_names }`) rides in the 409,
+  and `delete_subboards=true` alongside `confirm=true` destroys `deletable_ids`
+  and the root in one transaction. Without that param a confirmed delete still
+  takes only the board itself — the cascade never happens silently. The tree is
+  `nil` for builder roots, whose set already cascades through the group below.
 
 - **Builder roots cascade the whole set.** A confirmed delete of a
   `builder_root` board routes through its builder BoardGroup
@@ -679,7 +691,9 @@ delete in one step as before.
   a detached template that another board's folder tile still opens
   (`predictive_board_id` reference check) — detach-only in that case.
 - Frontend companion: handle the 409 with a confirm dialog and re-send with
-  `confirm=true` (special copy for builder roots — it deletes the whole set).
+  `confirm=true` (special copy for builder roots — it deletes the whole set),
+  plus an unchecked "Also delete its N subboards" checkbox that adds
+  `delete_subboards=true`.
 
 ### Publish cascade (warn + confirm)
 
