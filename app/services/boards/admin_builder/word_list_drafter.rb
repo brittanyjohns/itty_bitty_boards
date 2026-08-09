@@ -94,6 +94,8 @@ module Boards
             cell.
           - Keep each label short — 1-2 words.
           - Concrete and age-appropriate.
+          - A label is display text, not an identifier: separate words with a plain
+            space, never an underscore.
           - Give every tile a part_of_speech from exactly this list:
             #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
           - Classify by communicative function, not strict grammar: "more", "yes" and
@@ -133,6 +135,8 @@ module Boards
             "glad", "big" next to "large"). Each tile costs a cell.
           - Keep each label short — 1-2 words.
           - Concrete and age-appropriate.
+          - A label is display text, not an identifier: separate words with a plain
+            space, never an underscore.
           - Give every tile a part_of_speech from exactly this list:
             #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
           - Classify by communicative function, not strict grammar: "more", "yes" and
@@ -179,12 +183,20 @@ module Boards
         raw_tiles.filter_map do |tile|
           next unless tile.is_a?(Hash)
 
-          label = (tile["label"] || tile["word"]).to_s.strip
+          label = sanitize_label(tile["label"] || tile["word"])
           next if label.blank?
           next unless seen.add?(label.downcase)
 
           { label: label, part_of_speech: part_of_speech_for(tile) }
         end
+      end
+
+      # The model occasionally answers a multi-word label snake_cased, like an
+      # identifier rather than the tile text it's meant to be — underscores
+      # have no legitimate place in display text, so they're folded to spaces
+      # rather than left for the admin to notice and retype.
+      def sanitize_label(raw)
+        raw.to_s.strip.tr("_", " ").squeeze(" ").strip
       end
 
       # An unrecognized value would be rejected by PlanValidator on preview, so

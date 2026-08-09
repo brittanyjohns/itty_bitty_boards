@@ -86,6 +86,18 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
       expect(described_class.new(topic: "the playground", tile_count: 3).call)
         .to eq([{ label: "swing", part_of_speech: "default" }])
     end
+
+    # The model sometimes answers a multi-word label snake_cased, like an
+    # identifier, instead of the tile text it's meant to be.
+    it "folds underscores in a label to spaces" do
+      stub_ai(ai_tiles(["please_wait", "social"], ["all__done", "important_function"]))
+
+      expect(described_class.new(topic: "the playground", tile_count: 2).call)
+        .to eq([
+          { label: "please wait", part_of_speech: "social" },
+          { label: "all done", part_of_speech: "important_function" },
+        ])
+    end
   end
 
   describe "topping up an existing list" do
@@ -172,6 +184,11 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
     it "constrains the part of speech to the Fitzgerald key" do
       expect(prompt_for(topic: "the playground", tile_count: 4))
         .to include(ColorHelper::PARTS_OF_SPEECH.join(", "))
+    end
+
+    it "tells the model a label is display text, never underscored" do
+      expect(prompt_for(topic: "the playground", tile_count: 4))
+        .to include("never an underscore")
     end
 
     it "includes the audience only when one is given" do
