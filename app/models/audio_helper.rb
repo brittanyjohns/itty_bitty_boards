@@ -206,17 +206,33 @@ module AudioHelper
     audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio, current_url) } }
   end
 
+  # Whether `audio` is the file this record plays right now — what drives the
+  # "in use" marker in the tile editor.
+  #
+  # A plain string compare is not enough: the Disk service signs its URLs with
+  # an expiry, so generating one for the same blob twice gives two different
+  # strings, and the comparison answers "no" for the file that is in fact
+  # current. Production takes the CDN branch, where URLs are stable, so the
+  # string compare stays the fast path and the blob compare is the fallback.
   def is_audio_current?(audio, current_url = nil)
-    url = default_audio_url(audio)
-    unless url
-      return false
-    end
-    if current_url.nil?
-      current = audio_url
-    else
-      current = current_url
-    end
-    url == current
+    return false if audio&.blob.nil?
+
+    current = current_url.nil? ? audio_url : current_url
+    return false if current.blank?
+    return true if default_audio_url(audio) == current
+
+    blob_key_from_disk_url(current) == audio.blob.key
+  end
+
+  # The blob key inside a Disk-service URL (/rails/active_storage/disk/<token>/
+  # <filename>), or nil for any other URL shape or an unverifiable token.
+  def blob_key_from_disk_url(url)
+    token = url.to_s[%r{/rails/active_storage/disk/([^/]+)/}, 1]
+    return nil if token.blank?
+
+    ActiveStorage.verifier.verified(token, purpose: :blob_key)&.[]("key")
+  rescue StandardError
+    nil
   end
 
   def voice_from_filename(filename)

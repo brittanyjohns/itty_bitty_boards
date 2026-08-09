@@ -10,15 +10,10 @@ RSpec.describe ProcessCustomAudioJob do
   let(:image)       { create(:image, label: "juice") }
   let(:board_image) { create(:board_image, board: board, image: image) }
 
-  # ActiveStorage::Current is reset when the request's executor completes, so a
-  # URL computed in the example body *after* a request raises "Cannot generate
-  # URL ... using Disk service" — which of the examples happen to hit it
-  # depends on ordering. Re-establish the options before asking for one.
-  def audio_url_for(record, attachment)
-    ActiveStorage::Current.url_options ||= { host: "localhost", port: 4000, protocol: "http" }
-    record.default_audio_url(attachment)
-  end
-
+  # audio_url is set to a literal and only ever compared to that literal: the
+  # Disk service signs its URLs, so re-generating one for the same blob gives a
+  # different string every call and an equality check against a fresh one
+  # proves nothing.
   def attach_recording(content_type: "audio/webm", filename: "juice-custom-010125000000-abc123.webm")
     board_image.audio_files.attach(
       io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
@@ -32,7 +27,8 @@ RSpec.describe ProcessCustomAudioJob do
 
   it "replaces the recording with an mp3 and repoints the tile" do
     attachment = attach_recording
-    board_image.set_custom_audio!(audio_url_for(board_image, attachment))
+    webm_url = "https://cdn.example/juice-custom.webm"
+    board_image.set_custom_audio!(webm_url)
     allow(AudioTranscoder).to receive(:available?).and_return(true)
     allow(AudioTranscoder).to receive(:transcode) do |_input, output, **|
       File.binwrite(output, File.binread(Rails.root.join("spec/fixtures/files/sample.mp3")))
@@ -45,12 +41,8 @@ RSpec.describe ProcessCustomAudioJob do
     filenames = board_image.audio_files.map { |af| af.blob.filename.to_s }
     expect(filenames).to include("juice-custom-010125000000-abc123.mp3")
     expect(board_image.using_custom_audio?).to be(true)
-    expect(board_image.audio_url).to eq(
-      audio_url_for(
-        board_image,
-        board_image.audio_files.find { |af| af.blob.filename.to_s.end_with?(".mp3") },
-      ),
-    )
+    expect(board_image.audio_url).to be_present
+    expect(board_image.audio_url).not_to eq(webm_url)
   end
 
   it "leaves an already-playable clip alone" do
@@ -94,6 +86,23 @@ RSpec.describe ProcessCustomAudioJob do
     described_class.new.perform(board_image.id, attachment.id)
 
     expect(board_image.reload.audio_url).to eq("https://cdn.example/other.mp3")
+  end
+
+  it "does not repoint a tile the user has re-recorded since" do
+    attachment = attach_recording
+    board_image.set_custom_audio!("https://cdn.example/first.webm")
+    attach_recording(filename: "juice-custom-010125000001-def456.webm")
+    newer_url = "https://cdn.example/second.webm"
+    board_image.set_custom_audio!(newer_url)
+    allow(AudioTranscoder).to receive(:available?).and_return(true)
+    allow(AudioTranscoder).to receive(:transcode) do |_input, output, **|
+      File.binwrite(output, File.binread(Rails.root.join("spec/fixtures/files/sample.mp3")))
+      true
+    end
+
+    described_class.new.perform(board_image.id, attachment.id)
+
+    expect(board_image.reload.audio_url).to eq(newer_url)
   end
 
   it "does nothing for an attachment that is not on this tile" do

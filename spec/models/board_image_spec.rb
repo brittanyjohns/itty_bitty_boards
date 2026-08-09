@@ -267,4 +267,40 @@ RSpec.describe BoardImage, type: :model do
       expect(board_image.tile_image_url(user)).to eq("https://cdn.example.com/user_pick.webp")
     end
   end
+  describe "#is_audio_current?" do
+    let(:board_image) { create(:board_image) }
+    let(:attachment) do
+      board_image.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: "juice-custom-010125000000-abc123.mp3", content_type: "audio/mpeg",
+      )
+      board_image.reload.audio_files_attachments.order(:id).last
+    end
+
+    # The Disk service signs its URLs with an expiry, so the URL stored on the
+    # tile never string-matches a freshly generated one for the same blob. That
+    # is what drives the "in use" marker, so it compares blobs instead.
+    it "recognises a stored Disk-service URL for the same blob" do
+      ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
+      stored = attachment.url
+
+      expect(board_image.is_audio_current?(attachment, stored)).to be(true)
+    end
+
+    it "does not match a URL for a different blob" do
+      ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
+      other = create(:board_image)
+      other.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: "water-custom-010125000000-zzz999.mp3", content_type: "audio/mpeg",
+      )
+      other_url = other.reload.audio_files_attachments.order(:id).last.url
+
+      expect(board_image.is_audio_current?(attachment, other_url)).to be(false)
+    end
+
+    it "is false when the record plays nothing" do
+      expect(board_image.is_audio_current?(attachment, "")).to be(false)
+    end
+  end
 end

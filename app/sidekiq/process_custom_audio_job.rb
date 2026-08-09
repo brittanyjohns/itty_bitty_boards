@@ -32,7 +32,13 @@ class ProcessCustomAudioJob
       return
     end
 
-    original_url = board_image.default_audio_url(attachment)
+    # Whether the tile is still on the clip we're about to convert. Decided
+    # from the records, not by comparing URLs: the Disk service signs its URLs,
+    # so re-generating one for the same blob yields a different string every
+    # time and the tile would never be repointed.
+    tile_on_this_clip = board_image.using_custom_audio? &&
+      board_image.audio_files_attachments.order(:id).last&.id == attachment.id
+
     input = Tempfile.new(["tile_audio_#{board_image_id}_in", extension_for(blob.filename.to_s)], binmode: true)
     output = Tempfile.new(["tile_audio_#{board_image_id}_out", ".#{AudioTranscoder::OUTPUT_EXTENSION}"], binmode: true)
 
@@ -59,9 +65,9 @@ class ProcessCustomAudioJob
       converted = board_image.audio_files.find { |af| af.blob.filename.to_s == filename }
       return unless converted
 
-      # Only repoint a tile that is still playing the file we just converted —
-      # the user may have picked a different clip while this ran.
-      if board_image.audio_url == original_url
+      # Only repoint a tile still playing the file we just converted — the user
+      # may have recorded again, or switched to a voice, while this ran.
+      if tile_on_this_clip
         board_image.set_custom_audio!(board_image.default_audio_url(converted))
       end
       # Purge after the replacement is attached and the new URL is persisted,

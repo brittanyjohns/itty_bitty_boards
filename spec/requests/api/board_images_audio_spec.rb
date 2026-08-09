@@ -20,13 +20,12 @@ RSpec.describe "API::BoardImages audio", type: :request do
     )
   end
 
-  # ActiveStorage::Current is reset when the request's executor completes, so a
-  # URL computed in the example body *after* a request raises "Cannot generate
-  # URL ... using Disk service" — which of the examples happen to hit it
-  # depends on ordering. Re-establish the options before asking for one.
-  def audio_url_for(record, attachment)
-    ActiveStorage::Current.url_options ||= { host: "localhost", port: 4000, protocol: "http" }
-    record.default_audio_url(attachment)
+  # The response's entry for one of the tile's audio files. `current` is the
+  # assertion to make about what plays — never compare URL strings, since the
+  # Disk service signs them and the same blob yields a different string on
+  # every call.
+  def response_audio_file(attachment)
+    JSON.parse(response.body)["audio_files"].find { |f| f["id"] == attachment.id }
   end
 
   def attach_voice_file(record, filename)
@@ -143,7 +142,8 @@ RSpec.describe "API::BoardImages audio", type: :request do
            headers: auth_headers(user)
 
       expect(response).to have_http_status(:ok)
-      expect(board_image.reload.audio_url).to eq(audio_url_for(board_image, attachment))
+      expect(response_audio_file(attachment)["current"]).to be(true)
+      expect(board_image.reload.audio_url).to be_present
       expect(board_image.voice).to eq("polly:kevin")
     end
 
@@ -245,10 +245,10 @@ RSpec.describe "API::BoardImages audio", type: :request do
       post "/api/board_images/#{board_image.id}/reset_audio", headers: auth_headers(user)
 
       expect(response).to have_http_status(:ok)
+      expect(response_audio_file(attachment)["current"]).to be(true)
       board_image.reload
       expect(board_image.using_custom_audio?).to be(false)
       expect(board_image.voice).to eq("polly:kevin")
-      expect(board_image.audio_url).to eq(audio_url_for(board_image, attachment))
     end
 
     it "never resolves back to the recording it is resetting away from" do
