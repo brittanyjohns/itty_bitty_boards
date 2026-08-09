@@ -165,7 +165,9 @@ RSpec.describe Image, type: :model do
       image.update!(label: "Slide")
 
       expect(image.label).to eq("slide")
-      expect(image.display_label).to eq("Slide")
+      # Folded, not preserved: a plain leading capital is accidental. The
+      # example above this one covers the casing that IS deliberate ("TV").
+      expect(image.display_label).to eq("slide")
     end
 
     it "keeps an explicit display_label set in the same write as a rename" do

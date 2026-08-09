@@ -5,6 +5,9 @@ RSpec.describe Boards::SetGraphBuilder do
 
   # Build a tile on `board`. A folder tile links to `links_to` (a Board);
   # a word tile passes links_to: nil. The label drives duplicate-word stats.
+  # A category tile pins its authored display_label, the way the OBF importer
+  # and Boards::BoardTreeBuilder do for a real folder; a word tile is left to
+  # default, which lowercases it.
   def add_tile(board, label:, links_to: nil)
     image = FactoryBot.create(:image, label: label)
     FactoryBot.create(
@@ -12,6 +15,7 @@ RSpec.describe Boards::SetGraphBuilder do
       board: board,
       image: image,
       predictive_board_id: links_to&.id,
+      **(links_to ? { display_label: label } : {}),
     )
   end
 

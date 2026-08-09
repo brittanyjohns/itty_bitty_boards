@@ -11,7 +11,11 @@ RSpec.describe "API::BoardGroups graph", type: :request do
   def build_group_for(owner)
     home  = FactoryBot.create(:board, user: owner, name: "Home")
     food  = FactoryBot.create(:board, user: owner, name: "Food")
-    FactoryBot.create(:board_image, board: home, image: FactoryBot.create(:image, label: "Food"), predictive_board_id: food.id)
+    # A category tile pins its authored display_label, the way the OBF importer
+    # and Boards::BoardTreeBuilder do for a real folder; the word tile below is
+    # left to default, which lowercases it.
+    FactoryBot.create(:board_image, board: home, display_label: "Food",
+                                    image: FactoryBot.create(:image, label: "Food"), predictive_board_id: food.id)
     FactoryBot.create(:board_image, board: food, image: FactoryBot.create(:image, label: "apple"))
 
     group = FactoryBot.create(:board_group, user: owner, builder: true, layout: {})

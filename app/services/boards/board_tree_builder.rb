@@ -83,6 +83,8 @@ module Boards
         board_image = board.add_image(tile[:image_id])
         raise BuildError, "image #{tile[:image_id].inspect} not found" if board_image.nil?
 
+        pin_folder_label!(board_image, tile)
+
         if tile[:children] && depth < MAX_DEPTH
           child = build_board(tile[:children], depth: depth + 1)
           board_image.update!(predictive_board_id: child.id) # link folder -> child
@@ -90,6 +92,23 @@ module Boards
       end
 
       board
+    end
+
+    # A category tile's label is AUTHORED, not defaulted: the blueprint names
+    # these folders "Food"/"Feelings"/"Play" on purpose, and an AAC board leans
+    # on that capital to separate a category you open from a word you speak.
+    # Pin it so it takes the authored path rather than the lowercase default
+    # every vocabulary tile gets — the same rule the OBF importer already
+    # applies to an authored button label.
+    #
+    # Pinned whenever the blueprint declares children, including past MAX_DEPTH
+    # where the folder stays a leaf: the label was authored either way.
+    def pin_folder_label!(board_image, tile)
+      label = tile[:label].to_s
+      return if tile[:children].blank? || label.blank?
+      return if board_image.display_label == label
+
+      board_image.update!(display_label: label)
     end
 
     # The Board a node persists into: a fresh Board for every node in the sync

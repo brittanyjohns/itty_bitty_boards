@@ -21,10 +21,14 @@ RSpec.describe Boards::SeededSetCloner do
     %w[I want help].each do |label|
       create(:board_image, board: root, label: label, image: create(:image, label: label, user_id: admin_user.id))
     end
-    food_tile = create(:board_image, board: root, label: "Food",
+    # Category tiles carry a PINNED display_label, the way a curated seeded set
+    # really does (the OBF importer pins the authored button label;
+    # Boards::BoardTreeBuilder pins the blueprint's folder label). Vocabulary
+    # tiles above are left to default, which is what lowercases them.
+    food_tile = create(:board_image, board: root, label: "Food", display_label: "Food",
                                      image: create(:image, label: "Food", user_id: admin_user.id))
     food_tile.update!(predictive_board_id: food.id)
-    feelings_tile = create(:board_image, board: root, label: "Feelings",
+    feelings_tile = create(:board_image, board: root, label: "Feelings", display_label: "Feelings",
                                          image: create(:image, label: "Feelings", user_id: admin_user.id))
     feelings_tile.update!(predictive_board_id: feelings.id)
 

@@ -25,6 +25,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Tiles stopped coming out Title Cased.** The lowercase tile default was a
+  no-op on the exact input it existed to fix: any capital at all counted as
+  deliberate styling, so a word that arrived "Fun" or "Giraffe" — however it was
+  created, admin or not — bailed out and stayed capitalized forever. Only a
+  capital past the first letter is deliberate now ("iPad", "TV", "McDonald's",
+  and the pronoun "I" are all still safe), and it's judged per word, so one
+  styled word no longer exempts a whole label. Category tiles keep their capital
+  on purpose — "Food" is a page you open, not a word you speak.
+- **New words no longer pollute the image library with a stuck capital.** The
+  fold now happens in the one place authored casing becomes an image's display
+  text, so every path that creates a word — the board editor, word lists, AI
+  drafts, imports — gets it, instead of the handful that had been patched
+  one at a time.
+- **Boards built before the fix can be corrected.** `bin/rails
+  labels:fold_casing_report` shows exactly what would change and writes nothing;
+  `labels:fold_casing APPLY=1` applies it. Scopeable to a single board or user,
+  skips category tiles by default, and only ever re-cases text — it can never
+  change what a tile says.
+
 - **Words made from the admin dashboard could permanently stick in Title Case.**
   Creating a tile for a brand-new word (no matching image in the library yet)
   baked in whatever casing it was authored with — a word-list line typed with

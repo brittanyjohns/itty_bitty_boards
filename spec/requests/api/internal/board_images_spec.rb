@@ -527,6 +527,14 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
         queries
       end
 
+      # Warm up first. The FIRST request in a process pays one-time costs the
+      # comparison isn't about — Devise/JWT setup, association and schema caches
+      # — and they all land on whichever side is measured first. That made the
+      # result depend on what else had already run in the same process, so the
+      # example passed or failed on shard composition rather than on the code.
+      warmup = create(:image, label: "flat-warmup", user_id: admin_user.id)
+      count_queries.call([{ image_id: warmup.id }], {})
+
       lean = count_queries.call(images.first(3).map { |i| { image_id: i.id } }, {})
       full = count_queries.call(images.last(3).map { |i| { image_id: i.id } }, { view: "full" })
 

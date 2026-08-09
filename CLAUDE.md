@@ -219,6 +219,22 @@ an explicit decision, not a drive-by edit.
   callback: it is lowercase when `set_labels` derives it from the image, but
   builders that write it directly (`NavRowSync`, `PhrasesPageBuilder`) keep
   their own casing — read `display_label` for tile text either way.
+- **Tile casing defaults to lowercase, and only a capital PAST the first letter
+  counts as deliberate.** `Labels::CaseNormalizer` is the single authority, and
+  `Image#set_label` is the single place authored casing becomes display text —
+  fold there, never at the ~20 call sites that build an `Image` from a raw
+  label. A plain leading capital ("Fun", "Giraffe") carries no intent and is
+  folded down; "iPad", "TV", "McDonald's", "HELP" and the standalone pronoun
+  "I" are preserved. Judged **per word**, so one styled word can't exempt a
+  whole label. Treating any capital as deliberate is what made the lowercase
+  default a no-op on exactly the input it exists to fix.
+- **A category tile's label is authored, not defaulted.** Folder tiles keep
+  their capital ("Food", "Play") — an AAC board leans on it to separate a page
+  you open from a word you speak. The OBF importer pins the authored button
+  label and `Boards::BoardTreeBuilder` pins the blueprint's folder label; both
+  bypass the lowercase default by design. `predictive_board_id` alone does NOT
+  identify a folder (predictive/dynamic word tiles carry it too), so never use
+  it to infer that a tile's casing was intentional.
 - **A published board's slug is frozen.** `/pb/<slug>` is printed into QR codes
   and pasted into IEPs, with no redirect behind it. `Board#freeze_published_slug`
   silently reverts a slug change on a published board (reverts, never raises —

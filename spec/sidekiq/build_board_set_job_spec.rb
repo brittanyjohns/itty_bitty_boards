@@ -34,11 +34,15 @@ RSpec.describe BuildBoardSetJob do
     create(:board_image, board: source_root, label: "I",
                          image: create(:image, label: "I", user_id: admin.id))
     food_image = create(:image, label: "Food", user_id: admin.id)
-    food_tile = create(:board_image, board: source_root, label: "Food", image: food_image)
+    # Category and self tiles pin their authored display_label, as the OBZ
+    # import this fixture stands in for does — a folder label is authored, not
+    # defaulted, so it keeps its capital while vocabulary tiles lowercase.
+    food_tile = create(:board_image, board: source_root, label: "Food", display_label: "Food",
+                                     image: food_image)
     food_tile.update!(predictive_board_id: food.id)
     create(:board_image, board: food, label: "apple",
                          image: create(:image, label: "apple", user_id: admin.id))
-    self_tile = create(:board_image, board: food, label: "Food", image: food_image)
+    self_tile = create(:board_image, board: food, label: "Food", display_label: "Food", image: food_image)
     self_tile.update!(predictive_board_id: source_root.id)
     Boards::RobustSets.mark_root!(source_root, slug)
     source_root
