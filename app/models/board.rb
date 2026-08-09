@@ -1985,6 +1985,7 @@ class Board < ApplicationRecord
           display_image_url: @full_src_url,
           tile_src: @full_src_url,
           audio_url: current_audio_url,
+          using_custom_audio: using_custom_audio,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,

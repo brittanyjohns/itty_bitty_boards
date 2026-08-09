@@ -204,18 +204,37 @@ class API::ImagesController < API::ApplicationController
 
   def upload_audio
     @image = current_user.images.find(params[:id])
-    @file_name = params[:file_name] || params[:audio_file].original_filename
-    @file_name = @file_name.downcase.gsub(" ", "-")
-    @file_name = @file_name.downcase.gsub("_", "-")
-    @file_name_to_save = "#{@file_name}_custom"
+    file = params[:audio_file]
+    unless file.respond_to?(:content_type) && file.respond_to?(:size)
+      render json: { error: "audio_required" }, status: :unprocessable_content
+      return
+    end
+    unless BoardImage.accepted_audio_content_types.include?(file.content_type)
+      render json: { error: "invalid_audio_type" }, status: :unprocessable_content
+      return
+    end
+    if file.size > BoardImage::MAX_AUDIO_BYTES
+      render json: { error: "audio_too_large" }, status: :unprocessable_content
+      return
+    end
 
-    @audio_file = @image.audio_files.attach(io: params[:audio_file], filename: @file_name_to_save)
-    new_audio_file_url = @image.default_audio_url(@audio_file.first)
-    voice = @image.voice_from_filename(@audio_file.blob.filename.to_s)
+    base = (params[:file_name].presence || File.basename(file.original_filename.to_s, ".*")).downcase.gsub(/[\s_]+/, "-")
+    ext = File.extname(file.original_filename.to_s).delete(".").downcase.presence || "mp3"
+    # The extension has to survive: it's what Active Storage infers the
+    # content type from, and what "custom" marks the clip with for
+    # voice_from_filename.
+    @file_name_to_save = "#{base}-custom-#{Time.now.strftime("%m%d%y%H%M%S")}-#{SecureRandom.hex(3)}.#{ext}"
+
+    @image.audio_files.attach(io: file, filename: @file_name_to_save, content_type: file.content_type)
+    @image.reload
+    # The row just created. `attach` returns the association proxy, whose
+    # `.first` is the OLDEST attachment and whose `.blob` raises.
+    @audio_file = @image.audio_files_attachments.order(:id).last
+    new_audio_file_url = @image.default_audio_url(@audio_file)
 
     if @image.update(audio_url: new_audio_file_url, voice: @image.voice_from_filename(@file_name_to_save), use_custom_audio: true)
       @image_with_display_doc = @image.with_display_doc(current_user)
-      render json: { status: "ok", image: @image_with_display_doc, audio_file: @audio_file.first, audio_url: new_audio_file_url, filename: @file_name_to_save, voice: @image.voice_from_filename(@file_name_to_save) }
+      render json: { status: "ok", image: @image_with_display_doc, audio_file: @audio_file.id, audio_url: new_audio_file_url, filename: @file_name_to_save, voice: @image.voice_from_filename(@file_name_to_save) }
     else
       render json: @image.errors, status: :unprocessable_content
     end
@@ -223,7 +242,14 @@ class API::ImagesController < API::ApplicationController
 
   def create_audio
     if params[:board_image_id].present?
-      @board_image = BoardImage.includes(:board, :image).find(params[:board_image_id])
+      # Owner-scoped: synthesizing audio rewrites the tile's voice/audio_url
+      # and spends on the TTS provider, so a non-owner gets a 404 rather than
+      # the ability to do either on someone else's board. Issue #26 (IDOR).
+      @board_image = owned_board_image_for_audio(params[:board_image_id])
+      unless @board_image
+        render json: { error: "Board image not found" }, status: :not_found
+        return
+      end
       @board = @board_image.board
       @image = @board_image.image
       voice = VoiceService.normalize_voice(params[:voice] || @board_image.voice || "alloy")
@@ -233,6 +259,10 @@ class API::ImagesController < API::ApplicationController
       @board_image.create_audio_from_text(label, voice, language, params[:instructions])
 
       @board_image.reload
+      # Synthesizing a voice takes the tile off custom audio — otherwise the
+      # flag keeps it pinned out of the board's voice while playing TTS.
+      @board_image.set_voice_audio!(@board_image.audio_url, voice) if @board_image.audio_url.present?
+      @board_image.board&.broadcast_board_update!
       @image_with_display_doc = @image.with_display_doc(current_user, @board, @board_image)
       # render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) } and return
       render json: { audio_files: @board_image.audio_files_for_api, image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) } and return
@@ -783,6 +813,15 @@ class API::ImagesController < API::ApplicationController
   end
 
   private
+
+  # A board image the current user may mutate audio on — its board is theirs.
+  # nil for anyone else; admins bypass, as elsewhere.
+  def owned_board_image_for_audio(id)
+    scope = BoardImage.includes(:board, :image)
+    return scope.find_by(id: id) if current_user.admin?
+
+    scope.joins(:board).where(boards: { user_id: current_user.id }).find_by(id: id)
+  end
 
   # A folder page created from a tile on a Board Builder set has to join that
   # set's builder BoardGroup (issue #586). At build time the group membership

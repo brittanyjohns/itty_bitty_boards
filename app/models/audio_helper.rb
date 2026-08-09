@@ -1,4 +1,12 @@
 module AudioHelper
+  # The `voice` value for a recorded/uploaded clip. Not a TTS voice id, so it
+  # can never match a board voice — which is exactly what keeps a custom tile
+  # from being re-resolved to the board's voice.
+  CUSTOM_VOICE = "custom".freeze
+
+  # Marker in the stored filename that flags a clip as user-supplied.
+  CUSTOM_FILENAME_MARKER = "custom".freeze
+
   # Text to synthesize for a given language: the translated label when
   # available, falling back to the English `label`. `localized_label` lazily
   # enqueues a TranslateImageJob when a supported translation is missing.
@@ -90,11 +98,30 @@ module AudioHelper
     audio_file
   end
 
+  # Records whose audio_files this one may resolve to: itself, plus — for a
+  # BoardImage — the shared Image, since voice audio is attached there
+  # (`save_audio_file`).
+  def audio_owner_records
+    owners = [self]
+    owners << image if respond_to?(:image) && image.present?
+    owners.compact
+  end
+
+  # Scoped deliberately: filenames are "<label>_<voice>.mp3", so an unscoped
+  # query matches every account's audio for the same word and can resolve a
+  # tile to a blob belonging to someone else's image.
   def find_audio_by_filename(filename)
-    audio_file = ActiveStorage::Attachment.joins(:blob)
-      .where(name: :audio_files, active_storage_blobs: { filename: filename })
-      .first
-    audio_file
+    return nil if filename.blank?
+
+    base = ActiveStorage::Attachment.joins(:blob)
+      .where(name: "audio_files", active_storage_blobs: { filename: filename })
+
+    scopes = audio_owner_records.map do |owner|
+      base.where(record_type: owner.class.base_class.name, record_id: owner.id)
+    end
+    return nil if scopes.empty?
+
+    scopes.reduce { |a, b| a.or(b) }.order(:id).first
   end
 
   def existing_voices
@@ -179,28 +206,43 @@ module AudioHelper
     audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio, current_url) } }
   end
 
+  # Whether `audio` is the file this record plays right now — what drives the
+  # "in use" marker in the tile editor.
+  #
+  # A plain string compare is not enough: the Disk service signs its URLs with
+  # an expiry, so generating one for the same blob twice gives two different
+  # strings, and the comparison answers "no" for the file that is in fact
+  # current. Production takes the CDN branch, where URLs are stable, so the
+  # string compare stays the fast path and the blob compare is the fallback.
   def is_audio_current?(audio, current_url = nil)
-    url = default_audio_url(audio)
-    unless url
-      return false
-    end
-    if current_url.nil?
-      current = audio_url
-    else
-      current = current_url
-    end
-    url == current
+    return false if audio&.blob.nil?
+
+    current = current_url.nil? ? audio_url : current_url
+    return false if current.blank?
+    return true if default_audio_url(audio) == current
+
+    blob_key_from_disk_url(current) == audio.blob.key
+  end
+
+  # The blob key inside a Disk-service URL (/rails/active_storage/disk/<token>/
+  # <filename>), or nil for any other URL shape or an unverifiable token.
+  def blob_key_from_disk_url(url)
+    token = url.to_s[%r{/rails/active_storage/disk/([^/]+)/}, 1]
+    return nil if token.blank?
+
+    ActiveStorage.verifier.verified(token, purpose: :blob_key)&.[]("key")
+  rescue StandardError
+    nil
   end
 
   def voice_from_filename(filename)
     return nil if filename.blank?
 
-    # Custom audio: keep your existing behavior
-    if filename.include?("custom")
-      parts = filename.split("-")
-      return nil if parts.length < 3
-      return "#{parts[1]}-#{parts[2]}"
-    end
+    # A recorded/uploaded clip has no voice. The filename carries a label and
+    # a timestamp, and splitting it apart produced things like
+    # "you-custom" (from "thank-you-custom-...") that then showed up in the
+    # UI as a voice name.
+    return CUSTOM_VOICE if filename.include?(CUSTOM_FILENAME_MARKER)
 
     base = File.basename(filename, File.extname(filename)) # remove .mp3
     parts = base.split("_")
@@ -240,11 +282,21 @@ module AudioHelper
   # object instead of a URL string. Exporter code needs the attachment itself
   # to read bytes and content_type; nothing about the resolution changes.
   def current_audio_attachment(audio_file = nil)
+    return audio_file if audio_file
+
     if self.class.name == "BoardImage"
-      audio_file ||= find_audio_for_voice(self.voice, self.language, create_if_missing: false)
+      # A tile on custom audio resolves to its own recording, full stop —
+      # never to a voice file that happens to share the filename.
+      return find_custom_audio_file if using_custom_audio?
+
+      audio_file = find_audio_for_voice(self.voice, self.language, create_if_missing: false)
+      # Falls back to the tile's newest attachment, custom clips included —
+      # the OBF exporter relies on this to bundle a parent's recording that
+      # predates the flag. Callers that specifically want a *voice* file (see
+      # reset_audio) ask for one with audio_url_for_voice instead.
       audio_file ||= audio_files.order(created_at: :desc).first
     else
-      audio_file ||= audio_files.first
+      audio_file = audio_files.first
     end
     audio_file
   end

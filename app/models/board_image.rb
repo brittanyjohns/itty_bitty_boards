@@ -54,6 +54,18 @@ class BoardImage < ApplicationRecord
 
   MAX_VIDEO_DURATION_SECONDS = 30
 
+  # Audio the browser is guaranteed to play everywhere we run. Deliberately
+  # excludes webm/ogg: MediaRecorder hands us audio/webm on Chrome, and Safari
+  # on iPad — where most communicators actually tap the tile — won't play it.
+  ALLOWED_AUDIO_CONTENT_TYPES = %w[audio/mpeg audio/mp3 audio/mp4 audio/aac audio/x-m4a audio/wav audio/x-wav].freeze
+  # Only accepted because ffmpeg can convert them to mp3 (ProcessCustomAudioJob).
+  TRANSCODABLE_AUDIO_CONTENT_TYPES = %w[audio/webm audio/ogg audio/opus video/webm].freeze
+
+  # A 60s recording at a sane bitrate is well under a megabyte; the cap is
+  # here so an uploaded album track can't become a tile.
+  MAX_AUDIO_BYTES = 10.megabytes
+  MAX_AUDIO_DURATION_SECONDS = 60
+
   # Content types accepted by upload_video right now. Depends on whether the
   # binaries are present: never accept a format we can't guarantee we can make
   # web-safe.
@@ -64,6 +76,13 @@ class BoardImage < ApplicationRecord
 
   def self.max_video_upload_bytes
     VideoTranscoder.available? ? MAX_VIDEO_SOURCE_BYTES : MAX_VIDEO_BYTES
+  end
+
+  # Same rule as video: never accept a format we can't guarantee we can make
+  # playable on the devices communicators use.
+  def self.accepted_audio_content_types
+    return ALLOWED_AUDIO_CONTENT_TYPES unless AudioTranscoder.available?
+    ALLOWED_AUDIO_CONTENT_TYPES + TRANSCODABLE_AUDIO_CONTENT_TYPES
   end
 
   before_create :set_defaults
@@ -579,6 +598,7 @@ class BoardImage < ApplicationRecord
       status: status,
       audio_url: audio_url,
       audio: audio_url,
+      using_custom_audio: using_custom_audio?,
       next_words: next_words,
       data: data,
       predictive_board_id: predictive_board_id,
@@ -709,6 +729,26 @@ class BoardImage < ApplicationRecord
 
   def using_custom_audio?
     data && data["using_custom_audio"] == true && has_custom_audio?
+  end
+
+  # Point the tile at a recorded/uploaded clip. The flag is what makes
+  # Board#api_view_with_images stop re-resolving this tile to the board's
+  # voice, so it has to be set and cleared in one place — a tile left flagged
+  # while playing a TTS file can never be pulled back to the board voice.
+  def set_custom_audio!(url)
+    self.data = (data || {}).merge("using_custom_audio" => true)
+    self.audio_url = url
+    self.voice = CUSTOM_VOICE
+    save!
+  end
+
+  # Back to a synthesized voice: `voice` is the voice the file was made with,
+  # so the board-voice comparison works again on the next read.
+  def set_voice_audio!(url, voice_value)
+    self.data = (data || {}).merge("using_custom_audio" => false)
+    self.audio_url = url
+    self.voice = voice_value.presence || board.voice
+    save!
   end
 
   def set_defaults

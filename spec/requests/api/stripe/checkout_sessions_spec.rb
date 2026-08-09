@@ -4,6 +4,17 @@ require "rails_helper"
 # spec/requests/api/stripe/checkout_sessions_topup_spec.rb which covers
 # one-time top-up packs.
 RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :request do
+
+  # FRONT_END_URL is process-wide: examples here overwrite it, and a leaked
+  # value changes what every other spec in the same shard renders for a public
+  # board URL. Snapshot and restore rather than deleting — the real value comes
+  # from config/application.yml.
+  around do |example|
+    original = ENV["FRONT_END_URL"]
+    example.run
+    original.nil? ? ENV.delete("FRONT_END_URL") : ENV["FRONT_END_URL"] = original
+  end
+
   let(:user) { FactoryBot.create(:user) }
 
   before do
