@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Deleting a board can now take its subboards with it.** A board whose
+  buttons open other boards asks before deleting, and offers an optional
+  "Also delete its N subboards" that removes the whole linked set in one go.
+  Subboards that something else still uses — another board's button, a
+  communicator's dashboard, a team share — are kept and named in the warning.
+  The option is off by default: confirming without it deletes only the board
+  you asked for.
+
 ### Changed
 
 - **Board builder word-count validation now allows a small margin.** A word

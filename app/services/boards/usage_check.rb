@@ -17,7 +17,8 @@ module Boards
       referencing_tiles.exists? ||
         board.child_boards.exists? ||
         board.team_boards.exists? ||
-        builder_group.present?
+        builder_group.present? ||
+        subboard_tree&.any? || false
     end
 
     def summary
@@ -26,7 +27,18 @@ module Boards
         communicators: communicators_summary,
         teams: teams_summary,
         builder_set: builder_set_summary,
+        subboards: subboard_tree&.summary,
       }
+    end
+
+    # The board's own subboards — the folder tiles ON this board pointing at
+    # other boards. Backs the optional "delete the subboards too" cascade.
+    # nil for a builder root: that tree is owned by the builder BoardGroup and
+    # destroy routes through group.destroy!, so offering the checkbox there
+    # would duplicate a cascade that already happens.
+    def subboard_tree
+      return @subboard_tree if defined?(@subboard_tree)
+      @subboard_tree = builder_group ? nil : SubboardTree.new(board)
     end
 
     # The builder BoardGroup that owns this board's built tree, when this

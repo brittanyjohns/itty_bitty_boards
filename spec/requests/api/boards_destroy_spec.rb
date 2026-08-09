@@ -9,8 +9,10 @@ RSpec.describe "API::Boards destroy safety", type: :request do
   let(:user)  { create(:user) }
   let(:board) { create(:board, user: user, name: "Deletable") }
 
-  def delete_board(target, as:, confirm: nil)
-    params = confirm.nil? ? {} : { confirm: confirm }
+  def delete_board(target, as:, confirm: nil, delete_subboards: nil)
+    params = {}
+    params[:confirm] = confirm unless confirm.nil?
+    params[:delete_subboards] = delete_subboards unless delete_subboards.nil?
     delete "/api/boards/#{target.id}", params: params, headers: auth_headers(as)
   end
 
@@ -133,6 +135,53 @@ RSpec.describe "API::Boards destroy safety", type: :request do
       expect(Board.exists?(root.id)).to be false
       # legacy orphan behavior, documented: the child page survives
       expect(Board.exists?(child_page.id)).to be true
+    end
+  end
+
+  describe "a board with subboards of its own" do
+    let!(:child)      { create(:board, user: user, name: "Food") }
+    let!(:grandchild) { create(:board, user: user, name: "Snacks") }
+
+    before do
+      create(:board_image, board: board, predictive_board_id: child.id)
+      create(:board_image, board: child, predictive_board_id: grandchild.id)
+    end
+
+    it "returns 409 with a subboard summary even when nothing else references it" do
+      delete_board(board, as: user)
+      expect(response).to have_http_status(:conflict)
+      usage = JSON.parse(response.body)["usage"]
+      expect(usage["subboards"]).to include(
+        "total" => 2, "deletable_count" => 2, "kept_count" => 0,
+      )
+      expect(usage["subboards"]["names"]).to match_array(["Food", "Snacks"])
+      expect(Board.exists?(board.id)).to be true
+    end
+
+    it "confirm=true alone deletes only the parent, leaving the subboards" do
+      delete_board(board, as: user, confirm: "true")
+      expect(response.status).to be_in([200, 204])
+      expect(Board.exists?(board.id)).to be false
+      expect(Board.exists?(child.id)).to be true
+      expect(Board.exists?(grandchild.id)).to be true
+    end
+
+    it "delete_subboards=true cascades the whole tree" do
+      delete_board(board, as: user, confirm: "true", delete_subboards: "true")
+      expect(response.status).to be_in([200, 204])
+      expect(Board.exists?(board.id)).to be false
+      expect(Board.exists?(child.id)).to be false
+      expect(Board.exists?(grandchild.id)).to be false
+    end
+
+    it "keeps a subboard something outside the tree still uses" do
+      create(:child_board, board: grandchild, child_account: create(:child_account, user: user))
+
+      delete_board(board, as: user, confirm: "true", delete_subboards: "true")
+      expect(response.status).to be_in([200, 204])
+      expect(Board.exists?(board.id)).to be false
+      expect(Board.exists?(child.id)).to be false
+      expect(Board.exists?(grandchild.id)).to be true
     end
   end
 
