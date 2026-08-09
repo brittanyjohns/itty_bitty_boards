@@ -10,6 +10,15 @@ RSpec.describe ProcessCustomAudioJob do
   let(:image)       { create(:image, label: "juice") }
   let(:board_image) { create(:board_image, board: board, image: image) }
 
+  # ActiveStorage::Current is reset when the request's executor completes, so a
+  # URL computed in the example body *after* a request raises "Cannot generate
+  # URL ... using Disk service" — which of the examples happen to hit it
+  # depends on ordering. Re-establish the options before asking for one.
+  def audio_url_for(record, attachment)
+    ActiveStorage::Current.url_options ||= { host: "localhost", port: 4000, protocol: "http" }
+    record.default_audio_url(attachment)
+  end
+
   def attach_recording(content_type: "audio/webm", filename: "juice-custom-010125000000-abc123.webm")
     board_image.audio_files.attach(
       io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
@@ -23,7 +32,7 @@ RSpec.describe ProcessCustomAudioJob do
 
   it "replaces the recording with an mp3 and repoints the tile" do
     attachment = attach_recording
-    board_image.set_custom_audio!(board_image.default_audio_url(attachment))
+    board_image.set_custom_audio!(audio_url_for(board_image, attachment))
     allow(AudioTranscoder).to receive(:available?).and_return(true)
     allow(AudioTranscoder).to receive(:transcode) do |_input, output, **|
       File.binwrite(output, File.binread(Rails.root.join("spec/fixtures/files/sample.mp3")))
@@ -37,7 +46,8 @@ RSpec.describe ProcessCustomAudioJob do
     expect(filenames).to include("juice-custom-010125000000-abc123.mp3")
     expect(board_image.using_custom_audio?).to be(true)
     expect(board_image.audio_url).to eq(
-      board_image.default_audio_url(
+      audio_url_for(
+        board_image,
         board_image.audio_files.find { |af| af.blob.filename.to_s.end_with?(".mp3") },
       ),
     )
