@@ -31,14 +31,36 @@ class API::BoardImagesController < API::ApplicationController
     render json: @board_image.api_view(current_user)
   end
 
+  # POST /api/board_images/:id/set_current_audio
+  #
+  # Takes an `audio_file_id` and resolves the URL server-side. The URL is
+  # never taken from the client: this tile can be on a published board or a
+  # MySpeak page, so an arbitrary `audio_url` would mean anyone's board could
+  # be made to play a file from any host on the internet.
   def set_current_audio
     # @board_image is loaded owner-scoped by set_owned_board_image.
-    if @board_image.update(audio_url: board_image_params[:audio_url], voice: board_image_params[:voice])
-      render json: @board_image.api_view(current_user)
-    else
-      Rails.logger.error "Failed to set current audio for BoardImage ID: #{params[:id]} - #{@board_image.errors.full_messages}"
-      render json: @board_image.errors, status: :unprocessable_content
+    attachment = resolve_audio_attachment(@board_image)
+    unless attachment
+      render json: { error: "audio_file_not_found" }, status: :unprocessable_content
+      return
     end
+
+    url = @board_image.default_audio_url(attachment)
+    unless url
+      render json: { error: "audio_file_not_found" }, status: :unprocessable_content
+      return
+    end
+
+    voice = @board_image.voice_from_filename(attachment.blob.filename.to_s)
+    # Selecting a synthesized voice has to clear the custom flag, or the tile
+    # stays pinned out of the board's voice forever.
+    if voice == BoardImage::CUSTOM_VOICE
+      @board_image.set_custom_audio!(url)
+    else
+      @board_image.set_voice_audio!(url, voice)
+    end
+    @board_image.board.broadcast_board_update!
+    render json: @board_image.api_view(current_user)
   end
 
   # PATCH/PUT /board_images/1 or /board_images/1.json
@@ -249,30 +271,51 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  # POST /api/board_images/:id/upload_audio (multipart: audio_file)
+  #
+  # Accepted types depend on whether ffmpeg is present
+  # (BoardImage.accepted_audio_content_types): with it we take the browser's
+  # webm/ogg recording and hand it to ProcessCustomAudioJob to convert; without
+  # it we stay on formats every device already plays, since we'd have no way to
+  # make anything else audible on an iPad. Enforced here regardless of what the
+  # client checked.
+  #
+  # The 60s cap is enforced by the job, not here — the response goes out before
+  # ffmpeg runs so the editor isn't blocked on it.
   def upload_audio
     @board_image = owned_board_image
-    default_file_name = @board_image.label.downcase.gsub(" ", "-").gsub("_", "-")
-    default_file_name = !default_file_name.blank? ? default_file_name : "board-image-audio"
-    random_number = Time.now.strftime("%m%d%y%H%M%S")
-    extention = params[:audio_file]&.original_filename&.split(".")&.last || "mp3"
-    default_file_name = "#{default_file_name}-custom-#{random_number}.#{extention}"
-    @file_name = default_file_name
-    @file_name = @file_name.downcase.gsub(" ", "-")
-    @file_name = @file_name.downcase.gsub("_", "-")
-    @file_name_to_save = @file_name.ends_with?(".#{extention}") ? @file_name : "#{@file_name}.#{extention}"
-    @audio_file = @board_image.audio_files.attach(io: params[:audio_file], filename: @file_name_to_save)
-    @board_image.reload
-    @new_audio_file = @board_image.audio_files.last
-    new_audio_file_url = @board_image.default_audio_url(@new_audio_file)
-    # Determine the voice from the filename
-    @board_image.data ||= {}
-    @board_image.data["using_custom_audio"] = true
-    if @board_image.update(audio_url: new_audio_file_url)
-      @board_image.reload
-      render json: @board_image.api_view(current_user)
-    else
-      render json: @board_image.errors, status: :unprocessable_content
+    file = params[:audio_file]
+
+    unless file.respond_to?(:content_type) && file.respond_to?(:size)
+      render json: { error: "audio_required" }, status: :unprocessable_content
+      return
     end
+    unless BoardImage.accepted_audio_content_types.include?(file.content_type)
+      render json: { error: "invalid_audio_type" }, status: :unprocessable_content
+      return
+    end
+    if file.size > BoardImage::MAX_AUDIO_BYTES
+      render json: { error: "audio_too_large" }, status: :unprocessable_content
+      return
+    end
+
+    @board_image.audio_files.attach(
+      io: file, filename: custom_audio_filename(@board_image, file), content_type: file.content_type
+    )
+    @board_image.reload
+
+    # The row we just created — `find_custom_audio_file` returns the *first*
+    # custom clip, which is the wrong one once a tile has been re-recorded.
+    attachment = @board_image.audio_files_attachments.order(:id).last
+    unless attachment
+      render json: { error: "audio_upload_failed" }, status: :unprocessable_content
+      return
+    end
+
+    @board_image.set_custom_audio!(@board_image.default_audio_url(attachment))
+    ProcessCustomAudioJob.perform_async(@board_image.id, attachment.id)
+    @board_image.board.broadcast_board_update!
+    render json: @board_image.api_view(current_user)
   end
 
   # POST /api/board_images/:id/attach_youtube_video
@@ -339,17 +382,29 @@ class API::BoardImagesController < API::ApplicationController
     render json: @board_image.api_view(current_user)
   end
 
+  # POST /api/board_images/:id/reset_audio — back to the board's voice.
+  #
+  # Clears the custom flag first so the URL resolves against voice files
+  # rather than the recording being reset away from. When no file exists for
+  # that voice yet, the tile keeps its current URL and SaveAudioJob fills it
+  # in — never leave a tile with no audio_url at all.
   def reset_audio
     @board_image = owned_board_image
+    voice = @board_image.board.voice.presence || @board_image.voice
 
-    default_audio_url = @board_image.default_audio_url
-    @board_image.data ||= {}
-    @board_image.data["using_custom_audio"] = false
-    if @board_image.update(audio_url: default_audio_url)
-      render json: @board_image.api_view(current_user)
+    @board_image.data = (@board_image.data || {}).merge("using_custom_audio" => false)
+    @board_image.save!
+
+    url = @board_image.audio_url_for_voice(voice, @board_image.language)
+    if url.present?
+      @board_image.set_voice_audio!(url, voice)
     else
-      render json: @board_image.errors, status: :unprocessable_content
+      @board_image.set_voice_audio!(@board_image.audio_url, voice)
+      SaveAudioJob.perform_async(@board_image.image_id, voice, @board_image.id)
     end
+
+    @board_image.board.broadcast_board_update!
+    render json: @board_image.api_view(current_user)
   end
 
   # TODO - I don't think this is used but need to check
@@ -391,6 +446,34 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   private
+
+  # "<label>-custom-<timestamp>.<ext>" — the "custom" marker is what flags the
+  # clip as user-supplied everywhere else (has_custom_audio?,
+  # voice_from_filename). A random suffix rides along because the timestamp
+  # alone collides when two clips land in the same second.
+  def custom_audio_filename(board_image, file)
+    base = board_image.label.to_s.downcase.gsub(/[\s_]+/, "-").gsub(/[^a-z0-9\-]/, "")
+    base = "board-image-audio" if base.blank?
+    ext = File.extname(file.original_filename.to_s).delete(".").downcase
+    ext = "mp3" if ext.blank?
+    "#{base}-custom-#{Time.now.strftime("%m%d%y%H%M%S")}-#{SecureRandom.hex(3)}.#{ext}"
+  end
+
+  # The attachment a set_current_audio call is asking for. Looks in the tile's
+  # own audio files and the shared Image's, which is the same set the API
+  # returns in `audio_files`.
+  def resolve_audio_attachment(board_image)
+    candidates = board_image.audio_owner_records.flat_map { |owner| owner.audio_files_attachments.to_a }
+
+    audio_file_id = params[:audio_file_id] || params.dig(:board_image, :audio_file_id)
+    return candidates.find { |a| a.id.to_s == audio_file_id.to_s } if audio_file_id.present?
+
+    # Shipped native builds still send the URL. Honour it only when it matches
+    # a file that actually belongs to this tile.
+    legacy_url = params.dig(:board_image, :audio_url)
+    return nil if legacy_url.blank?
+    candidates.find { |a| board_image.default_audio_url(a) == legacy_url }
+  end
 
   # Apply a bulk case transform to a display label.
   #   "upper"    -> "I WANT MORE"

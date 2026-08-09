@@ -7,6 +7,32 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Recorded tile audio is converted to mp3 before it can be tapped.** A
+  recording made in Chrome arrived as webm, which Safari on iPad won't play —
+  so a parent's recorded voice was silent on the device the communicator
+  actually uses. Uploads are now normalized in the background, and formats we
+  can't convert are refused up front rather than stored. Audio uploads are
+  also size- and type-checked, like video already was.
+- **Picking which audio file a tile plays is resolved server-side.** The API
+  takes the id of one of the tile's own audio files instead of a URL supplied
+  by the client.
+
+### Fixed
+
+- **"Reset to Default Voice" was unreachable.** The API never told the app a
+  tile was on custom audio, so the button that undoes a recording never
+  appeared — and choosing a synthesized voice from the list didn't clear the
+  custom flag either, leaving the tile permanently out of the board's voice.
+  Recording, choosing a voice, and resetting now all move the tile cleanly
+  between custom and synthesized audio, and the board updates live.
+- **Audio could resolve to another account's file.** Audio lookups matched on
+  filename across the whole library, and filenames are built from the word and
+  the voice, so the same word in two accounts collided.
+- **Recorded clips showed a garbled voice name** (e.g. "you-custom") in the
+  tile's audio list; they now read as a recording.
+- **Uploading audio from the image editor failed outright** with a server
+  error, and saved the file without its extension.
+
 - **Board builder word-count validation now allows a small margin.** A word
   list within 2 tiles of the page's tile count is accepted instead of
   requiring an exact match — the message and the live word-count hint on the

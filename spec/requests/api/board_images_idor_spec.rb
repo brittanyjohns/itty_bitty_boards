@@ -84,8 +84,15 @@ RSpec.describe "API::BoardImages IDOR", type: :request do
 
   describe "the owner and admins are not blocked (no regression)" do
     it "lets the owner set current audio on their own tile" do
+      board_image.image.audio_files.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/sample.mp3")),
+        filename: "juice_polly_kevin.mp3",
+        content_type: "audio/mpeg",
+      )
+      attachment = board_image.image.reload.audio_files_attachments.order(:id).last
+
       post "/api/board_images/#{board_image.id}/set_current_audio",
-           params: { board_image: { audio_url: "http://x", voice: "alloy" } },
+           params: { audio_file_id: attachment.id },
            headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
     end

@@ -609,6 +609,7 @@ class Image < ApplicationRecord
 
   def rename_audio_files
     audio_files.each do |audio|
+      next if audio.blob.filename.to_s.include?(AudioHelper::CUSTOM_FILENAME_MARKER)
       voice = voice_from_filename(audio.blob.filename.to_s)
       unless Image.voices.include?(voice)
         Rails.logger.debug "Invalid voice: #{voice} - #{audio.blob.filename}"
@@ -621,6 +622,9 @@ class Image < ApplicationRecord
 
   def destroy_audio_files_without_voices
     audio_files.each do |audio|
+      # A recorded clip has no voice by design — this sweep is for orphaned
+      # TTS files and must never take a user's own recording with it.
+      next if audio.blob.filename.to_s.include?(AudioHelper::CUSTOM_FILENAME_MARKER)
       voice = voice_from_filename(audio.blob.filename.to_s)
       unless Image.voices.include?(voice)
         Rails.logger.debug "Destroying audio file without voice: #{voice} - #{audio.blob.filename}"

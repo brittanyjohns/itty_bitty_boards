@@ -87,7 +87,20 @@ one-off handoff/scratch files stay untracked and local.
   non-matching addresses are stripped from to/cc/bcc. `E2eMailInterceptor` is
   separate and pattern-scoped — it drops `e2e+*@speakanyway.com` in every
   environment.
-- **TTS/Audio:** AWS Polly
+- **TTS/Audio:** AWS Polly. Per-tile **custom audio** (a parent's recording)
+  follows the same shape as tile video: `upload_audio` validates type/size
+  against `BoardImage.accepted_audio_content_types`, attaches, and hands off to
+  `ProcessCustomAudioJob`, which normalizes to mp3 via `AudioTranscoder` and
+  rebroadcasts the board — everything gated on `AudioTranscoder.available?`, so
+  a format we can't convert is refused rather than stored. **webm is not
+  playable on iPad Safari, which is where communicators tap tiles**; never
+  accept it without a working transcode. `data["using_custom_audio"]` is the
+  flag that stops `Board#api_view_with_images` re-resolving a tile to the
+  board's voice — set it only via `BoardImage#set_custom_audio!` /
+  `#set_voice_audio!`, or a tile ends up pinned out of the board voice with no
+  way back. Audio filename lookups (`AudioHelper#find_audio_by_filename`) are
+  scoped to the record and its Image on purpose: filenames are
+  `<label>_<voice>.mp3` and collide across accounts.
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder,
   image generation. Every text-to-image prompt is composed by
   `Images::PromptBuilder` and **always wraps** user input in the house style
