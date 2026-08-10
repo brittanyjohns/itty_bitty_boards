@@ -102,6 +102,17 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     end
   end
 
+  # The home board is not the only page a communicator navigates from: every
+  # seeded fringe page carries the nav row too, so the dead-tile check has to
+  # sweep the WHOLE set. Checking only the root is what hid the Core 84 Food
+  # page's dead `More` folder.
+  def dead_folder_tiles_in_set(root)
+    Board.where(id: described_class.new.send(:set_board_ids, root)).filter_map do |board|
+      dead = dead_folder_tiles(board)
+      "#{board.name}: #{dead.map(&:display_label).inspect}" if dead.any?
+    end
+  end
+
   it "keeps every authored folder working and grows the grid to surface all interests" do
     # The authored Core 84 grid is full (84 tiles, no reserved cells), so these
     # non-seed interest categories must GROW the grid onto new rows rather than
@@ -122,8 +133,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     expect(root.board_images.count).to be <= CORE_84_GRID_CELLS + (3 * 12)
 
     # No dead tiles: every added folder tile links a real board, and the
-    # authored folders the planner used to strip are intact.
+    # authored folders the planner used to strip are intact — on every page in
+    # the set, not just the home board.
     expect(dead_folder_tiles(root)).to be_empty
+    expect(dead_folder_tiles_in_set(root)).to be_empty
 
     labels = root.board_images.map(&:display_label)
     expect(labels).to include("More", "School", "Time", "Describe")
@@ -152,6 +165,7 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     expect(root.status).to eq("complete")
     expect(root.board_images.count).to be <= CORE_84_GRID_CELLS
     expect(dead_folder_tiles(root)).to be_empty
+    expect(dead_folder_tiles_in_set(root)).to be_empty
   end
 
   # Regression: Core 84, GLP unchecked (include_phrases: false) + no interests

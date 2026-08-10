@@ -303,6 +303,27 @@ only signal a caller may treat as "this file is good."** A zeroed-out report
 without that flag is indistinguishable from a valid empty package, which is
 exactly how a garbage upload once rendered as "Looks good" in the UI.
 
+## OBF/OBZ import — one authored button is one tile, never one Image
+
+Two authored buttons can legitimately resolve to the **same `Image`**: Core
+60/84 author both a `more` word button and a `More` folder button, and `Image`
+lookup is case-insensitive by design. Every per-button structure in the import
+path must therefore be keyed on the **button or the tile**, never on
+`image.id`:
+
+- `Board.find_board_image_for_button`'s `image_id` fallback is **claim-once**
+  (the entry is deleted as it's consumed), so a second button can't collapse
+  onto the first's tile.
+- `Board.from_obf`'s returned `dynamic_data` — the rows
+  `ObzImporter#link_dynamic_boards!` turns into `predictive_board_id` links —
+  is keyed on `board_image.id`. Keying it on `image.id` let whichever button
+  came second overwrite the first's row, so on the one page that authors the
+  FOLDER before the WORD (`food.obf` in both sets) the word's row (no
+  `load_board`) won and the `More` folder imported unlinked — a dead tile that
+  opened nothing. It also cost the page its `more` word tile, because
+  `Boards::TileDeduper` groups on `(label, folder?)` and an unlinked folder
+  looks like a duplicate word.
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently
