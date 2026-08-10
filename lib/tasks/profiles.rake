@@ -79,13 +79,6 @@ namespace :profiles do
     dry_run = ENV["DRY_RUN"] != "false"
     user_id = ENV["USER_ID"].presence
 
-    # Generated placeholder bios (Profile#set_defaults and the placeholder
-    # factories) are not real About Me text — never migrate them.
-    default_bios = [
-      "Write a short bio about yourself. This will help others understand who you are and what you do.",
-      "This is a placeholder profile waiting to be claimed. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
-    ].freeze
-
     scope = Profile.where(profile_kind: "safety", profileable_type: "ChildAccount")
     if user_id
       child_ids = ChildAccount.where(user_id: user_id).pluck(:id)
@@ -99,8 +92,10 @@ namespace :profiles do
       bio = profile.bio.to_s.strip
       raw = profile.settings.is_a?(Hash) ? profile.settings : {}
 
-      # Skip: no real bio, a generated default, or emergency notes already set.
-      if bio.blank? || default_bios.include?(bio) || raw["emergency_notes"].present?
+      # Skip: no real bio, generated boilerplate, or emergency notes already
+      # set. Nothing seeds Profile::SEEDED_TEXT any more and a migration has
+      # cleared it, but rows restored from an older backup can still carry it.
+      if bio.blank? || Profile.seeded_text?(bio) || raw["emergency_notes"].present?
         skipped += 1
         next
       end

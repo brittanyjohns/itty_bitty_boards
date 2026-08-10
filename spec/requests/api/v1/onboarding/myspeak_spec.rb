@@ -114,15 +114,17 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(profile.safety_sensitive_settings["emergency_notes"]).to include("Has seizures")
       end
 
-      it "keeps the default placeholder bio when only emergency_notes is provided" do
+      it "leaves the public bio blank when only emergency_notes is provided" do
         payload = base_payload.except(:about_me)
         post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
 
         expect(response).to have_http_status(:created)
         profile = user.communicator_accounts.last.profile
-        # No About Me typed → bio falls back to the generated placeholder, so no
-        # safety text leaks onto the public page.
-        expect(profile.bio).to include("Write a short bio")
+        # No About Me typed → the public bio stays empty. The safety text must
+        # not leak into it, and it is no longer seeded with instructional copy
+        # either — the MySpeak page used to publish that as the owner's own
+        # About Me.
+        expect(profile.bio).to be_blank
         expect(profile.settings["emergency_notes"]).to include("Has seizures")
       end
 
@@ -146,7 +148,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
           profile = user.communicator_accounts.last.profile
           # Old framing was safety info — privacy wins: it must NOT be public bio.
           expect(profile.bio).not_to include("peanuts")
-          expect(profile.bio).to include("Write a short bio")
+          expect(profile.bio).to be_blank
           expect(profile.settings["emergency_notes"]).to include("peanuts")
         end
       end

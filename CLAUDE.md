@@ -275,6 +275,18 @@ an explicit decision, not a drive-by edit.
   POST** — never on public page-open. It is also never sent to OpenAI: no
   `Profile::SAFETY_SENSITIVE_KEYS` entry may appear in a
   `Suggestions::Registry` context allow-list (enforced by spec).
+- **Never seed `profiles.bio` or `profiles.intro` with instructional copy.**
+  Both are PUBLIC — `/my/:slug` prints the bio as "About me" and speaks the
+  intro aloud on "Hear my intro" — so placeholder text stored there is
+  published to visitors *in the communicator's own voice*, and `bio.present?`
+  stops meaning "the owner wrote something". Every creation path used to do it
+  (`set_defaults`, `.create_for_user`, `.generate_with_username`,
+  `.create_placeholders`); blank is the honest state, and the frontend supplies
+  its own copy when there is nothing to show. `Profile::SEEDED_TEXT` /
+  `.seeded_text?` exist only to recognize the historical strings — match whole
+  strings, never a substring, since a real bio may quote the phrase. Note
+  `claim!` keeps whatever is stored, so anything seeded onto a placeholder
+  follows it onto a real, claimed page.
 - **Third-party sends are env-gated to production** (Mailchimp journeys,
   PostHog captures; staging excluded via `AppEnv.staging?`) so non-prod can't
   email or track real users. Transactional mail is covered by the same rule at

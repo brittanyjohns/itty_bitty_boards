@@ -18,6 +18,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **MySpeak pages published setup instructions as the communicator's own
+  words.** Every profile was created with placeholder copy already saved into
+  its bio and intro, so any page that had never been personalized greeted
+  visitors with "Write a short bio about yourself. This will help others
+  understand who you are and what you do." — printed as About Me and read
+  aloud in the communicator's voice. Nothing writes that copy any more, and a
+  migration clears it from existing profiles (81 of 284 profiles in the
+  development database were carrying it). Bios and intros people actually
+  wrote are untouched, including ones that happen to quote the phrase.
+
 - **Core 60/84 Food pages: the "More" folder opened nothing, and the "more"
   word tile was missing.** The authored Food page is the one page in each set
   that lists the `More` folder before the `more` word, and the two share one
