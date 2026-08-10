@@ -29,6 +29,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **One account could edit another account's profile.** The legacy HTML pages
+  under `/users` — the old admin area, kept alongside the `/admin` dashboard —
+  had lost their permission checks: any signed-in person could rename or change
+  the voice settings of any other account by visiting its URL, and could delete
+  another account's uploaded document. Those pages are now restricted to the
+  account's owner and to admins, matching the `/admin` dashboard. The `/admin`
+  dashboard itself was already gated and exposed nothing.
+
 - **"Reset to Default Voice" was unreachable.** The API never told the app a
   tile was on custom audio, so the button that undoes a recording never
   appeared — and choosing a synthesized voice from the list didn't clear the
