@@ -1057,7 +1057,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
 
     it "warns rather than claiming success when the AI comes back short on pages" do
-      stub_set_drafter(root_tiles: drafted[:root_tiles], children: [])
+      stub_set_drafter(root_tiles: drafted[:root_tiles], children: [], page_count: 2)
 
       post draft_set_admin_dashboard_board_builds_path,
            params: form_params(words: "", page_count: "2", columns: "1", tile_count: "2")
@@ -1065,6 +1065,106 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(response).to have_http_status(:ok)
       expect(flash[:notice]).to match(/short|didn.t come back|asked for 2/i)
       expect(flash[:notice]).not_to eq("Drafted the main board and 0 pages. Edit them, then preview the art.")
+    end
+
+    # Page names are authored input: the drafter is told about them and only
+    # names the pages left blank.
+    it "hands the page names already on the form to the drafter" do
+      expect(Boards::AdminBuilder::SetDrafter).to receive(:new)
+        .with(hash_including(pages: [{ key: "food", name: "Food" }]))
+        .and_return(instance_double(Boards::AdminBuilder::SetDrafter, call: drafted))
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(
+             words: "", page_count: "1", columns: "1", tile_count: "2",
+             children: { "0" => { key: "food", name: "Food", columns: "", tile_count: "", words: "" } },
+           )
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("value=\"Food\"")
+    end
+
+    it "follows the page count up when more pages were named than asked for" do
+      stub_set_drafter(drafted.merge(page_count: 2))
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(words: "", page_count: "1", columns: "1", tile_count: "2")
+
+      expect(response.body).to include("<option selected=\"selected\" value=\"2\">")
+    end
+  end
+
+  describe "POST suggest_pages" do
+    before { sign_in admin }
+
+    def stub_suggester(pages)
+      allow(Boards::AdminBuilder::PageNamesSuggester).to receive(:new).and_return(
+        instance_double(Boards::AdminBuilder::PageNamesSuggester, call: pages),
+      )
+    end
+
+    let(:suggested) { [{ key: "food", name: "Food" }, { key: "drinks", name: "Drinks" }] }
+
+    it "fills the page names and nothing else" do
+      stub_suggester(suggested)
+
+      post suggest_pages_admin_dashboard_board_builds_path,
+           params: form_params(words: "swing | noun", page_count: "2", columns: "1", tile_count: "2")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("value=\"Food\"")
+      expect(response.body).to include("value=\"drinks\"")
+      # The root word list is untouched — this names pages, it doesn't draft.
+      expect(response.body).to include("swing | noun")
+      expect(flash[:notice]).to include("Suggested 2 pages")
+    end
+
+    it "keeps a page the admin already named, and its words" do
+      expect(Boards::AdminBuilder::PageNamesSuggester).to receive(:new)
+        .with(hash_including(existing: [{ key: "drinks", name: "Drinks" }], count: 2))
+        .and_return(instance_double(Boards::AdminBuilder::PageNamesSuggester,
+                                    call: [{ key: "drinks", name: "Drinks" }, { key: "food", name: "Food" }]))
+
+      post suggest_pages_admin_dashboard_board_builds_path,
+           params: form_params(
+             page_count: "2", columns: "1", tile_count: "2",
+             children: { "0" => { key: "drinks", name: "Drinks", columns: "", tile_count: "",
+                                  words: "juice | noun" } },
+           )
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("juice | noun")
+      expect(response.body).to include("value=\"Food\"")
+    end
+
+    it "writes nothing" do
+      stub_suggester(suggested)
+
+      expect {
+        post suggest_pages_admin_dashboard_board_builds_path,
+             params: form_params(page_count: "2", columns: "1", tile_count: "2")
+      }.to not_change(Board, :count).and not_change(Image, :count).and not_change(AdminBoardBuild, :count)
+    end
+
+    it "refuses with nothing to work from" do
+      post suggest_pages_admin_dashboard_board_builds_path,
+           params: form_params(name: "", topic: "", words: "", page_count: "2")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("suggest pages from")
+    end
+
+    it "reports a generation failure without losing what was typed" do
+      allow(Boards::AdminBuilder::PageNamesSuggester).to receive(:new).and_raise(
+        Boards::AdminBuilder::PageNamesSuggester::GenerationError, "OpenAI returned no content",
+      )
+
+      post suggest_pages_admin_dashboard_board_builds_path,
+           params: form_params(name: "Playground", page_count: "2")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t suggest page names")
+      expect(response.body).to include("Playground")
     end
   end
 

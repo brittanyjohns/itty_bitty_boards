@@ -111,6 +111,10 @@ module Admin
     # Optional step zero, the multi-page form of `draft`. Drafts the whole set
     # — root word list with its folder tiles already linked, plus each page —
     # into the form and stops there. Nothing is previewed or built from it.
+    #
+    # Page keys and names already on the form are authored input: they are
+    # passed through and used verbatim, and the AI only names the pages that are
+    # still blank. Word lists are the part this replaces.
     def draft_set
       @form = submitted_form
       @form = @form.merge(suggested_context(@form)) if @form[:topic].blank? || @form[:name].blank?
@@ -123,6 +127,7 @@ module Admin
         tile_count: @form[:tile_count].to_i,
         page_count: @form[:page_count].to_i,
         audience: @form[:audience],
+        pages: named_pages(@form),
       ).call
 
       # The prompt asks for a folder tile per page, but a draft that came back
@@ -131,6 +136,9 @@ module Admin
         words: tiles_to_words(set[:root_tiles]),
         tiles: set[:root_tiles],
         children: children_form_from(set[:children]),
+        # Naming more pages than the count asked for raises the count rather
+        # than dropping the names, so the select has to follow.
+        page_count: (set[:page_count] || @form[:page_count]).to_s,
       ))
       flash.now[:notice] = draft_set_notice(set, @form)
       render :new
@@ -175,6 +183,38 @@ module Admin
       render :new
     rescue Boards::AdminBuilder::PageDrafter::GenerationError => e
       @problems = ["Couldn't draft that page: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
+    # Names the pages and nothing else — no words, no grids. The set drafter
+    # then honours those names, so this is the "decide the shape first" half of
+    # `draft_set`: titles are the cheapest thing to read and re-read, and a set
+    # drafted under the wrong page names is thrown away wholesale.
+    def suggest_pages
+      @form = submitted_form
+      @form = @form.merge(suggested_context(@form)) if @form[:topic].blank?
+      @problems = suggest_pages_problems(@form)
+      return render(:new, status: :unprocessable_entity) if @problems.any?
+
+      pages = Boards::AdminBuilder::PageNamesSuggester.new(
+        topic: @form[:topic],
+        name: @form[:name],
+        audience: @form[:audience],
+        count: suggested_page_count(@form),
+        existing: named_pages(@form),
+      ).call
+
+      children = children_named_from(@form[:children], pages)
+      # Naming a page is what makes it a page, so the folder tile that opens it
+      # is written now rather than a round trip later.
+      @form = with_folder_tiles(@form.merge(children: children, page_count: page_count_for(children, @form)))
+      flash.now[:notice] = suggest_pages_notice(pages)
+      render :new
+    rescue Boards::AdminBuilder::PageNamesSuggester::GenerationError => e
+      @problems = ["Couldn't suggest page names: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    rescue Boards::AdminBuilder::ContextSuggester::GenerationError => e
+      @problems = ["Couldn't work out the topic: #{e.message}"]
       render :new, status: :unprocessable_entity
     end
 
@@ -511,6 +551,63 @@ module Admin
         "add #{wanted - tiles.size} more before previewing."
     end
 
+    # The pages the admin has already named, in form order. A block with only a
+    # key or only a name still counts — the suggester and the set drafter both
+    # fill the missing half rather than treating it as unnamed.
+    def named_pages(form)
+      form[:children].filter_map do |child|
+        next if child[:key].blank? && child[:name].blank?
+
+        { key: child[:key], name: child[:name] }
+      end
+    end
+
+    # Never fewer pages than are already on the form: a suggestion that dropped
+    # a block the admin added would take its word list with it.
+    def suggested_page_count(form)
+      [form[:page_count].to_i, form[:children].size, 1].max
+        .clamp(1, Boards::AdminBuilder::SetDrafter::MAX_PAGES)
+    end
+
+    def suggest_pages_problems(form)
+      return ["Give the board a name or a topic to suggest pages from."] if form[:topic].blank?
+
+      []
+    end
+
+    # Suggested names fill the unnamed blocks where they sit — never by
+    # position in the suggestion, which would move a name onto a block that
+    # already holds someone else's word list. Whatever is left over becomes new
+    # blank blocks at the end.
+    def children_named_from(children, pages)
+      taken = named_pages({ children: children })
+              .map { |page| Boards::AdminBuilder::Keys.normalize(page[:key].presence || page[:name]) }
+              .to_set
+      extras = pages.reject { |page| taken.include?(page[:key]) }
+
+      filled = children.map do |child|
+        next child if child[:key].present? || child[:name].present?
+
+        page = extras.shift
+        page ? child.merge(key: page[:key], name: page[:name]) : child
+      end
+
+      filled + extras.map { |page| blank_child.merge(key: page[:key], name: page[:name]) }
+    end
+
+    # The select only offers 0..MAX_PAGES, so a form carrying more blocks than
+    # that keeps whatever it had rather than being shown a count it can't hold.
+    def page_count_for(children, form)
+      return form[:page_count] if children.size > Boards::AdminBuilder::SetDrafter::MAX_PAGES
+
+      children.size.to_s
+    end
+
+    def suggest_pages_notice(pages)
+      "Suggested #{pages.size} #{"page".pluralize(pages.size)} — " \
+        "edit the names, then draft the set to fill them with words."
+    end
+
     def tiles_to_words(tiles)
       Boards::AdminBuilder::WordList.render(tiles)
     end
@@ -532,7 +629,9 @@ module Admin
 
     def draft_set_notice(set, form)
       wanted_tiles = form[:tile_count].to_i
-      wanted_pages = form[:page_count].to_i
+      # What was attempted, not what the select said: pages the admin named
+      # above the count raise it rather than being dropped.
+      wanted_pages = (set[:page_count] || form[:page_count]).to_i
       pages = set[:children].size
       short_boards = ([set[:root_tiles]] + set[:children].map { |child| child[:tiles] })
                      .count { |tiles| tiles.size != wanted_tiles }
