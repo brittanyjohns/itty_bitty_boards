@@ -67,14 +67,17 @@ RSpec.describe BuildBoardSetJob do
 
       children.each do |child|
         nav = child.board_images.reload.select { |bi| bi.data&.dig("nav_tile") }
-        expect(nav.map(&:label)).to match_array(region.cells.map(&:label)),
+        # Every region cell is projected. A page may carry ONE more nav-flagged
+        # tile than the region has cells: its way home, when its own name has no
+        # cell in the region (Boards::NavRowSync#ensure_home_tile!).
+        expect(nav.map(&:label)).to include(*region.cells.map(&:label)),
                                     "#{child.name} is missing nav tiles"
 
-        self_tile = nav.find { |bi| bi.label.to_s.casecmp?(child.name.to_s) }
-        next if self_tile.nil? # a page with no tile of its own name in the region
-
-        expect(self_tile.predictive_board_id).to eq(root.id)
-        expect(self_tile.data["mute_name"]).to be_falsey
+        # The invariant that matters: every page in the set has a one-tap home.
+        home = nav.find { |bi| bi.predictive_board_id == root.id }
+        expect(home).to be_present, "#{child.name} has no way home"
+        expect(home.label.to_s.downcase).to eq(child.name.to_s.downcase)
+        expect(home.data["mute_name"]).to be_falsey
       end
     end
 

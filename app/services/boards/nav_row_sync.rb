@@ -80,9 +80,40 @@ module Boards
       evict_occupants!(child)
       drop_orphaned_nav_tiles!(child)
       region.cells.each { |cell| upsert_nav_tile!(child, cell) }
+      ensure_home_tile!(child)
 
       child.board_images.reset
       Boards::LayoutRepacker.resync_board_layout!(child)
+    end
+
+    # EVERY page in the set gets a one-tap way home. A page whose name is in the
+    # nav region gets it from its SELF tile (see #upsert_nav_tile!) — but a page
+    # Boards::FolderPlacer tucked into the "More" drawer has no nav cell of its
+    # own, so nothing above would give it one. Give it the same anchor
+    # explicitly: a tile carrying the page's name that opens the root.
+    #
+    # Runs after #evict_occupants!, which destroys any child folder tile linking
+    # back to the root — an anchor written earlier in the build wouldn't survive.
+    def ensure_home_tile!(child)
+      return if child.board_images.reload.any? { |bi| bi.predictive_board_id == @root.id }
+
+      image = Boards::ImageResolver.resolve(child.name, owner: child.user)
+      board_image = child.add_image(image.id)
+      return if board_image.nil?
+
+      board_image.update!(
+        label: child.name,
+        display_label: child.name,
+        predictive_board_id: @root.id,
+        # Flagged like a nav tile because that is what it is — navigation chrome
+        # this service owns, not vocabulary. Every consumer that already filters
+        # `nav_tile` (specs counting a page's real content, callers reading a
+        # page's words) gets it right for free. No "mute_name": like a self tile,
+        # the way home speaks its own label.
+        data: (board_image.data || {}).merge(NAV_TILE_KEY => true).except("mute_name"),
+      )
+      relocate!(child, board_image)
+      @result.tiles_written += 1
     end
 
     # Make room for the nav region.
@@ -171,6 +202,10 @@ module Boards
       child.board_images.reload.each do |bi|
         next unless bi.data&.dig(NAV_TILE_KEY)
         next if labels.include?(bi.label.to_s.downcase)
+        # A drawer-tucked page's way home (#ensure_home_tile!) is flagged like a
+        # nav tile but its label is deliberately NOT in the region. Keep it, or
+        # every sync would drop and re-add it.
+        next if bi.predictive_board_id == @root.id
 
         bi.destroy!
         @result.folders_deleted += 1

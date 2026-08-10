@@ -124,4 +124,48 @@ RSpec.describe Boards::NavRowSync do
     expect(result.boards_synced).to eq(2)         # Food + Drinks
     expect(result.tiles_written).to eq(8)         # 4 nav cells x 2 pages
   end
+
+  # Boards::FolderPlacer tucks build-added pages into the "More" drawer, so they
+  # have no cell of their own in the nav region. They still need a one-tap way
+  # home — every page in a built set has one.
+  describe "a page with no nav cell of its own" do
+    let!(:drawer) { create(:board, user: user, name: "More", large_screen_columns: 6) }
+    let!(:animals) { create(:board, user: user, name: "Animals", large_screen_columns: 6) }
+
+    before do
+      # Swap the root's "Drinks" nav tile for the "More" drawer, and hang
+      # Animals off the drawer rather than the home board.
+      root.board_images.find_by(label: "Drinks").update!(label: "More", display_label: "More",
+                                                        predictive_board_id: drawer.id)
+      tile(drawer, "why", x: 0, y: 0, position: 1)
+      tile(drawer, "Animals", x: 1, y: 0, position: 2, target: animals.id)
+      tile(animals, "dog", x: 0, y: 0, position: 1)
+    end
+
+    it "gives it a tile named for the page that opens the root" do
+      described_class.call(root)
+
+      home = animals.board_images.reload.find { |bi| bi.predictive_board_id == root.id }
+      expect(home).to be_present, "Animals has no way home"
+      expect(home.display_label).to eq("Animals")
+      expect(home.data.to_h["mute_name"]).not_to be(true)
+    end
+
+    it "gives every page in the set a way home" do
+      described_class.call(root)
+
+      [food, drawer, animals].each do |page|
+        expect(page.board_images.reload.map(&:predictive_board_id)).to include(root.id),
+          "#{page.name} has no way home"
+      end
+    end
+
+    it "does not add a second anchor to a page that already has its self tile" do
+      described_class.call(root)
+
+      home_tiles = food.board_images.reload.select { |bi| bi.predictive_board_id == root.id }
+      expect(home_tiles.size).to eq(1)
+      expect(home_tiles.first.label).to eq("Food")
+    end
+  end
 end

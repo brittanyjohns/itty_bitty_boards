@@ -447,8 +447,17 @@ Because a page can now live one level down, `BuildBoardSetJob
 drawer's** — otherwise a leftover interest word wouldn't find its category page —
 and `#add_to_favorites!` looks for an existing "My Favorites" through the same
 map, so the cloner's drawer-tucked Favorites isn't duplicated. `set_board_ids`
-already walks the link graph unbounded, so BoardGroup membership, nav sync,
-reflow, and cascade-delete need no change.
+already walks the link graph unbounded, so BoardGroup membership, group
+attachment, reflow, and cascade-delete need no change.
+
+**Every page in a built set keeps a one-tap way home** — that invariant predates
+the drawer and had to be carried into it. A page whose name sits in the nav
+region gets home from its SELF tile (`NavRowSync#upsert_nav_tile!`); a
+drawer-tucked page has no nav cell of its own, so `NavRowSync#ensure_home_tile!`
+gives it the same anchor explicitly — a tile carrying the page's name that opens
+the root, unmuted so it speaks like a self tile. It has to run *after*
+`evict_occupants!`, which destroys any child folder tile pointing back at the
+root, so an anchor written earlier in the build would not survive.
 
 `allow_scroll_if_grown!` remains the safety net for case 3: a home board that
 did grow clears the seed's one-page `disable_scroll` so the new row isn't
