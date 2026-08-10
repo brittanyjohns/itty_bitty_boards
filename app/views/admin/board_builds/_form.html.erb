@@ -211,6 +211,16 @@
               <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
             </div>
           </div>
+          <div class="flex justify-end mb-2">
+            <%# formaction, not a second form: the drafter has to see this page's
+                name, tile count and the board's topic. name/value on the submit
+                is what tells the server which page block was clicked. %>
+            <button type="submit" name="page_index" value="<%= index %>"
+                    formaction="<%= draft_page_admin_dashboard_board_builds_path %>" formnovalidate
+                    class="draft-page text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+              Draft this page with AI
+            </button>
+          </div>
           <textarea name="children[<%= index %>][words]" rows="6" spellcheck="false"
                     placeholder="apple | noun&#10;hungry | adjective&#10;back | social | &gt;<%= Boards::AdminBuilder::Plan::ROOT_KEY %>"
                     class="admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none"><%= child[:words] %></textarea>
@@ -251,6 +261,13 @@
           </div>
           <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
         </div>
+      </div>
+      <div class="flex justify-end mb-2">
+        <button type="submit" name="page_index" value=""
+                formaction="<%= draft_page_admin_dashboard_board_builds_path %>" formnovalidate
+                class="draft-page text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Draft this page with AI
+        </button>
       </div>
       <textarea name="children[IDX][words]" rows="6" spellcheck="false"
                 class="admin-input border rounded px-3 py-2 text-sm w-full font-mono focus:border-indigo-500 focus:outline-none"></textarea>
@@ -370,6 +387,11 @@
         block.querySelectorAll("input, textarea").forEach(function (field) {
           field.name = field.name.replace(/children\[\w*\]/, "children[" + i + "]");
         });
+        // The per-page draft button posts its index as a submit value rather
+        // than a field name, so renumbering the names alone would leave a moved
+        // block drafting into whichever page now sits at its old position.
+        var draft = block.querySelector(".draft-page");
+        if (draft) draft.value = i;
       });
     }
 
@@ -383,6 +405,20 @@
       if (!event.target.classList.contains("remove-page")) return;
       event.target.closest(".page-block").remove();
       reindexPages();
+    });
+
+    // Drafting a page replaces that page's textarea wholesale, so only confirm
+    // when there is something to lose. Delegated for the same reason the
+    // grid-sync listener is: blocks added after load would miss a bound one.
+    pages.addEventListener("click", function (event) {
+      var button = event.target.closest(".draft-page");
+      if (!button) return;
+
+      var textarea = button.closest(".page-block").querySelector('textarea[name$="[words]"]');
+      if (!textarea || textarea.value.trim() === "") return;
+      if (!window.confirm("Replace this page's word list with an AI draft?")) {
+        event.preventDefault();
+      }
     });
 
     // Delegated, because page blocks come and go — a listener bound per field
