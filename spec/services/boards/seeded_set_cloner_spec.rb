@@ -290,6 +290,43 @@ RSpec.describe Boards::SeededSetCloner do
     end
   end
 
+  # The cloner used to copy the source tile's display_label verbatim, undoing
+  # the fold set_labels had just done — so a seed board carrying pre-#636 Title
+  # Case propagated it into every set built from it.
+  describe "tile casing on clone" do
+    # The clone re-resolves art and re-packs positions, so assert on the set of
+    # tile text rather than trying to pair a cloned tile back to its source.
+    def cloned_root_labels(source_text)
+      # Rolled back with the example's savepoint; the shared source set survives.
+      @source[:root].board_images.find_by(label: "want")
+                    .update_columns(label: source_text.downcase, display_label: source_text)
+      # before_all left the association cached on the shared source board.
+      @source[:root].reload
+
+      described_class.new(@source[:root], communicator: communicator).call
+                     .board_images.pluck(:display_label)
+    end
+
+    it "folds a stuck leading capital on a word tile" do
+      labels = cloned_root_labels("Higher")
+
+      expect(labels).to include("higher")
+      expect(labels).not_to include("Higher")
+    end
+
+    it "keeps deliberate casing" do
+      expect(cloned_root_labels("iPad")).to include("iPad")
+    end
+
+    it "keeps the capital on a curated folder tile" do
+      labels = described_class.new(@source[:root], communicator: communicator)
+                              .call.board_images.pluck(:display_label)
+
+      expect(labels).to include("Food", "Feelings")
+      expect(labels).not_to include("food", "feelings")
+    end
+  end
+
   # Regression for #278: seed BOTH real sets, then clone each.
   # A set cloned for a user with no communicator — assignable to one later.
   describe "#call without a communicator" do

@@ -116,6 +116,15 @@ curated folder name is pinned explicitly: `SeededSetCloner#copy_tiles!` restores
 the authored label/display_label post-save, and `BuildBoardSetJob#add_folder_tile!`
 sets the tile text to the category name.
 
+**Word tiles are NOT pinned — they inherit the seed's casing and are re-folded.**
+A built set is a clone of an admin-owned seed board, so whatever casing that seed
+stores is what the build would render. Both clone paths (`SeededSetCloner#copy_tiles!`
+and `Board#clone_with_images`) therefore run the copied text back through
+`BoardImage#cloned_display_label_from`, which folds everything except doors. The
+practical consequence: a seed board with stale Title Case no longer poisons the
+builds, but fixing the seed itself (`bin/rails labels:fold_casing`) is still worth
+doing so the source and the clones read the same.
+
 #### Fringe boards get the upgrade too (`upgrade_board_tiles!`)
 
 Originally only the **root** board ran the blank→art upgrade (via

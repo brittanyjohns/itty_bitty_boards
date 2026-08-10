@@ -194,6 +194,39 @@ class BoardImage < ApplicationRecord
     Labels::CaseNormalizer.normalize(text, language: lang, part_of_speech: effective_part_of_speech)
   end
 
+  # The display text a clone of `source` should carry.
+  #
+  # A cloned tile's text is DEFAULTED, not authored: it came from whatever the
+  # source board happened to store, so it gets the same casing rule as any other
+  # defaulted tile. Copying it verbatim is what let a Title Cased seed board
+  # propagate "Higher" into every board built from it — set_labels folded it and
+  # the next line put it straight back.
+  #
+  # Doors are the exception: a tile that opens a page keeps its authored capital
+  # ("Food", "Play"), per the category-tile rule.
+  def cloned_display_label_from(source)
+    text = source.display_label
+    return text if source.door_tile?
+
+    normalized_default_label(text)
+  end
+
+  # A tile whose job is to navigate, not to speak — its capital is authored.
+  #
+  # `predictive_board_id` on its own does NOT make a tile a door: a predictive
+  # WORD tile carries one too, pointing at a generated board of next words. The
+  # distinguishing signal is what it points AT — a curated folder opens a real
+  # page, a predictive word tile opens a `board_type: "predictive"` board.
+  #
+  # Builder and nav tiles are flagged outright and don't need the lookup.
+  def door_tile?
+    d = data || {}
+    return true if d["mute_name"] == true || d[Boards::NavRowSync::NAV_TILE_KEY] == true
+    return false if predictive_board_id.blank? || predictive_board_id == board_id
+
+    predictive_board&.board_type != "predictive"
+  end
+
   # Delegates to the underlying Image's language_settings. Stored `label` /
   # `display_label` columns reflect the board's authored language; this resolves
   # the viewer's preferred language at read time.

@@ -1251,7 +1251,10 @@ class Board < ApplicationRecord
       new_board_image.image_id = image.id
       new_board_image.set_labels
       if new_board_image
-        new_board_image.display_label = board_image.display_label
+        # Fold, don't copy: the source board's casing is defaulted text, not
+        # authored. Doors ("Food") keep their capital — see
+        # BoardImage#cloned_display_label_from.
+        new_board_image.display_label = new_board_image.cloned_display_label_from(board_image)
 
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
