@@ -38,8 +38,15 @@ and the models directly. Do **not** have Rails HTTP-call `/api/internal/*`.
    and shows coverage, fuzzy matches, and license flags. **Nothing is written
    until a second, explicit Build click.** This is the single most valuable
    behaviour being ported — a wrong symbol is expensive to fix after the fact.
-3. **Boards are created unpublished.** Publishing is a separate confirmed action,
-   never chained onto a build.
+3. **Boards are created published but NOT `predefined`.** Published so the set is
+   live at `/pb/<slug>` and shows up on the printables page the moment it builds;
+   not `predefined` so it stays out of `Board.public_boards` — the catalogue is a
+   curated surface, and dropping every build into it would bury the library.
+   `Admin::BoardPrintablesController` reaches builder boards through
+   `AdminBoardBuild.builder_boards` instead. Unpublish is the way back, and it is
+   still a set-wide operation. (Originally the reverse — created unpublished,
+   published by a separate confirmed action — changed once the printables page
+   became the main consumer.)
 4. **Boards are owned by `User::DEFAULT_ADMIN_ID`**, not `current_user` — same as
    `Admin::VideoBoardsController#seed_admin`.
 5. **Phase 1 is a single board. Phase 3 adds linked child pages.** Build them in
@@ -244,7 +251,7 @@ Inside one transaction:
    correct that misses create blank Images; those are what generation targets.
 2. Create the board: `board_type: "static"`, `voice`, `large_screen_columns`,
    `settings: { "admin_builder" => true, "disable_scroll" => true }`,
-   `user: seed_admin`, `published: false`.
+   `user: seed_admin`, `published: true`, `predefined: false`.
 3. Add tiles in authored order via `Board#add_image(image_id)` (guarding the nil
    return), then `update!(part_of_speech:)` per the Colors section above, plus
    `display_label` when given.
@@ -374,7 +381,7 @@ Behaviour to prove:
 - tile count ≠ `columns × rows` → re-renders `:new`, 422, nothing written, and
   the submitted values are still in the form
 - duplicate labels rejected; unknown `part_of_speech` rejected
-- happy path → `published == false`, `user_id == DEFAULT_ADMIN_ID`,
+- happy path → `published == true`, `predefined == false`, `user_id == DEFAULT_ADMIN_ID`,
   `settings["admin_builder"] == true`, `large_screen_columns` as chosen, and
   md/sm derived by `ScreenColumns` rather than set equal to lg
 - tiles land in authored reading order after `apply_layout!`

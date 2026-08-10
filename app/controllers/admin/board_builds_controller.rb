@@ -10,10 +10,11 @@ module Admin
   #      the whole reason the build is two steps.
   #   2. Nothing is written until the plan validates. A bad word list re-renders
   #      the form with exactly what the admin typed.
-  #   3. Boards are created unpublished and owned by User::DEFAULT_ADMIN_ID.
-  #      Publishing is a separate, confirmed POST, and every member action is
-  #      scoped through AdminBoardBuild.builder_boards so it can never reach a
-  #      board this page didn't create.
+  #   3. Boards are owned by User::DEFAULT_ADMIN_ID and created published but
+  #      NOT predefined — public at /pb/<slug> and listed on the printables
+  #      page, without being dropped into the public catalogue. Every member
+  #      action is scoped through AdminBoardBuild.builder_boards so it can never
+  #      reach a board this page didn't create; unpublish is the way back.
   class BoardBuildsController < Admin::ApplicationController
     MAX_COLUMNS = 12
     # 12x12, the old grid ceiling expressed as tiles.
@@ -227,7 +228,8 @@ module Admin
       BuildAdminBoardJob.perform_async(build.id)
 
       redirect_to admin_dashboard_board_build_path(build),
-                  notice: "Building “#{build.name}” — it lands unpublished for review."
+                  notice: "Building “#{build.name}” — it lands published, ready to print. " \
+                          "Check the art and unpublish it if anything's wrong."
     end
 
     def show

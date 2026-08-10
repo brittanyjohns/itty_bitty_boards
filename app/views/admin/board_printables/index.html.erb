@@ -11,9 +11,9 @@
   <%# Sorting reloads the page, so a sort click has to leave the picker open. %>
   <details <%= "open" if params[:sort].present? %>>
     <summary class="flex items-baseline justify-between gap-3 cursor-pointer list-none">
-      <h2 class="text-sm font-medium text-t1">Public boards <span class="text-t3 font-normal">(click to expand)</span></h2>
+      <h2 class="text-sm font-medium text-t1">Published boards <span class="text-t3 font-normal">(click to expand)</span></h2>
       <span class="text-xs text-t3">
-        <%= pluralize(@public_boards_count, "published public board") %><%= " · showing first #{@public_boards.size} by #{board_sort_label(@board_sort)}" if @public_boards_count > @public_boards.size %>
+        <%= pluralize(@public_boards_count, "published board") %> — catalogue + Board Builder<%= " · showing first #{@public_boards.size} by #{board_sort_label(@board_sort)}" if @public_boards_count > @public_boards.size %>
       </span>
     </summary>
 
@@ -22,7 +22,7 @@
         <%= render "board_table", boards: @public_boards, subboard_counts: @subboard_counts %>
       </div>
     <% else %>
-      <p class="text-xs text-t3 mt-3">No published public boards yet — use the search below to find any board.</p>
+      <p class="text-xs text-t3 mt-3">No published boards yet — use the search below to find any board.</p>
     <% end %>
   </details>
 </div>

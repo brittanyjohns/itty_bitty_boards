@@ -61,6 +61,36 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       expect(response.body).not_to include("Core Words")
     end
 
+    # Board Builder boards are created published but NOT predefined, so
+    # Board.public_boards can't see them — and they are exactly what this page
+    # exists to print.
+    it "lists published Board Builder boards alongside the catalogue" do
+      sign_in admin
+      builder_board = create(:board, user: default_admin, predefined: false, published: true,
+                                     name: "Builder Playground",
+                                     settings: { AdminBoardBuild::BUILDER_SETTING => true })
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("Builder Playground")
+      expect(response.body).to include("value=\"#{builder_board.id}\"")
+    end
+
+    # A printable walks the tree from its root, so a folder page listed as its
+    # own row would bury the board it belongs to.
+    it "leaves builder child pages and unpublished builder boards out of the list" do
+      sign_in admin
+      create(:board, user: default_admin, predefined: false, published: true, name: "Builder Food Page",
+                     settings: { AdminBoardBuild::BUILDER_SETTING => true, "builder_child" => true })
+      create(:board, user: default_admin, predefined: false, published: false, name: "Builder Draft",
+                     settings: { AdminBoardBuild::BUILDER_SETTING => true })
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).not_to include("Builder Food Page")
+      expect(response.body).not_to include("Builder Draft")
+    end
+
     it "leaves unpublished and menu boards out of the public list" do
       sign_in admin
       create(:board, user: default_admin, predefined: true, published: false, name: "Draft Public Board")

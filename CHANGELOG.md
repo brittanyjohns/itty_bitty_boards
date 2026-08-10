@@ -27,6 +27,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   takes the id of one of the tile's own audio files instead of a URL supplied
   by the client.
 
+- **Admin-built boards land published and print-ready.** A board built from the
+  admin Board Builder is now live at its `/pb/<slug>` page the moment it
+  finishes, and appears in the board list on the admin printables page without
+  a search. They stay out of the public catalogue on purpose — publishing makes
+  a board shareable and printable, not featured. Unpublish (still set-wide)
+  reverses it, and a published board still has to be unpublished before it can
+  be deleted.
+
+- **Board builder word-count validation now allows a small margin.** A word
+  list within 2 tiles of the page's tile count is accepted instead of
+  requiring an exact match — the message and the live word-count hint on the
+  form now say "within 2" rather than "exactly." A gap larger than that still
+  blocks preview/build with the same "Add N" / "Remove N" guidance.
+
 ### Fixed
 
 - **"Reset to Default Voice" was unreachable.** The API never told the app a
@@ -43,13 +57,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Uploading audio from the image editor failed outright** with a server
   error, and saved the file without its extension.
 
-- **Board builder word-count validation now allows a small margin.** A word
-  list within 2 tiles of the page's tile count is accepted instead of
-  requiring an exact match — the message and the live word-count hint on the
-  form now say "within 2" rather than "exactly." A gap larger than that still
-  blocks preview/build with the same "Add N" / "Remove N" guidance.
-
-### Fixed
+- **The admin Board Builder's Tiles spinner now skips to the next whole row.**
+  Clicking up on a 6-column board went 24 → 25 — a count the form then rejects
+  for leaving dead cells — and the correction only landed if the field happened
+  to fire a change event. Tiles now steps by the column count (24 → 30 → 36),
+  follows a page's own column override, and re-snaps whenever the columns change
+  or a build is loaded back in. Ticking "allow a partial row" returns it to
+  stepping by one.
 
 - **Tiles stopped coming out Title Cased.** The lowercase tile default was a
   no-op on the exact input it existed to fix: any capital at all counted as
