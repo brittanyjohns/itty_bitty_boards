@@ -1020,6 +1020,126 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "POST draft_page" do
+    before { sign_in admin }
+
+    def stub_page_drafter(tiles)
+      allow(Boards::AdminBuilder::PageDrafter).to receive(:new).and_return(
+        instance_double(Boards::AdminBuilder::PageDrafter, call: tiles),
+      )
+    end
+
+    let(:drafted) do
+      [
+        { label: "apple", part_of_speech: "noun" },
+        { label: "back", part_of_speech: "social", links_to: "__root__" },
+      ]
+    end
+
+    # Two pages, the second one empty and the one being drafted.
+    def two_page_params(overrides = {})
+      form_params(
+        columns: "1",
+        tile_count: "2",
+        children: {
+          "0" => { key: "drinks", name: "Drinks", columns: "", tile_count: "",
+                   words: "juice | noun\nback | social | >__root__" },
+          "1" => { key: "food", name: "Food", columns: "", tile_count: "", words: "" },
+        },
+      ).merge(overrides)
+    end
+
+    it "fills only the targeted page and leaves the root and siblings alone" do
+      stub_page_drafter(drafted)
+
+      post draft_page_admin_dashboard_board_builds_path, params: two_page_params(page_index: "1")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("apple | noun")
+      expect(response.body).to include("back | social | &gt;__root__")
+      # Sibling page untouched.
+      expect(response.body).to include("juice | noun")
+      # Root word list untouched.
+      expect(response.body).to include("swing | noun")
+    end
+
+    it "drafts from the page title, with the board topic as context" do
+      stub_page_drafter(drafted)
+
+      post draft_page_admin_dashboard_board_builds_path, params: two_page_params(page_index: "1")
+
+      expect(Boards::AdminBuilder::PageDrafter).to have_received(:new).with(
+        page_name: "Food", page_key: "food", tile_count: 2,
+        topic: "the playground", audience: "",
+      )
+    end
+
+    # A page's own Tiles override is what it will actually be built at.
+    it "uses the page's tile override over the root's count" do
+      stub_page_drafter(drafted)
+
+      params = two_page_params(page_index: "1")
+      params[:children]["1"][:tile_count] = "6"
+      post draft_page_admin_dashboard_board_builds_path, params: params
+
+      expect(Boards::AdminBuilder::PageDrafter).to have_received(:new)
+        .with(hash_including(tile_count: 6))
+    end
+
+    it "writes nothing" do
+      stub_page_drafter(drafted)
+
+      expect {
+        post draft_page_admin_dashboard_board_builds_path, params: two_page_params(page_index: "1")
+      }.to not_change(Board, :count).and not_change(Image, :count).and not_change(AdminBoardBuild, :count)
+    end
+
+    # The page title is the whole input, so it's the one thing that can't be
+    # inferred from anything else on the form.
+    it "refuses a page with no name or key" do
+      params = two_page_params(page_index: "1")
+      params[:children]["1"] = { key: "", name: "", columns: "", tile_count: "", words: "x | noun" }
+
+      post draft_page_admin_dashboard_board_builds_path, params: params
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Give the page a name to draft from")
+      expect(response.body).to include("swing | noun")
+    end
+
+    it "reports a page index that is no longer on the form" do
+      stub_page_drafter(drafted)
+
+      post draft_page_admin_dashboard_board_builds_path, params: two_page_params(page_index: "7")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("no longer on the form")
+    end
+
+    it "reports a generation failure without losing what was typed" do
+      allow(Boards::AdminBuilder::PageDrafter).to receive(:new).and_raise(
+        Boards::AdminBuilder::PageDrafter::GenerationError, "OpenAI returned no content",
+      )
+
+      post draft_page_admin_dashboard_board_builds_path, params: two_page_params(page_index: "1")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Couldn&#39;t draft that page")
+      expect(response.body).to include("juice | noun")
+    end
+
+    it "warns rather than claiming success when the AI comes back short" do
+      stub_page_drafter([{ label: "apple", part_of_speech: "noun" }])
+
+      params = two_page_params(page_index: "1")
+      params[:children]["1"][:tile_count] = "6"
+      post draft_page_admin_dashboard_board_builds_path, params: params
+
+      expect(response).to have_http_status(:ok)
+      expect(flash[:notice]).to include("1 of 6")
+    end
+  end
+
   describe "POST describe" do
     before { sign_in admin }
 

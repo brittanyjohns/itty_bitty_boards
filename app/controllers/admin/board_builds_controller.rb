@@ -135,6 +135,41 @@ module Admin
       render :new, status: :unprocessable_entity
     end
 
+    # Per-page form of `draft`: fills ONE child page's word list from that
+    # page's title, leaving the root and every other page exactly as typed.
+    # `draft_set` is the only other way to get words onto a page and it replaces
+    # the whole set, so editing one page of a set previously meant re-drafting
+    # (and re-editing) all of it.
+    #
+    # Also the way past SetDrafter::MAX_PAGES: one page per call keeps the
+    # per-page tile count accurate where a single long response drifts.
+    def draft_page
+      @form = submitted_form
+      index = params[:page_index].to_i
+      child = @form[:children][index]
+
+      @problems = draft_page_problems(@form, child)
+      return render(:new, status: :unprocessable_entity) if @problems.any?
+
+      tile_count = child[:tile_count].presence&.to_i || @form[:tile_count].to_i
+      tiles = Boards::AdminBuilder::PageDrafter.new(
+        page_name: child[:name],
+        page_key: child[:key],
+        tile_count: tile_count,
+        # The page title is the subject; a blank board topic is context this
+        # page can do without, so no ContextSuggester round trip here.
+        topic: @form[:topic],
+        audience: @form[:audience],
+      ).call
+
+      @form[:children][index] = child.merge(words: tiles_to_words(tiles), tiles: tiles)
+      flash.now[:notice] = draft_page_notice(tiles, child, tile_count)
+      render :new
+    rescue Boards::AdminBuilder::PageDrafter::GenerationError => e
+      @problems = ["Couldn't draft that page: #{e.message}"]
+      render :new, status: :unprocessable_entity
+    end
+
     # Fills in topic and audience on their own, so they can be read and edited
     # before a whole word list is drafted from them.
     def suggest
@@ -435,6 +470,35 @@ module Admin
       problems << "Columns must be between 1 and #{MAX_COLUMNS}." unless columns.between?(1, MAX_COLUMNS)
       problems << "Tiles must be between 1 and #{MAX_TILES}." unless tiles.between?(1, MAX_TILES)
       problems
+    end
+
+    # A page title is the whole input, so it's the one thing that can't be
+    # inferred. The tile count is the page's own override when it has one and
+    # the root's otherwise, matching what the page will actually be built at.
+    def draft_page_problems(form, child)
+      return ["That page is no longer on the form — add it again before drafting."] if child.nil?
+
+      problems = []
+      if child[:name].blank? && child[:key].blank?
+        problems << "Give the page a name to draft from."
+      end
+
+      tiles = child[:tile_count].presence&.to_i || form[:tile_count].to_i
+      problems << "Tiles must be between 1 and #{MAX_TILES}." unless tiles.between?(1, MAX_TILES)
+      problems
+    end
+
+    # Same shortfall handling as draft_notice — the drafter can come back short
+    # when near-duplicates get dropped, and the admin should hear that here
+    # rather than discover it at preview.
+    def draft_page_notice(tiles, child, wanted)
+      page = child[:name].presence || child[:key]
+      if tiles.size == wanted
+        return "Drafted #{tiles.size} words for “#{page}”. Edit them, then preview the art."
+      end
+
+      "Drafted #{tiles.size} of #{wanted} words for “#{page}” — " \
+        "add #{wanted - tiles.size} more before previewing."
     end
 
     def tiles_to_words(tiles)

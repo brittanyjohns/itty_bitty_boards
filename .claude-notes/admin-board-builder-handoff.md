@@ -325,6 +325,36 @@ describing words, 25–35% topic nouns; no near-duplicates; and **exactly**
 
 No credit charge — admin-owned. Populate the form; never build from it directly.
 
+#### Per-page drafting — `Boards::AdminBuilder::PageDrafter`
+
+Page title + tile count (+ board topic/audience as optional context) →
+`[{ label:, part_of_speech:, links_to: }]` for **one** child page. Backs the
+`Draft this page with AI` button in each page block; `draft_page` merges the
+result into `children[page_index]` only, so the root and every sibling survive.
+
+Not `WordListDrafter` with a different topic, and not a slice of `SetDrafter`:
+
+- The page title is the subject, and it's the one input that can't be inferred —
+  `draft_page` rejects a nameless page rather than guessing. The `key` stands in
+  only when there's no title, underscores folded back to spaces.
+- **No `CORE_SPINE`.** The root carries the core words the whole set leans on; a
+  page that repeats "I / want / more / help" spends its cells twice.
+- **Exactly one `back` tile linking to `Plan::ROOT_KEY`**, counted toward the
+  page's tile count. `link_for` drops every other target: this drafter is given
+  one page and knows no other page's key, and `PlanValidator` rejects a link to
+  a key that isn't in the set.
+- Tile count is the page's own override when set, else the root's — what the
+  page will actually be built at.
+
+**No `MAX_PAGES` ceiling here**, unlike `SetDrafter`. One page per call is the
+accurate way to draft a set larger than `SetDrafter::MAX_PAGES`, where a single
+long response starts dropping per-page tile counts.
+
+The button posts its index as the submit's `name="page_index"` value rather than
+a field, so `reindexPages()` has to rewrite that `value` alongside the field
+`name`s — renumbering names alone leaves a moved block drafting into whichever
+page took its old position.
+
 ### Phase 3 — linked child pages
 
 - Plan gains `children: [{ key, name, tiles }]` and tiles gain `links_to`.

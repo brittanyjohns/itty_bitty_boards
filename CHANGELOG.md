@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **The admin board builder can draft one page at a time from its title.** Each
+  page block gets a "Draft this page with AI" button that fills only that page's
+  word list, worked out from the page's own name with the board's topic as
+  context — the main board and every other page stay exactly as typed. Previously
+  the only way to get AI words onto a page was "Draft the whole set", which
+  replaced everything. Drafted pages come back with a "back" tile already
+  pointing home, and there's no four-page limit the way the whole-set draft has.
+
 - **Deleting a board can now take its subboards with it.** A board whose
   buttons open other boards asks before deleting, and offers an optional
   "Also delete its N subboards" that removes the whole linked set in one go.
