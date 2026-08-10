@@ -259,6 +259,17 @@ an explicit decision, not a drive-by edit.
 - **External-service failures fail soft.** Redis blips, PostHog, Mailchimp,
   and geolocation errors are rescued and logged — they can never 500 a
   request or a webhook.
+- **Every admin page is gated by inheritance, never by an inline check.** HTML
+  admin controllers inherit `Admin::ApplicationController`
+  (`authenticate_user!` + `require_admin!`); JSON ones inherit
+  `API::Admin::ApplicationController` (admin-role token). A controller routed
+  under `/admin` that does not descend from the base fails
+  `spec/requests/admin/access_control_spec.rb`, which sweeps the whole
+  namespace. Gate in a `before_action`, not inline in the action body — a bare
+  `redirect_to … unless current_user.admin?` mid-action still runs every query
+  below it, and the next person to add an early `render` turns it into a leak.
+  The legacy HTML admin under `/users` (`/users`, `/users/admin`, `/users/:id`)
+  is outside the `Admin::` namespace and carries its own copy of the gate.
 - **Safety-profile emergency info is only served by the gated `safety_view`
   POST** — never on public page-open. It is also never sent to OpenAI: no
   `Profile::SAFETY_SENSITIVE_KEYS` entry may appear in a
