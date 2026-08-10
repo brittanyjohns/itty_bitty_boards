@@ -202,13 +202,29 @@ class BoardImage < ApplicationRecord
   # propagate "Higher" into every board built from it — set_labels folded it and
   # the next line put it straight back.
   #
-  # Doors are the exception: a tile that opens a page keeps its authored capital
-  # ("Food", "Play"), per the category-tile rule.
+  # Tiles that don't carry a WORD are the exception — see authored_tile_text?.
   def cloned_display_label_from(source)
     text = source.display_label
-    return text if source.door_tile?
+    return text if source.authored_tile_text?
 
     normalized_default_label(text)
+  end
+
+  # True when this tile's text isn't a word the communicator speaks, so word
+  # casing rules don't apply to it and it must survive a clone verbatim:
+  #
+  #   - a door: a folder tile you tap to open a page ("Food", "Play"), whose
+  #     capital is what separates it from a word on the same board
+  #   - a keyboard key ("A", "Space", "Delete") — a key legend, not vocabulary.
+  #     Folding these would spell in lowercase and rename Space to "space".
+  def authored_tile_text?
+    door_tile? || keyboard_key?
+  end
+
+  # Every tile on a keyboard board is stamped with a tile_type ("letter" or
+  # "action") by db/seeds/keyboard_boards.rb.
+  def keyboard_key?
+    (data || {})["tile_type"].present?
   end
 
   # A tile whose job is to navigate, not to speak — its capital is authored.
