@@ -160,6 +160,30 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
       ))).to eq([])
     end
 
+    # The backstop behind Boards::AdminBuilder::FolderTiles: a page nothing
+    # opens builds and publishes anyway, live at its own slug with no way in.
+    it "rejects a page nothing opens" do
+      root = tiles("i", "want", "more", "help")
+      problems = validate(pages: pages(root_tiles: root, children: [child]))
+
+      expect(problems).to include(a_string_including("Food: nothing opens this page"))
+      expect(problems).to include(a_string_including(">food"))
+    end
+
+    it "accepts a page opened only by a sibling" do
+      root = tiles("i", "want", "more") + [{ label: "Food", part_of_speech: "noun", links_to: "food" }]
+      food = tiles("apple", "banana", "hungry") + [{ label: "Play", part_of_speech: "noun", links_to: "play" }]
+
+      expect(validate(pages: pages(
+        root_tiles: root,
+        children: [child(tiles_list: food), child(key: "play", name: "Play")],
+      ))).to eq([])
+    end
+
+    it "says nothing about reachability on a single board" do
+      expect(validate(pages: pages(root_tiles: tiles("i", "want", "more", "help")))).to eq([])
+    end
+
     it "rejects a duplicate page key" do
       problems = validate(pages: pages(root_tiles: root_with_folder, children: [child, child]))
       expect(problems).to include(a_string_including("Duplicate page keys: food"))

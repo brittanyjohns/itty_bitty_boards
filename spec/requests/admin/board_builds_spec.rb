@@ -175,12 +175,21 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(AdminBoardBuild.last.children.size).to eq(1)
     end
 
+    # The tile's own word names no page in the set, so there is nothing to
+    # infer from it — unlike the mistyped-key case below.
     it "rejects a tile pointing at a page that doesn't exist" do
-      params = set_params(words: "i | pronoun\nwant | verb\nmore | social\nFood | noun | >nope")
+      params = set_params(words: "i | pronoun\nwant | verb\nFood | noun | >food\nsnack | noun | >nope")
 
       expect { post admin_dashboard_board_builds_path, params: params }.not_to change(AdminBoardBuild, :count)
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("which doesn&#39;t exist")
+    end
+
+    it "repairs a mistyped key on a tile that plainly names the page" do
+      params = set_params(words: "i | pronoun\nwant | verb\nmore | social\nFood | noun | >fod")
+
+      expect { post admin_dashboard_board_builds_path, params: params }.to change(AdminBoardBuild, :count).by(1)
+      expect(AdminBoardBuild.last.tiles.last).to include("label" => "Food", "links_to" => "food")
     end
 
     it "rejects a page whose grid differs from the main board's" do
@@ -215,6 +224,45 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       post admin_dashboard_board_builds_path, params: params
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("Food: columns must be between 1 and 12")
+    end
+
+    # The bug this exists for: a page added without a `>key` tile on the main
+    # board still built and still published, live at its own slug with nothing
+    # a communicator could tap to reach it.
+    describe "pages nothing opens" do
+      def unlinked_params(overrides = {})
+        set_params(
+          words: "i | pronoun\nwant | verb\nmore | social\nhelp | social",
+        ).merge(overrides)
+      end
+
+      it "writes the folder tile onto the main board before building" do
+        expect { post admin_dashboard_board_builds_path, params: unlinked_params }
+          .to change(AdminBoardBuild, :count).by(1)
+
+        expect(AdminBoardBuild.last.tiles.last)
+          .to include("label" => "Food", "links_to" => "food", "display_label" => "Food")
+      end
+
+      it "makes room on a main board that is already full and says what it dropped" do
+        post preview_admin_dashboard_board_builds_path, params: unlinked_params
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Added 1 folder tile")
+        expect(response.body).to include("“help”")
+      end
+
+      it "shows the added tile in the word list it hands back" do
+        post preview_admin_dashboard_board_builds_path, params: unlinked_params
+
+        expect(response.body).to include("Food | noun | Food | &gt;food")
+      end
+
+      it "leaves a set alone when the folder tile is already there" do
+        post preview_admin_dashboard_board_builds_path, params: set_params
+
+        expect(response.body).not_to include("builds unreachable")
+      end
     end
 
     it "preserves the submitted pages when something else fails validation" do

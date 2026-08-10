@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Admin board builder: pages were being built with nothing to open them.** A
+  page only became reachable if the main board's word list carried a hand-typed
+  `>page_key` tile, and only "Draft the whole set with AI" ever wrote one — so
+  adding a page by hand, drafting a page on its own, or re-drafting the main
+  board after a set draft produced pages that built, published, and went live
+  with no tile a communicator could tap to reach them. The folder tile is now
+  written onto the main board automatically for any page nothing opens, room is
+  made for it if the board is already full, and the builder says what it added
+  and what it displaced. A mistyped page key on a tile that plainly names the
+  page is repaired rather than rejected. As a backstop, a plan with an
+  unreachable page no longer passes validation.
+
 ### Added
 
 - **The admin board builder can draft one page at a time from its title.** Each
