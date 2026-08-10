@@ -65,11 +65,13 @@ jobs:
 
     strategy:
       fail-fast: false
-      # Three is the right number *because* the split is now runtime-balanced:
-      # 3 shards land at 5.9 min with a 0.0s spread, and 4+ can't beat 5.7 min
-      # because one file (build_board_set_job_grid_spec.rb, 342s) is the floor —
-      # a shard can never finish faster than its slowest single spec. More
-      # shards would just buy 12s for ~30% more runner-minutes.
+      # Three is the right number *because* the split is now runtime-balanced.
+      # Against measured CI timings (502s of work total): 3 shards give a 220s
+      # wall, and 4+ give exactly the same 220s for more runner-minutes —
+      # build_board_set_job_grid_spec.rb alone is 220s, and a shard can never
+      # finish faster than its slowest single spec. The packer ends up putting
+      # that one file on its own shard and splitting the rest ~141s/~141s,
+      # which is the best any split can do here.
       #
       # Revisit once #644 lands: with that file's cost gone the floor drops and
       # more shards start paying for themselves again. Re-run the numbers with

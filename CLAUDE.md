@@ -370,10 +370,17 @@ permissions matrix lives in
   `log/test.log`; at `:debug` the suite fills the 50 MB cap in ~2 minutes.
 - **Per-file timings, not filenames, drive CI sharding.** `bin/ci-shard` reads
   `spec/ci_timings.json` and greedily bin-packs slowest-first over
-  `CI_NODE_TOTAL`. Refresh after adding slow specs: run the full suite, then
-  `rake ci:timings` (it warns if `spec/examples.txt` looks like a partial run).
-  Files with no recorded timing get the median, so a new spec is never dropped;
-  CI asserts the split covers every spec exactly once.
+  `CI_NODE_TOTAL`. Files with no recorded timing get the median, so a new spec
+  is never dropped; CI asserts the split covers every spec exactly once.
+- **Refresh the timings from CI, not from a laptop run.** Every shard uploads
+  its `spec/examples.txt` as an `rspec-timings-<n>` artifact. To refresh:
+  ```bash
+  gh run download <run-id> --dir /tmp/t && cat /tmp/t/*/examples.txt > spec/examples.txt && bundle exec rake ci:timings
+  ```
+  Laptop numbers mis-rank the suite badly — under local load `board_spec.rb`
+  and `boards_publish_cascade_spec.rb` looked like the #2 and #3 slowest files
+  and on CI they aren't in the top ten. `rake ci:timings` also works off a
+  local full run, and warns when `spec/examples.txt` looks partial.
 - Profile with `bundle exec rspec --profile 25`, and note that per-file numbers
   from a *full* run are inflated by machine load — confirm a suspect file
   standalone before optimizing it.
