@@ -27,9 +27,8 @@ module Admin
         []
       end
 
-      public_boards = Board.public_boards
-      @public_boards_count = public_boards.count
-      @public_boards = sorted_boards(public_boards).limit(PUBLIC_BOARD_LIMIT)
+      @public_boards_count = printable_boards.count
+      @public_boards = sorted_boards(printable_boards).limit(PUBLIC_BOARD_LIMIT)
 
       @subboard_counts = direct_subboard_counts(@public_boards + @boards)
     end
@@ -73,6 +72,23 @@ module Admin
     end
 
     private
+
+    # The boards worth offering a one-click printable for. `public_boards` is
+    # the catalogue; Board Builder boards are the other half — published and
+    # authored for print, but deliberately not `predefined`, so the catalogue
+    # scope can't see them (see Boards::AdminBuilder::Build#new_board).
+    #
+    # Builder CHILD pages are excluded: a printable walks the tree from its
+    # root, so listing every folder page as its own row would bury the board
+    # they belong to. They're still reachable through the search box below.
+    def printable_boards
+      @printable_boards ||= Board.where(id: Board.public_boards.select(:id))
+                                 .or(Board.where(id: builder_root_boards.select(:id)))
+    end
+
+    def builder_root_boards
+      AdminBoardBuild.builder_boards.published.not_builder_child
+    end
 
     # @board_sort / @board_dir are whitelisted above, so they are safe to
     # interpolate. Every sort falls back to name so the order is total —

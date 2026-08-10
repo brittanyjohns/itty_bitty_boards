@@ -77,7 +77,13 @@
                 form: { data: { turbo_confirm: "Publish “#{@board.name}”? This makes it public to everyone. Have you looked at every tile?" } } %>
         <% end %>
       <% end %>
-      <% unless @board&.published? %>
+      <%# Builds land published, so this is now the usual state rather than a
+          rare one — say why the button isn't there instead of just hiding it. %>
+      <% if @board&.published? %>
+        <span class="text-[11px] text-t3 whitespace-nowrap" title="A published slug is frozen and may already be in a QR code">
+          Unpublish to delete
+        </span>
+      <% else %>
         <%= button_to "Delete", admin_dashboard_board_build_path(@build), method: :delete,
               class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
               form: { data: { turbo_confirm: "Delete this build and its board? This can't be undone." } } %>
