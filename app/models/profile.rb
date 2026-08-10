@@ -57,6 +57,32 @@ class Profile < ApplicationRecord
     public privacy terms support
   ].freeze
 
+  # Instructional copy this app used to write into `bio` / `intro` on create.
+  # It was never something a user typed, but it is stored exactly like text
+  # that was — so `bio.present?` is not an "did the owner write this?" check,
+  # and every MySpeak page that had not been personalized published
+  # "Write a short bio about yourself…" to visitors as if the communicator had
+  # said it. Nothing writes these strings any more; the constant exists so the
+  # historical rows stay identifiable (see `seeded_text?` and the
+  # `profiles:copy_onboarding_bio_to_emergency_notes` rake task).
+  #
+  # Compare whole strings, never a substring: a real bio that quotes the phrase
+  # belongs to its author.
+  SEEDED_TEXT = [
+    "Write a short bio about yourself. This will help others understand who you are and what you do.",
+    "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself.",
+    "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself here.",
+    "This is a placeholder profile waiting to be claimed. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
+    # Variants from lib/tasks/accounts.rake's placeholder task, which had its
+    # own near-copy of Profile.create_placeholders.
+    "This is a placeholder profile. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
+    "Welcome to MySpeak! Let's get started.",
+  ].freeze
+
+  def self.seeded_text?(value)
+    SEEDED_TEXT.include?(value.to_s.strip)
+  end
+
   validates :username, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
   # Format/reserved/numeric checks run only on new records or when the slug
@@ -665,11 +691,12 @@ class Profile < ApplicationRecord
       placeholder_name = "MySpeak #{SecureRandom.hex(4)}"
       slug = placeholder_name.parameterize
 
+      # No seeded bio/intro: `claim!` keeps whatever is stored, so placeholder
+      # copy written here would follow the profile onto a real, claimed MySpeak
+      # page. The claim screen's own copy explains an unclaimed page.
       profile = Profile.create!(
         username: placeholder_name,
         slug: slug,
-        bio: "This is a placeholder profile waiting to be claimed. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
-        intro: "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself here.",
         placeholder: true,
         claimed_at: nil,
         claim_token: SecureRandom.hex(10),
@@ -694,8 +721,6 @@ class Profile < ApplicationRecord
       profileable_type: "User",
       profileable_id: user.id,
       slug: slug,
-      bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
-      intro: "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself.",
       placeholder: false,
       claimed_at: Time.zone.now,
       claim_token: nil,
@@ -734,8 +759,6 @@ class Profile < ApplicationRecord
     profile = Profile.create!(
       username: username,
       slug: slug,
-      bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
-      intro: "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself.",
       claimed_at: nil,
       claim_token: SecureRandom.hex(10),
       placeholder: true,
@@ -758,8 +781,11 @@ class Profile < ApplicationRecord
   def set_defaults
     self.settings ||= {}
 
-    self.intro = "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself." if intro.blank?
-    self.bio = "Write a short bio about yourself. This will help others understand who you are and what you do." if bio.blank?
+    # `bio` and `intro` are deliberately left nil when blank. They are PUBLIC —
+    # the MySpeak page prints the bio as About Me and speaks the intro aloud —
+    # so seeding them here published instructions to visitors in the owner's
+    # voice. Blank is the honest state; the frontend supplies its own copy when
+    # there is nothing to show. See SEEDED_TEXT.
 
     # If you want to infer kind automatically:
     self.settings["profile_kind"] ||= default_profile_kind

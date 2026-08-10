@@ -36,6 +36,78 @@ RSpec.describe Profile, type: :model do
     )
   end
 
+  # bio and intro are PUBLIC — /my/:slug prints the bio as About Me and speaks
+  # the intro aloud — so seeding them published app instructions to visitors in
+  # the communicator's own voice.
+  describe "bio and intro defaults" do
+    it "leaves both blank on create rather than seeding instructional copy" do
+      profile = Profile.create!(profileable: child, username: "quiet-fox", slug: "quiet-fox")
+
+      expect(profile.bio).to be_blank
+      expect(profile.intro).to be_blank
+    end
+
+    it "keeps what the owner actually wrote" do
+      profile = Profile.create!(
+        profileable: child,
+        username: "loud-fox",
+        slug: "loud-fox",
+        bio: "I love trains.",
+        intro: "Hi, I'm Sky.",
+      )
+
+      expect(profile.bio).to eq("I love trains.")
+      expect(profile.intro).to eq("Hi, I'm Sky.")
+    end
+
+    it "does not seed a profile built for a user" do
+      profile = Profile.create_for_user(user, "pat-smith")
+
+      expect(profile.bio).to be_blank
+      expect(profile.intro).to be_blank
+    end
+
+    it "does not seed a generated placeholder" do
+      Profile.create_placeholders(1)
+      placeholder = Profile.where(placeholder: true).order(:created_at).last
+
+      # claim! keeps whatever is stored, so anything seeded here would follow
+      # the profile onto a real, claimed MySpeak page.
+      expect(placeholder.bio).to be_blank
+      expect(placeholder.intro).to be_blank
+    end
+
+    it "does not seed a profile generated from a username" do
+      profile = Profile.generate_with_username("sky-jones")
+
+      expect(profile.bio).to be_blank
+      expect(profile.intro).to be_blank
+    end
+  end
+
+  describe ".seeded_text?" do
+    it "recognizes copy this app used to write into bio and intro" do
+      expect(Profile.seeded_text?(Profile::SEEDED_TEXT.first)).to be(true)
+    end
+
+    it "ignores surrounding whitespace" do
+      expect(Profile.seeded_text?("  #{Profile::SEEDED_TEXT.first}\n")).to be(true)
+    end
+
+    it "is false for blank input" do
+      expect(Profile.seeded_text?(nil)).to be(false)
+      expect(Profile.seeded_text?("")).to be(false)
+    end
+
+    # Whole-string match, never a substring: a real bio that quotes the phrase
+    # belongs to whoever wrote it.
+    it "does not match a real bio that merely quotes the copy" do
+      quoting = "The app told me to \"#{Profile::SEEDED_TEXT.first}\" so here goes: I love trains."
+
+      expect(Profile.seeded_text?(quoting)).to be(false)
+    end
+  end
+
   describe "slug format validation (on change)" do
     it "accepts a kebab-case 3-40 char slug" do
       profile = build_profile(slug: "river-stone-42")

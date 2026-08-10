@@ -13,11 +13,12 @@ namespace :accounts do
       puts "Account name: #{placeholder_name}"
       slug = placeholder_name.parameterize
 
+      # No seeded bio/intro — `claim!` keeps whatever is stored, so this copy
+      # followed the profile onto a real MySpeak page and was published there
+      # as the communicator's own About Me. See Profile::SEEDED_TEXT.
       profile = Profile.create!(
         username: placeholder_name,
         slug: slug,
-        bio: "This is a placeholder profile. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
-        intro: "Welcome to MySpeak! Let's get started.",
         placeholder: true,
         claimed_at: nil,
         claim_token: SecureRandom.hex(10),
