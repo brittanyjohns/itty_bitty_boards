@@ -44,10 +44,8 @@ Rails.application.routes.draw do
   #   sessions: 'users/sessions',
   #   registrations: 'users/registrations'
   # }
-  resources :users do
-    collection do
-      get "admin"
-    end
+  # Self-service profile only. Admin listings live under /admin.
+  resources :users, only: [:show, :edit, :update] do
     member do
       delete "remove_user_doc"
     end

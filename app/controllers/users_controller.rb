@@ -1,35 +1,13 @@
 class UsersController < ApplicationController
   before_action :authenticate_user!
-  # The legacy HTML admin pages (/users, /users/admin) list every account in the
-  # system — admin-only, same as the /admin namespace. Gating happens in a
-  # before_action, not inline in the action, so the body never runs for a caller
-  # who shouldn't reach it. (#word_events has no route left, but is gated with
-  # them so re-adding one can't quietly reopen it.)
-  before_action :require_admin!, only: %i[index admin word_events]
   before_action :set_user, only: %i[show edit update]
   before_action :require_self_or_admin!, only: %i[show edit update]
 
-  def index
-    @users = User.all.order(created_at: :desc).page params[:page]
-  end
-
-  def admin
-    @users = User.all.order(created_at: :desc).page params[:page]
-    @beta_requests = BetaRequest.all.order(created_at: :desc).page params[:page]
-    @messages = Message.all.order(created_at: :desc).page params[:page]
-    @images = Image.with_artifacts.all.order(label: :desc).page params[:page]
-    @docs = Doc.all.order(created_at: :desc).page params[:page]
-    @boards = Board.all.order(name: :desc).page params[:page]
-    @word_events = WordEvent.all.order(word: :asc).page params[:page]
-  end
-
-  def word_events
-    @total_clicks = WordEvent.count
-    @clicks_per_user = WordEvent.group(:user_id).count
-    @most_clicked_words = WordEvent.group(:word).order("count_id DESC").count(:id)
-    @most_common_previous_words = WordEvent.group(:previous_word).order("count_id DESC").count(:id)
-    @clicks_over_time = WordEvent.group_by_day(:timestamp).count
-  end
+  # Admin listings live in the /admin namespace (Admin::DashboardController,
+  # Admin::UsersController, Admin::WordEventsController). The actions that used
+  # to duplicate them here (#index, #admin, #word_events) are gone, so what's
+  # left is self-service profile only — there is no admin-only action here to
+  # gate.
 
   def show
   end
@@ -61,10 +39,6 @@ class UsersController < ApplicationController
 
   def user_params
     params.require(:user).permit(:name, :base_words, settings: [:voice, :speed, :pitch, :rate, :volume, :language])
-  end
-
-  def require_admin!
-    deny! unless current_user&.admin?
   end
 
   # A user's own profile is self-service ("Edit Profile" on /users/:id); every

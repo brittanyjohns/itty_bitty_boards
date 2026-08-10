@@ -268,8 +268,9 @@ an explicit decision, not a drive-by edit.
   namespace. Gate in a `before_action`, not inline in the action body — a bare
   `redirect_to … unless current_user.admin?` mid-action still runs every query
   below it, and the next person to add an early `render` turns it into a leak.
-  The legacy HTML admin under `/users` (`/users`, `/users/admin`, `/users/:id`)
-  is outside the `Admin::` namespace and carries its own copy of the gate.
+  The legacy HTML admin listings under `/users` are gone; what survives there
+  is the self-service profile (`/users/:id`), outside the `Admin::` namespace
+  and carrying its own self-or-admin gate.
 - **Safety-profile emergency info is only served by the gated `safety_view`
   POST** — never on public page-open. It is also never sent to OpenAI: no
   `Profile::SAFETY_SENSITIVE_KEYS` entry may appear in a

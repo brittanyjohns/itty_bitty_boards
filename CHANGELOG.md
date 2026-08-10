@@ -27,6 +27,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   takes the id of one of the tile's own audio files instead of a URL supplied
   by the client.
 
+### Removed
+
+- **The old `/users` and `/users/admin` HTML pages are gone.** They pointed at
+  route helpers that no longer exist, so every visit — admin included — was a
+  500. Everything they showed lives in the `/admin` dashboard. `/users/:id`
+  (profile view/edit) stays and now renders again.
+
 ### Fixed
 
 - **One account could edit another account's profile.** The legacy HTML pages

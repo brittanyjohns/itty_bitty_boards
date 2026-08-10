@@ -1,19 +1,14 @@
 require "rails_helper"
 
-# The legacy HTML admin lives under /users, outside the /admin namespace:
-# /users and /users/admin list every account, and /users/:id renders one
-# account's email, token balance, boards, menus and images.
+# What's left of the legacy HTML surface under /users is the self-service
+# profile: /users/:id renders one account's email, token balance and content
+# counts, and #update / #remove_user_doc write. The account-listing pages
+# (/users, /users/admin) are gone — see spec/requests/users_spec.rb for the
+# routing assertions; admin listings live in the /admin namespace now.
 #
-# Those *pages* are already dead — their templates reference routes that no
-# longer exist (boards_path, products_path, set_next_words_images_path), so
-# they raise on render for admins too. The write actions are not dead: #update
-# and #remove_user_doc redirect instead of rendering, and before this gate any
-# signed-in user could point them at any other account.
-#
-# So the assertions below are about the gate, not the templates: a denied
-# caller must be redirected to root and must not mutate anything. The
-# allowed-caller cases assert only that the gate let them past, since what
-# happens next is a pre-existing template failure.
+# The assertions below are about the gate: a denied caller must be redirected
+# to root, must see nothing of the target account, and must not mutate
+# anything.
 RSpec.describe "UsersController access control", type: :request do
   include Devise::Test::IntegrationHelpers
 
@@ -21,35 +16,18 @@ RSpec.describe "UsersController access control", type: :request do
   let(:owner) { create(:user, email: "owner@example.com") }
   let(:intruder) { create(:user, email: "intruder@example.com") }
 
-  describe "the account-listing pages" do
-    %w[/users /users/admin].each do |path|
-      it "redirects an anonymous visitor from #{path} to sign in" do
-        get path
-
-        expect(response).to redirect_to(%r{/users/sign_in})
-      end
-
-      it "bounces a signed-in non-admin off #{path}" do
-        sign_in intruder
-
-        get path
-
-        expect(response).to redirect_to(root_url)
-        expect(flash[:alert]).to be_present
-      end
-    end
-
-    it "does not leak another account's email through the listing" do
-      owner
-      sign_in intruder
-
-      get "/users/admin"
-
-      expect(response.body).not_to include(owner.email)
-    end
+  before do
+    allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:stylesheet_link_tag).and_return("")
+    allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:javascript_include_tag).and_return("")
   end
 
   describe "GET /users/:id" do
+    it "redirects an anonymous visitor to sign in" do
+      get user_path(owner)
+
+      expect(response).to redirect_to(%r{/users/sign_in})
+    end
+
     it "does not leak another user's profile" do
       sign_in intruder
 
@@ -59,10 +37,23 @@ RSpec.describe "UsersController access control", type: :request do
       expect(response.body).not_to include(owner.email)
     end
 
-    # No allow-path example here: #show renders the dead template and raises
-    # before it can assert anything. #show, #edit and #update share one
-    # before_action, so the self/admin allow paths are covered by the PATCH
-    # examples below.
+    it "lets a user see their own profile" do
+      sign_in owner
+
+      get user_path(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(owner.email)
+    end
+
+    it "lets an admin see another user's profile" do
+      sign_in admin
+
+      get user_path(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(owner.email)
+    end
   end
 
   describe "PATCH /users/:id" do
