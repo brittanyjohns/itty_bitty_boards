@@ -2823,7 +2823,15 @@ class Board < ApplicationRecord
       board_image = upsert_board_image(board, image, item, coords, temp_display_image,
                                        apply_button_attributes: apply_button_attributes,
                                        board_image_cache: board_image_cache)
-      dynamic_data[image.id] = {
+      # Keyed on the TILE, not the Image. Two authored buttons can legitimately
+      # resolve to one Image (Core 60/84 author both a "more" word button and a
+      # "More" folder button; Image lookup is case-insensitive by design), and
+      # keying on image.id let whichever button came second overwrite the
+      # first's row. On any page authoring the folder BEFORE the word — Core
+      # 84's `food.obf` — the word's row (no `load_board`) won, so
+      # ObzImporter#link_dynamic_boards! never linked the folder and the page
+      # shipped a dead `More` tile that opened nothing.
+      dynamic_data[board_image.id] = {
         "board_id" => board.id,
         "board" => board,
         "original_obf_id" => obf_id,

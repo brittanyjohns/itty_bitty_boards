@@ -982,6 +982,37 @@ RSpec.describe Board, type: :model do
       expect(happy_bi.layout["lg"]).to include("x" => 0, "y" => 0)
     end
 
+    # Regression: dynamic_data is keyed per TILE, not per Image. Core 60/84
+    # author both a "more" word button and a "More" folder button, which resolve
+    # to one case-insensitively-matched Image. Keying on the Image let whichever
+    # button came second overwrite the first's row — so on a page authoring the
+    # FOLDER first (food.obf) the word's `load_board`-less row won, and
+    # ObzImporter#link_dynamic_boards! left the folder tile dead.
+    it "returns one dynamic_data row per tile when two buttons share an Image" do
+      shared_image_obf = {
+        "format" => "open-board-0.1",
+        "id" => "shared",
+        "name" => "Shared",
+        "grid" => { "rows" => 1, "columns" => 2, "order" => [[1, 2]] },
+        "buttons" => [
+          { "id" => 1, "label" => "More", "load_board" => { "path" => "boards/more.obf" } },
+          { "id" => 2, "label" => "more" },
+        ],
+        "images" => [],
+        "sounds" => [],
+      }
+
+      board, dynamic_data = described_class.from_obf(shared_image_obf, user)
+
+      expect(board.board_images.count).to eq(2)
+      expect(dynamic_data.size).to eq(2)
+      expect(dynamic_data.keys).to match_array(board.board_images.map(&:id))
+      folder_row = dynamic_data.values.find { |row| row["dynamic_board"].present? }
+      expect(folder_row).to be_present
+      expect(folder_row["label"]).to eq("More")
+      expect(BoardImage.find(folder_row["board_image_id"]).display_label).to eq("More")
+    end
+
     it "re-raises instead of silently returning nil on malformed input" do
       expect {
         described_class.from_obf("not json", user)

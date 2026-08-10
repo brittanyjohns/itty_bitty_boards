@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Core 60/84 Food pages: the "More" folder opened nothing, and the "more"
+  word tile was missing.** The authored Food page is the one page in each set
+  that lists the `More` folder before the `more` word, and the two share one
+  symbol — so the importer's link step credited the word's (unlinked) button and
+  left the folder tile dead, then the duplicate-tile cleanup mistook the dead
+  folder for a copy of the word and deleted the word. Both tiles now import
+  correctly on every page of both sets, and every built board set is checked for
+  dead folder tiles on all of its pages, not just the home board.
+
 - **Admin board builder: pages were being built with nothing to open them.** A
   page only became reachable if the main board's word list carried a hand-typed
   `>page_key` tile, and only "Draft the whole set with AI" ever wrote one — so

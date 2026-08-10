@@ -439,6 +439,50 @@ RSpec.describe VocabSets do
     end
   end
 
+  # A seeded page's own authored nav row is as load-bearing as the home board's:
+  # a folder button with a `load_board` that imported UNLINKED opens nothing when
+  # tapped. Sweeps every page in the set, not just the root — the Food page's
+  # `More` folder was dead in both sets because food.obf is the one page that
+  # authors the `More` FOLDER before the `more` WORD, and the importer keyed its
+  # link rows on the shared Image so the word's row (no `load_board`) won.
+  describe "authored folder links across the whole set" do
+    { "core-60" => :@c60_root, "core-84" => :@c84_root }.each do |slug, ivar|
+      it "links every authored load_board button on every #{slug} page" do
+        root = instance_variable_get(ivar)
+        source_dir = VocabSets::SETS_DIR.join(slug, "boards")
+
+        Board.where(id: collect_set_board_ids(root)).each do |board|
+          obf_path = source_dir.join("#{board.obf_id.to_s.split(':').last}.obf")
+          next unless File.exist?(obf_path)
+
+          authored_folder_ids = JSON.parse(File.read(obf_path))["buttons"]
+            .select { |btn| btn["load_board"].is_a?(Hash) }
+            .map { |btn| btn["id"].to_s }
+
+          dead = board.board_images.select do |bi|
+            authored_folder_ids.include?(bi.data.to_h["obf_button_id"].to_s) &&
+              bi.predictive_board_id.nil?
+          end
+
+          expect(dead).to be_empty,
+            "#{board.name}: dead folder tiles #{dead.map(&:display_label).inspect}"
+        end
+      end
+    end
+
+    # The same collision silently ate a WORD tile: with the folder left unlinked,
+    # TileDeduper saw two non-folder "more" tiles and destroyed one.
+    it "keeps both the More folder and the more word tile on the Food page" do
+      food = Board.find(@c84_root.board_images.find_by(display_label: "Food").predictive_board_id)
+      tiles = food.board_images.select { |bi| bi.label.to_s.downcase == "more" }
+
+      expect(tiles.map(&:display_label)).to contain_exactly("More", "more")
+      folder = tiles.find { |bi| bi.display_label == "More" }
+      expect(Board.find(folder.predictive_board_id).name).to eq("More")
+      expect(tiles.find { |bi| bi.display_label == "more" }.predictive_board_id).to be_nil
+    end
+  end
+
   # [{label:, predictive_board_id:}] for the tiles in one grid row of a seeded
   # board, indexed by lg column — nil for an empty cell.
   def nav_row_spec(board, y)
