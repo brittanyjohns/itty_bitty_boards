@@ -403,7 +403,9 @@ word list.
   NavRowSync there is **no self-tile exception**: nothing in an admin-built set
   is a you-are-here anchor, so a child's "back to home" tile is muted too.
   Speaking the folder's label puts a word into the utterance the communicator
-  didn't choose to say.
+  didn't choose to say. Sets built before this fix are repaired by
+  `rake admin_board_builder:mute_folder_tiles` (dry run by default,
+  `DRY_RUN=false` to write, `BUILD_ID=N` to scope to one build).
 
 ### Phase 4 — verify + publish
 
