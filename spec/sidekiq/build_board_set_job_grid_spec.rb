@@ -11,8 +11,21 @@ require "rails_helper"
 RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   CORE_84_GRID_CELLS = 84 # 7 rows x 12 cols, authored layout
 
-  before do
-    allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
+  # The seed is ~600 tiles (Core 84's 434 buttons + 11 fringe pages + the GLP
+  # function boards) and is identical for every example here, so it is built
+  # once in `before_all` rather than per example: 511s -> 361s.
+  #
+  # What's left is the nine real `BuildBoardSetJob` runs, and one extended build
+  # is ~82s of ActiveRecord callback overhead on its own (see #644). Until that
+  # lands, this file is the slowest in the suite and sets the CI wall-clock
+  # floor, since a shard can't finish faster than its slowest single file.
+  #
+  # The mutating helpers below (`overlap_seed_grid!`, `shrink_seed_grid!`) are
+  # safe against shared setup: `before_all` creates the seed in an outer
+  # transaction and each example runs inside a nested savepoint that rolls back,
+  # so one example's damage to the seed root can't leak into the next. Keep it
+  # that way — any new mutation must happen *inside* an example, never here.
+  before_all do
     admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
     VocabSets.seed_slug!("core-84")
     Dir.glob(Boards::FringeTemplates::SEED_DIR.join("*.obf")).sort.each do |p|
@@ -21,6 +34,12 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     # The Phrases layer rides every build now; seed the GLP function boards so
     # the integration test exercises the real (Phrases-inclusive) build path.
     Boards::GlpTemplates.seed!(admin: admin)
+  end
+
+  # Stays per-example: rspec-mocks tears every stub down between examples, so a
+  # doubled Grover set up in `before_all` would be gone by the first example.
+  before do
+    allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
   end
 
   let(:user) { create(:user, id: 9001) }

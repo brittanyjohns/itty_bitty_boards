@@ -141,15 +141,6 @@ GEM
     bundler-audit (0.9.3)
       bundler (>= 1.2.0)
       thor (~> 1.0)
-    capybara (3.40.0)
-      addressable
-      matrix
-      mini_mime (>= 0.1.3)
-      nokogiri (~> 1.11)
-      rack (>= 1.6.0)
-      rack-test (>= 0.6.3)
-      regexp_parser (>= 1.5, < 3.0)
-      xpath (~> 3.2)
     chunky_png (1.4.0)
     combine_pdf (1.0.31)
       matrix
@@ -491,7 +482,6 @@ GEM
       redis-client (>= 0.22.0)
     redis-client (0.23.0)
       connection_pool
-    regexp_parser (2.10.0)
     reline (0.6.3)
       io-console (~> 0.5)
     request_store (1.7.0)
@@ -538,12 +528,6 @@ GEM
     sassc (2.4.0)
       ffi (~> 1.9)
     securerandom (0.4.1)
-    selenium-webdriver (4.27.0)
-      base64 (~> 0.2)
-      logger (~> 1.4)
-      rexml (~> 3.2, >= 3.2.5)
-      rubyzip (>= 1.2.2, < 3.0)
-      websocket (~> 1.0)
     sidekiq (7.3.10)
       base64
       connection_pool (>= 2.3.0, < 3)
@@ -599,13 +583,10 @@ GEM
       addressable (>= 2.8.0)
       crack (>= 0.3.2)
       hashdiff (>= 0.4.0, < 2.0.0)
-    websocket (1.2.11)
     websocket-driver (0.8.2)
       base64
       websocket-extensions (>= 0.1.0)
     websocket-extensions (0.1.5)
-    xpath (3.2.0)
-      nokogiri (~> 1.8)
     zeitwerk (2.8.2)
 
 PLATFORMS
@@ -629,7 +610,6 @@ DEPENDENCIES
   brakeman
   browser (~> 5.3)
   bundler-audit
-  capybara
   combine_pdf
   cssbundling-rails
   debug
@@ -677,7 +657,6 @@ DEPENDENCIES
   rspec-rails
   ruby-openai (~> 8.0)
   rubyzip (~> 2.3)
-  selenium-webdriver
   sidekiq (~> 7.3.10)
   sidekiq-cron (~> 2.0)
   simple_form

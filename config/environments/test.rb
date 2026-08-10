@@ -8,6 +8,12 @@ Rails.application.routes.default_url_options[:host] = "localhost:4000"
 
 Rails.application.configure do
   config.log_file_size = 50.megabytes
+
+  # Debug-level logging writes every SQL statement to log/test.log — the suite
+  # filled the 50 MB cap above in about two minutes of running, for output
+  # nobody reads. Set VERBOSE_TEST_LOG=1 to get it back when debugging a spec.
+  config.log_level = ENV["VERBOSE_TEST_LOG"].present? ? :debug : :warn
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # While tests run files are not watched, reloading is not necessary.
@@ -19,8 +25,10 @@ Rails.application.configure do
   # loading is working properly before deploying your code.
   config.eager_load = ENV["CI"].present?
 
-  # Configure public file server for tests with Cache-Control for performance.
-  config.public_file_server.enabled = true
+  # Off by default: no spec asserts on a statically-served file, so this only
+  # added a middleware to every request. Re-enable if a spec ever needs to GET
+  # something out of public/.
+  config.public_file_server.enabled = ENV["TEST_PUBLIC_FILE_SERVER"].present?
   config.public_file_server.headers = {
     "Cache-Control" => "public, max-age=#{1.hour.to_i}",
   }

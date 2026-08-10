@@ -65,6 +65,15 @@ jobs:
 
     strategy:
       fail-fast: false
+      # Three is the right number *because* the split is now runtime-balanced:
+      # 3 shards land at 5.9 min with a 0.0s spread, and 4+ can't beat 5.7 min
+      # because one file (build_board_set_job_grid_spec.rb, 342s) is the floor —
+      # a shard can never finish faster than its slowest single spec. More
+      # shards would just buy 12s for ~30% more runner-minutes.
+      #
+      # Revisit once #644 lands: with that file's cost gone the floor drops and
+      # more shards start paying for themselves again. Re-run the numbers with
+      # `rake ci:timings` rather than guessing.
       matrix:
         ci_node_index: [0, 1, 2]
         ci_node_total: [3]
@@ -149,15 +158,52 @@ jobs:
       - name: Prepare test database
         run: bin/rails db:schema:load
 
-      - name: RSpec (shard ${{ matrix.ci_node_index }}/${{ matrix.ci_node_total }})
+      # Guards the split itself: every shard recomputes the same assignment, so
+      # if bin/ci-shard ever went non-deterministic a spec could run twice or
+      # not at all — and a silently-skipped spec is worse than a slow suite.
+      - name: Verify shard split covers every spec exactly once
         run: |
-          FILES=$(find spec -name '*_spec.rb' | sort | awk "NR % ${{ matrix.ci_node_total }} == ${{ matrix.ci_node_index }}")
+          set -euo pipefail
+          for i in $(seq 0 $(( ${{ matrix.ci_node_total }} - 1 ))); do
+            CI_NODE_INDEX=$i CI_NODE_TOTAL=${{ matrix.ci_node_total }} bin/ci-shard 2>/dev/null
+          done | sort > /tmp/sharded.txt
+          find spec -name '*_spec.rb' | sort > /tmp/all_specs.txt
+          if ! diff -q /tmp/all_specs.txt /tmp/sharded.txt; then
+            echo "::error::shard split does not cover every spec exactly once"
+            diff /tmp/all_specs.txt /tmp/sharded.txt || true
+            exit 1
+          fi
+          echo "OK: $(wc -l < /tmp/all_specs.txt) spec files, each assigned exactly once"
+
+      - name: RSpec (shard ${{ matrix.ci_node_index }}/${{ matrix.ci_node_total }})
+        env:
+          CI_NODE_INDEX: ${{ matrix.ci_node_index }}
+          CI_NODE_TOTAL: ${{ matrix.ci_node_total }}
+        run: |
+          set -euo pipefail
+          FILES=$(bin/ci-shard)
+          # `rspec` with an empty file list runs the ENTIRE suite, which would
+          # turn an empty shard into a silent 5x duplication of the whole run.
+          if [ -z "$FILES" ]; then
+            echo "::error::shard ${{ matrix.ci_node_index }} was assigned no spec files"
+            exit 1
+          fi
           FAIL_FAST=""
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             FAIL_FAST="--fail-fast"
           fi
           echo "Running $(echo "$FILES" | wc -l | tr -d ' ') spec files (shard ${{ matrix.ci_node_index }})"
           bundle exec rspec $FAIL_FAST $FILES
+
+      # Feeds `rake ci:timings`. Download these from a green main-branch run and
+      # merge them to refresh spec/ci_timings.json when the split drifts.
+      - name: Upload shard timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rspec-timings-${{ matrix.ci_node_index }}
+          path: spec/examples.txt
+          if-no-files-found: warn
 
   # Required status check. Always runs so branch protection gets a reported
   # result. On docs-only changes the shards are skipped and this passes.
