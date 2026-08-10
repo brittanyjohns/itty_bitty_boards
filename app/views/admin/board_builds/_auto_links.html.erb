@@ -1,0 +1,29 @@
+<%# What Boards::AdminBuilder::FolderTiles did on this round trip. Rendered on
+    both the form and the preview: the tiles are already in the root word list
+    by the time either is drawn, so this is a report, not a prompt. %>
+<% if @auto_linked&.changed? %>
+  <div class="admin-card border border-indigo-500/40 rounded-xl p-4 mb-6">
+    <p class="text-xs text-indigo-400 font-medium">
+      <%= "Added #{@auto_linked.added.size} folder #{"tile".pluralize(@auto_linked.added.size)} to the main board" %>
+      — a page with nothing opening it builds unreachable.
+    </p>
+    <ul class="text-[11px] text-t2 mt-2 flex flex-col gap-1">
+      <% @auto_linked.added.each do |link| %>
+        <li>
+          <span class="font-mono"><%= link[:label] %></span> opens
+          <span class="font-mono">&gt;<%= link[:key] %></span>
+        </li>
+      <% end %>
+    </ul>
+    <% if @auto_linked.displaced.any? %>
+      <p class="text-[11px] text-t3 mt-2">
+        The main board was already full, so
+        <%= @auto_linked.displaced.map { |label| "“#{label}”" }.to_sentence %>
+        <%= @auto_linked.displaced.one? ? "was" : "were" %> dropped to make room. Edit the word list
+        if you'd rather lose a different word.
+      </p>
+    <% else %>
+      <p class="text-[11px] text-t3 mt-2">Edit the word list above to rename or re-colour them.</p>
+    <% end %>
+  </div>
+<% end %>

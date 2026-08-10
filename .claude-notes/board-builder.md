@@ -1092,6 +1092,25 @@ Its own invariants:
   root and its pages into one list so validation, preview and build never
   special-case the root; the root's key is `Plan::ROOT_KEY` (`__root__`), which
   is also what a "back to home" tile links to.
+- **A page nothing opens is never authored on purpose, so the door is written
+  for you.** `Boards::AdminBuilder::FolderTiles.link` runs on EVERY form
+  round-trip (`submitted_form`, and again after each drafting action rewrites
+  part of the form) and gives any keyed page with no inbound link a folder tile
+  on the root. It has to run on every round-trip because every drafter replaces
+  something after the fact: `WordListDrafter` rewrites the whole root list —
+  wiping the `>key` tokens a set draft had put there — and `PageDrafter` knows
+  about one page and can't name a sibling, so only `SetDrafter` ever emitted a
+  link at all. A tile already saying the page's word is *promoted* rather than
+  duplicated, including one whose `links_to` names a page that doesn't exist (a
+  mistyped `>fod` next to a page called Food is a door meant for that page).
+  Root drafting asks for `tile_count - reserved_count` words so the folder tiles
+  land inside the grid; when the root is already full, trailing plain words are
+  displaced to make room and named in the banner — a word is regenerable, a door
+  is not, and an overflowing board can't be built at all. Folder tiles carry a
+  `display_label` because a category tile's label is authored ("Food" opens a
+  page, "food" says the word) and `Image#set_label` would otherwise fold the
+  capital. `PlanValidator#orphan_problems` is the backstop, not the mechanism —
+  it only fires for a page whose key never got far enough to link.
 - **Linking is a three-pass write, NOT a topological build order.** Every page's
   Board row is created first, then tiles, then the links. `build_board.py` needs
   `build_order()` with cycle-breaking because its HTTP API creates a board

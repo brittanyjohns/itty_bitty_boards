@@ -52,14 +52,19 @@ module Admin
       @problems = draft_problems(@form)
       return render(:new, status: :unprocessable_entity) if @problems.any?
 
+      # Drafting replaces the root outright, so every page is about to need a
+      # folder tile written back in. Asking for that many fewer words lands on
+      # the tile count exactly, instead of drafting a full board and then having
+      # its tail displaced to make room.
+      reserved = Boards::AdminBuilder::FolderTiles.reserved_count(children: @form[:children])
       tiles = Boards::AdminBuilder::WordListDrafter.new(
         topic: @form[:topic],
-        tile_count: @form[:tile_count].to_i,
+        tile_count: [@form[:tile_count].to_i - reserved, 1].max,
         audience: @form[:audience],
       ).call
 
-      @form = @form.merge(words: tiles_to_words(tiles), tiles: tiles)
-      flash.now[:notice] = draft_notice(tiles, @form)
+      @form = with_folder_tiles(@form.merge(words: tiles_to_words(tiles), tiles: tiles))
+      flash.now[:notice] = draft_notice(@form[:tiles], @form)
       render :new
     rescue Boards::AdminBuilder::WordListDrafter::GenerationError => e
       @problems = ["Couldn't draft a word list: #{e.message}"]
@@ -92,7 +97,7 @@ module Admin
       ).call
 
       all_tiles = existing + new_tiles
-      @form = @form.merge(words: tiles_to_words(all_tiles), tiles: all_tiles)
+      @form = with_folder_tiles(@form.merge(words: tiles_to_words(all_tiles), tiles: all_tiles))
       flash.now[:notice] = add_words_notice(new_tiles, missing, @form)
       render :new
     rescue Boards::AdminBuilder::WordListDrafter::GenerationError => e
@@ -120,11 +125,13 @@ module Admin
         audience: @form[:audience],
       ).call
 
-      @form = @form.merge(
+      # The prompt asks for a folder tile per page, but a draft that came back
+      # without one would otherwise build an unreachable page.
+      @form = with_folder_tiles(@form.merge(
         words: tiles_to_words(set[:root_tiles]),
         tiles: set[:root_tiles],
         children: children_form_from(set[:children]),
-      )
+      ))
       flash.now[:notice] = draft_set_notice(set, @form)
       render :new
     rescue Boards::AdminBuilder::SetDrafter::GenerationError => e
@@ -163,6 +170,7 @@ module Admin
       ).call
 
       @form[:children][index] = child.merge(words: tiles_to_words(tiles), tiles: tiles)
+      @form = with_folder_tiles(@form)
       flash.now[:notice] = draft_page_notice(tiles, child, tile_count)
       render :new
     rescue Boards::AdminBuilder::PageDrafter::GenerationError => e
@@ -279,7 +287,9 @@ module Admin
     # re-type. The name is copied verbatim; `preview` warns about the
     # collision rather than forcing an edit up front.
     def duplicate
-      @form = form_from_build(@build)
+      # Runs the folder-tile pass too, so re-opening a set built before this
+      # existed repairs its missing doors instead of reproducing them.
+      @form = with_folder_tiles(form_from_build(@build))
       flash.now[:notice] = "Loaded “#{@build.name}” into the form. Nothing is written until you build."
       render :new
     end
@@ -641,7 +651,30 @@ module Admin
         commercial_safe_only: checked?(params[:commercial_safe_only]),
         allow_partial_row: checked?(params[:allow_partial_row]),
         allow_mixed_grids: checked?(params[:allow_mixed_grids]),
-      }
+      }.then { |form| with_folder_tiles(form) }
+    end
+
+    # Writes a folder tile onto the main board for any page nothing opens, and
+    # re-renders the root textarea so the admin sees the line that was added.
+    #
+    # Called on every round-trip — not once at submit — because every drafting
+    # action replaces part of the form after `submitted_form` has run:
+    # `draft` and `add_words` rewrite the root list (dropping the `>key` tokens
+    # a set draft had put there), `draft_page` rewrites a page. Re-applying
+    # after each of those is what makes a page reachable no matter which order
+    # the buttons were pressed.
+    #
+    # `@auto_linked` is what the form and the preview report from; the last
+    # call in a request wins, which is the state actually being rendered.
+    def with_folder_tiles(form)
+      @auto_linked = Boards::AdminBuilder::FolderTiles.link(
+        root_tiles: form[:tiles],
+        children: form[:children],
+        tile_count: form[:tile_count].to_i,
+      )
+      return form unless @auto_linked.changed?
+
+      form.merge(tiles: @auto_linked.tiles, words: tiles_to_words(@auto_linked.tiles))
     end
 
     # Child pages arrive as an indexed hash, the same shape

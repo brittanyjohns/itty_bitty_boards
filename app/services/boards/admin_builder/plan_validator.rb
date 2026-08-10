@@ -38,7 +38,8 @@ module Boards
         # A page whose key is broken can't have its links checked coherently.
         return problems if problems.any?
 
-        problems + pages.flat_map { |page| page_problems(page) } + grid_problems + link_problems
+        problems + pages.flat_map { |page| page_problems(page) } + grid_problems + link_problems +
+          orphan_problems
       end
 
       private
@@ -187,6 +188,25 @@ module Boards
 
             prefixed(page, "tile “#{tile[:label]}” opens page “#{target}”, which doesn't exist.")
           end
+        end
+      end
+
+      # The other direction, and the one that actually shipped broken sets: a
+      # page nothing opens still builds and still publishes, so it goes live at
+      # its own /pb/ slug with no way for a communicator to reach it.
+      # Boards::AdminBuilder::FolderTiles writes the missing door on every form
+      # round-trip, so in practice this fires only for a page whose key never
+      # made it that far — it is the backstop, not the mechanism.
+      def orphan_problems
+        return [] unless multi_page?
+
+        linked = pages.flat_map { |page| page[:tiles] }.filter_map { |tile| tile[:links_to].presence }.to_set
+
+        pages.drop(1).filter_map do |page|
+          next if linked.include?(page[:key])
+
+          "#{label_for(page)}: nothing opens this page. Add a tile to the main board with " \
+            "“#{Boards::AdminBuilder::WordList::LINK_TOKEN}#{page[:key]}”, or remove the page."
         end
       end
     end
