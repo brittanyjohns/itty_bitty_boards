@@ -396,33 +396,68 @@ job runs the hybrid path:
 4. **Catch-all** — interests with no fitted page (initial unmatched + any pages
    that didn't fit the grid + AI pages that fell back) → a single "My Favorites".
 
-#### Grid cap: never overflow the authored core grid
+#### Overflow goes into the "More" drawer, never onto a stray row
 
-The authored core board fills its grid with a few intentional empty cells
-(Core 84 = 7×12 = 84 cells, 81 tiles, 3 gaps). `Board#add_image` drops a tile
-into the first open cell and only starts a **new row** once the grid is full
-(`BoardsHelper#next_available_cell`). So naively adding one folder tile per
-fringe page overflowed onto a stray extra row — the "85th tile" bug.
+**The authored core grids are completely full**: Core 60 is 60 tiles in a 6×10
+grid, Core 84 is 84 tiles in a 7×12 grid. Zero reserved cells, in both.
+`Board#add_image` drops a tile into the first open cell and only starts a **new
+row** once the grid is full (`BoardsHelper#next_available_cell`), so every page
+a build adds past the seed set used to land on a row of its own — and
+`Boards::NavRegion` then rotates the authored nav row back underneath it. The
+visible result on a Core 60 build was a home board reading "61 tiles" with one
+lone `Bathroom` folder stranded between the core words and the nav row, plus the
+loss of the seed's one-page `disable_scroll`.
 
-`add_fringe_pages_within_grid!` caps the top-level folder tiles it adds to the
-number of open cells (`root_open_cells`, which delegates to the shared
-`Board#open_grid_cells`), reserving one cell for "My Favorites" whenever
-leftovers are expected. Interest-bearing pages are placed first, so a
-nearly-full grid still gets the pages the child actually asked for; anything
-that doesn't fit folds into My Favorites — nothing typed is dropped. Net result:
-a built robust set never exceeds its authored grid and never leaves a dead
-(unlinked) folder tile behind.
+**`Boards::FolderPlacer` is the single authority on where a top-level folder
+tile goes.** In order:
 
-> **Hard cap (the "86 tiles instead of 84" fix).** The reservation alone wasn't
-> enough once the Phrases layer started riding every build: a fuller authored
-> grid (fewer reserved gaps than the repo's Core 84) left no cell for the
-> catch-all, yet the catch-all tile was added **unconditionally** — so it (and
-> a fringe page) spilled onto a stray 8th row → 86 tiles. The cap is now a hard
-> guarantee enforced by **every** top-level tile-adder via `open_grid_cells`:
-> the Phrases folder + quick-phrase strip (`build_phrases_layer!`/
-> `add_phrase_strip!`), `BuildBoardSetJob#add_to_favorites!`, **and**
-> `SeededSetCloner#create_favorites_board!`. When there's genuinely no open
-> cell the catch-all tile is skipped (logged), never spilled. Separately,
+1. a genuine open cell on the home grid — `Board#open_grid_cells`;
+2. else the set's **"More" drawer** — the board the root's `More` folder tile
+   opens, owner-scoped (`FolderPlacer.drawer_for`). More is on the nav row of
+   every page in the set, so the page stays two taps from anywhere, and it ships
+   mostly empty (Core 60's More: 31 tiles in 60 cells);
+3. else grow the home grid, as before. Only the legacy label-only starter trees
+   (`home`, `daily_routine`) have no `More`, so in practice this is the
+   drawer-is-full case.
+
+Every top-level tile-adder routes through it: `BuildBoardSetJob#add_folder_tile!`
+(so prebuilt fringe, AI pages, and `#add_to_favorites!` all inherit it) and
+`SeededSetCloner#create_favorites_board!`. The Phrases layer is the exception in
+practice, not by special-casing — `build_phrases_layer!` still bails when the
+home grid has no open cell, so it never reaches step 2. Two placement rules
+inside the drawer are load-bearing:
+
+- **Tiles pack into a band, not into authored gaps.** Placement takes the first
+  row above the drawer's nav row that already holds nothing but folder tiles
+  (the band a previous page started), else the first fully-empty row. Core 60's
+  More has two open cells mid-way through its top word row, between `for` and
+  `here`; `next_available_cell` would drop `Bathroom` there.
+- **The drawer's nav row is its BOTTOM row** — deliberately not
+  `NavRegion.authored_nav_y`, which picks whichever row holds the most folder
+  tiles. A band that grew to the nav row's size would win that tie (lower `y`)
+  and the next placement would start overwriting nav cells.
+
+`FolderPlacer` also refuses the drawer for a page whose name matches a nav-region
+label: `NavRowSync#evict_occupants!` destroys any folder tile on a child page
+carrying a nav category's label, so such a page would be silently orphaned
+inside the drawer. It stays on the home board instead.
+
+Because a page can now live one level down, `BuildBoardSetJob
+#set_top_level_boards_by_name` reads the root's folder targets **plus the
+drawer's** — otherwise a leftover interest word wouldn't find its category page —
+and `#add_to_favorites!` looks for an existing "My Favorites" through the same
+map, so the cloner's drawer-tucked Favorites isn't duplicated. `set_board_ids`
+already walks the link graph unbounded, so BoardGroup membership, nav sync,
+reflow, and cascade-delete need no change.
+
+`allow_scroll_if_grown!` remains the safety net for case 3: a home board that
+did grow clears the seed's one-page `disable_scroll` so the new row isn't
+clipped.
+
+> Default (no-interest) fringe pages still fill only genuine open cells — they
+> are never tucked into the drawer just to surface content the child didn't ask
+> for, so a no-interest build stays one clean page.
+
 > `SeededSetCloner#fringe_for_category` applies `CATEGORY_SEED_ALIASES`
 > ("Family & People" → People, "Health & Body" → Body) so those seed-set
 > interests reach the cloned page instead of spawning an extra "My Favorites"
@@ -482,6 +517,9 @@ thresholds. Revisit when real usage data or SLP feedback is available.
   capping, excluded pages, catch-all, credit downgrade, explicit categories.
 - `spec/services/boards/fringe_templates_spec.rb` — find, all_templates,
   seed_obf!.
+- `spec/services/boards/folder_placer_spec.rb` — placement order (open cell →
+  drawer → grow), band packing, the authored-gap and nav-label refusals,
+  drawer-full fallback, `drawer_for` ownership scoping.
 - `spec/services/boards/ai_page_generator_spec.rb` — happy path, error cases,
   tile capping, profile guidance, blank label filtering.
 - `spec/services/communicator_profile_spec.rb` — developing?, young_teen?.

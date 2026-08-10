@@ -399,5 +399,32 @@ RSpec.describe Boards::SeededSetCloner do
           "expected cloned fringe '#{board.name}' to keep disable_scroll"
       end
     end
+
+    # The authored Core 60 grid is 60 tiles in 60 cells, so My Favorites had
+    # nowhere to put its folder tile and was skipped outright — the child's own
+    # words surfaced nowhere. Boards::FolderPlacer tucks it into "More".
+    describe "leftover interests on a full authored grid" do
+      let!(:cloned_root) do
+        source_root = Boards::RobustSets.find_root("core-60")
+        described_class.new(source_root, communicator: communicator, interests: %w[zamboni]).call
+      end
+
+      it "surfaces My Favorites in the More drawer without growing the home grid" do
+        expect(cloned_root.board_images.count).to eq(60)
+        expect(cloned_root.large_screen_rows).to eq(6)
+        expect(cloned_root.board_images.map(&:display_label)).not_to include("My Favorites")
+
+        more = Boards::FolderPlacer.drawer_for(cloned_root)
+        expect(more).to be_present
+        expect(more.board_images.reload.map(&:display_label)).to include("My Favorites")
+      end
+
+      it "keeps the leftover word instead of dropping it" do
+        favorites = owner.boards.find_by(name: "My Favorites")
+
+        expect(favorites).to be_present
+        expect(favorites.board_images.map { |bi| bi.label.to_s.downcase }).to include("zamboni")
+      end
+    end
   end
 end
