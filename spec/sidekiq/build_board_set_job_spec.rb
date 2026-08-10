@@ -67,14 +67,17 @@ RSpec.describe BuildBoardSetJob do
 
       children.each do |child|
         nav = child.board_images.reload.select { |bi| bi.data&.dig("nav_tile") }
-        expect(nav.map(&:label)).to match_array(region.cells.map(&:label)),
+        # Every region cell is projected. A page may carry ONE more nav-flagged
+        # tile than the region has cells: its way home, when its own name has no
+        # cell in the region (Boards::NavRowSync#ensure_home_tile!).
+        expect(nav.map(&:label)).to include(*region.cells.map(&:label)),
                                     "#{child.name} is missing nav tiles"
 
-        self_tile = nav.find { |bi| bi.label.to_s.casecmp?(child.name.to_s) }
-        next if self_tile.nil? # a page with no tile of its own name in the region
-
-        expect(self_tile.predictive_board_id).to eq(root.id)
-        expect(self_tile.data["mute_name"]).to be_falsey
+        # The invariant that matters: every page in the set has a one-tap home.
+        home = nav.find { |bi| bi.predictive_board_id == root.id }
+        expect(home).to be_present, "#{child.name} has no way home"
+        expect(home.label.to_s.downcase).to eq(child.name.to_s.downcase)
+        expect(home.data["mute_name"]).to be_falsey
       end
     end
 
@@ -264,6 +267,69 @@ RSpec.describe BuildBoardSetJob do
       food = user.boards.find_by(name: "Food")
       apple = food.board_images.find { |bi| bi.label == "apple" }
       expect(apple.data.to_h["mute_name"]).not_to be(true)
+    end
+  end
+
+  # The authored Core 60 is 60 tiles in a full 6x10 grid, so a fringe page the
+  # build adds used to spill onto a stray row — one lone "Bathroom" folder above
+  # the nav row, a home board reading "61 tiles", and the loss of the seed's
+  # one-page display. Boards::FolderPlacer tucks it into the "More" drawer.
+  describe "#perform overflow into the More drawer (real Core 60 seed)" do
+    before_all do
+      register_openai_webmock_stub!
+      register_external_webmock_stubs!
+      User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      VocabSets.seed_slug!("core-60")
+      Boards::FringeTemplates.seed_all!
+    end
+
+    # "toilet" routes to Bathroom, which core-60 has no seed page for but
+    # db/seeds/board_builder_sets/fringe-pages/bathroom.obf does.
+    def build_with_bathroom_interest!
+      root = precreate_root!(name: "Core 60")
+      described_class.new.perform(root.id, communicator.id, "standard", %w[toilet])
+      root.reload
+    end
+
+    it "leaves the home board at its authored 60 tiles and 6 rows" do
+      root = build_with_bathroom_interest!
+
+      expect(root.board_images.count).to eq(60)
+      expect(root.large_screen_rows).to eq(6)
+    end
+
+    it "keeps the home board's one-page display" do
+      root = build_with_bathroom_interest!
+
+      expect(root.settings["disable_scroll"]).to be(true)
+    end
+
+    it "puts the Bathroom folder tile inside More, not on the home board" do
+      root = build_with_bathroom_interest!
+
+      expect(root.board_images.map(&:display_label)).not_to include("Bathroom")
+
+      more = Boards::FolderPlacer.drawer_for(root)
+      expect(more).to be_present
+      bathroom_tile = more.board_images.reload.find { |bi| bi.display_label == "Bathroom" }
+      expect(bathroom_tile).to be_present, "expected the Bathroom folder tile in the More drawer"
+
+      bathroom = Board.find(bathroom_tile.predictive_board_id)
+      expect(bathroom.settings["builder_child"]).to be(true)
+      expect(bathroom.board_images.map { |bi| bi.label.to_s.downcase }).to include("toilet")
+    end
+
+    it "keeps the tucked page in the builder set (nav row, group walk, cascade)" do
+      root = build_with_bathroom_interest!
+
+      more = Boards::FolderPlacer.drawer_for(root)
+      bathroom_id = more.board_images.reload.find { |bi| bi.display_label == "Bathroom" }.predictive_board_id
+
+      expect(described_class.new.send(:set_board_ids, root)).to include(bathroom_id)
+      # board_images.label is the lowercase matching key; display_label is the text.
+      nav_labels = Board.find(bathroom_id).board_images
+        .select { |bi| bi.data&.dig("nav_tile") }.map { |bi| bi.label.to_s.downcase }
+      expect(nav_labels).to include("people", "more")
     end
   end
 

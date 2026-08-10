@@ -469,11 +469,20 @@ class BuildBoardSetJob
     unrouted
   end
 
-  # name(downcased) => Board for every board the root's folder tiles open.
+  # name(downcased) => Board for every board reachable from the home board in
+  # one tap, PLUS everything inside the "More" drawer — Boards::FolderPlacer
+  # tucks overflow pages there when the authored grid is full, and a leftover
+  # interest word still has to find its category page.
   def set_top_level_boards_by_name(root)
-    ids = root.board_images.where.not(predictive_board_id: nil).pluck(:predictive_board_id).uniq
-    Board.where(id: ids).each_with_object({}) do |board, map|
-      map[board.name.to_s.strip.downcase] = board
+    boards_by_name(root).reverse_merge(
+      Boards::FolderPlacer.drawer_for(root)&.then { |drawer| boards_by_name(drawer) } || {},
+    )
+  end
+
+  def boards_by_name(board)
+    ids = board.board_images.where.not(predictive_board_id: nil).pluck(:predictive_board_id).uniq
+    Board.where(id: ids).each_with_object({}) do |b, map|
+      map[b.name.to_s.strip.downcase] = b
     end
   end
 
@@ -572,17 +581,16 @@ class BuildBoardSetJob
     owner = owner_for(root, communicator)
     root.reload
 
-    favorites = root.board_images
-      .joins("JOIN boards ON boards.id = board_images.predictive_board_id")
-      .where("LOWER(boards.name) = ?", "my favorites")
-      .first&.then { |bi| Board.find_by(id: bi.predictive_board_id) }
+    # Look in the "More" drawer too — Boards::SeededSetCloner may already have
+    # tucked My Favorites in there, and creating a second one would split the
+    # child's own words across two pages.
+    favorites = set_top_level_boards_by_name(root)["my favorites"]
 
     unless favorites
       # My Favorites only ever holds interests the child asked for, so it's
-      # always surfaced — growing the grid onto a new row when the authored grid
-      # is full (the authored Core 60/84 leaves no reserved cells).
-      # add_fringe_pages! clears the home board's one-page `disable_scroll` when
-      # growth happens, so the new row isn't clipped.
+      # always surfaced: FolderPlacer puts its folder tile in the drawer when
+      # the authored home grid is full, and only grows the grid (with
+      # add_fringe_pages! clearing `disable_scroll`) when there's no drawer.
       favorites = Board.new(name: "My Favorites", user: owner)
       favorites.board_type = "static"
       favorites.assign_parent
@@ -615,16 +623,16 @@ class BuildBoardSetJob
     Boards::ImageResolver.resolve(label, owner: owner)
   end
 
-  # Adds a category folder tile linking to `predictive_board_id`. Resolves an
-  # art-bearing image for `name`, then pins the tile text to `name` — the art
-  # image may be stored under different casing ("animals"), and BoardImage's
-  # set_defaults derives the label from the image, so the curated folder name
-  # ("Animals") is restored explicitly.
+  # Adds a category folder tile linking to `predictive_board_id`.
+  #
+  # Placement is Boards::FolderPlacer's call: a genuine open cell on the home
+  # grid when there is one, else the set's "More" drawer, else (no drawer) the
+  # home grid grows a row. The authored Core 60/84 grids are completely full, so
+  # in practice every page a build adds past the seed set lands in the drawer
+  # rather than stranding a lone tile on a stray row.
   def add_folder_tile!(root, owner, name, predictive_board_id)
-    image = resolve_or_create_image(owner, name)
-    tile = root.add_image(image.id)
-    tile&.update!(predictive_board_id: predictive_board_id, label: name, display_label: name)
-    tile
+    Boards::FolderPlacer.place!(root: root, owner: owner, name: name,
+                                board_id: predictive_board_id)&.tile
   end
 
   def generate_art_if_blank(owner, image, board)

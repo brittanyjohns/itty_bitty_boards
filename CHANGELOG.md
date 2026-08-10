@@ -117,6 +117,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   another account's uploaded document. Those pages are now restricted to the
   account's owner and to admins, matching the `/admin` dashboard. The `/admin`
   dashboard itself was already gated and exposed nothing.
+- **A built board set keeps its clean, single-screen home board.** Extra
+  category pages the builder added — Bathroom, Animals, My Favorites — used to
+  land on a row of their own below the core words, so a Core 60 board came out
+  reading "61 tiles" with one stranded folder and a home page that scrolled.
+  Those pages now go inside the "More" folder, which sits on the bottom row of
+  every page in the set, so they stay a couple of taps away and the home board
+  looks exactly as designed. Leftover interest words that previously had
+  nowhere to go are surfaced there too instead of being dropped.
 
 - **"Reset to Default Voice" was unreachable.** The API never told the app a
   tile was on custom audio, so the button that undoes a recording never

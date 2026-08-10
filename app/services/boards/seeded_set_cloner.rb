@@ -246,8 +246,8 @@ module Boards
       return if unrouted.empty?
 
       favorites = fringe_by_name[FAVORITES_NAME.downcase] || create_favorites_board!(root)
-      # create_favorites_board! returns nil when the grid has no open cell for a
-      # folder tile — never overflow the authored grid. Leftovers stay unrouted.
+      # create_favorites_board! returns nil only when the folder tile could not
+      # be placed at all. Leftovers stay unrouted rather than overflowing.
       return unless favorites
 
       unrouted.each { |word| add_interest_to_board(favorites, word) }
@@ -304,14 +304,6 @@ module Boards
     # it doesn't count against the limit, and link it from the root via a folder
     # tile + predictive_board_id (mirrors the assembler/tree-builder pattern).
     def create_favorites_board!(root)
-      # Needs an open cell for its folder tile; on a grid with no slack left,
-      # adding one would spill onto a stray extra row. Skip rather than overflow
-      # (BuildBoardSetJob's catch-all still surfaces leftovers when there's room).
-      if root.open_grid_cells < 1
-        Rails.logger.warn "[SeededSetCloner] root #{root.id}: no grid space for My Favorites; leftover interests not surfaced on the home board"
-        return nil
-      end
-
       favorites = Board.new(name: FAVORITES_NAME, user: @owner)
       favorites.board_type = "static"
       favorites.assign_parent
@@ -320,11 +312,18 @@ module Boards
       favorites.settings = (favorites.settings || {}).merge("builder_child" => true)
       favorites.save!
 
-      folder_tile = root.add_image(resolve_or_create_image(FAVORITES_NAME).id)
-      # Pin the tile text to FAVORITES_NAME — an art image may be stored under
-      # different casing and BoardImage#set_defaults derives label from it.
-      folder_tile&.update!(predictive_board_id: favorites.id,
-                           label: FAVORITES_NAME, display_label: FAVORITES_NAME)
+      # Boards::FolderPlacer picks the cell: a real open cell on the home grid,
+      # else the set's "More" drawer. The authored Core 60/84 grids are full, so
+      # this used to be skipped outright and the child's leftover words never
+      # surfaced anywhere.
+      placement = Boards::FolderPlacer.place!(root: root, owner: @owner,
+                                              name: FAVORITES_NAME, board_id: favorites.id)
+      unless placement
+        Rails.logger.warn "[SeededSetCloner] root #{root.id}: could not place My Favorites; leftover interests not surfaced"
+        favorites.destroy
+        return nil
+      end
+
       favorites
     end
 

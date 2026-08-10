@@ -102,21 +102,45 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     end
   end
 
+  # Every board in the built set. Pages the build adds may live one level down —
+  # Boards::FolderPlacer tucks them into the "More" drawer rather than growing
+  # the authored grid — so set-wide assertions can't just read the home board.
+  def set_boards(root)
+    Board.where(id: described_class.new.send(:set_board_ids, root))
+  end
+
   # The home board is not the only page a communicator navigates from: every
   # seeded fringe page carries the nav row too, so the dead-tile check has to
   # sweep the WHOLE set. Checking only the root is what hid the Core 84 Food
   # page's dead `More` folder.
   def dead_folder_tiles_in_set(root)
-    Board.where(id: described_class.new.send(:set_board_ids, root)).filter_map do |board|
+    set_boards(root).filter_map do |board|
       dead = dead_folder_tiles(board)
       "#{board.name}: #{dead.map(&:display_label).inspect}" if dead.any?
     end
   end
 
-  it "keeps every authored folder working and grows the grid to surface all interests" do
+  # The folder tile for `name` anywhere in the set (home board or the drawer).
+  def folder_tile_in_set(root, name)
+    set_boards(root).flat_map { |b| b.board_images.to_a }
+      .find { |bi| bi.display_label.to_s == name && bi.predictive_board_id.present? }
+  end
+
+  def board_named_in_set(root, name)
+    tile = folder_tile_in_set(root, name)
+    tile && Board.find(tile.predictive_board_id)
+  end
+
+  # Every word on every page of the set — what "nothing the child asked for is
+  # dropped" actually means now that a page can sit inside the drawer.
+  def words_in_set(root)
+    set_boards(root).flat_map { |b| b.board_images.map { |bi| bi.label.to_s.downcase } }
+  end
+
+  it "keeps every authored folder working and surfaces all interests without growing the grid" do
     # The authored Core 84 grid is full (84 tiles, no reserved cells), so these
-    # non-seed interest categories must GROW the grid onto new rows rather than
-    # being dropped.
+    # non-seed interest categories go into the "More" drawer rather than onto a
+    # stray row — and are never dropped.
     root = build!([
       { "word" => "dog", "category" => "Animals" },
       { "word" => "guitar", "category" => "Music" },
@@ -127,10 +151,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
 
     expect(root.status).to eq("complete")
 
-    # The full authored grid grows to fit the interest pages.
-    expect(root.board_images.count).to be > CORE_84_GRID_CELLS
-    # Growth is controlled, not runaway — at most a couple of extra rows.
-    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS + (3 * 12)
+    # The authored grid is preserved exactly — no stray row, no "85th tile".
+    expect(root.board_images.count).to eq(CORE_84_GRID_CELLS)
+    # ...so the seed's one-page display survives the build.
+    expect(root.settings["disable_scroll"]).to be(true)
 
     # No dead tiles: every added folder tile links a real board, and the
     # authored folders the planner used to strip are intact — on every page in
@@ -145,17 +169,14 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
       expect(tile.predictive_board_id).to be_present, "#{name} folder tile has no linked board"
     end
 
-    # Grown past the authored grid → the home board may scroll, so the new rows
-    # aren't clipped by the seed's one-page (disable_scroll) layout.
-    expect(root.settings["disable_scroll"]).not_to eq(true)
+    # The interest pages live in the drawer, reachable from every page's nav row.
+    more = board_named_in_set(root, "More")
+    drawer_folders = more.board_images.select(&:predictive_board_id).map(&:display_label)
+    expect(drawer_folders).to include("Animals", "Music", "Sports", "Transportation", "Clothing")
 
-    # Nothing the child asked for is dropped: every interest lands on a working
-    # linked board (its own fringe page, an existing folder, or My Favorites).
-    routed = root.board_images
-      .select(&:predictive_board_id)
-      .flat_map { |bi| Board.find(bi.predictive_board_id).board_images.map { |t| t.label.to_s.downcase } }
+    # Nothing the child asked for is dropped.
     %w[dog guitar soccer train shirt].each do |word|
-      expect(routed).to include(word), "interest '#{word}' was dropped"
+      expect(words_in_set(root)).to include(word), "interest '#{word}' was dropped"
     end
   end
 
@@ -205,7 +226,8 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     # The default applies across the whole built set, not just the home board —
     # except each page's SELF tile, the one folder tile that speaks its label
     # (it's the you-are-here anchor and the way home). See Boards::NavRowSync.
-    animals = Board.find(root.board_images.find { |bi| bi.display_label == "Animals" }.predictive_board_id)
+    animals = board_named_in_set(root, "Animals")
+    expect(animals).to be_present
     animals.board_images.select(&:is_dynamic?).each do |bi|
       next if bi.label.to_s.strip.casecmp?(animals.name.to_s.strip)
 
@@ -219,10 +241,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   end
 
   # The "86 tiles instead of 84" report (uncontrolled spill of dead/duplicate
-  # tiles) is now a *controlled growth* guarantee: when the authored grid has no
-  # open cells, interest pages grow onto new rows as real, working folders —
-  # never dropped, never dead/duplicate, never runaway.
-  it "grows in a controlled way when the seed has no open cells" do
+  # tiles) is now a *no growth at all* guarantee: when the authored grid has no
+  # open cells, interest pages go into the "More" drawer as real, working
+  # folders — never dropped, never dead/duplicate, never on a stray row.
+  it "tucks pages into the drawer when the seed has no open cells" do
     shrink_seed_grid!(remaining: 0)
     # Early-stage gestalt -> quick-phrase strip, the most aggressive cell user.
     communicator.update!(details: (communicator.details || {}).merge("glp_stage" => 1))
@@ -234,18 +256,22 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     ])
 
     expect(root.status).to eq("complete")
+    # Home board AND the drawer the build wrote into. (Scoped to these two on
+    # purpose: the authored Food seed page ships a dead "More" tile, which
+    # predates this change — see the follow-up issue.)
     expect(dead_folder_tiles(root)).to be_empty
-    # Bounded growth, not a runaway stack of rows.
-    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS + (3 * 12)
+    expect(dead_folder_tiles_in_set(root)).to be_empty
+    # No growth at all: the authored grid is untouched.
+    expect(root.board_images.count).to eq(CORE_84_GRID_CELLS)
+    expect(root.settings["disable_scroll"]).to be(true)
 
     # Nothing dropped: the seed-alias interest lands in its cloned seed page and
-    # the fringe interests are surfaced on their linked boards.
-    routed = root.board_images
-      .select(&:predictive_board_id)
-      .flat_map { |bi| Board.find(bi.predictive_board_id).board_images.map { |t| t.label.to_s.downcase } }
+    # the fringe interests are surfaced on their linked boards in the drawer.
     %w[grandma toilet dog].each do |word|
-      expect(routed).to include(word), "interest '#{word}' was dropped"
+      expect(words_in_set(root)).to include(word), "interest '#{word}' was dropped"
     end
+    expect(board_named_in_set(root, "Bathroom")).to be_present
+    expect(board_named_in_set(root, "Animals")).to be_present
   end
 
   # Aliased InterestCategories ("Family & People" -> People, "Health & Body" ->
@@ -297,8 +323,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     root = build!([{ "word" => "dog", "category" => "Animals" }])
 
     people_tile = root.board_images.find { |bi| bi.display_label == "People" }
-    animals_tile = root.board_images.find { |bi| bi.display_label == "Animals" }
+    # Added by the build, so it lives in the "More" drawer, not on the home board.
+    animals_tile = folder_tile_in_set(root, "Animals")
 
+    expect(animals_tile).to be_present
     expect(Boards::ImageResolver.art?(people_tile.image)).to be(true)
     expect(Boards::ImageResolver.art?(animals_tile.image)).to be(true)
   end
