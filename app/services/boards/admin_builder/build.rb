@@ -93,13 +93,18 @@ module Boards
           name: page[:name],
           user: admin,
           parent: admin,
-          # Only the root belongs in the public catalogue: `Board.public_boards`
-          # keys on `predefined`, and a set whose every folder page showed up
-          # there as a standalone board would bury the board it belongs to.
-          # Child pages stay reachable because `Board#viewable_by?` gates on
-          # `published` alone.
-          predefined: root,
-          published: false,
+          # Deliberately NOT `predefined`. `Board.public_boards` keys on it, and
+          # a builder board is authored for printables and direct /pb/ sharing,
+          # not for the public catalogue — dropping a whole set (root plus every
+          # folder page) into the library each time an admin tried a build is
+          # what that flag would do. Admin::BoardPrintablesController reaches
+          # these through AdminBoardBuild.builder_boards instead.
+          predefined: false,
+          # Published on creation, root and pages alike. `Board#viewable_by?`
+          # gates each board on its OWN flag, so a half-published set 404s every
+          # folder tile — the set is only ever published as a unit (the same
+          # rule Admin::BoardBuildsController#publish enforces).
+          published: true,
           board_type: "static",
           # Set at create time: assigning `voice` later cascades to every tile
           # and re-queues all their audio.
@@ -116,10 +121,9 @@ module Boards
           small_screen_columns: Boards::ScreenColumns.derive(columns, "sm"),
           number_of_columns: columns,
           settings: settings_for(page),
-          # Catalogue metadata belongs to the root alone: child pages are
-          # created with `predefined: false` and never appear in
-          # `Board.public_boards`, so tagging them would fill the public tag
-          # filter with folder-page noise.
+          # Catalogue metadata belongs to the root alone — it describes the set,
+          # and a folder page carrying the same description and tags is noise in
+          # every list that shows them.
           description: root ? build.description : nil,
           tags: root ? Array(build.tags) : [],
         )

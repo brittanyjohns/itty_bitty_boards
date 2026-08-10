@@ -44,12 +44,16 @@ RSpec.describe Boards::AdminBuilder::Build do
   describe "the board it writes" do
     let(:build) { build_record(tiles: four_tiles) }
 
-    it "creates an unpublished board owned by the default admin and marked as ours" do
+    it "creates a published, non-predefined board owned by the default admin and marked as ours" do
       board = described_class.new(admin_board_build: build).call
 
-      expect(board.published).to be(false)
+      expect(board.published).to be(true)
       expect(board.user_id).to eq(admin.id)
-      expect(board.predefined).to be(true)
+      # Published but out of the public catalogue: `Board.public_boards` keys on
+      # `predefined`, and a builder board is authored for /pb/ sharing and
+      # printables, not for the library.
+      expect(board.predefined).to be(false)
+      expect(Board.public_boards).not_to include(board)
       expect(board.board_type).to eq("static")
       expect(board.settings["admin_builder"]).to be(true)
       expect(board.settings["disable_scroll"]).to be(true)
@@ -203,14 +207,15 @@ RSpec.describe Boards::AdminBuilder::Build do
       expect(build.set_boards.map(&:id)).to eq([root.id, boards["food"]])
     end
 
-    # Only the root belongs in the public catalogue — Board.public_boards keys
-    # on `predefined`, and a set whose folder pages showed up there as
-    # standalone boards would bury the board they belong to.
-    it "marks the root predefined and the pages not" do
+    # Board#viewable_by? gates each board on its OWN published flag, so a set
+    # published only at the root 404s every folder tile for a public visitor.
+    it "publishes every page of the set and leaves none predefined" do
       root = described_class.new(admin_board_build: build).call
       child = build.reload.set_boards.last
 
-      expect(root.predefined).to be(true)
+      expect(root.published).to be(true)
+      expect(child.published).to be(true)
+      expect(root.predefined).to be(false)
       expect(child.predefined).to be(false)
       expect(child.settings["admin_builder"]).to be(true)
       expect(child.settings["builder_child"]).to be(true)
@@ -324,7 +329,7 @@ RSpec.describe Boards::AdminBuilder::Build do
 
       expect(root.settings).not_to have_key("builder_root")
       expect(root.settings).not_to have_key("builder_child")
-      expect(root.predefined).to be(true)
+      expect(root.predefined).to be(false)
     end
   end
 

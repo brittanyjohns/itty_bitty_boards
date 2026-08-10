@@ -129,7 +129,8 @@
         You need about <span id="cell-count" class="text-t1 font-medium">—</span> words
         (within <%= Boards::AdminBuilder::PlanValidator::TILE_COUNT_TOLERANCE %>) —
         <span id="word-count" class="text-t1 font-medium">0</span> so far.
-        A tile count that isn’t a whole number of rows leaves dead cells at the end of the last row.
+        A tile count that isn’t a whole number of rows leaves dead cells at the end of the last row,
+        so Tiles steps a whole row at a time unless you allow a partial row.
       </p>
     </div>
 
@@ -284,6 +285,10 @@
       wordCount.style.color = cells && Math.abs(used - cells) > TILE_COUNT_TOLERANCE ? "#f87171" : "";
     }
 
+    function partialRowAllowed() {
+      return !!(allowPartialRow && allowPartialRow.checked);
+    }
+
     // Rounds up to the next full row for the given column count; if that
     // overshoots the field's max, rounds down to the last full row instead
     // so a full-grid ceiling (144) is never exceeded by rounding.
@@ -293,24 +298,66 @@
       return roundedUp > max ? Math.floor(max / cols) * cols : roundedUp;
     }
 
+    // The spinner is what actually has to land on a valid value. With the
+    // default step of 1 it walks 24 -> 25 — a count the validator then
+    // rejects — and the change-handler snap below can't help, because a
+    // stepper click doesn't reliably fire `change` until the field blurs.
+    // Setting step to the column count makes the browser itself skip to the
+    // next whole row (24 -> 30). `min` has to move with it: a number input
+    // steps in min + n*step, so leaving min at 1 with step 6 would offer
+    // 1, 7, 13 instead of 6, 12, 18.
+    function applyTileStep(field, cols) {
+      var step = partialRowAllowed() || !cols ? 1 : cols;
+      field.step = step;
+      field.min = step;
+    }
+
     // "Rows have to be complete" is only relaxed by the partial-row checkbox
     // — everywhere else, a tile count that isn't cols x rows leaves dead
     // cells at the end of the grid, so snap it the moment either field
     // settles (not on every keystroke, which would fight the admin's typing).
-    function snapTileCount() {
-      if (allowPartialRow && allowPartialRow.checked) return;
-      var cols = parseInt(columns.value, 10) || 0;
-      var tiles = parseInt(tileCount.value, 10) || 0;
+    // The step above handles the spinner; this catches a typed value.
+    //
+    // Snapping is not optional once a step is set: a number input fails its
+    // own constraint check on a value that isn't min + n*step, which would
+    // block the submit behind a browser tooltip instead of the form's own
+    // problem list. Every path that changes a step re-snaps the field.
+    function snapTileCount(field, cols) {
+      if (partialRowAllowed()) return;
+      var tiles = parseInt(field.value, 10) || 0;
       if (!cols || !tiles) return;
-      var max = parseInt(tileCount.max, 10) || tiles;
+      var max = parseInt(field.max, 10) || tiles;
       var snapped = snappedTileCount(tiles, cols, max);
-      if (snapped !== tiles) tileCount.value = snapped;
+      if (snapped !== tiles) field.value = snapped;
+    }
+
+    function syncTileField(field, cols) {
+      if (!field) return;
+      applyTileStep(field, cols);
+      snapTileCount(field, cols);
+    }
+
+    // Pages inherit the main board's columns unless they override them, so a
+    // page's own step follows whichever applies — which means a change to the
+    // main board's columns has to re-sync every inheriting page too.
+    function syncTileFields() {
+      var rootCols = parseInt(columns.value, 10) || 0;
+      syncTileField(tileCount, rootCols);
+
+      pages.querySelectorAll(".page-block").forEach(function (block) {
+        syncTileField(block.querySelector('input[name$="[tile_count]"]'), pageColumnsFor(block, rootCols));
+      });
       update();
     }
 
+    function pageColumnsFor(block, rootCols) {
+      var pageCols = block.querySelector('input[name$="[columns]"]');
+      return parseInt(pageCols && pageCols.value, 10) || rootCols;
+    }
+
     [words, columns, tileCount].forEach(function (el) { el.addEventListener("input", update); });
-    [columns, tileCount].forEach(function (el) { el.addEventListener("change", snapTileCount); });
-    if (allowPartialRow) allowPartialRow.addEventListener("change", snapTileCount);
+    [columns, tileCount].forEach(function (el) { el.addEventListener("change", syncTileFields); });
+    if (allowPartialRow) allowPartialRow.addEventListener("change", syncTileFields);
     update();
 
     // Page blocks are indexed, so every add/remove has to renumber the whole
@@ -329,6 +376,7 @@
     document.getElementById("add-page").addEventListener("click", function () {
       pages.appendChild(pageTemplate.content.cloneNode(true));
       reindexPages();
+      syncTileFields();
     });
 
     pages.addEventListener("click", function (event) {
@@ -337,7 +385,24 @@
       reindexPages();
     });
 
+    // Delegated, because page blocks come and go — a listener bound per field
+    // would miss every block added after load.
+    pages.addEventListener("change", function (event) {
+      var block = event.target.closest(".page-block");
+      if (!block) return;
+      if (!/\[(columns|tile_count)\]$/.test(event.target.name || "")) return;
+
+      var rootCols = parseInt(columns.value, 10) || 0;
+      syncTileField(block.querySelector('input[name$="[tile_count]"]'), pageColumnsFor(block, rootCols));
+    });
+
     reindexPages();
+
+    // On load as well as on edit: a duplicated build or a re-rendered failed
+    // submit can arrive holding a count that's off the grid, and leaving it
+    // there would fail the browser's own step check with nothing but a tooltip
+    // to explain it.
+    syncTileFields();
 
     // Drafting replaces the textarea wholesale, so only confirm when there is
     // something to lose.
