@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Admin board builder: folder tiles now open their page without speaking.**
+  A tile that opens another page is a door, not a word — tapping "Food" to get
+  to the food page was putting a word into the utterance the communicator
+  hadn't chosen to say. Every tile the builder links to a page (a child's "back
+  to home" tile included) is now built muted, matching how the communicator
+  board builder has always treated its folder tiles. The art preview labels
+  these tiles "silent" so it's clear before the board is built.
+
 ### Fixed
 
 - **Admin board builder: pages were being built with nothing to open them.** A

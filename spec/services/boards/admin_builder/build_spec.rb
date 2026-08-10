@@ -198,6 +198,26 @@ RSpec.describe Boards::AdminBuilder::Build do
       expect(child.board_images.order(:position).map(&:label)).to eq(%w[apple banana hungry eat])
     end
 
+    # A door isn't a word: opening the food page shouldn't speak "food".
+    it "mutes the folder tile's name and leaves word tiles speaking" do
+      root = described_class.new(admin_board_build: build).call
+      tiles = root.board_images.index_by(&:label)
+
+      expect(tiles["food"].data["mute_name"]).to be(true)
+      expect(tiles["want"].data["mute_name"]).to be_nil
+    end
+
+    it "mutes a page's back-link to the root" do
+      back = food_page(tiles: [
+        { "label" => "apple", "part_of_speech" => "noun" },
+        { "label" => "back", "part_of_speech" => "social", "links_to" => Boards::AdminBuilder::Plan::ROOT_KEY },
+      ])
+      root = described_class.new(admin_board_build: build_record(tiles: root_with_folder, children: [back])).call
+      child = Board.find(root.board_images.find { |bi| bi.predictive_board_id }.predictive_board_id)
+
+      expect(child.board_images.find { |bi| bi.label == "back" }.data["mute_name"]).to be(true)
+    end
+
     it "records every page on the build so publish and show can reach them" do
       root = described_class.new(admin_board_build: build).call
       boards = build.reload.art_report["boards"]

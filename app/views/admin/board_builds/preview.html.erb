@@ -92,7 +92,9 @@
         <div class="p-2">
           <p class="text-xs font-medium text-t1 truncate" title="<%= row.label %>"><%= row.label %></p>
           <% if row.folder? %>
-            <p class="text-[10px] text-accent truncate">opens “<%= row.links_to %>”</p>
+            <%# Folder tiles are built muted — say so here, where the admin is
+                deciding whether the set is right, not after they tap one. %>
+            <p class="text-[10px] text-accent truncate">opens “<%= row.links_to %>” · silent</p>
           <% end %>
           <% if row.found? && !row.exact %>
             <p class="text-[10px] text-amber-500 truncate" title="<%= row.matched_label %>">matched “<%= row.matched_label %>”</p>
