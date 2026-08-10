@@ -72,9 +72,8 @@ group :development do
 end
 
 group :test do
-  # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
-  gem "capybara"
-  gem "selenium-webdriver"
+  # No capybara/selenium: there are no system or feature specs, so they were
+  # only being Bundler.require'd at boot. Add them back with the first one.
   gem "test-prof", "~> 1.4"
   gem "webmock"
 end

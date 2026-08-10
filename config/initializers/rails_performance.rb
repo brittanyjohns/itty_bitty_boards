@@ -16,7 +16,10 @@ if defined?(RailsPerformance)
     config.slow_requests_threshold = 500 # ms
 
     config.debug = false # currently not used>
-    config.enabled = true
+    # Off in test: the middleware writes a metrics record to Redis on every
+    # request, which buys nothing across ~1,600 request-spec examples. The
+    # engine stays configured (and mountable in routes.rb) either way.
+    config.enabled = !Rails.env.test?
 
     # default path where to mount gem
     config.mount_at = "/rails/performance"

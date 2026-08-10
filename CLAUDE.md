@@ -349,6 +349,35 @@ permissions matrix lives in
   down to `MAX(id) + 1` in a spec — that reinstates the zero-slack state the
   guard exists to avoid.
 
+### Suite speed
+
+- **Expensive, read-only setup goes in `before_all` / `let_it_be`**
+  (test-prof, already required in `spec/rails_helper.rb`). Seeding a vocab set
+  or a template tree per example is the single biggest source of slowness here
+  — `build_board_set_job_grid_spec.rb` was 511s before its seed was hoisted.
+  Each example still runs in its own savepoint, so a write inside an example
+  is rolled back and can't leak forward; only put setup there, never mutation.
+- **`before_all` runs outside the per-example hooks**, so rspec-mocks stubs
+  (`allow(...)`) are NOT in effect inside it. If the setup would hit OpenAI,
+  call `register_openai_webmock_stub!` directly — WebMock registration is plain
+  code and survives out there.
+- **Don't `allow(ENV).to receive(:[]).and_call_original`** in a request spec if
+  you can avoid it: every ENV read in the request cycle then goes through a
+  mock proxy. (Measured the opposite too — replacing it with a real ENV var in
+  `internal/images_spec.rb` made that file *much* slower by changing which code
+  path ran. Measure before "fixing" one of these.)
+- **Test logging is `:warn`.** Set `VERBOSE_TEST_LOG=1` for full SQL in
+  `log/test.log`; at `:debug` the suite fills the 50 MB cap in ~2 minutes.
+- **Per-file timings, not filenames, drive CI sharding.** `bin/ci-shard` reads
+  `spec/ci_timings.json` and greedily bin-packs slowest-first over
+  `CI_NODE_TOTAL`. Refresh after adding slow specs: run the full suite, then
+  `rake ci:timings` (it warns if `spec/examples.txt` looks like a partial run).
+  Files with no recorded timing get the median, so a new spec is never dropped;
+  CI asserts the split covers every spec exactly once.
+- Profile with `bundle exec rspec --profile 25`, and note that per-file numbers
+  from a *full* run are inflated by machine load — confirm a suspect file
+  standalone before optimizing it.
+
 ## Documentation rules (this file + the spokes)
 
 - **Verify against the codebase before writing.** Read Gemfile,

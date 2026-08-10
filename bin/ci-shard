@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Print the spec files belonging to one CI shard, balanced by measured runtime.
+#
+#   CI_NODE_INDEX=0 CI_NODE_TOTAL=5 bin/ci-shard
+#
+# Why this exists: CI used to split with `find spec -name '*_spec.rb' | sort |
+# awk "NR % N == I"`. That is a filename round-robin, so the same shard drew the
+# same heavy files every run — one shard took 10m while the other two took 3m,
+# and the slow one set the wall clock.
+#
+# Balancing is greedy longest-processing-time: sort files slowest-first, and
+# repeatedly hand the next file to whichever shard is currently least loaded.
+# For one dominant file plus a long tail (which is exactly this suite's shape)
+# LPT lands within a few percent of optimal, and the dominant file ends up
+# effectively alone on its shard — which is the best any split can do, since a
+# shard can never finish faster than its slowest single file.
+#
+# Timings come from spec/ci_timings.json (regenerate with `rake ci:timings`).
+# Files with no recorded timing get the median, so a newly added spec is always
+# scheduled and never silently dropped.
+
+require "json"
+
+begin
+  index = Integer(ENV.fetch("CI_NODE_INDEX"))
+  total = Integer(ENV.fetch("CI_NODE_TOTAL"))
+rescue KeyError, ArgumentError, TypeError
+  abort("usage: CI_NODE_INDEX=<n> CI_NODE_TOTAL=<n> #{$PROGRAM_NAME}")
+end
+abort("CI_NODE_TOTAL must be >= 1") if total < 1
+abort("CI_NODE_INDEX must be in 0...#{total}") unless index.between?(0, total - 1)
+
+root = File.expand_path("..", __dir__)
+files = Dir.glob(File.join(root, "spec/**/*_spec.rb"))
+             .map { |p| p.delete_prefix("#{root}/") }
+             .sort
+
+abort("no spec files found") if files.empty?
+
+timings_path = File.join(root, "spec/ci_timings.json")
+timings = File.exist?(timings_path) ? JSON.parse(File.read(timings_path)) : {}
+
+known = files.filter_map { |f| timings[f] }
+# Median, not mean: one 300s outlier would drag a mean-based default far above
+# what a typical unknown spec actually costs.
+default = known.empty? ? 1.0 : known.sort[known.size / 2]
+
+unknown = files.reject { |f| timings.key?(f) }
+if timings.empty?
+  warn("[ci-shard] no spec/ci_timings.json — falling back to an even file-count split")
+elsif unknown.any?
+  warn("[ci-shard] #{unknown.size} spec file(s) have no recorded timing; " \
+       "assuming #{default.round(2)}s each. Refresh with `rake ci:timings`.")
+  unknown.first(10).each { |f| warn("[ci-shard]   #{f}") }
+  warn("[ci-shard]   …and #{unknown.size - 10} more") if unknown.size > 10
+end
+
+# Slowest first. Tie-break on filename so every shard computes the identical
+# assignment from the identical inputs — the split must be deterministic across
+# the parallel jobs, or a file could be run twice or not at all.
+ordered = files.sort_by { |f| [-(timings[f] || default), f] }
+
+buckets = Array.new(total) { { load: 0.0, files: [] } }
+ordered.each do |file|
+  bucket = buckets.min_by { |b| [b[:load], buckets.index(b)] }
+  bucket[:files] << file
+  bucket[:load] += (timings[file] || default)
+end
+
+mine = buckets[index]
+warn(format("[ci-shard] shard %d/%d: %d files, ~%.0fs estimated",
+            index, total, mine[:files].size, mine[:load]))
+
+puts mine[:files].sort

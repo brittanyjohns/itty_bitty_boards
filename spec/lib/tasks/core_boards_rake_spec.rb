@@ -25,9 +25,23 @@ RSpec.describe "core_boards rake task", type: :task do
   end
 
   describe "curated topic (Core + Lunch)" do
-    before do
+    # One seed for the whole block instead of one per example. Every example
+    # here only reads the built board, so they can share it; `before_all` keeps
+    # each example in its own savepoint, so an accidental write still can't
+    # leak forward.
+    before_all do
+      # `before_all` runs outside the per-example hooks, so the usual
+      # rspec-mocks stub on AacWordCategorizer isn't in place yet and tile
+      # creation would try to reach OpenAI for real. Register the WebMock stub
+      # directly — it's plain code, not a mock, so it survives out here.
+      register_openai_webmock_stub!
       ENV["TOPICS"] = "Lunch"
-      run_task
+      FactoryBot.create(:user, id: User::DEFAULT_ADMIN_ID) unless User.exists?(User::DEFAULT_ADMIN_ID)
+      Rails.application.load_tasks if Rake::Task.tasks.empty?
+      Rake::Task["core_boards:seed"].reenable
+      Rake::Task["core_boards:seed"].invoke
+    ensure
+      ENV.delete("TOPICS")
     end
 
     let(:board) { Board.find_by(name: "Core + Lunch") }
