@@ -182,6 +182,15 @@ module Boards
 
       # A tile becomes a folder when its predictive_board_id points at another
       # board — the same one-line link Boards::BoardTreeBuilder makes.
+      #
+      # Folder tiles navigate silently. A tile that opens a page is a door, not
+      # a word: speaking "Food" out loud on the way to the food page puts a word
+      # into the utterance the communicator didn't choose to say. `mute_name` is
+      # the same display-only flag BuildBoardSetJob defaults on the communicator
+      # builder's dynamic tiles and NavRowSync sets on its nav tiles — set it
+      # here rather than after the fact so a built set is right on first render.
+      # No self-tile exception: nothing in an admin-built set is a you-are-here
+      # anchor, so the "back to home" tile is a door like any other.
       def link_pages!(boards, tiles_by_key)
         pages.each do |page|
           page[:tiles].each_with_index do |tile, index|
@@ -191,7 +200,11 @@ module Boards
             child = boards[target]
             raise BuildError, "tile #{tile[:label].inspect} links to unknown page #{target.inspect}" if child.nil?
 
-            tiles_by_key[page[:key]][index].update!(predictive_board_id: child.id)
+            board_image = tiles_by_key[page[:key]][index]
+            board_image.update!(
+              predictive_board_id: child.id,
+              data: (board_image.data || {}).merge("mute_name" => true),
+            )
           end
         end
       end
