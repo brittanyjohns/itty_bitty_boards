@@ -1,5 +1,6 @@
 <div class="flex justify-around">
+  <%# Rendered from the shared navbar, so it can't rely on a controller setting @teams. %>
   <%= form_with(url: set_current_teams_path, method: :post, data: {controller: "teams"}, class: "rounded") do |f| %>
-    <%= f.collection_select :team_id, @teams, :id, :name, { selected: current_user&.current_team_id }, class: "rounded text-black ", data: { action: "change->teams#setCurrent" } %>
+    <%= f.collection_select :team_id, @teams || current_user&.teams || [], :id, :name, { selected: current_user&.current_team_id }, class: "rounded text-black ", data: { action: "change->teams#setCurrent" } %>
   <% end %>
 </div>
