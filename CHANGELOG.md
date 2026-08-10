@@ -21,6 +21,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **You pick the page names when the admin board builder drafts a whole set.**
+  "Draft the whole set with AI" now keeps every page key and name already typed
+  on the form and only names the pages left blank — previously it replaced the
+  pages wholesale, so a chosen title survived only by being retyped afterwards.
+  Naming more pages than the page count asks for raises the count instead of
+  dropping them. A new "Suggest page names" button fills in the page titles on
+  their own — no words — so the shape of the set can be read and edited before
+  any word list is drafted under it.
+
 - **The admin board builder can draft one page at a time from its title.** Each
   page block gets a "Draft this page with AI" button that fills only that page's
   word list, worked out from the page's own name with the board's topic as

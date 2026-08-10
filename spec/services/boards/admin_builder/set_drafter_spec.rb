@@ -64,7 +64,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
                                     call: [{ label: "swing", part_of_speech: "noun" }]))
 
       expect(draft(page_count: 0)).to eq(
-        { root_tiles: [{ label: "swing", part_of_speech: "noun" }], children: [] },
+        { root_tiles: [{ label: "swing", part_of_speech: "noun" }], children: [], page_count: 0 },
       )
     end
 
@@ -169,6 +169,88 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     end
   end
 
+  # Pages the admin named on the form are authored input: the model fills the
+  # rest of the set around them and never renames them.
+  describe "pinned pages" do
+    it "keeps the admin's key and name even when the model paraphrases them" do
+      stub_ai(ai_set(
+        root: [tile("Snacks", "noun", "snack_time")],
+        pages: [{ "key" => "snack_time", "name" => "Snacks and Treats",
+                  "tiles" => [tile("apple", "noun")] }],
+      ))
+
+      child = draft(columns: 1, tile_count: 1, pages: [{ key: "snack_time", name: "Snack Time" }])[:children].first
+      expect(child[:key]).to eq("snack_time")
+      expect(child[:name]).to eq("Snack Time")
+      expect(child[:tiles]).to eq([{ label: "apple", part_of_speech: "noun" }])
+    end
+
+    it "takes the next unclaimed page when the model answered a different key" do
+      stub_ai(ai_set(
+        root: [tile("I", "pronoun")],
+        pages: [{ "key" => "treats", "name" => "Treats", "tiles" => [tile("apple", "noun")] }],
+      ))
+
+      child = draft(columns: 1, tile_count: 1, pages: [{ key: "snack_time", name: "Snack Time" }])[:children].first
+      expect(child[:key]).to eq("snack_time")
+      expect(child[:tiles].first[:label]).to eq("apple")
+    end
+
+    it "fills the pages the admin left blank around the ones they named" do
+      stub_ai(ai_set(
+        root: [tile("I", "pronoun")],
+        pages: [
+          { "key" => "snack_time", "name" => "Snack Time", "tiles" => [tile("apple", "noun")] },
+          { "key" => "drinks", "name" => "Drinks", "tiles" => [tile("water", "noun")] },
+        ],
+      ))
+
+      children = draft(columns: 1, tile_count: 1, page_count: 2,
+                       pages: [{ key: "snack_time", name: "Snack Time" }])[:children]
+      expect(children.map { |child| child[:name] }).to eq(["Snack Time", "Drinks"])
+    end
+
+    # Dropping a page the admin typed would throw away authored input to honour
+    # a count they can raise with one click.
+    it "raises the page count rather than dropping a named page" do
+      stub_ai(ai_set(
+        root: [tile("I", "pronoun")],
+        pages: [
+          { "key" => "snacks", "name" => "Snacks", "tiles" => [tile("apple", "noun")] },
+          { "key" => "drinks", "name" => "Drinks", "tiles" => [tile("water", "noun")] },
+        ],
+      ))
+
+      result = draft(columns: 1, tile_count: 1, page_count: 1,
+                     pages: [{ key: "snacks", name: "Snacks" }, { key: "drinks", name: "Drinks" }])
+      expect(result[:page_count]).to eq(2)
+      expect(result[:children].map { |child| child[:key] }).to eq(%w[snacks drinks])
+    end
+
+    it "derives the missing half of a page named with only a key or only a name" do
+      stub_ai(ai_set(root: [tile("I", "pronoun")], pages: []))
+
+      children = draft(columns: 1, tile_count: 1, page_count: 2,
+                       pages: [{ key: "snack_time", name: "" }, { key: "", name: "Quiet Time" }])[:children]
+      expect(children.map { |child| [child[:key], child[:name]] })
+        .to eq([["snack_time", "Snack Time"], ["quiet_time", "Quiet Time"]])
+    end
+
+    it "keeps a page the model skipped entirely, with no words" do
+      stub_ai(ai_set(root: [tile("I", "pronoun")], pages: []))
+
+      children = draft(columns: 1, tile_count: 1, pages: [{ key: "snacks", name: "Snacks" }])[:children]
+      expect(children.map { |child| child[:key] }).to eq(["snacks"])
+      expect(children.first[:tiles]).to be_empty
+    end
+
+    it "ignores a wholly blank page block" do
+      children = draft(columns: 1, tile_count: 1, pages: [{ key: "", name: "  " }])[:children]
+
+      expect(children.map { |child| child[:key] }).to eq(["food"])
+    end
+  end
+
   describe "failures" do
     it "raises when OpenAI returns nothing" do
       stub_ai("")
@@ -229,6 +311,26 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
 
     it "caps the page count it will ask for" do
       expect(prompt_for(page_count: 99)).to include("exactly #{described_class::MAX_PAGES} pages")
+    end
+
+    # The pinned keys have to be in the prompt, not merged in afterwards: the
+    # root's folder tiles carry links_to for each one.
+    it "names the pages the admin already chose, and asks for the rest" do
+      prompt = prompt_for(page_count: 3, pages: [{ key: "snack_time", name: "Snack Time" }])
+
+      expect(prompt).to include(%(key "snack_time", name "Snack Time"))
+      expect(prompt).to include("add 2 more pages of your own")
+    end
+
+    it "asks for no other pages when every page is already named" do
+      prompt = prompt_for(page_count: 2, pages: [{ key: "snacks", name: "Snacks" },
+                                                 { key: "drinks", name: "Drinks" }])
+
+      expect(prompt).to include("Do not add any other pages.")
+    end
+
+    it "says nothing about chosen pages when there are none" do
+      expect(prompt_for).not_to include("already decided")
     end
   end
 end

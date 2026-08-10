@@ -162,12 +162,19 @@
           A folder tile on the main board opens a page. Give each page a key and the folder tile is
           written for you — point a tile at it with <span class="font-mono">&gt;key</span> yourself only if you
           want a different word on it. Pages inherit the main board's grid unless you say otherwise.
+          Page names you type are kept — drafting the whole set only names the pages you left blank.
         </p>
       </div>
       <div class="flex items-center gap-2">
         <%= select_tag :page_count,
               options_for_select((0..Boards::AdminBuilder::SetDrafter::MAX_PAGES).map { |n| [n.zero? ? "no pages" : "#{n} #{"page".pluralize(n)}", n.to_s] }, @form[:page_count]),
               class: "admin-input border rounded px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none" %>
+        <%# Names only, no words: the titles decide what the set drafter writes,
+            so they're the cheapest thing to read and change first. %>
+        <button type="submit" id="suggest-pages-button" formaction="<%= suggest_pages_admin_dashboard_board_builds_path %>" formnovalidate
+                class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+          Suggest page names
+        </button>
         <%# formaction, not a second form: the drafter has to see the topic,
             audience and grid typed above. formnovalidate for the same reason
             the word-list drafter has it — a missing name is inferred. %>
@@ -453,16 +460,20 @@
       });
     }
 
-    // Drafting the set replaces the root list AND every page.
+    // Drafting the set replaces the root list AND every page's words. Page
+    // names survive it, so the warning says so rather than overstating it.
     var draftSetButton = document.getElementById("draft-set-button");
     if (draftSetButton) {
       draftSetButton.addEventListener("click", function (event) {
         var hasPages = pages.querySelectorAll(".page-block").length > 0;
         if (words.value.trim() === "" && !hasPages) return;
-        if (!window.confirm("Replace the word list and every page with an AI draft?")) {
+        if (!window.confirm("Replace the word list and every page's words with an AI draft? Page names you've typed are kept.")) {
           event.preventDefault();
         }
       });
     }
+
+    // No confirm on "Suggest page names" on purpose: it only fills key/name
+    // fields that are blank, so there is nothing to lose.
   })();
 </script>

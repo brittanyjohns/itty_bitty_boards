@@ -86,6 +86,7 @@ Rails.application.routes.draw do
     resources :board_builds, only: [:index, :new, :create, :show, :update, :destroy], as: :dashboard_board_builds do
       collection do
         post :suggest
+        post :suggest_pages
         post :draft
         post :add_words
         post :draft_set

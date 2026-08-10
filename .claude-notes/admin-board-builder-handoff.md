@@ -355,6 +355,34 @@ a field, so `reindexPages()` has to rewrite that `value` alongside the field
 `name`s — renumbering names alone leaves a moved block drafting into whichever
 page took its old position.
 
+#### Page names are authored input — `Boards::AdminBuilder::PageNamesSuggester`
+
+**A page key or name on the form is never overwritten by a drafter.** It decides
+what `SetDrafter` writes and, once built, it is the sub-board's name — so
+`draft_set` passes the named pages through as `pages:` and the model only names
+the blanks. Two consequences to keep:
+
+- The pinned keys go **into the prompt**, not merged in afterwards: the root's
+  folder tiles carry `links_to` per page, so a key invented by the model and
+  renamed later would leave the root linking at nothing. `apply_pinned` is the
+  backstop for a paraphrased answer — it matches on key, falls back to position,
+  and forces the admin's key/name back on.
+- Naming more pages than `page_count` **raises the count** (capped at
+  `MAX_PAGES`) rather than dropping the extra names; the drafter echoes the
+  count it actually used back as `page_count:` so the notice and the select
+  follow it.
+
+`PageNamesSuggester` is the names-only half: topic/name/audience + a count →
+`[{ key:, name: }]`, no words, `ContextSuggester`'s shape throughout. Pages the
+admin already named are repeated back in place and never duplicated, and the
+call is skipped entirely when they already fill the count. `suggest_pages` drops
+the suggestions onto blank blocks **where they sit** — assigning by position in
+the suggestion would land a name on a block that already holds another page's
+word list.
+
+`Keys.normalize` is the one slugifier for all of this; a second copy is how a
+`>key` link silently resolves to nothing.
+
 ### Phase 3 — linked child pages
 
 - Plan gains `children: [{ key, name, tiles }]` and tiles gain `links_to`.
