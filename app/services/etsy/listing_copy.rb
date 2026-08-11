@@ -56,14 +56,19 @@ module Etsy
     # and config/pricing.json declares its own — neither is what ships. 500 is.
     DEFAULT_PRICE_CENTS = 500
 
+    # Prose says "free audio companion", matching the gallery slides
+    # (Printables::SlideCopy) and Printables::IncludedItems — a buyer reads the
+    # images and the description together and shouldn't meet two names for the
+    # same thing. The TAG pool below deliberately keeps "voice output aac":
+    # tags are what buyers type into Etsy search, not our voice.
     LEAD = "Give every voice a way to be heard with this Printable Vocabulary Board from " \
            "SpeakAnyWay. Instant digital download. Print at home or open on any device — and " \
            "scan the included QR code to use the same board live in the free SpeakAnyWay app " \
-           "with free voice output — tap any word and it speaks out loud. No sign-in required.".freeze
+           "with a free audio companion — tap any word and it speaks out loud. No sign-in required.".freeze
 
     FOOTER = "Pairs with the SpeakAnyWay app at app.speakanyway.com — scan the QR code on any " \
-             "board to open the live version with free voice output — every word speaks out " \
-             "loud when tapped, no sign-in.".freeze
+             "board to open the live version with its free audio companion — every word speaks " \
+             "out loud when tapped, no sign-in.".freeze
 
     def initialize(printable)
       @printable = printable
@@ -209,8 +214,8 @@ module Etsy
         "1. Download — instant PDF, nothing ships.",
         "2. Print or tap — print at home, or open the file on any tablet, phone, or Chromebook.",
         "3. Scan the QR code — the same #{boards} in the free SpeakAnyWay app, where every " \
-        "word is tappable and spoken out loud. Voice output is included free — no app install, " \
-        "no sign-in, no subscription.",
+        "word is tappable and spoken out loud. The audio companion is included free — no app " \
+        "install, no sign-in, no subscription.",
       ].join("\n")
     end
 

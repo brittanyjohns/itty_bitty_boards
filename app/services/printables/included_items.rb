@@ -26,15 +26,15 @@ module Printables
       end
     end
 
-    # "Free voice output online" leads because it is the single biggest
-    # differentiator against every other AAC printable on the marketplace, and
-    # the phrase has to name the SPEAKING — "free online version" reads as a PDF
-    # viewer.
+    # The audio companion leads because it is the single biggest differentiator
+    # against every other AAC printable on the marketplace, and the phrase has to
+    # name the SPEAKING — "free online version" reads as a PDF viewer, and "voice
+    # output" is jargon a parent shopping for their kid doesn't parse.
     def all(board_count:, page_count:)
       [
         headline(board_count: board_count, page_count: page_count),
         'Print-ready Letter (8.5" x 11")',
-        "Free voice output online — tap to hear each word",
+        "Free audio companion — tap any word and it talks",
         "Curated AAC-aligned vocabulary",
         "Personal & classroom license",
       ]

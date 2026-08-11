@@ -1,5 +1,5 @@
-# Renders the four marketplace gallery slides for a printable: the hero, what's
-# included, how it works, and about.
+# Renders the five marketplace gallery slides for a printable: the hero, what's
+# included in colour, the same in low-ink, how it works, and about.
 #
 # Etsy will create a listing with no photos but won't let it go live without
 # one, so these are the minimum a draft needs to be finishable — but they're
@@ -33,7 +33,8 @@ module Boards
       # => BoardPrintable::LISTING_IMAGE_ORDER
       def call
         printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO)
-        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
+        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: false)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
+        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: true)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
         printable.attach_image!(bytes: render("how_it_works", assigns: shared_assigns), variant: BoardPrintable::IMAGE_HOW_IT_WORKS)
         printable.attach_image!(bytes: render("about", assigns: about_assigns), variant: BoardPrintable::IMAGE_ABOUT)
 
@@ -68,21 +69,52 @@ module Boards
         ids.filter_map { |id| by_id[id] }
       end
 
-      # Rendered ONCE and shared by the hero and the what's-included grid. Eight
-      # board pages is eight Grover renders; doing it per slide would double the
-      # most expensive part of the job for two copies of the same pixels.
-      def thumbnails
-        @thumbnails ||= RenderPageThumbnails.new(boards: plan.boards).call
+      # The hero shows at most three pages. It is a shop window, not an
+      # inventory: past three the pages are too small to tell apart, and the
+      # what's-included slide is where the full set is counted.
+      HERO_TILES = 3
+
+      # Three passes over the boards, each memoized, because the slides need
+      # genuinely different pages — not the same pixels twice:
+      #
+      #   hero  — colour, page header SHOWN. The printed QR lives inside that
+      #           header, and the hero's whole claim is that the sheet itself
+      #           carries the code.
+      #   grid  — colour and low-ink, header HIDDEN. At a sixth of the slide the
+      #           header is just the slide's own title band again, and hiding it
+      #           gives the board the whole tile.
+      #
+      # Budget: min(boards, 3) + min(boards, 8) * 2 renders, plus five slides.
+      # That is why this runs on Sidekiq and never on a request thread.
+      def hero_thumbnails
+        @hero_thumbnails ||= RenderPageThumbnails.new(
+          boards: plan.boards.first(HERO_TILES),
+        ).call
+      end
+
+      def grid_thumbnails(low_ink:)
+        @grid_thumbnails ||= {}
+        @grid_thumbnails[low_ink] ||= RenderPageThumbnails.new(
+          boards: plan.boards,
+          hide_colors: low_ink,
+          hide_header: true,
+        ).call
       end
 
       # Tiles that actually have a rendered thumbnail behind them — a board
       # whose page render failed is dropped rather than rendering an empty card.
-      def tiles
-        @tiles ||= plan.tiles.filter_map do |tile|
+      def tiles_from(thumbnails)
+        plan.tiles.filter_map do |tile|
           thumb = thumbnails[tile.board_id]
           next unless thumb
 
-          { label: tile.label, data_uri: thumb.data_uri, landscape: thumb.landscape }
+          {
+            label: tile.label,
+            data_uri: thumb.data_uri,
+            landscape: thumb.landscape,
+            width: thumb.width,
+            height: thumb.height,
+          }
         end
       end
 
@@ -90,27 +122,25 @@ module Boards
         {
           logo: BrandAssets.logo_data_uri,
           qr_data_url: Qr.data_url_for(Qr.target_url_for(board)),
+          palette_css: Palette.for(board).css_vars,
         }
       end
-
-      # The hero shows at most three pages. It is a shop window, not an
-      # inventory: past three the pages are too small to tell apart, and the
-      # what's-included slide is where the full set is counted.
-      HERO_TILES = 3
 
       def hero_assigns
         shared_assigns.merge(
           title: Boards::AssetRendering.board_title_for(board),
           headline: ::Printables::SlideCopy.hero_headline(board_count: board_count, topic: printable.topic),
           background: BrandAssets.scene_data_uri_for(board),
-          thumbnails: tiles.first(HERO_TILES),
+          thumbnails: tiles_from(hero_thumbnails).first(HERO_TILES),
         )
       end
 
-      def whats_included_assigns
+      def whats_included_assigns(low_ink:)
         shared_assigns.merge(
-          tiles: tiles,
+          low_ink: low_ink,
+          tiles: tiles_from(grid_thumbnails(low_ink: low_ink)),
           columns: plan.columns,
+          rows: plan.rows,
           overflow_note: plan.overflow_note,
           items: included_items,
         )

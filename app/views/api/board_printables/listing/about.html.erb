@@ -13,8 +13,13 @@
     <div class="title-banner"><%= Printables::SlideCopy.about_title %></div>
 
     <div class="founder-band">
+      <%# A frame with an oversized image inside it, not a plain <img> with an
+          object-position — the source is square, so in a square frame there is
+          nothing to pan. See .founder-photo in the layout. %>
       <% if @founder_photo %>
-        <img class="founder-photo" src="<%= @founder_photo %>" alt="Brittany, founder of SpeakAnyWay" />
+        <div class="founder-photo">
+          <img src="<%= @founder_photo %>" alt="Brittany, founder of SpeakAnyWay" />
+        </div>
       <% end %>
 
       <div class="founder-copy">
@@ -42,5 +47,7 @@
         <span class="qr-caption">Try it free</span>
       </div>
     <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
   </div>
 </div>

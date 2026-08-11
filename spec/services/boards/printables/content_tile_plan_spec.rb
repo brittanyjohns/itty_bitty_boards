@@ -43,32 +43,39 @@ RSpec.describe Boards::Printables::ContentTilePlan do
     end
   end
 
+  # Every grid cell needs a definite height for the page card inside it to size
+  # itself against; an auto row is what let the cards overflow and get clipped.
+  describe "rows" do
+    {1 => 1, 3 => 1, 4 => 2, 6 => 2, 8 => 2}.each do |count, rows|
+      it "plans #{rows} row(s) for #{count} tiles" do
+        expect(described_class.build(boards: boards(count)).rows).to eq(rows)
+      end
+    end
+
+    it "never plans zero rows, even with nothing to lay out" do
+      expect(described_class.build(boards: []).rows).to eq(1)
+    end
+  end
+
   describe "the overflow caption" do
-    it "sells the low-ink half when every board is already shown" do
+    # Low-ink has its own slide now, so it is no longer sold in this caption —
+    # the caption counts boards the grid couldn't fit, and nothing else.
+    it "says nothing when every board is already shown" do
       plan = described_class.build(boards: boards(3))
-
-      expect(plan.overflow_note).to eq("Plus a low-ink version of every page")
-    end
-
-    it "counts the withheld colour pages and the low-ink half together" do
-      # 12 boards: 8 shown, 4 withheld, plus 12 low-ink twins = 16 unshown.
-      plan = described_class.build(boards: boards(12))
-
-      expect(plan.overflow_note).to eq(
-        "+16 more pages, including a low-ink version of every board",
-      )
-    end
-
-    it "says nothing when nothing is withheld" do
-      plan = described_class.build(boards: boards(2), low_ink_count: 0)
 
       expect(plan.overflow_note).to be_nil
     end
 
-    it "uses the singular for a single withheld page" do
-      plan = described_class.build(boards: boards(9), max_tiles: 8, low_ink_count: 0)
+    it "counts only the boards the grid withheld" do
+      plan = described_class.build(boards: boards(12))
 
-      expect(plan.overflow_note).to eq("+1 more page")
+      expect(plan.overflow_note).to eq("+4 more boards in this set")
+    end
+
+    it "uses the singular for a single withheld board" do
+      plan = described_class.build(boards: boards(9), max_tiles: 8)
+
+      expect(plan.overflow_note).to eq("+1 more board in this set")
     end
   end
 

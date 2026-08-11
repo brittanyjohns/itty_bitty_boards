@@ -21,7 +21,7 @@ RSpec.describe Etsy::PublishBoardPrintable do
     allow(client).to receive(:upload_image).and_return(true)
     allow(client).to receive(:upload_file).and_return(true)
 
-    # Grover renders the four slides; the bytes themselves are irrelevant here.
+    # Grover renders the gallery slides; the bytes themselves are irrelevant here.
     allow_any_instance_of(Boards::Printables::RenderListingImages).to receive(:call) do
       BoardPrintable::LISTING_IMAGE_ORDER.each do |variant|
         printable.attach_image!(bytes: "png", variant: variant)
@@ -69,7 +69,7 @@ RSpec.describe Etsy::PublishBoardPrintable do
 
     # Rank 1 is the search thumbnail, and the hero is the only slide that shows
     # the actual boards — so it has to lead.
-    it "uploads the four slides in listing rank order, hero first" do
+    it "uploads every slide in listing rank order, hero first" do
       ranks = []
       allow(client).to receive(:upload_image) { |_id, opts| ranks << [opts[:rank], opts[:filename]] }
 

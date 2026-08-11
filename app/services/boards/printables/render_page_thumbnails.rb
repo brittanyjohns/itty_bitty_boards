@@ -7,9 +7,11 @@
 # same assigns, same QR target, so a thumbnail is the page a buyer receives
 # rather than an approximation of it.
 #
-# Colour only. Low-ink pages are pixel duplicates at thumbnail size, and a grid
-# showing each board twice reads as padding rather than as more value; they're
-# sold in the caption instead (see ContentTilePlan).
+# Renders whatever page variant it is asked for. The gallery uses three passes:
+# colour with the page header for the hero (the printed QR lives inside that
+# header, and the hero's claim is that the sheet itself carries the code), and
+# colour + low-ink without it for the two what's-included grids, where the header
+# only repeats the slide's own title band and eats a third of a small tile.
 module Boards
   module Printables
     class RenderPageThumbnails
@@ -33,10 +35,17 @@ module Boards
       # cannot miss one, and it makes the scan ~4x cheaper.
       TRIM_SAMPLE_STRIDE = 4
 
-      Thumbnail = Struct.new(:board_id, :data_uri, :landscape, keyword_init: true)
+      # width/height are the thumbnail's real pixel dimensions AFTER the trim.
+      # The slides need them: a listing card sized by a percentage max-height
+      # can't resolve against a card whose own height is indefinite, so the
+      # templates set an explicit aspect-ratio from these instead. They are
+      # never nil — an untrimmed or undecodable PNG falls back to the viewport.
+      Thumbnail = Struct.new(:board_id, :data_uri, :landscape, :width, :height, keyword_init: true)
 
-      def initialize(boards:)
+      def initialize(boards:, hide_colors: false, hide_header: false)
         @boards = Array(boards)
+        @hide_colors = hide_colors
+        @hide_header = hide_header
       end
 
       # => { board_id => Thumbnail }, missing any board whose render failed.
@@ -49,7 +58,7 @@ module Boards
 
       private
 
-      attr_reader :boards
+      attr_reader :boards, :hide_colors, :hide_header
 
       # A thumbnail is decoration on a marketing image, not part of the product.
       # One board failing to render must cost that tile and nothing else — the
@@ -64,12 +73,14 @@ module Boards
           formats: [:html],
         )
 
-        png = trim_trailing_blank(screenshot(html, data[:landscape]))
+        png, width, height = trim_trailing_blank(screenshot(html, data[:landscape]))
 
         Thumbnail.new(
           board_id: board.id,
           data_uri: "data:image/png;base64,#{Base64.strict_encode64(png)}",
           landscape: data[:landscape],
+          width: width || viewport_for(data[:landscape])[:width] * SCALE,
+          height: height || viewport_for(data[:landscape])[:height] * SCALE,
         )
       rescue StandardError => e
         Rails.logger.warn(
@@ -78,24 +89,27 @@ module Boards
         nil
       end
 
-      # The same arguments CollectPages#render_page uses for a colour page. If
-      # these drift, the gallery starts advertising a page the buyer won't get.
+      # The same arguments CollectPages#render_page uses. hide_colors picks the
+      # low-ink page the buyer also receives; if these drift any further, the
+      # gallery starts advertising a page that isn't in the download.
       def render_data_for(board)
         Boards::RenderAssetData.new(
           board: board,
           screen_size: "lg",
-          hide_colors: false,
-          hide_header: false,
+          hide_colors: hide_colors,
+          hide_header: hide_header,
           routes: Rails.application.routes.url_helpers,
           include_qr: true,
           qr_target_url: Qr.target_url_for(board),
         ).call
       end
 
+      def viewport_for(landscape) = landscape ? LANDSCAPE : PORTRAIT
+
       # layouts/pdf sizes .page to 100vw/100vh, so a viewport screenshot is
       # exactly one page — no clip maths, and that layout stays untouched.
       def screenshot(html, landscape)
-        viewport = (landscape ? LANDSCAPE : PORTRAIT).merge(device_scale_factor: SCALE)
+        viewport = viewport_for(landscape).merge(device_scale_factor: SCALE)
 
         Grover.new(
           html,
@@ -118,6 +132,10 @@ module Boards
       # what is actually drawn. Both errors run in the direction that would slice
       # tiles off. Scanning up from the bottom for the last row that differs from
       # the page background is exact for every board shape, and costs ~1s.
+      #
+      # => [png, width, height]. The dimensions come back because the slides
+      # size the page card from them; nil for either means "couldn't measure it,
+      # use the viewport" rather than "the image has no size".
       def trim_trailing_blank(png)
         image = ChunkyPNG::Image.from_blob(png)
         background = image[image.width - 2, image.height - 2]
@@ -125,20 +143,20 @@ module Boards
         last_content_row = (image.height - 1).downto(0).find do |y|
           (0...image.width).step(TRIM_SAMPLE_STRIDE).any? { |x| image[x, y] != background }
         end
-        return png if last_content_row.nil?
+        return [png, image.width, image.height] if last_content_row.nil?
 
         # +1 turns the last content ROW INDEX into a height, so the margin below
         # it is exactly TRIM_MARGIN_PX.
         height = [last_content_row + 1 + TRIM_MARGIN_PX, image.height].min
-        return png if height >= image.height
+        return [png, image.width, image.height] if height >= image.height
 
         # good_compression, not best: best buys ~4% for 4x the CPU, and this
         # runs once per board on a job that already renders a browser page.
-        image.crop(0, 0, image.width, height).to_blob(:good_compression)
+        [image.crop(0, 0, image.width, height).to_blob(:good_compression), image.width, height]
       rescue StandardError => e
         # An untrimmed thumbnail is a worse-looking slide, not a broken one.
         Rails.logger.warn("[RenderPageThumbnails] trim failed: #{e.class}: #{e.message}")
-        png
+        [png, nil, nil]
       end
     end
   end

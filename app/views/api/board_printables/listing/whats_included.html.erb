@@ -1,6 +1,11 @@
 <%# The slide a buyer uses to judge how much they're getting before reading a
     word of the description.
 
+    Rendered TWICE — once for the colour pages and once for the low-ink ones —
+    because "also includes a low-ink version" asserted in a bullet is a claim,
+    and the same boards shown printed pale is proof. The low-ink pass is the
+    same grid with hide_colors, so the two slides read as a pair.
+
     Names the boards rather than quoting a page count: for a set, "People,
     Feelings, Food, Play" is most of the reason to buy, and a page number tells
     a buyer nothing. The grid is capped and shaped by ContentTilePlan — an
@@ -11,19 +16,29 @@
   <% end %>
 
   <div class="slide-stack">
-    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title %></div>
+    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title(low_ink: @low_ink) %></div>
+
+    <% if @low_ink %>
+      <div class="headline-callout"><%= Printables::SlideCopy.low_ink_headline %></div>
+    <% end %>
 
     <%# Tile captions only earn their space when there is more than one board to
         tell apart — on a single-board printable the label just repeats the
         title two inches above it. %>
     <% show_labels = @tiles.size > 1 %>
 
-    <div class="tile-grid stretch" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
+    <%# Both tracks are explicit: the cards size themselves against their slot,
+        and an auto row gives them nothing definite to measure against. %>
+    <div class="tile-grid stretch"
+         style="grid-template-columns: repeat(<%= @columns %>, 1fr);
+                grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
       <% @tiles.each do |tile| %>
-        <div class="paper">
-          <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+        <div class="tile">
+          <div class="paper" style="aspect-ratio: <%= tile[:width] %> / <%= tile[:height] %>;">
+            <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+          </div>
           <% if show_labels && tile[:label].present? %>
-            <div class="paper-label"><%= tile[:label] %></div>
+            <div class="tile-label"><%= tile[:label] %></div>
           <% end %>
         </div>
       <% end %>

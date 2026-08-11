@@ -8,8 +8,9 @@
 #   1. Cap the tiles. A 20-board bundle laid out in one row rendered ~55px
 #      hairlines nobody could read.
 #   2. Keep low-ink pages out of the grid. They're pixel duplicates of the
-#      colour pages; they belong in the caption, where they read as more value
-#      instead of as the same board printed twice.
+#      colour pages, and interleaving them reads as the same board printed
+#      twice. They get their own slide instead, so this plan is used once per
+#      ink and never mixes the two.
 #
 # Pure: no I/O, no Grover, no ActiveRecord writes. Planning happens BEFORE any
 # thumbnail is rendered so the renderer only pays for tiles that get shown.
@@ -24,21 +25,18 @@ module Boards
         def board_id = board.id
       end
 
-      attr_reader :tiles, :columns, :overflow_note
+      attr_reader :tiles, :columns, :rows, :overflow_note
 
-      # low_ink_count defaults to one low-ink page per board because that is
-      # what CollectPages always emits — every board is rendered twice, colour
-      # then low-ink. It stays a parameter so the caption logic is testable
-      # without standing up a printable.
-      def self.build(boards:, max_tiles: MAX_TILES, low_ink_count: nil)
+      def self.build(boards:, max_tiles: MAX_TILES)
         boards = Array(boards)
-        low_ink_count ||= boards.size
         shown = boards.first(max_tiles)
+        columns = columns_for(shown.size)
 
         new(
           tiles: shown.map { |b| Tile.new(board: b, label: label_for(b)) },
-          columns: columns_for(shown.size),
-          overflow_note: overflow_note(boards.size - shown.size, low_ink_count),
+          columns: columns,
+          rows: rows_for(shown.size, columns),
+          overflow_note: overflow_note(boards.size - shown.size),
         )
       end
 
@@ -60,22 +58,31 @@ module Boards
         4
       end
 
-      def self.overflow_note(withheld, low_ink_count)
-        hidden = withheld + low_ink_count
-        return nil if hidden.zero?
-        return "Plus a low-ink version of every page" if withheld.zero?
+      # The grid needs DEFINITE row heights, not auto ones: the page cards size
+      # themselves against the row, and a percentage measured against an
+      # indefinite height resolves to nothing — which is what silently sliced
+      # the bottom off every tile.
+      def self.rows_for(count, columns)
+        return 1 if count.zero? || columns.zero?
 
-        noun = hidden == 1 ? "page" : "pages"
-        return "+#{hidden} more #{noun}, including a low-ink version of every board" if low_ink_count.positive?
-
-        "+#{hidden} more #{noun}"
+        (count / columns.to_f).ceil
       end
 
-      private_class_method :label_for, :columns_for, :overflow_note
+      # Boards, not pages: every tile in the grid is one board, and low-ink now
+      # has a slide of its own rather than a mention in this caption.
+      def self.overflow_note(withheld)
+        return nil unless withheld.positive?
 
-      def initialize(tiles:, columns:, overflow_note:)
+        noun = withheld == 1 ? "board" : "boards"
+        "+#{withheld} more #{noun} in this set"
+      end
+
+      private_class_method :label_for, :columns_for, :rows_for, :overflow_note
+
+      def initialize(tiles:, columns:, rows:, overflow_note:)
         @tiles = tiles
         @columns = columns
+        @rows = rows
         @overflow_note = overflow_note
       end
 

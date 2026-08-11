@@ -10,18 +10,19 @@
           class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
   </div>
   <p class="text-[11px] text-t3 mb-4">
-    Hero, what's-included, how-it-works and about — square marketing slides built from
-    this board's own pages. Lifestyle mockups still come from the speakanyway-printables
-    pipeline; add those in Etsy.
+    Hero, what's-included in colour and low-ink, how-it-works and about — square
+    marketing slides built from this board's own pages, in a colourway picked from
+    the board so no two listings look alike. Lifestyle mockups still come from the
+    speakanyway-printables pipeline; add those in Etsy.
   </p>
 
-  <%# A printable rendered before the four-slide redesign still has images, so
-      "has any" would look fine while the gallery is the retired pair. Publishing
-      re-renders on its own, but the admin should know before clicking. %>
+  <%# A printable rendered before the current gallery still has images, so "has
+      any" would look fine while the set is an older one. Publishing re-renders
+      on its own, but the admin should know before clicking. %>
   <% if @printable.listing_images? && !@printable.listing_images_current? %>
     <p class="text-xs mb-4 px-3 py-2 rounded border"
        style="border-color: var(--border); color: var(--t1);">
-      These were rendered with the old two-image gallery. Regenerate before publishing.
+      These were rendered with an older gallery. Regenerate before publishing.
     </p>
   <% end %>
 

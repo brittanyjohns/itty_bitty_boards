@@ -32,13 +32,25 @@ class BoardPrintable < ApplicationRecord
 
   IMAGE_HERO = "hero".freeze
   IMAGE_WHATS_INCLUDED = "whats_included".freeze
+  IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
   IMAGE_HOW_IT_WORKS = "how_it_works".freeze
   IMAGE_ABOUT = "about".freeze
 
   # Etsy shows gallery photos in listing order, and the first is the search
   # thumbnail — so the hero, which is the only one that shows the actual boards,
-  # earns rank 1.
-  LISTING_IMAGE_ORDER = [IMAGE_HERO, IMAGE_WHATS_INCLUDED, IMAGE_HOW_IT_WORKS, IMAGE_ABOUT].freeze
+  # earns rank 1. The low-ink slide sits straight after the colour one so the
+  # two read as a pair rather than as two different products.
+  #
+  # This constant is the whole definition of a current gallery: adding a variant
+  # here makes every previously-rendered printable stale, which is what surfaces
+  # the admin badge and forces a re-render before publishing.
+  LISTING_IMAGE_ORDER = [
+    IMAGE_HERO,
+    IMAGE_WHATS_INCLUDED,
+    IMAGE_WHATS_INCLUDED_LOW_INK,
+    IMAGE_HOW_IT_WORKS,
+    IMAGE_ABOUT,
+  ].freeze
 
   # The gallery used to be a scaled-down print sheet: a "cover" plus a
   # what's-included slide. Nothing renders a cover any more, but printables
