@@ -12,13 +12,32 @@ RSpec.describe Boards::Printables::RenderListingImages do
   # Grover shells out to headless Chrome; the specs care about what gets
   # rendered and attached, not about the pixels.
   let(:rendered_html) { [] }
+  let(:rendered_opts) { [] }
 
   before do
     grover = instance_double(Grover, to_png: "png-bytes")
-    allow(Grover).to receive(:new) do |html, **_opts|
+    allow(Grover).to receive(:new) do |html, **opts|
       rendered_html << html
+      rendered_opts << opts
       grover
     end
+  end
+
+  # Grover reads device_scale_factor ONLY from inside viewport. A top-level one
+  # is accepted silently and ignored, which is how every listing image shipped
+  # at 816px instead of 2040 until it was noticed. Pinned here because the
+  # failure is invisible in every other spec: the render still succeeds.
+  it "asks for the retina scale where Grover actually reads it" do
+    described_class.new(printable: printable).call
+
+    expect(rendered_opts).to all(
+      include(viewport: {
+        width: described_class::CANVAS_PX,
+        height: described_class::CANVAS_PX,
+        device_scale_factor: described_class::SCALE,
+      }),
+    )
+    expect(described_class::CANVAS_PX * described_class::SCALE).to be >= 2000
   end
 
   it "attaches a cover and a what's-included image, tagged as images not PDFs" do

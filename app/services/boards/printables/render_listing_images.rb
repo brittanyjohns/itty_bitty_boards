@@ -106,13 +106,17 @@ module Boards
           formats: [:html],
         )
 
+        # device_scale_factor MUST be nested inside viewport. Grover only reads
+        # it there — processor.cjs hands the viewport hash to page.setViewport
+        # and nothing else looks at the key, and options_fixer lists it as
+        # "viewport.device_scale_factor". A top-level one is camelized and
+        # passed to page.screenshot(), which has no such option and ignores it:
+        # that silently shipped 816px images for every listing rendered before
+        # this was caught. `format:`/`width:`/`height:` were dead too — to_png
+        # sets the screenshot type itself, and width/height are PDF-only keys.
         Grover.new(
           html,
-          format: "png",
-          viewport: { width: CANVAS_PX, height: CANVAS_PX },
-          width: CANVAS_PX,
-          height: CANVAS_PX,
-          device_scale_factor: SCALE,
+          viewport: { width: CANVAS_PX, height: CANVAS_PX, device_scale_factor: SCALE },
           print_background: true,
         ).to_png
       end

@@ -31,6 +31,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Marketplace gallery images were rendering at a quarter of their intended
+  resolution.** The listing images for a board printable were meant to come out
+  at 2040px square, comfortably over Etsy's 2000px recommendation, but the
+  retina scale was being passed where the renderer never reads it — so every
+  image uploaded so far was 816px, soft on a desktop listing page and softer
+  when Etsy zooms it. The images are full size now. Existing listings need their
+  images regenerated from the admin page to pick this up.
+
 - **Words on newly built boards were still coming out Title Cased.** Tiles are
   supposed to default to lowercase, the AAC core-vocabulary convention, and the
   creation paths were fixed for that — but cloning a board copied the source's
