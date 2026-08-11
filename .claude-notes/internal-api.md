@@ -100,9 +100,15 @@ That is the escape hatch for callers that resolved a label themselves via
 `POST /api/internal/images/search`.
 
 **Case pinning.** The resolver may return a differently-cased image (`"Run"` →
-`run`). The controller writes the caller's authored casing to the cell's
-`display_label` so tiles aren't silently renamed; an explicit `display_label`
-always wins.
+`run`), and the controller writes the caller's casing to the cell's
+`display_label` so tiles aren't silently renamed — but `label:` is the WORD, so
+it goes through `Labels::CaseNormalizer` first, exactly like every other
+defaulted tile. `"Stop"` builds a tile reading `stop`; `"iPad"`, `"TV"` and a
+folder cell's `"Food"` keep their casing. Pinning `label` verbatim (what this
+did until #653's follow-up) made the endpoint the last remaining way to mint
+Title Cased tiles — a word list typed the natural way became a board that read
+that way. An explicit `display_label` is the deliberate override and always
+wins, untouched.
 
 **AI art for misses is on by default.** A label that resolves to an art-less
 image gets `GenerateImagesJob` enqueued in batches of 3 — otherwise the tile is

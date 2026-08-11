@@ -82,6 +82,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards built through the internal API still came out Title Cased.** The
+  endpoint treated the word you send as authored display text and pinned its
+  casing, so a word list typed the natural way — "Yes / No / Say it again" —
+  built a board that read exactly that, sitting next to lowercase tiles from
+  every other path. The word now gets the same lowercase default as everywhere
+  else. Deliberate casing ("iPad", "TV", "HELP"), folder tiles ("Food"), and an
+  explicitly supplied display label are all still kept exactly as sent.
+
 - **Board pages were being sliced off at the bottom of the listing images.**
   On the what's-included slide especially, each board page was cut short of its
   last row — a broken-looking image on the one slide whose job is to show what

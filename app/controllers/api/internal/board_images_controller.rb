@@ -216,17 +216,34 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
   end
 
   # The resolver matches case-insensitively, so "Run" can legitimately resolve
-  # to an Image labeled "run". Keep the caller's authored casing on the cell
-  # rather than silently renaming the tile — same rule as
-  # `ImageResolver.upgrade_board_tiles!`.
+  # to an Image labeled "run". Keep the caller's casing on the cell rather than
+  # silently renaming the tile — but a `label:` is a WORD, not display text, so
+  # it gets the same casing rule as every other defaulted tile first.
+  #
+  # This used to pin `label` verbatim, which made the endpoint the last way to
+  # mint Title Cased tiles after the creation and clone paths were fixed: a
+  # word list written "Yes / No / Say it again" — the natural way to type one —
+  # became a board that rendered exactly that. A leading capital is not evidence
+  # of intent (Labels::CaseNormalizer), so it folds; a capital past the first
+  # letter ("iPad", "TV", "HELP") still survives, as does a door's capital.
+  #
+  # A caller that genuinely wants display text different from the word sends
+  # `display_label:` — that is the explicit override, and it is left untouched.
   def pin_authored_label!(board_image, p, image)
     return unless label_path?(p)
     return if p[:display_label].present?
 
     authored = p[:label].to_s.strip
-    return if authored.blank? || authored == image.label
+    return if authored.blank?
 
-    board_image.update(display_label: authored)
+    intended = if board_image.authored_tile_text?
+        authored
+      else
+        board_image.normalized_default_label(authored)
+      end
+    return if intended == board_image.display_label
+
+    board_image.update(display_label: intended)
   end
 
   # Queue AI art for any label that resolved to an Image with no artwork.
