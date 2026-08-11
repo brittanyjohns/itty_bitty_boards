@@ -17,18 +17,26 @@ module Boards
         @slug = slug.presence || "board"
       end
 
-      # Single board  => one file:  cover, how-to-use, colour, low-ink, license, credits
-      # Subboard tree => two files: each is cover, how-to-use, that variant's N
-      #                  board pages, license, credits. No combined master —
-      #                  the cover and its root QR are duplicated into both, by
-      #                  design, so either file stands alone.
+      # Which file a bundle's variant lands in. Dasherized because a filename
+      # reads better that way and "low_ink.pdf" looks like a bug.
+      BUNDLE_FILENAMES = {
+        BoardPrintable::VARIANT_COLOR => "color",
+        BoardPrintable::VARIANT_LOW_INK => "low-ink",
+        BoardPrintable::VARIANT_TRIM_READY => "trim-ready",
+      }.freeze
+
+      # Single board  => one file:  cover, how-to-use, colour, low-ink,
+      #                  trim-ready, license, credits
+      # Subboard tree => three files: each is cover, how-to-use, that variant's
+      #                  N board pages, license, credits. No combined master —
+      #                  the cover and its root QR are duplicated into each, by
+      #                  design, so every file stands alone.
       def call
         return [single_file] if boards.length <= 1
 
-        [
-          bundle_file(BoardPrintable::VARIANT_COLOR, "#{slug}.color.pdf"),
-          bundle_file(BoardPrintable::VARIANT_LOW_INK, "#{slug}.low-ink.pdf"),
-        ]
+        BoardPrintable::DOWNLOAD_VARIANTS.map do |variant|
+          bundle_file(variant, "#{slug}.#{BUNDLE_FILENAMES.fetch(variant)}.pdf")
+        end
       end
 
       private
@@ -68,17 +76,17 @@ module Boards
       end
 
       # The cover and the how-to-use page both make claims about the file they
-      # sit in, so the low-ink FILE gets its own render of each: an ink-light
-      # cover, and instructions that describe a low-ink print rather than the
-      # colour one it doesn't contain.
+      # sit in, so each variant FILE gets its own render of them: an ink-light
+      # cover for the low-ink file, and instructions that describe the print in
+      # hand rather than a sibling file it doesn't contain.
       #
       # RenderWrappers only produces those for a set, so fall back rather than
       # assuming the key is there — the single-board file is one document
-      # holding both halves and has no low-ink identity to honour.
+      # holding every variant and has no per-variant identity to honour.
       def wrapper_for(key, variant)
-        return wrappers[key] unless variant == BoardPrintable::VARIANT_LOW_INK
+        return wrappers[key] if variant == BoardPrintable::VARIANT_COLOR
 
-        wrappers[:"#{key}_low_ink"] || wrappers[key]
+        wrappers[:"#{key}_#{variant}"] || wrappers[key]
       end
     end
   end

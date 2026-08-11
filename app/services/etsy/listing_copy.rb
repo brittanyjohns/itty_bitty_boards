@@ -226,6 +226,8 @@ module Etsy
         "",
         "- Laminate the #{main} for the fridge, a binder, or the table.",
         "- Print the low-ink version for backups, take-home copies, and whole-class sets.",
+        "- Print the trim-ready version when you're cutting and laminating — no header to " \
+        "trim off, and the QR code still opens the talking version.",
         "- Send a copy home so vocabulary stays consistent between school and home.",
         "- Keep the tablet version open during therapy and hand the printed copy to the family.",
       ].join("\n")

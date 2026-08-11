@@ -11,18 +11,22 @@ module Printables
     module_function
 
     # The one line that describes the actual document, and the only line that
-    # changes with the printable. A multi-board bundle ships every board twice
-    # (color + low-ink) and arrives as TWO files, so quoting a single page count
-    # badly understates it.
+    # changes with the printable. A multi-board bundle ships every board three
+    # times (color, low-ink, trim-ready) and arrives as THREE files, so quoting
+    # a single page count badly understates it.
+    #
+    # "Trim-ready" rather than "header-less": the buyer-facing name has to say
+    # what it's FOR. The band is what gets cut off before laminating, and this
+    # is the copy that survives the cut.
     def headline(board_count:, page_count:)
       pages = page_count.to_i
 
       if board_count > 1
-        return "#{board_count} boards — 2 PDFs (full color + low-ink)" unless pages.positive?
+        return "#{board_count} boards — 3 PDFs (full color + low-ink + trim-ready)" unless pages.positive?
 
-        "#{board_count} boards, #{pages} pages — 2 PDFs (full color + low-ink)"
+        "#{board_count} boards, #{pages} pages — 3 PDFs (full color + low-ink + trim-ready)"
       else
-        pages.positive? ? "#{pages}-page board PDF — color + low-ink" : "Board PDF — color + low-ink"
+        pages.positive? ? "#{pages}-page board PDF — color, low-ink + trim-ready" : "Board PDF — color, low-ink + trim-ready"
       end
     end
 

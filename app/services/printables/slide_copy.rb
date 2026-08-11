@@ -82,7 +82,7 @@ module Printables
     def how_it_works_steps
       [
         {title: "Download", body: "Instant PDF. No waiting, no shipping."},
-        {title: "Print", body: "Full colour or low-ink, on plain Letter paper."},
+        {title: "Print", body: "Full colour, low-ink or trim-ready. Plain Letter paper."},
         {title: "Cut & laminate", body: "Optional — laminate to make it last a school year."},
         {title: "Scan to hear it", body: "The QR opens the same board online — tap a word, it talks."},
       ]

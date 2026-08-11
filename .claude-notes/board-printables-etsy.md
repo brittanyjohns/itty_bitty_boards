@@ -90,8 +90,50 @@ Each of these was a live failure, not a theory:
   `6816` out of the printables repo's example config or its
   `docs/etsy-cli-for-agents.md` — both are stale, and 6816 is the id that filed
   every listing under nail-art dotting tools.
-- A download file is capped at 20 MB. Rails refuses an oversized PDF rather
-  than failing mid-upload; splitting is still the Node pipeline's job.
+- A download file is capped at 20 MB, and a listing at **five** of them
+  (`Client::MAX_DOWNLOAD_FILES`). Rails refuses an oversized or over-count
+  upload up front rather than failing mid-upload after the draft already
+  exists; splitting an oversized PDF is still the Node pipeline's job. A board
+  printable ships three files, so the count guard is there for the fourth
+  variant nobody remembers to count.
+
+## What's in the download — three PDFs, not two
+
+Every printable ships each board three times
+(`BoardPrintable::DOWNLOAD_VARIANTS`, in this order):
+
+| Variant | Ink | Header |
+|---|---|---|
+| `color` | full colour | full band — logo, board title, scan-me line, QR |
+| `low_ink` | white tile backgrounds | full band |
+| `trim_ready` | full colour | **QR alone, top-right** |
+
+A single board is ONE file holding all three pages; a subboard tree is three
+files (`<slug>.color.pdf`, `.low-ink.pdf`, `.trim-ready.pdf`), each fully
+wrapped with its own cover, how-to-use, license and credits so any one of them
+stands alone. The trim-ready file reuses the **colour** cover — it is a colour
+print, only its board pages differ — and gets its own how-to-use page, because
+that page is the only thing that tells a reader where the QR went.
+
+**`hide_header: true` is not the way to build the trim-ready page.** The QR
+lives *inside* the header block in `api/boards/print.html.erb`, so hiding the
+header takes the code with it — and the free audio companion is the single
+claim the whole listing leans on. `Boards::RenderAssetData` therefore carries a
+three-state `header_mode` (`full` / `qr_only` / `none`), never a second boolean
+that can contradict `hide_header`:
+
+- `qr_only` reserves a 20mm band (`#header_band_height_mm`) instead of 30-34mm
+  and prints a 0.6in QR in the corner. The band is **reserved, not overlaid**:
+  a width-limited board spans the full sheet, so a floating QR would land on
+  tiles.
+- `hide_header:` still works for the callers that only ever wanted
+  all-or-nothing (board previews, the print endpoints, the gallery's grid
+  thumbnails) and maps onto `full`/`none`. `header_mode:` wins when both are
+  given.
+
+`Printables::IncludedItems.headline` is the buyer-facing count and is shared by
+the listing description and the what's-included slide — changing the variant
+set means changing it in that one place, and both follow.
 
 ## Listing copy lives in two languages
 
@@ -117,7 +159,7 @@ saved.
 
 ## Gallery images
 
-`Boards::Printables::RenderListingImages` renders **five** square 2560px slides
+`Boards::Printables::RenderListingImages` renders **six** square 2560px slides
 through `layouts/listing_image.html.erb` — a marketing canvas of its own, not
 the print sheet. `LISTING_IMAGE_ORDER` is the Etsy rank order, and rank 1 is the
 search thumbnail:
@@ -125,7 +167,7 @@ search thumbnail:
 | Slide | Board-specific? | Ported from (`speakanyway-printables`) |
 |---|---|---|
 | `hero` | yes — real page thumbnails on a room background | `previews/hero-board.*` |
-| `on_a_device` | yes — the root board warped onto a photographed tablet | step 14 + `templates/compose-mockup.ts` |
+| `on_a_device` | yes — the root board, in the app's chrome, warped onto a photographed tablet | step 14 + `previews/content-mock-app.*` |
 | `whats_included` | yes — capped thumbnail grid of the colour pages | `previews/whats-included.*` |
 | `whats_included_low_ink` | yes — the same grid rendered `hide_colors` | — |
 | `how_it_works` | no | `plugins/aac/.../about-saw.*` (steps half) |
@@ -144,6 +186,24 @@ their hand-clicked screen corners are vendored into
 `Boards::Printables::TabletScene`. The other seventeen stage products this app
 doesn't make (ID cards, device tags, stickers, tattoos) or warp a printed sheet
 onto furniture — that compositing is still that repo's job.
+
+**What sits on the glass is the app, not a sheet of paper.**
+`Boards::Printables::RenderDeviceScreen` wraps the board in SpeakAnyWay's own
+chrome — board name, nav, empty speech bar, play/clear/download — and *that*
+screenshot is what gets warped. A bare printed page there reads as a photograph
+of a printout taped to a tablet, and carries nothing saying the thing on screen
+talks; the print header would put a scan-me band and a second QR on the glass.
+Ported from that repo's `renderContentAppPage`, chrome and all, so a listing
+from either source shows one app. Two constraints:
+
+- **The shell is 1100x720 (~1.528)**, the mean of the two tablet quad aspects
+  in `TabletScene::SCENES`. The homography stretches the artwork onto the quad
+  whatever shape it is, so a shell at another aspect arrives visibly squashed.
+- **The board image is the header-less thumbnail** the what's-included grid
+  already rendered, so the slide costs one extra Grover render, not two. A
+  board too tall for the shell is top-anchored and clipped — that's what a real
+  screen with more board below the fold looks like — and a short wide one is
+  centred.
 
 Three things hold the warp together:
 
@@ -193,11 +253,12 @@ Rules that hold across the slides:
   `CollectPages` prints from. The old note here said page thumbnails would need
   poppler/ImageMagick, which the deploy image lacks — they don't, and that is
   what unlocked showing real boards in the gallery.
-- **The hero keeps the page header; the grids don't.** The printed QR lives
-  inside that header (`api/boards/print.html.erb`), and the hero's claim is that
-  the sheet itself carries the code. On a grid tile at a sixth the size the
-  header is just the slide's own title band again, so `hide_header: true` gives
-  the board the whole tile.
+- **The hero keeps the page header; the grids and the tablet don't.** The
+  printed QR lives inside that header (`api/boards/print.html.erb`), and the
+  hero's claim is that the sheet itself carries the code. On a grid tile at a
+  sixth the size the header is just the slide's own title band again, so
+  `hide_header: true` gives the board the whole tile; on the tablet it is the
+  tell that the screen is really a photographed printout.
 - **Thumbnails are trimmed by measurement, not calculation.** How much of a
   Letter sheet a board fills depends on its shape; a 12x3 grid leaves over half
   the page blank and reads as a broken image. The header renders ~24mm against

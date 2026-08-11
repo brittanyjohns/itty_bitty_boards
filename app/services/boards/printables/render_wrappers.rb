@@ -17,17 +17,23 @@ module Boards
       end
 
       # => { cover:, how_to_use:, license:, credits: } of PDF bytes, plus
-      #    cover_low_ink: and how_to_use_low_ink: for a set.
+      #    cover_low_ink:, how_to_use_low_ink: and how_to_use_trim_ready: for
+      #    a set. The keys are `<page>_<variant>` because that is how MergePdf
+      #    looks them up.
       #
-      # A set is emitted as two separate FILES (MergePdf), so the two pages that
-      # make claims about the document they sit in get rendered twice — once per
-      # variant — and MergePdf binds the matching one into each file. Without
-      # that, the low-ink file opens on a full-bleed gradient cover and then
-      # explains a colour print it doesn't contain.
+      # A set is emitted as three separate FILES (MergePdf), so the two pages
+      # that make claims about the document they sit in get rendered per variant
+      # and MergePdf binds the matching one into each file. Without that, the
+      # low-ink file opens on a full-bleed gradient cover and then explains a
+      # colour print it doesn't contain.
       #
-      # A single board is ONE file holding both a colour and a low-ink half, so
-      # it has no per-variant identity: one cover, one how-to-use, and the copy
-      # describes the pair of halves.
+      # No cover_trim_ready: that file is full colour, so the colour cover is
+      # already the right one — only its board pages differ. MergePdf falls back
+      # to the unsuffixed key rather than needing one rendered.
+      #
+      # A single board is ONE file holding every variant of the page, so it has
+      # no per-variant identity: one cover, one how-to-use, and the copy
+      # describes the set of halves.
       def call
         wrappers = {
           cover: render("cover", assigns: cover_assigns),
@@ -40,7 +46,8 @@ module Boards
 
         wrappers.merge(
           cover_low_ink: render("cover", assigns: cover_assigns.merge(ink_light: true)),
-          how_to_use_low_ink: render("how_to_use", assigns: how_to_use_assigns(low_ink: true)),
+          how_to_use_low_ink: render("how_to_use", assigns: how_to_use_assigns(variant: BoardPrintable::VARIANT_LOW_INK)),
+          how_to_use_trim_ready: render("how_to_use", assigns: how_to_use_assigns(variant: BoardPrintable::VARIANT_TRIM_READY)),
         )
       end
 
@@ -64,12 +71,13 @@ module Boards
 
       def set? = board_count > 1
 
-      # `low_ink` is only ever true for a set, where this page is bound into the
-      # low-ink file alone and must describe that file rather than the pair.
-      def how_to_use_assigns(low_ink: false)
+      # `variant` is only ever set for a board SET, where this page is bound
+      # into one variant's file alone and must describe that file rather than
+      # the collection of halves a single-board document holds.
+      def how_to_use_assigns(variant: nil)
         {
           is_set: set?,
-          low_ink: low_ink,
+          variant: variant,
           topic: topic,
           noun: set? ? "set of #{board_count} communication boards" : "communication board",
         }

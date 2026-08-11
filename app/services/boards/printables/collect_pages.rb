@@ -1,5 +1,6 @@
 # Port of the printables pipeline's step 05 (build-content). Walks the board
-# tree, then renders every board twice — once in colour, once low-ink.
+# tree, then renders every board once per BoardPrintable::DOWNLOAD_VARIANTS —
+# colour, low-ink, and trim-ready (colour, header replaced by a corner QR).
 #
 # The renderer itself already exists: this goes straight to
 # Boards::RenderAssetData rather than HTTP-calling our own
@@ -77,7 +78,7 @@ module Boards
       # => { boards: [Board], pages: [Page] }
       #
       # Page order matches the pipeline: every colour page in BFS order, then
-      # every low-ink page in the same board order.
+      # every low-ink page in the same board order, then every trim-ready one.
       def call
         boards = self.class.walk_board_tree(
           board: board,
@@ -85,10 +86,11 @@ module Boards
           max_boards: max_boards,
         )
 
-        color_pages = boards.map { |b| render_page(b, variant: BoardPrintable::VARIANT_COLOR) }
-        low_ink_pages = boards.map { |b| render_page(b, variant: BoardPrintable::VARIANT_LOW_INK) }
+        pages = BoardPrintable::DOWNLOAD_VARIANTS.flat_map do |variant|
+          boards.map { |b| render_page(b, variant: variant) }
+        end
 
-        { boards: boards, pages: color_pages + low_ink_pages }
+        { boards: boards, pages: pages }
       end
 
       private
@@ -98,14 +100,15 @@ module Boards
       def render_page(target, variant:)
         hide_colors = variant == BoardPrintable::VARIANT_LOW_INK
 
-        # hide_header stays false on every board page: the QR lives inside the
-        # header in print.html.erb, so hiding the header would also kill the
-        # per-page QR. There is no header-less-with-QR combination.
+        # Every board page carries a QR, in one form or another. The trim-ready
+        # variant drops the title band but keeps a corner code (header_mode
+        # qr_only) — a bare `hide_header: true` would take the QR with it and
+        # hand a buyer a sheet with no way back to the talking version.
         render_data = Boards::RenderAssetData.new(
           board: target,
           screen_size: "lg",
           hide_colors: hide_colors,
-          hide_header: false,
+          header_mode: header_mode_for(variant),
           routes: Rails.application.routes.url_helpers,
           include_qr: true,
           qr_target_url: qr_target_url_for(target),
@@ -124,6 +127,14 @@ module Boards
           board_name: target.name,
           variant: variant,
         )
+      end
+
+      def header_mode_for(variant)
+        if variant == BoardPrintable::VARIANT_TRIM_READY
+          Boards::RenderAssetData::HEADER_QR_ONLY
+        else
+          Boards::RenderAssetData::HEADER_FULL
+        end
       end
 
       # Every board page's QR targets ITS OWN board, so a buyer scanning page 5

@@ -708,16 +708,22 @@
 
       /* These room photos are dim and warm; the scrim is what keeps the navy
          title and the footer readable over them. Top and bottom only, so the
-         tablet in the middle stays untouched. */
+         tablet in the middle stays untouched.
+
+         The top half is deliberately light and fades out early: the title
+         banner and the audio badge carry their own solid fills, so they don't
+         need the scrim to be legible — and the tablet's own screen starts at
+         ~23% of the slide, where a heavier gradient washes out the app chrome
+         and makes the screenshot read as dim rather than lit. */
       .mockup-scrim {
         position: absolute;
         inset: 0;
         z-index: 1;
         background: linear-gradient(
           180deg,
-          rgba(251, 247, 241, 0.94) 0%,
-          rgba(251, 247, 241, 0.55) 22%,
-          rgba(251, 247, 241, 0) 40%,
+          rgba(251, 247, 241, 0.90) 0%,
+          rgba(251, 247, 241, 0.35) 15%,
+          rgba(251, 247, 241, 0) 27%,
           rgba(251, 247, 241, 0) 68%,
           rgba(251, 247, 241, 0.70) 88%,
           rgba(251, 247, 241, 0.90) 100%

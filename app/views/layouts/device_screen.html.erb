@@ -1,0 +1,175 @@
+<%# Layout for the tablet screen that gets warped onto the glass in the
+    "on a device" listing slide. Not a page, not a slide: a screenshot of what
+    the SpeakAnyWay app looks like with this board open.
+
+    Ported from speakanyway-printables' src/templates/previews/content-mock-app
+    .{html,css} — the same chrome that repo composites into its tablet scenes,
+    so a listing from either source shows the same app.
+
+    Two things are load-bearing:
+
+    1. The shell's aspect ratio. Boards::Printables::RenderDeviceScreen renders
+       it at 1100x720 (1.528), the mean of the two tablet quads in
+       TabletScene::SCENES (1.50 and 1.55). A homography stretches the artwork
+       onto the quad whatever shape it is, so a shell at some other aspect
+       arrives on the glass visibly squashed or stretched.
+    2. The board image is a HEADER-LESS page render. The printed header — board
+       name, scan-me line, QR — is the point on paper and a tell on a screen:
+       it reads as a photographed marketing sheet rather than the live app. The
+       chrome below replaces it, and carries the board's own name.
+
+    Nothing is fetched over the network by the chrome. Same rule as
+    layouts/listing_image.html.erb; the symbol art inside the board image is the
+    one documented exception, and it is already baked into that PNG. %>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Device screen</title>
+
+    <style>
+      <%= Boards::Printables::Fonts.face_css %>
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+
+      .app-shell {
+        width: 1100px;
+        height: 720px;
+        background: #ffffff;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        font-family: "Nunito", system-ui, -apple-system, sans-serif;
+        overflow: hidden;
+      }
+
+      /* ── Chrome ───────────────────────────────────────────────────────── */
+
+      .app-chrome {
+        padding: 20px 24px 16px;
+        border-bottom: 1px solid #e6e9ef;
+        background: #ffffff;
+        flex: none;
+      }
+
+      /* The board's own name, which is the whole reason this chrome beats a
+         generic app screenshot: the tablet is showing THIS product. */
+      .app-title {
+        font-size: 27px;
+        font-weight: 800;
+        color: #1b2430;
+        line-height: 1.1;
+        margin-bottom: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .app-controls {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .app-nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex: none;
+      }
+
+      .icon-btn {
+        width: 30px;
+        height: 30px;
+        display: block;
+      }
+
+      .icon-btn svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .signin {
+        font-size: 19px;
+        font-weight: 600;
+        color: #3c4654;
+        white-space: nowrap;
+      }
+
+      /* The speech bar, empty on purpose: nothing has been tapped yet, and a
+         mocked-up sentence would be a claim about words this board may not
+         have. */
+      .sentence-bar {
+        flex: 1;
+        height: 84px;
+        background: #e8eaf6;
+        border-radius: 14px;
+        min-width: 0;
+      }
+
+      .app-actions {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        flex: none;
+      }
+
+      .action {
+        width: 78px;
+        height: 66px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .action svg {
+        width: 34px;
+        height: 34px;
+        display: block;
+      }
+
+      .action.play { background: #22c55e; }
+      .action.delete { background: #e5352b; }
+      .action.download { background: #14181f; }
+
+      /* ── Board ────────────────────────────────────────────────────────── */
+
+      .app-body {
+        flex: 1;
+        padding: 0 14px 14px;
+        box-sizing: border-box;
+        min-height: 0;
+        /* Clip, never scale. An over-tall board cut off mid-row is what a real
+           screen with more board below the fold looks like; shrinking it to fit
+           makes the tiles unreadable, which is the one thing a board
+           screenshot can't afford. */
+        overflow: hidden;
+      }
+
+      /* A board wider than the body still fits at full width and leaves room
+         underneath, and a band of white pinned to the bottom edge reads as a
+         rendering bug — so that case centres instead. */
+      .app-body.fits {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .app-page {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>

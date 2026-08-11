@@ -1,0 +1,54 @@
+<%# SpeakAnyWay's app chrome around a header-less render of the board: the
+    screenshot that gets warped onto the tablet in the "on a device" slide.
+
+    The sentence bar is empty and the nav says "Sign in" because that is what a
+    buyer scanning the QR actually lands on — the public board, signed out,
+    nothing tapped yet. See layouts/device_screen.html.erb for the geometry. %>
+<div class="app-shell">
+  <div class="app-chrome">
+    <div class="app-title"><%= @title %></div>
+
+    <div class="app-controls">
+      <div class="app-nav">
+        <span class="icon-btn" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#3c4654" stroke-width="2.2" stroke-linecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </span>
+        <span class="icon-btn" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#3c4654" stroke-width="2.2">
+            <rect x="3" y="3" width="7.5" height="7.5" rx="1.6" />
+            <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6" />
+            <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6" />
+            <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6" />
+          </svg>
+        </span>
+        <span class="signin">Sign in</span>
+      </div>
+
+      <div class="sentence-bar"></div>
+
+      <div class="app-actions">
+        <span class="action play" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="#ffffff"><path d="M8 5.5v13l11-6.5z" /></svg>
+        </span>
+        <span class="action delete" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round">
+            <path d="M4 7h16M9.5 7V5h5v2M6.5 7l1 12.5h9L17.5 7" />
+          </svg>
+        </span>
+        <span class="action download" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 4v10m0 0l-4-4m4 4l4-4M5 19h14" />
+          </svg>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body <%= "fits" if @fits %>">
+    <% if @board_data_uri.present? %>
+      <img class="app-page" src="<%= @board_data_uri %>" alt="<%= @title %>" />
+    <% end %>
+  </div>
+</div>

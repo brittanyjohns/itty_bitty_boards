@@ -19,7 +19,7 @@ RSpec.describe "api/boards/print.html.erb", type: :view do
     }
   end
 
-  def render_print(tiles)
+  def render_print(tiles, **overrides)
     ApplicationController.render(
       template: "api/boards/print",
       layout: "pdf",
@@ -38,8 +38,12 @@ RSpec.describe "api/boards/print.html.erb", type: :view do
         board_render_height_mm: 100,
         landscape: false,
         bw: false,
-      },
+      }.merge(overrides),
     )
+  end
+
+  def header_nodes(html)
+    Nokogiri::HTML(html).css(".header")
   end
 
   def tile_nodes(html)
@@ -67,6 +71,55 @@ RSpec.describe "api/boards/print.html.erb", type: :view do
     # ...and the separate caption <div class="label"> is suppressed so the
     # label doesn't appear twice.
     expect(node.at_css(".label")).to be_nil
+  end
+
+  # The QR lives inside the header block, so the header state and the presence
+  # of the printed code are one decision. A "header-less" page that also lost
+  # its QR is a sheet with no way back to the talking version of the board —
+  # which is the promise the whole listing leans on.
+  describe "header modes" do
+    let(:tiles) { [tile(label: "happy", image_url: "https://cdn.example/happy.png")] }
+    let(:qr) { "data:image/png;base64,QQ==" }
+
+    def render_with(mode)
+      render_print(
+        tiles,
+        header_mode: mode,
+        hide_header: false,
+        qr_data_url: qr,
+        qr_target_url: "https://app.speakanyway.com/pb/core-words",
+        board_title: "Core Words",
+      )
+    end
+
+    it "prints the full band — title, scan line and QR — in full mode" do
+      html = render_with(Boards::RenderAssetData::HEADER_FULL)
+
+      expect(html).to include("Core Words")
+      expect(html).to include("for the full interactive version")
+      expect(Nokogiri::HTML(html).at_css(".qr-small img")["src"]).to eq(qr)
+    end
+
+    it "keeps the QR and drops everything else in qr_only mode" do
+      html = render_with(Boards::RenderAssetData::HEADER_QR_ONLY)
+      doc = Nokogiri::HTML(html)
+
+      expect(doc.at_css(".header-qr-only .qr-small img")["src"]).to eq(qr)
+      expect(doc.at_css(".board-title")).to be_nil
+      expect(doc.at_css(".board-link")).to be_nil
+      expect(doc.at_css(".logo")).to be_nil
+    end
+
+    it "prints no header at all in none mode" do
+      expect(header_nodes(render_with(Boards::RenderAssetData::HEADER_NONE))).to be_empty
+    end
+
+    # Callers that render this template with their own assigns still get the
+    # old all-or-nothing behaviour instead of an unstyled full header.
+    it "falls back to hide_header when no mode was passed" do
+      expect(header_nodes(render_print(tiles, hide_header: true))).to be_empty
+      expect(header_nodes(render_print(tiles, hide_header: false))).not_to be_empty
+    end
   end
 
   it "still suppresses the caption on an image tile when hide_label is set" do

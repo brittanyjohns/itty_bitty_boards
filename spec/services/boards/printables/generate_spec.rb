@@ -38,7 +38,7 @@ RSpec.describe Boards::Printables::Generate do
   end
 
   describe "a single board" do
-    it "attaches one fully-wrapped 6-page file" do
+    it "attaches one fully-wrapped 7-page file" do
       printable = printable_for
 
       described_class.new(printable: printable).call
@@ -46,8 +46,8 @@ RSpec.describe Boards::Printables::Generate do
 
       expect(printable.status).to eq("complete")
       expect(printable.files.count).to eq(1)
-      # cover, how-to-use, colour, low-ink, license, credits
-      expect(printable.page_count).to eq(6)
+      # cover, how-to-use, colour, low-ink, trim-ready, license, credits
+      expect(printable.page_count).to eq(7)
       expect(printable.board_ids).to eq([root.id])
       expect(printable.error_message).to be_nil
     end
@@ -81,21 +81,20 @@ RSpec.describe Boards::Printables::Generate do
       link(root, child_b, position: 1)
     end
 
-    it "attaches exactly two files, colour and low-ink, each fully wrapped" do
+    it "attaches one file per download variant, each fully wrapped" do
       printable = printable_for(include_subboards: true)
 
       described_class.new(printable: printable).call
       printable.reload
 
       expect(printable.status).to eq("complete")
-      files = printable.files_view.sort_by { |f| f[:variant] }
-      expect(files.map { |f| f[:variant] })
-        .to eq([BoardPrintable::VARIANT_COLOR, BoardPrintable::VARIANT_LOW_INK])
+      files = printable.files_view
+      expect(files.map { |f| f[:variant] }).to eq(BoardPrintable::DOWNLOAD_VARIANTS)
       expect(files.map { |f| f[:filename] })
-        .to eq(["core-words.color.pdf", "core-words.low-ink.pdf"])
+        .to eq(["core-words.color.pdf", "core-words.low-ink.pdf", "core-words.trim-ready.pdf"])
 
-      # 2N + 8: each file is cover + how-to-use + 3 board pages + license + credits.
-      expect(printable.page_count).to eq(14)
+      # 3 x (cover + how-to-use + 3 board pages + license + credits).
+      expect(printable.page_count).to eq(21)
       expect(printable.board_ids).to eq([root.id, child_a.id, child_b.id])
     end
 
@@ -104,13 +103,15 @@ RSpec.describe Boards::Printables::Generate do
 
       described_class.new(printable: printable).call
 
-      # Two renders per board (colour + low-ink), each targeting that board by
-      # its slug — CollectPages.qr_key_for, matching Board#public_url.
+      # One render per board per download variant, each targeting that board by
+      # its slug — CollectPages.qr_key_for, matching Board#public_url. The
+      # trim-ready page is included: it drops the header band but keeps a QR.
+      variants = BoardPrintable::DOWNLOAD_VARIANTS.length
       [root, child_a, child_b].each do |board|
         key = board.slug.presence || board.id
-        expect(qr_targets.count("https://app.speakanyway.com/pb/#{key}")).to eq(2)
+        expect(qr_targets.count("https://app.speakanyway.com/pb/#{key}")).to eq(variants)
       end
-      expect(qr_targets.length).to eq(6)
+      expect(qr_targets.length).to eq(3 * variants)
     end
 
     # Each board in a tree gets its own key, so a slugless board in the middle
@@ -122,7 +123,8 @@ RSpec.describe Boards::Printables::Generate do
       described_class.new(printable: printable).call
 
       expect(qr_targets.uniq.length).to eq(3)
-      expect(qr_targets.count("https://app.speakanyway.com/pb/#{child_a.id}")).to eq(2)
+      expect(qr_targets.count("https://app.speakanyway.com/pb/#{child_a.id}"))
+        .to eq(BoardPrintable::DOWNLOAD_VARIANTS.length)
     end
   end
 
@@ -167,7 +169,7 @@ RSpec.describe Boards::Printables::Generate do
   end
 
   # A subboard added since the first run flips the document from one full file
-  # to a colour/low-ink pair; the orphaned "full" file is not a real download.
+  # to a file per variant; the orphaned "full" file is not a real download.
   it "purges the single-board file when the tree has grown into a bundle" do
     printable = printable_for(include_subboards: true)
     described_class.new(printable: printable).call
@@ -177,7 +179,7 @@ RSpec.describe Boards::Printables::Generate do
     printable.reload
 
     expect(printable.files_view.map { |f| f[:variant] })
-      .to match_array([BoardPrintable::VARIANT_COLOR, BoardPrintable::VARIANT_LOW_INK])
+      .to match_array(BoardPrintable::DOWNLOAD_VARIANTS)
   end
 
   it "leaves the listing images alone when the PDFs are regenerated" do

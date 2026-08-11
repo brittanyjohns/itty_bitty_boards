@@ -75,11 +75,11 @@ RSpec.describe Etsy::ListingCopy do
 
       expect(description).to include("THE 2 BOARDS")
       expect(description).to include("Core Words", "Feelings")
-      expect(description).to include("2 boards, 6 pages — 2 PDFs (full color + low-ink)")
+      expect(description).to include("2 boards, 6 pages — 3 PDFs (full color + low-ink + trim-ready)")
     end
 
     it "describes a single board as an n-page PDF" do
-      expect(build["description"]).to include("6-page board PDF — color + low-ink")
+      expect(build["description"]).to include("6-page board PDF — color, low-ink + trim-ready")
     end
 
     it "omits the boards section for a single-board printable" do
