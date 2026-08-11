@@ -51,6 +51,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   when Etsy zooms it. The images are full size now. Existing listings need their
   images regenerated from the admin page to pick this up.
 
+- **Importing an .obf file did nothing at all.** The file analyzed fine, but
+  clicking Import dropped you back on the boards list with no new board and no
+  error — and nothing in the logs either. The import was failing on a blank
+  slug the moment a single slug-less board existed anywhere, and the job wrote
+  that failure at a log level production doesn't record, so it failed in total
+  silence. Imports now create their board up front, so the request answers with
+  something to follow: both .obf and .obz land on a progress screen that shows
+  the import running and says so plainly if it fails, instead of leaving you to
+  guess whether it worked. Boards left stranded by the old behavior are
+  repaired by `rake obf_import:cleanup` — one that got its tiles is marked
+  finished, one that never got any is marked failed, and nothing is deleted.
+
 - **Words on newly built boards were still coming out Title Cased.** Tiles are
   supposed to default to lowercase, the AAC core-vocabulary convention, and the
   creation paths were fixed for that — but cloning a board copied the source's
