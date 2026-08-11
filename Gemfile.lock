@@ -619,6 +619,7 @@ DEPENDENCIES
   down (~> 5.4)
   factory_bot_rails
   faraday
+  faraday-multipart
   ffaker
   figaro
   font-awesome-sass (~> 6.4.0)

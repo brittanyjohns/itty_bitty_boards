@@ -3,10 +3,23 @@
   <% content_for :head_extra, tag.meta("http-equiv": "refresh", content: "5") %>
 <% end %>
 
+<%# Everything below the status card renders only when the printable is
+    complete, which is also the only time the auto-refresh above is switched
+    off — so a half-typed listing description can never be wiped by a reload. %>
+
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @printable.board&.name || "Board ##{@printable.board_id}" %></h1>
-    <p class="text-sm text-t3 mt-0.5">Printable #<%= @printable.id %></p>
+    <p class="text-sm text-t3 mt-0.5">
+      Printable #<%= @printable.id %>
+      <% if @printable.board %>
+        ·
+        <%= link_to "Open board ##{@printable.board_id} ↗", board_public_page_url(@printable.board),
+              target: "_blank", rel: "noopener",
+              title: "The public page this printable's cover QR points at",
+              class: "text-accent hover:underline" %>
+      <% end %>
+    </p>
   </div>
   <%= link_to "← All printables", admin_dashboard_board_printables_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
 </div>
@@ -52,3 +65,26 @@
     </div>
   <% end %>
 </div>
+
+<% if @printable.complete? %>
+  <% if @tree_boards.any? %>
+    <div class="admin-card border rounded-xl p-5 mb-6">
+      <h2 class="text-sm font-medium text-t1 mb-1">Boards in this printable</h2>
+      <p class="text-[11px] text-t3 mb-3">In tree order — the first is the root the cover QR points at.</p>
+      <div class="flex flex-wrap gap-2">
+        <% @tree_boards.each_with_index do |board, index| %>
+          <%= link_to board_public_page_url(board), target: "_blank", rel: "noopener",
+                title: "Board ##{board.id}",
+                class: "text-xs px-2.5 py-1 rounded border admin-input text-t1 hover:text-accent transition-colors" do %>
+            <span class="text-t3"><%= index + 1 %>.</span> <%= board.name.presence || "Board ##{board.id}" %>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%= render "listing_form" %>
+  <%= render "listing_images" %>
+  <%= render "etsy" %>
+  <%= render "copy_blocks" %>
+<% end %>

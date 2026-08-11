@@ -359,4 +359,158 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       end
     end
   end
+
+  describe "listing and publishing" do
+    let!(:printable) do
+      BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], page_count: 6)
+    end
+
+    before do
+      printable.attach_pdf!(filename: "core.pdf", bytes: "pdf", variant: BoardPrintable::VARIANT_FULL)
+    end
+
+    describe "authorization" do
+      it "refuses every member action to a non-admin" do
+        sign_in create(:user)
+
+        patch update_listing_admin_dashboard_board_printable_path(printable), params: { title: "x" }
+        expect(response).to redirect_to(root_path)
+
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+        expect(response).to redirect_to(root_path)
+
+        post regenerate_listing_images_admin_dashboard_board_printable_path(printable)
+        expect(response).to redirect_to(root_path)
+
+        expect(printable.reload.listing_copy).to eq({})
+      end
+    end
+
+    describe "GET show" do
+      it "renders the generated listing copy and the paste blocks" do
+        sign_in admin
+        allow(Etsy::Client).to receive(:configured?).and_return(true)
+
+        get admin_dashboard_board_printable_path(printable)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Listing copy", "Teachers Pay Teachers", "Create Etsy draft")
+        # The link back to the board the printable was built from.
+        expect(response.body).to include("Open board ##{board.id}")
+      end
+
+      it "says Etsy is unconfigured instead of offering a button that would fail" do
+        sign_in admin
+        allow(Etsy::Client).to receive(:configured?).and_return(false)
+
+        get admin_dashboard_board_printable_path(printable)
+
+        expect(response.body).to include("Etsy isn't configured")
+        expect(response.body).not_to include("Create Etsy draft")
+      end
+    end
+
+    describe "PATCH update_listing" do
+      it "saves the copy and normalizes the tags to what Etsy will accept" do
+        sign_in admin
+
+        patch update_listing_admin_dashboard_board_printable_path(printable), params: {
+          title: "Core Words", summary: "S", description: "D",
+          tags: "AAC, talking communication board, printable", price: "4.50",
+        }
+
+        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
+        expect(printable.reload.listing_copy).to include(
+          "title" => "Core Words",
+          # The 27-char tag is dropped here rather than silently by Etsy later.
+          "tags" => ["aac", "printable"],
+          "price_cents" => 450,
+        )
+      end
+
+      it "does not touch Etsy" do
+        sign_in admin
+        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
+
+        patch update_listing_admin_dashboard_board_printable_path(printable),
+              params: { title: "T", description: "D" }
+      end
+    end
+
+    describe "POST publish_to_etsy" do
+      before { allow(Etsy::Client).to receive(:configured?).and_return(true) }
+
+      it "enqueues the publish job and clears a stale error" do
+        sign_in admin
+        printable.update_columns(etsy_error: "an old failure")
+
+        expect(PublishBoardPrintableToEtsyJob).to receive(:perform_async).with(printable.id)
+
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
+        expect(printable.reload.etsy_error).to be_nil
+      end
+
+      it "saves the generated copy first, so the draft matches what the page showed" do
+        sign_in admin
+        allow(PublishBoardPrintableToEtsyJob).to receive(:perform_async)
+
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.listing_copy["title"]).to be_present
+      end
+
+      it "refuses a printable that is still generating" do
+        sign_in admin
+        printable.update_columns(status: "generating")
+
+        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
+
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to match(/isn't finished generating/)
+      end
+
+      it "refuses to create a second listing for the same printable" do
+        sign_in admin
+        printable.update!(etsy_listing_id: 555)
+
+        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
+
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to match(/Already on Etsy as listing 555/)
+      end
+
+      it "refuses when Etsy isn't configured" do
+        sign_in admin
+        allow(Etsy::Client).to receive(:configured?).and_return(false)
+
+        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
+
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to match(/isn't configured/)
+      end
+    end
+
+    describe "POST regenerate_listing_images" do
+      it "enqueues the render job" do
+        sign_in admin
+
+        expect(RenderBoardPrintableListingImagesJob).to receive(:perform_async).with(printable.id)
+
+        post regenerate_listing_images_admin_dashboard_board_printable_path(printable)
+        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
+      end
+
+      it "refuses a printable that is still generating" do
+        sign_in admin
+        printable.update_columns(status: "generating")
+
+        expect(RenderBoardPrintableListingImagesJob).not_to receive(:perform_async)
+
+        post regenerate_listing_images_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to be_present
+      end
+    end
+  end
 end

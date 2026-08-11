@@ -1,0 +1,37 @@
+<%# The gallery images Etsy needs. Etsy will create a listing with none, but
+    won't let it go live without one — so an empty gallery here is a draft you
+    can't finish. Publishing renders them automatically if they're missing;
+    this card exists to preview and re-render them. %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Listing images</h2>
+    <%= button_to "Regenerate", regenerate_listing_images_admin_dashboard_board_printable_path(@printable),
+          method: :post,
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+  </div>
+  <p class="text-[11px] text-t3 mb-4">
+    Cover and what's-included, rendered from the same templates as the printed pages.
+    Lifestyle mockups still come from the speakanyway-printables pipeline — add those in Etsy.
+  </p>
+
+  <% images = @printable.listing_images_view %>
+  <% if images.any? %>
+    <div class="flex flex-wrap gap-4">
+      <% images.each_with_index do |image, index| %>
+        <div>
+          <%= link_to image[:url], target: "_blank", rel: "noopener" do %>
+            <%= image_tag image[:url], alt: image[:variant],
+                  class: "w-40 h-40 object-cover rounded-lg border", style: "border-color: var(--border);" %>
+          <% end %>
+          <p class="text-[11px] text-t3 mt-1">
+            Rank <%= index + 1 %> · <%= image[:variant].humanize %>
+          </p>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3">
+      None rendered yet. They'll be generated automatically when you create the Etsy draft.
+    </p>
+  <% end %>
+</div>

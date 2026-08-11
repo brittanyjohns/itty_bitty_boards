@@ -33,6 +33,11 @@
   - `REVENUECAT_WEBHOOK_AUTH_HEADER` - Shared secret matched against the `Authorization` header on RevenueCat webhooks (`/api/billing/webhooks`). When blank, the webhook rejects every request with 401.
   - `REVENUECAT_REST_API_KEY` - RevenueCat v1 secret REST API key used to verify a subscriber's entitlement server-side before `/api/billing/update_subscription` flips a plan. When blank, verification fails closed (update_subscription returns 403).
   - `CDN_HOST` - CDN Host (optional)
+  - `ETSY_KEYSTRING` - Etsy app keystring, used with the shared secret as the `x-api-key` header. Required to publish a board printable to Etsy.
+  - `ETSY_SHARED_SECRET` - Etsy app shared secret.
+  - `ETSY_OAUTH_CLIENT_ID` - Etsy OAuth client id used for the refresh-token exchange.
+  - `ETSY_SHOP_ID` - Numeric Etsy shop id the drafts are created in.
+  - **Not** an ENV var: the Etsy OAuth refresh token. Etsy rotates it on every exchange, so it lives in the `oauth_credentials` table and is seeded once with `rake 'etsy:seed_refresh_token[TOKEN]'`. It must come from a **separate** Etsy authorization from the one `speakanyway-printables` holds — see `.claude-notes/board-printables-etsy.md`.
   - `DEVISE_JWT_SECRET_KEY` - Devise JWT Secret Key
   - `DOMAIN` - Domain
   - `GOOGLE_CUSTOM_SEARCH_API_KEY` - Google Custom Search API Key

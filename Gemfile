@@ -91,6 +91,11 @@ gem "font-awesome-sass", "~> 6.4.0"
 
 # HTTP requests
 gem "faraday"
+# Declared explicitly because Etsy::Client requires it directly for the listing
+# image/file uploads. It was already resolving transitively through ruby-openai,
+# which would have made a future ruby-openai change break Etsy publishing for
+# no visible reason.
+gem "faraday-multipart"
 
 # Config & ENV vars
 gem "figaro"

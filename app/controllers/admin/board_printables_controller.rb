@@ -35,6 +35,61 @@ module Admin
 
     def show
       @printable = BoardPrintable.find(params[:id])
+      @listing = @printable.listing_copy_or_default
+      @marketplace_copy = Printables::MarketplaceCopy.new(@printable, listing: @listing)
+      @tree_boards = tree_boards(@printable)
+      @etsy_configured = Etsy::Client.configured?
+    end
+
+    # Saves the editable listing copy. Deliberately separate from publishing:
+    # the copy is reviewed and edited first, and saving it must never touch
+    # Etsy.
+    def update_listing
+      printable = BoardPrintable.find(params[:id])
+
+      printable.update!(listing_copy: listing_copy_params(printable))
+      redirect_to admin_dashboard_board_printable_path(printable), notice: "Listing copy saved."
+    end
+
+    # Enqueues the DRAFT-only Etsy publish. Nothing here can activate a
+    # listing — see Etsy::PublishBoardPrintable.
+    def publish_to_etsy
+      printable = BoardPrintable.find(params[:id])
+
+      if !printable.complete?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable isn't finished generating yet."
+      elsif printable.etsy_published?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "Already on Etsy as listing #{printable.etsy_listing_id}."
+      elsif !Etsy::Client.configured?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "Etsy isn't configured. Set the ETSY_* env vars and run `rake etsy:seed_refresh_token`."
+      else
+        # Persist whatever is currently in the form's defaults so the draft and
+        # the page agree — publishing what an admin never saw would be worse
+        # than making them press Save first.
+        printable.update!(listing_copy: printable.listing_copy_or_default) if printable.listing_copy.blank?
+        printable.update_columns(etsy_error: nil, updated_at: Time.current)
+
+        PublishBoardPrintableToEtsyJob.perform_async(printable.id)
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    notice: "Creating the Etsy draft… refresh in a moment to see the result."
+      end
+    end
+
+    def regenerate_listing_images
+      printable = BoardPrintable.find(params[:id])
+
+      unless printable.complete?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable isn't finished generating yet."
+        return
+      end
+
+      RenderBoardPrintableListingImagesJob.perform_async(printable.id)
+      redirect_to admin_dashboard_board_printable_path(printable),
+                  notice: "Rendering listing images… refresh in a moment."
     end
 
     def create
@@ -72,6 +127,42 @@ module Admin
     end
 
     private
+
+    # The listing_copy jsonb is written wholesale rather than merged: the form
+    # posts every field every time, so a merge would only ever preserve stale
+    # keys from an older shape. Anything the form doesn't carry (the TPT
+    # overrides) is folded back in explicitly.
+    def listing_copy_params(printable)
+      tags = params[:tags].to_s.split(",").map(&:strip).reject(&:blank?)
+      existing = printable.listing_copy.to_h
+
+      existing.merge(
+        "title" => params[:title].to_s.strip,
+        "summary" => params[:summary].to_s.strip,
+        "description" => params[:description].to_s,
+        # Normalized here, not just at publish time, so an admin sees exactly
+        # the tags Etsy will receive rather than discovering the drops later.
+        "tags" => Etsy::Client.new.normalize_tags(tags),
+        "price_cents" => price_cents_param,
+      )
+    end
+
+    def price_cents_param
+      raw = params[:price].to_s.strip
+      return Etsy::ListingCopy::DEFAULT_PRICE_CENTS if raw.blank?
+
+      (raw.to_f * 100).round.clamp(20, 100_000)
+    end
+
+    # The boards the printable actually walked, back in tree order — a plain
+    # `where` returns them in whatever order Postgres likes.
+    def tree_boards(printable)
+      ids = printable.board_ids.to_a
+      return [] if ids.size <= 1
+
+      by_id = Board.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| by_id[id] }
+    end
 
     # The boards worth offering a one-click printable for. `public_boards` is
     # the catalogue; Board Builder boards are the other half — published and

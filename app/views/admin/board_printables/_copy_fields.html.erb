@@ -1,0 +1,25 @@
+<%# One marketplace field per row: label, a copy button, and a readonly textarea
+    holding exactly what should be pasted. Readonly rather than disabled — a
+    disabled field can't be selected, which breaks the execCommand fallback. %>
+<div class="space-y-4">
+  <% fields.each_with_index do |field, index| %>
+    <% field_id = "copy_#{prefix}_#{index}" %>
+    <div>
+      <div class="flex items-baseline justify-between mb-1">
+        <label class="block text-xs font-medium text-t2" for="<%= field_id %>">
+          <%= field.label %>
+          <% if field.hint.present? %>
+            <span class="text-t3 font-normal">— <%= field.hint %></span>
+          <% end %>
+        </label>
+        <button type="button" data-copy-target="<%= field_id %>"
+                class="text-[11px] font-medium px-2 py-1 rounded border admin-input cursor-pointer text-t1">
+          Copy
+        </button>
+      </div>
+      <%= text_area_tag field_id, field.value, id: field_id, readonly: true,
+            rows: field.value.to_s.lines.count > 3 ? 12 : 2,
+            class: "admin-input w-full font-mono text-[11px]" %>
+    </div>
+  <% end %>
+</div>
