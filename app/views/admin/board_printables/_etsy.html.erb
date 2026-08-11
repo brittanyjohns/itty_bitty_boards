@@ -26,9 +26,10 @@
         <div class="text-t1"><%= @printable.etsy_published_at&.strftime("%b %-d, %Y %l:%M %p") || "—" %></div>
       </div>
     </div>
-    <%# Href built from the numeric listing id, not the stored URL string — see
-        etsy_listing_url_for. %>
-    <%= link_to "Open draft on Etsy ↗", etsy_listing_url_for(@printable),
+    <%# Goes to the seller's listing editor, not the public listing page — a
+        draft has no public page. Href built from the numeric listing id, not
+        the stored URL string; see etsy_listing_url_for. %>
+    <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(@printable),
           target: "_blank", rel: "noopener",
           class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
     <p class="text-[11px] text-t3 mt-3">

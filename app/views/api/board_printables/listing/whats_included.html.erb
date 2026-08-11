@@ -1,6 +1,11 @@
 <%# The slide a buyer uses to judge how much they're getting before reading a
     word of the description.
 
+    Rendered TWICE — once for the colour pages and once for the low-ink ones —
+    because "also includes a low-ink version" asserted in a bullet is a claim,
+    and the same boards shown printed pale is proof. The low-ink pass is the
+    same grid with hide_colors, so the two slides read as a pair.
+
     Names the boards rather than quoting a page count: for a set, "People,
     Feelings, Food, Play" is most of the reason to buy, and a page number tells
     a buyer nothing. The grid is capped and shaped by ContentTilePlan — an
@@ -11,27 +16,43 @@
   <% end %>
 
   <div class="slide-stack">
-    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title %></div>
+    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title(low_ink: @low_ink) %></div>
+
+    <% if @low_ink %>
+      <div class="headline-callout"><%= Printables::SlideCopy.low_ink_headline %></div>
+    <% end %>
 
     <%# Tile captions only earn their space when there is more than one board to
         tell apart — on a single-board printable the label just repeats the
         title two inches above it. %>
     <% show_labels = @tiles.size > 1 %>
 
-    <div class="tile-grid stretch" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
-      <% @tiles.each do |tile| %>
-        <div class="paper">
-          <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
-          <% if show_labels && tile[:label].present? %>
-            <div class="paper-label"><%= tile[:label] %></div>
-          <% end %>
-        </div>
+    <div class="included-stage stretch" style="--tile-max: <%= @tile_max_px %>px;">
+      <%# Both tracks are minmax(0, 1fr), and the 0 matters as much as the 1fr.
+          A bare `1fr` is `minmax(auto, 1fr)`, so a track can never shrink below
+          its content's min-content width — and a tile caption is `nowrap`, so a
+          long board name silently pushed the last column off the slide. The
+          rows are explicit for the other half of the same problem: an auto row
+          gives the page card nothing definite to size itself against. %>
+      <div class="tile-grid"
+           style="grid-template-columns: repeat(<%= @columns %>, minmax(0, 1fr));
+                  grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
+        <% @tiles.each do |tile| %>
+          <div class="tile">
+            <div class="paper">
+              <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+            </div>
+            <% if show_labels && tile[:label].present? %>
+              <div class="tile-label"><%= tile[:label] %></div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+      <% if @overflow_note.present? %>
+        <div class="overflow-note"><%= @overflow_note %></div>
       <% end %>
     </div>
-
-    <% if @overflow_note.present? %>
-      <div class="overflow-note"><%= @overflow_note %></div>
-    <% end %>
 
     <div class="included-panel">
       <div class="included-title">In your download</div>

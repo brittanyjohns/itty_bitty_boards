@@ -21,6 +21,14 @@ This mirrors the policy already enforced in `speakanyway-printables`
 activate a listing, that is a decision to make explicitly, not a parameter to
 add.
 
+It also decides where the admin's "Edit draft on Etsy" link points.
+`Admin::BoardPrintablesHelper#etsy_listing_url_for` builds the **seller's**
+listing editor (`/your/shops/me/listing-editor/edit/:id#media`), not
+`etsy.com/listing/:id` — a draft has no public page, so the public URL Etsy's
+API hands back (and which is still stored on `etsy_listing_url`) is a dead end
+until someone activates the listing, which is the click the link exists to lead
+up to. `#media` opens on the photos section, which is what an admin checks first.
+
 ## The token-rotation hazard (read before touching auth)
 
 Etsy's OAuth refresh token is **single-use and rotates on every exchange** — the
@@ -109,7 +117,7 @@ saved.
 
 ## Gallery images
 
-`Boards::Printables::RenderListingImages` renders **four** square 2560px slides
+`Boards::Printables::RenderListingImages` renders **five** square 2560px slides
 through `layouts/listing_image.html.erb` — a marketing canvas of its own, not
 the print sheet. `LISTING_IMAGE_ORDER` is the Etsy rank order, and rank 1 is the
 search thumbnail:
@@ -117,24 +125,79 @@ search thumbnail:
 | Slide | Board-specific? | Ported from (`speakanyway-printables`) |
 |---|---|---|
 | `hero` | yes — real page thumbnails on a room background | `previews/hero-board.*` |
-| `whats_included` | yes — capped thumbnail grid + count | `previews/whats-included.*` |
+| `on_a_device` | yes — the root board warped onto a photographed tablet | step 14 + `templates/compose-mockup.ts` |
+| `whats_included` | yes — capped thumbnail grid of the colour pages | `previews/whats-included.*` |
+| `whats_included_low_ink` | yes — the same grid rendered `hide_colors` | — |
 | `how_it_works` | no | `plugins/aac/.../about-saw.*` (steps half) |
 | `about` | no | `plugins/aac/.../about-saw.*` (founder half) |
 
 **Rails is authoritative for listings the Rails admin originates**; the pipeline
 is authoritative for the ones its own steps 11/13/14 originate. Same rule, and
-the same drift hazard, as `Etsy::CopyRules` above. Deliberate differences: no
-mockup-scene compositing (that needs the calibrated scene library and a
-homography solve — still steps 13/14), and no per-slug variant machinery, so
-Rails renders one fixed look.
+the same drift hazard, as `Etsy::CopyRules` above.
+
+### The tablet mockup
+
+`on_a_device` is a narrow port of that repo's step 14. Rails does **not** have
+its scene library or its calibration tool, and doesn't need them: two of its
+nineteen scenes are `kind: "tablet"` board stagings, and those two photos plus
+their hand-clicked screen corners are vendored into
+`Boards::Printables::TabletScene`. The other seventeen stage products this app
+doesn't make (ID cards, device tags, stickers, tattoos) or warp a printed sheet
+onto furniture — that compositing is still that repo's job.
+
+Three things hold the warp together:
+
+- **The quads are copied, not re-measured.** They are the corners someone
+  clicked in that repo's `calibrate-mockup-scene.html`, in the scene JPG's own
+  pixel space. Re-deriving them by eye puts the board a few pixels off the glass.
+- **Everything inside `.mockup-stage` lays out in those same scene pixels**, and
+  the stage as a whole is scaled and offset to cover the slide. `object-fit:
+  cover` on the photo would move it without telling anything where the corners
+  went, which is why `TabletScene#cover_placement` computes the placement itself.
+- **The board is letterboxed into a rectangle of the quad's own proportions
+  before it is warped.** A homography maps *any* rectangle onto the quad, so
+  handing it a portrait board doesn't fail — it silently stretches the board on
+  the glass, which reads as a distorted product.
+
+`Boards::Printables::Homography` is a straight port of that repo's
+`homography.ts` (Gaussian elimination, then the 3x3 embedded column-major into a
+CSS `matrix3d`). Unlike the copy rules, this one is fixed maths — a divergence
+here is a bug, not a decision.
 
 Rules that hold across the slides:
+
+- **The colour rotates per listing, and it rotates deterministically.**
+  `Boards::Printables::Palette` hashes the board to one of five palettes and
+  writes four tokens (`--accent`, `--accent-soft`, `--band`, `--surface`) over
+  the layout's defaults; nothing else in the stylesheet may hardcode a brand
+  hex. Same hazard as `SCENES`: reordering `PALETTES` re-skins every existing
+  listing, and a random pick would re-skin a live one on every regeneration.
+  The salt differs from the scene pick on purpose — hashing the same key twice
+  would pair scene 1 with palette 1 forever and collapse 4 x 5 looks back to 4.
+  What a palette may **not** touch: the navy title banner, the white paper
+  cards, the black ribbon, the navy-on-white QR. Those carry the contrast.
+- **A page card is sized by an explicit `aspect-ratio`, never a percentage
+  height.** `RenderPageThumbnails` reports the trimmed PNG's real dimensions and
+  the templates write them inline. The card used to be `height: auto` on the
+  image plus `max-height: 100%`, and that percentage resolves against a card
+  whose own height is indefinite — per CSS it is ignored, so the image rendered
+  full height and `overflow: hidden` silently sliced the bottom off every board
+  page. For the same reason the grid declares `grid-template-rows` explicitly:
+  an auto row gives the card nothing definite to measure against.
+- **Bands that can't fill the slide use `margin: auto 0`.** `.tile-grid` and
+  `.steps-strip` are capped flex items; without the auto margins the leftover
+  height piles up below them as a dead band instead of centring them.
 
 - **Board pages are HTML before they are a PDF.** `RenderPageThumbnails`
   screenshots `api/boards/print` + `layouts/pdf` with the same assigns
   `CollectPages` prints from. The old note here said page thumbnails would need
   poppler/ImageMagick, which the deploy image lacks — they don't, and that is
   what unlocked showing real boards in the gallery.
+- **The hero keeps the page header; the grids don't.** The printed QR lives
+  inside that header (`api/boards/print.html.erb`), and the hero's claim is that
+  the sheet itself carries the code. On a grid tile at a sixth the size the
+  header is just the slide's own title band again, so `hide_header: true` gives
+  the board the whole tile.
 - **Thumbnails are trimmed by measurement, not calculation.** How much of a
   Letter sheet a board fills depends on its shape; a 12x3 grid leaves over half
   the page blank and reads as a broken image. The header renders ~24mm against
@@ -142,9 +205,15 @@ Rules that hold across the slides:
   `.board-sizer`'s max-height — both errors run in the direction that slices
   tiles off, so the trim scans up from the bottom for the last non-background
   row instead.
-- **Thumbnails render once** and are shared by `hero` and `whats_included`;
-  planning (`ContentTilePlan`, capped at `MAX_TILES`) happens first so Grover is
-  only paid for tiles that get shown. Budget: `min(boards, 8) + 4` renders.
+- **Each page variant renders once.** Planning (`ContentTilePlan`, capped at
+  `MAX_TILES`) happens first so Grover is only paid for tiles that get shown,
+  and the three passes are memoized: colour-with-header for the hero, colour and
+  low-ink without a header for the two grids. Budget:
+  `min(boards, 3) + min(boards, 8) * 2 + 6` — up to 25 renders (~40s) for an
+  eight-board set, which is why this is a Sidekiq job and never a request
+  thread. A fourth pass means a slide is re-rendering pixels it already had —
+  `on_a_device` deliberately reuses the root board's header-hidden grid
+  thumbnail rather than rendering its own.
 - **No emoji, no decorative glyphs.** The render box's Chrome has no guaranteed
   colour-emoji font. Step icons are inline SVG and list bullets are CSS-drawn
   shapes; the source templates use emoji and would have shipped tofu boxes.
@@ -161,8 +230,11 @@ Etsy will create a listing with no photos but won't let it go live without one,
 so `PublishBoardPrintable` renders them when they aren't current.
 
 **`listing_images?` is not a strong enough guard — use `listing_images_current?`.**
-A printable generated before this redesign still has images: the retired
-`cover`/`whats_included` pair. Four things stop those reaching a live listing:
+A printable generated before a gallery change still has images — the retired
+`cover`/`whats_included` pair, or a four-slide gallery from before the low-ink
+split. `LISTING_IMAGE_ORDER` is the whole definition of "current", so adding a
+variant to it is what makes every older printable stale. Four things stop a
+stale image reaching a live listing:
 `listing_images_view` filters to known variants, `purge_legacy_listing_images!`
 removes them after a successful re-render, the publish guard checks currency,
 and the admin card shows a staleness badge. Bulk refresh:

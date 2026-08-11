@@ -8,8 +8,9 @@
 #   1. Cap the tiles. A 20-board bundle laid out in one row rendered ~55px
 #      hairlines nobody could read.
 #   2. Keep low-ink pages out of the grid. They're pixel duplicates of the
-#      colour pages; they belong in the caption, where they read as more value
-#      instead of as the same board printed twice.
+#      colour pages, and interleaving them reads as the same board printed
+#      twice. They get their own slide instead, so this plan is used once per
+#      ink and never mixes the two.
 #
 # Pure: no I/O, no Grover, no ActiveRecord writes. Planning happens BEFORE any
 # thumbnail is rendered so the renderer only pays for tiles that get shown.
@@ -24,21 +25,19 @@ module Boards
         def board_id = board.id
       end
 
-      attr_reader :tiles, :columns, :overflow_note
+      attr_reader :tiles, :columns, :rows, :tile_max_px, :overflow_note
 
-      # low_ink_count defaults to one low-ink page per board because that is
-      # what CollectPages always emits — every board is rendered twice, colour
-      # then low-ink. It stays a parameter so the caption logic is testable
-      # without standing up a printable.
-      def self.build(boards:, max_tiles: MAX_TILES, low_ink_count: nil)
+      def self.build(boards:, max_tiles: MAX_TILES)
         boards = Array(boards)
-        low_ink_count ||= boards.size
         shown = boards.first(max_tiles)
+        columns = columns_for(shown.size)
 
         new(
           tiles: shown.map { |b| Tile.new(board: b, label: label_for(b)) },
-          columns: columns_for(shown.size),
-          overflow_note: overflow_note(boards.size - shown.size, low_ink_count),
+          columns: columns,
+          rows: rows_for(shown.size, columns),
+          tile_max_px: tile_max_px_for(columns),
+          overflow_note: overflow_note(boards.size - shown.size),
         )
       end
 
@@ -60,22 +59,46 @@ module Boards
         4
       end
 
-      def self.overflow_note(withheld, low_ink_count)
-        hidden = withheld + low_ink_count
-        return nil if hidden.zero?
-        return "Plus a low-ink version of every page" if withheld.zero?
+      # The grid needs DEFINITE row heights, not auto ones: the page cards size
+      # themselves against the row, and a percentage measured against an
+      # indefinite height resolves to nothing — which is what silently sliced
+      # the bottom off every tile.
+      def self.rows_for(count, columns)
+        return 1 if count.zero? || columns.zero?
 
-        noun = hidden == 1 ? "page" : "pages"
-        return "+#{hidden} more #{noun}, including a low-ink version of every board" if low_ink_count.positive?
-
-        "+#{hidden} more #{noun}"
+        (count / columns.to_f).ceil
       end
 
-      private_class_method :label_for, :columns_for, :overflow_note
+      # How wide a page card may get, in CSS px on the 1280px slide. The cards
+      # are a uniform shape, so height follows from width — capping the width is
+      # what stops a row of one or two boards growing taller than its slot,
+      # without reaching for a percentage height the card can't resolve.
+      def self.tile_max_px_for(columns)
+        case columns
+        when 0, 1 then 720
+        when 2 then 520
+        when 3 then 380
+        else 300
+        end
+      end
 
-      def initialize(tiles:, columns:, overflow_note:)
+      # Pages, not boards: each withheld board is one more page in the colour
+      # PDF, and a buyer counts pages. Low-ink isn't counted here — it has a
+      # slide of its own now rather than a mention in this caption.
+      def self.overflow_note(withheld)
+        return nil unless withheld.positive?
+
+        noun = withheld == 1 ? "page" : "pages"
+        "+#{withheld} more #{noun}"
+      end
+
+      private_class_method :label_for, :columns_for, :rows_for, :tile_max_px_for, :overflow_note
+
+      def initialize(tiles:, columns:, rows:, tile_max_px:, overflow_note:)
         @tiles = tiles
         @columns = columns
+        @rows = rows
+        @tile_max_px = tile_max_px
         @overflow_note = overflow_note
       end
 

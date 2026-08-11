@@ -1,0 +1,69 @@
+<%# The slide that shows the printable is not only a printable: the same board,
+    on the tablet the family already owns, where it talks.
+
+    Everything inside .mockup-stage is laid out in the SCENE PHOTO's own pixel
+    space — 1536x1024 — and the stage as a whole is scaled and offset to cover
+    the square slide. That is why the board can be positioned by a homography at
+    all: the screen corners in TabletScene::SCENES are in those same pixels, so
+    the warp and the photo can't drift apart. Reaching for `object-fit: cover` on
+    the photo instead would move it without telling anything where the corners
+    went. %>
+<div class="slide">
+  <% if @scene_data_uri %>
+    <% placement = @scene.cover_placement(1280) %>
+    <div class="mockup-stage"
+         style="width: <%= @scene.width %>px;
+                height: <%= @scene.height %>px;
+                transform: translate(<%= placement[:offset_x].round(2) %>px, <%= placement[:offset_y].round(2) %>px) scale(<%= placement[:scale].round(6) %>);">
+      <img class="mockup-photo" src="<%= @scene_data_uri %>" alt="" />
+
+      <% if @board_data_uri %>
+        <div class="mockup-screen"
+             style="width: <%= @scene.screen_width %>px;
+                    height: <%= @scene.screen_height %>px;
+                    transform: <%= @scene.matrix3d %>;">
+          <img src="<%= @board_data_uri %>" alt="<%= @title %>" />
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="mockup-scrim"></div>
+
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-footer">
+    <div class="title-banner <%= "small" if @title.to_s.length > 26 %>"><%= @title %></div>
+
+    <div class="audio-badge">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M8 18h8l12-9v30l-12-9H8z" />
+        <path d="M34 18c3 3.5 3 8.5 0 12" />
+        <path d="M40 13c5 6 5 16 0 22" />
+      </svg>
+      <span><%= Printables::SlideCopy.on_a_device_badge %></span>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.on_a_device_headline %></div>
+      <ul class="bullets">
+        <% Printables::SlideCopy.on_a_device_bullets.each do |bullet| %>
+          <li><%= bullet %></li>
+        <% end %>
+      </ul>
+    </div>
+
+    <% if @qr_data_url %>
+      <div class="footer-qr">
+        <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        <span class="qr-caption">Scan to try this board free</span>
+      </div>
+    <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
+  </div>
+</div>

@@ -25,13 +25,16 @@ RSpec.describe Boards::Printables::RenderListingImages do
     # already fails soft, but stubbing it keeps the failure out of the logs and
     # off the critical path of these examples.
     allow_any_instance_of(Boards::Printables::RenderPageThumbnails)
-      .to receive(:trim_trailing_blank) { |_, png| png }
+      .to receive(:trim_trailing_blank) { |_, png| [png, 600, 700] }
+    allow(Boards::RenderAssetData).to receive(:new).and_call_original
   end
 
   # Slides only — the thumbnail renders go through the same Grover stub.
   def slide_html = rendered_html.select { |html| html.include?("slide-stack") }
 
-  it "attaches the four gallery slides in rank order, tagged as images not PDFs" do
+  def slide_count = BoardPrintable::LISTING_IMAGE_ORDER.size
+
+  it "attaches the gallery slides in rank order, tagged as images not PDFs" do
     described_class.new(printable: printable).call
 
     printable.reload
@@ -45,9 +48,55 @@ RSpec.describe Boards::Printables::RenderListingImages do
   it "renders each slide through the listing layout, not the print sheet" do
     described_class.new(printable: printable).call
 
-    expect(slide_html.length).to eq(4)
+    expect(slide_html.length).to eq(slide_count)
     expect(slide_html).to all(include("class=\"slide"))
     expect(slide_html.join("\n")).not_to include("as-listing-image")
+  end
+
+  # "Also includes a low-ink version" in a bullet is a claim; the same boards
+  # shown printed pale is proof. It has to be the REAL low-ink page, not the
+  # colour one relabelled.
+  it "shows the low-ink pages on their own slide, rendered with the colour off" do
+    allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
+
+    described_class.new(printable: printable).call
+
+    expect(Boards::Printables::RenderPageThumbnails).to have_received(:new)
+      .with(hash_including(hide_colors: true, hide_header: true))
+
+    colour, low_ink = slide_html[2], slide_html[3]
+    expect(colour).to include("What&#39;s included")
+    expect(low_ink).to include("Low-ink version included")
+  end
+
+  # The page header is where the printed QR lives, and the hero's whole claim is
+  # that the sheet itself carries the code. The grid tiles are a sixth the size
+  # and the header there is just the slide's own title band again.
+  it "keeps the page header on the hero and drops it from the grids" do
+    described_class.new(printable: printable).call
+
+    expect(Boards::RenderAssetData).to have_received(:new)
+      .with(hash_including(hide_colors: false, hide_header: false)).at_least(:once)
+    expect(Boards::RenderAssetData).to have_received(:new)
+      .with(hash_including(hide_colors: false, hide_header: true)).at_least(:once)
+  end
+
+  # Without this the page card falls back to a percentage height that can't
+  # resolve against an indefinite parent, and every board page is clipped.
+  it "sizes every page card from the thumbnail's real dimensions" do
+    described_class.new(printable: printable).call
+
+    expect(slide_html.first).to include("aspect-ratio: 600 / 700")
+  end
+
+  # A shop page of listings that share one colourway reads as the same product
+  # photographed five times.
+  it "skins the slides in the palette the board hashes to" do
+    palette = Boards::Printables::Palette.for(board)
+
+    described_class.new(printable: printable).call
+
+    expect(slide_html).to all(include("--accent: #{palette.accent}"))
   end
 
   # Grover reads device_scale_factor only from inside viewport. A top-level one
@@ -56,7 +105,10 @@ RSpec.describe Boards::Printables::RenderListingImages do
   it "asks for the retina scale where Grover actually reads it" do
     described_class.new(printable: printable).call
 
-    slide_opts = rendered_opts.last(4)
+    # Slide renders are interleaved with thumbnail renders, so they're picked
+    # out by the square canvas rather than by position.
+    slide_opts = rendered_opts.select { |o| o.dig(:viewport, :width) == described_class::CANVAS_PX }
+    expect(slide_opts.size).to eq(slide_count)
     expect(slide_opts).to all(
       include(viewport: {
         width: described_class::CANVAS_PX,
@@ -67,20 +119,42 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(described_class::CANVAS_PX * described_class::SCALE).to be >= 2000
   end
 
-  # The expensive half of this job is the page thumbnails. Rendering them once
-  # and sharing them is the whole reason the tile plan is built up front.
-  it "renders each board page once and reuses it across the slides" do
+  # The expensive half of this job is the page thumbnails, and it is planned up
+  # front so Grover is only paid for pages that get shown. Three passes and no
+  # more: colour-with-header for the hero, then colour and low-ink without a
+  # header for the two grids. A fourth means a slide is re-rendering pixels it
+  # already had.
+  it "renders each page variant once and shares it across the slides" do
     printable.update!(board_ids: [board.id, other.id], include_subboards: true)
-    thumbs = { board.id => thumbnail_for(board), other.id => thumbnail_for(other) }
-    expect(Boards::Printables::RenderPageThumbnails).to receive(:new).once.and_return(
-      instance_double(Boards::Printables::RenderPageThumbnails, call: thumbs),
-    )
+    passes = []
+    allow(Boards::Printables::RenderPageThumbnails).to receive(:new) do |boards:, **opts|
+      passes << opts.merge(boards: boards.size)
+      instance_double(
+        Boards::Printables::RenderPageThumbnails,
+        call: boards.to_h { |b| [b.id, thumbnail_for(b)] },
+      )
+    end
 
     described_class.new(printable: printable).call
 
-    hero, whats_included = slide_html.first(2)
-    expect(hero).to include("data:image/png;base64,core-words")
-    expect(whats_included).to include("data:image/png;base64,core-words")
+    expect(passes.size).to eq(3)
+    expect(passes.map { |p| p[:hide_colors] }).to contain_exactly(nil, false, true)
+    expect(slide_html.first).to include("data:image/png;base64,core-words")
+  end
+
+  # The hero is a shop window, not an inventory: past three the pages are too
+  # small to tell apart, and paying Grover for them is pure waste.
+  it "never renders more hero pages than the hero can show" do
+    printable.update!(board_ids: Array.new(6) { create(:board, user: owner).id })
+    hero_boards = nil
+    allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_wrap_original do |orig, boards:, **opts|
+      hero_boards ||= boards.size if opts[:hide_header].blank?
+      orig.call(boards: boards, **opts)
+    end
+
+    described_class.new(printable: printable).call
+
+    expect(hero_boards).to eq(described_class::HERO_TILES)
   end
 
   it "names the boards in a set on the what's-included slide" do
@@ -88,7 +162,17 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
     described_class.new(printable: printable).call
 
-    expect(slide_html.second).to include("Core Words", "Feelings")
+    expect(slide_html[2]).to include("Core Words", "Feelings")
+  end
+
+  # The one claim a buyer is least likely to believe from text alone. It reuses
+  # the root board's header-hidden thumbnail rather than paying Grover again.
+  it "warps the root board onto a tablet without rendering it a second time" do
+    described_class.new(printable: printable).call
+
+    device = slide_html[1]
+    expect(device).to include("matrix3d(", "mockup-screen")
+    expect(device).to include("data:image/jpeg;base64,")
   end
 
   it "writes a fresh key on every render so a regenerate isn't hidden by the CDN" do
@@ -128,6 +212,8 @@ RSpec.describe Boards::Printables::RenderListingImages do
       board_id: target.id,
       data_uri: "data:image/png;base64,#{target.name.parameterize}",
       landscape: true,
+      width: 600,
+      height: 700,
     )
   end
 end

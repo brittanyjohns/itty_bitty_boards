@@ -41,13 +41,38 @@ RSpec.describe Printables::SlideCopy do
     end
   end
 
+  # The audio companion is the one thing a competitor's AAC printable can't
+  # match, so the phrase carrying it has to say what it DOES. "Voice output" is
+  # AAC jargon that a parent shopping for their kid doesn't parse.
+  describe "the audio companion" do
+    it "names the speaking rather than calling it voice output" do
+      copy = [
+        described_class.audio_companion_badge,
+        described_class.audio_companion_headline,
+        described_class.how_it_works_headline,
+        *described_class.hero_footer_bullets,
+        *described_class.why_choose_bullets,
+      ].join(" ")
+
+      expect(copy).not_to match(/voice output/i)
+      expect(copy).to match(/audio companion/i)
+    end
+
+    it "titles the two what's-included slides apart" do
+      expect(described_class.whats_included_title).to eq("What's included")
+      expect(described_class.whats_included_title(low_ink: true)).to eq("Low-ink version included")
+    end
+  end
+
   # The render box's Chrome has no guaranteed colour-emoji font, so an emoji in
   # slide copy ships to Etsy as a tofu box. Icons are inline SVG instead.
   it "carries no emoji or decorative glyphs outside the font's coverage" do
     all_copy = [
       described_class.instant_download_banner,
-      described_class.free_voice_headline,
-      described_class.free_voice_sub,
+      described_class.audio_companion_badge,
+      described_class.audio_companion_headline,
+      described_class.audio_companion_sub,
+      described_class.low_ink_headline,
       described_class.founder_greeting,
       described_class.why_choose_title,
       *described_class.founder_paragraphs,

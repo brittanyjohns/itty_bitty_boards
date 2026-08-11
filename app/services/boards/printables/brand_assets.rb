@@ -13,6 +13,11 @@
 # (src/plugins/aac/scripts/generate-bg-photos.ts) and are vendored here rather
 # than regenerated: they cost real money per image and the listings must not
 # redesign themselves every time a printable is re-rendered.
+#
+# brittany-founder.jpg started as a copy of that repo's, but is now Rails' own:
+# it was replaced with a wider head-and-shoulders framing that the about slide's
+# circle crop actually suits. Don't "resync" it from the printables repo — the
+# crop in layouts/listing_image.html.erb is tuned to this file's aspect.
 module Boards
   module Printables
     module BrandAssets

@@ -23,11 +23,14 @@ RSpec.describe Printables::IncludedItems do
   end
 
   describe ".all" do
-    it "leads with the document line and names the voice output" do
+    # The phrase has to name the SPEAKING. "Free online version" reads as a PDF
+    # viewer, and "voice output" is AAC jargon a parent shopping for their kid
+    # doesn't parse — this list is read by both audiences.
+    it "leads with the document line and names the audio companion" do
       items = described_class.all(board_count: 1, page_count: 6)
 
       expect(items.first).to eq("6-page board PDF — color + low-ink")
-      expect(items).to include("Free voice output online — tap to hear each word")
+      expect(items).to include("Free audio companion — tap any word and it talks")
     end
   end
 end

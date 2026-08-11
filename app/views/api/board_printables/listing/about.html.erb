@@ -13,8 +13,14 @@
     <div class="title-banner"><%= Printables::SlideCopy.about_title %></div>
 
     <div class="founder-band">
+      <%# A frame with the photo cropped inside it rather than a bare <img>, so
+          nothing can spill past the circle. See .founder-photo in the layout
+          for how the crop is positioned and what to check if the photo is
+          swapped. %>
       <% if @founder_photo %>
-        <img class="founder-photo" src="<%= @founder_photo %>" alt="Brittany, founder of SpeakAnyWay" />
+        <div class="founder-photo">
+          <img src="<%= @founder_photo %>" alt="Brittany, founder of SpeakAnyWay" />
+        </div>
       <% end %>
 
       <div class="founder-copy">
@@ -42,5 +48,7 @@
         <span class="qr-caption">Try it free</span>
       </div>
     <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
   </div>
 </div>

@@ -17,19 +17,24 @@ module Admin
       "#{base_url}/pb/#{Boards::Printables::CollectPages.qr_key_for(board)}"
     end
 
+    # The SELLER's listing editor, not the public listing page. Rails only ever
+    # creates drafts (see Etsy::Client#create_listing), and a draft has no public
+    # page — `etsy.com/listing/:id` is a dead end until someone activates it,
+    # which is exactly the click this link exists to lead up to. The `#media`
+    # fragment opens on the photos section, where the gallery images this app
+    # uploaded are what an admin is checking before going live.
+    #
     # Built from the numeric listing id rather than the stored
     # `etsy_listing_url`, even though we have the URL Etsy handed back.
-    #
     # `etsy_listing_url` is a string column, so a link_to href reading it is an
     # XSS sink as far as any analysis can tell — the fact that only Etsy's API
     # response ever writes it isn't visible at the call site, and wouldn't stay
     # true if something else started writing the column. The id is a bigint, so
-    # there is nothing to inject, and Etsy resolves this canonical form to the
-    # same listing as the slug URL.
+    # there is nothing to inject.
     def etsy_listing_url_for(printable)
       return nil if printable.etsy_listing_id.blank?
 
-      "https://www.etsy.com/listing/#{printable.etsy_listing_id.to_i}"
+      "https://www.etsy.com/your/shops/me/listing-editor/edit/#{printable.etsy_listing_id.to_i}#media"
     end
 
     # Deleting the record can't touch Etsy — Rails only ever creates drafts and

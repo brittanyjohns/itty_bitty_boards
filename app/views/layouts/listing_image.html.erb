@@ -32,7 +32,13 @@
        what's-included page.
     3. Every band is a fixed height and the copy that fills it is bounded
        (Printables::SlideCopy). Text that outgrows its band doesn't wrap here,
-       it overlaps the next one. %>
+       it overlaps the next one.
+    4. Colour that varies per listing comes from ONE place: the four tokens
+       Boards::Printables::Palette writes over the defaults below. Hardcoding a
+       brand hex in a rule takes it out of the rotation and every listing in the
+       shop starts sharing it again. The fixed colours — navy title banner,
+       white paper cards, black ribbon, navy-on-white QR — are the ones carrying
+       contrast, and they stay out of the palette on purpose. %>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -42,22 +48,31 @@
     <style>
       <%= Boards::Printables::Fonts.face_css %>
 
+      <%# The fixed half of the palette: the colours that carry contrast on
+          every slide and therefore never rotate. Every OTHER brand colour lives
+          in Boards::Printables::Palette — there is deliberately nothing to
+          hardcode a hex from here. %>
       :root {
         --navy: #13496f;
-        --blue-mid: #0163aa;
-        --cyan: #4ECDE6;
-        --magenta: #C857E8;
         --cream: #FBF7F1;
         --white: #FFFFFF;
         --ink: #1A1A1A;
 
-        --brand-purple: #5b2a86;
-        --brand-sky-deep: #79b8ec;
-        --brand-green-soft: #c9f08a;
-
         --shadow-soft: 0 18px 40px rgba(19, 73, 111, 0.18);
         --shadow-card: 0 24px 56px rgba(19, 73, 111, 0.28);
+
+        /* Rotated per listing by Boards::Printables::Palette. These defaults
+           are its first entry, so a slide rendered without a palette (a spec,
+           a preview) still looks like a real one instead of an unstyled one. */
+        --accent: #5b2a86;
+        --accent-soft: #c9f08a;
+        --band: #c9f08a;
+        --surface: linear-gradient(180deg, #b9e2ff 0%, #dff0ff 60%, #f7fbff 100%);
       }
+
+      <%# Emitted after the defaults so it wins on cascade order — no rule below
+          needs to know a palette exists, they all read the tokens. %>
+      <%= @palette_css %>
 
       * {
         box-sizing: border-box;
@@ -102,15 +117,17 @@
       }
 
       /* The room photos are bright and busy; without this the navy title and
-         the white paper cards both lose contrast against a sunlit window. */
+         the white paper cards both lose contrast against a sunlit window. The
+         top stop is the heaviest because that is where the hero's largest type
+         sits. */
       .slide .bg-scrim {
         position: absolute;
         inset: 0;
         z-index: 1;
         background: linear-gradient(
           180deg,
-          rgba(251, 247, 241, 0.88) 0%,
-          rgba(251, 247, 241, 0.42) 34%,
+          rgba(251, 247, 241, 0.93) 0%,
+          rgba(251, 247, 241, 0.45) 38%,
           rgba(251, 247, 241, 0.62) 72%,
           rgba(251, 247, 241, 0.90) 100%
         );
@@ -120,7 +137,7 @@
         background:
           radial-gradient(circle at 20% 18%, rgba(255,255,255,0.9) 0 110px, transparent 140px),
           radial-gradient(circle at 78% 22%, rgba(255,255,255,0.75) 0 70px, transparent 110px),
-          linear-gradient(180deg, #b9e2ff 0%, #dff0ff 60%, #f7fbff 100%);
+          var(--surface);
       }
 
       /* ── Slide stack ──────────────────────────────────────────────────── */
@@ -142,8 +159,8 @@
       }
 
       /* The footer strip is anchored to the bottom edge, so the column has to
-         stop above it. */
-      .slide-stack.has-footer { padding-bottom: 214px; }
+         stop above it. Keep this in step with .footer-strip's min-height. */
+      .slide-stack.has-footer { padding-bottom: 250px; }
 
       .slide-stack > * { flex: 0 0 auto; max-width: 100%; }
 
@@ -165,23 +182,26 @@
         height: 108px;
       }
 
+      /* Sized for an Etsy search grid, where the whole slide is ~230px wide.
+         At 52px the board name was a smudge at thumbnail size; 64px is the
+         smallest that still reads there. */
       .title-banner {
         position: relative;
         z-index: 4;
         display: inline-block;
         margin: 0;
-        padding: 20px 36px;
+        padding: 22px 38px;
         background: var(--navy);
         color: var(--white);
         border-radius: 18px;
         font-weight: 800;
-        font-size: 52px;
+        font-size: 64px;
         line-height: 1.05;
-        max-width: 880px;
+        max-width: 940px;
         box-shadow: var(--shadow-soft);
       }
 
-      .title-banner.small { font-size: 44px; }
+      .title-banner.small { font-size: 54px; }
 
       .headline-callout {
         position: relative;
@@ -193,8 +213,39 @@
         color: var(--ink);
         border-radius: 14px;
         font-weight: 700;
-        font-size: 32px;
+        font-size: 38px;
         box-shadow: var(--shadow-soft);
+      }
+
+      /* The claim that separates this from every other AAC printable on the
+         marketplace, so it gets its own object rather than a bullet in the
+         footer. Accent-coloured, so it rotates with the listing. */
+      .audio-badge {
+        position: relative;
+        z-index: 4;
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 28px;
+        background: var(--accent);
+        color: var(--white);
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 27px;
+        letter-spacing: 0.04em;
+        box-shadow: var(--shadow-card);
+      }
+
+      /* Inline SVG, never an emoji — see rail 2 at the top of this file. */
+      .audio-badge svg {
+        flex: 0 0 auto;
+        width: 38px;
+        height: 38px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
 
       /* The one claim that answers "do I have to wait for this in the post?" */
@@ -221,7 +272,7 @@
         border-radius: 18px;
         padding: 26px 30px;
         color: var(--white);
-        background: var(--brand-purple);
+        background: var(--accent);
         box-shadow: var(--shadow-card);
         font-weight: 700;
         font-size: 27px;
@@ -262,27 +313,43 @@
         height: 14px;
         border-radius: 4px;
         transform: rotate(45deg);
-        background: var(--brand-purple);
+        background: var(--accent);
       }
 
-      .bullets.on-dark li::before { background: var(--brand-green-soft); }
+      .bullets.on-dark li::before { background: var(--accent-soft); }
 
       /* ── Footer strip ─────────────────────────────────────────────────── */
+      /* Every slide that has one lays it out the same way: copy on the left,
+         QR on the right, site mark along the bottom. A buyer flicking through
+         five gallery images shouldn't have to re-find the QR on each one. */
       .footer-strip {
         position: absolute;
         z-index: 4;
         left: 0;
         right: 0;
         bottom: 0;
-        min-height: 190px;
-        padding: 26px 56px;
-        background: var(--brand-green-soft);
+        min-height: 226px;
+        padding: 24px 56px 46px;
+        background: var(--band);
         display: flex;
         align-items: center;
         gap: 34px;
       }
 
       .footer-strip .footer-bullets { flex: 1; min-width: 0; }
+
+      /* Small on purpose: it is a signature, not a call to action, and the QR
+         beside it is what a buyer is meant to act on. */
+      .footer-strip .site-mark {
+        position: absolute;
+        left: 56px;
+        bottom: 16px;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: var(--navy);
+        opacity: 0.72;
+      }
 
       .footer-strip .footer-title {
         font-weight: 800;
@@ -304,55 +371,54 @@
       }
 
       .footer-strip .footer-qr img {
-        width: 132px;
-        height: 132px;
-        padding: 7px;
+        width: 148px;
+        height: 148px;
+        padding: 8px;
         background: var(--white);
         border-radius: 12px;
       }
 
+      /* Capped so a longer caption wraps under the code instead of widening the
+         column and squeezing the bullets beside it. */
       .footer-strip .footer-qr .qr-caption {
-        font-size: 17px;
+        max-width: 190px;
+        font-size: 19px;
+        line-height: 1.25;
         font-weight: 800;
         color: var(--navy);
+        text-align: center;
       }
 
       /* ── Paper card: how a board page is presented on every slide ─────── */
       /* The thumbnail arrives already trimmed to its content
          (RenderPageThumbnails), so the card hugs the page rather than forcing
-         it to a fixed box — height is driven by the image's own aspect and
-         capped by the slot. A white sheet with a shadow is what makes it read
-         as a printed page. */
+         it to a fixed box. A white sheet with a shadow is what makes it read as
+         a printed page.
+
+         The card is sized by an explicit aspect-ratio, written inline from the
+         thumbnail's real pixel dimensions. It used to be `height: auto` on the
+         image plus `max-height: 100%`, and that percentage resolves against a
+         card whose own height is indefinite — which per CSS means it is ignored
+         entirely. The image rendered full height, the card was capped, and
+         `overflow: hidden` silently sliced the bottom off every page. A ratio
+         plus two max constraints is definite, so the box fits its slot and
+         nothing is cut. Do not reintroduce a percentage height here. */
       .paper {
         background: var(--white);
         border-radius: 10px;
         box-shadow: var(--shadow-card);
         overflow: hidden;
-        display: flex;
-        flex-direction: column;
         align-self: center;
+        max-width: 100%;
+        max-height: 100%;
       }
 
       .paper img {
         display: block;
         width: 100%;
-        height: auto;
-        max-height: 100%;
+        height: 100%;
         object-fit: contain;
         background: var(--white);
-      }
-
-      .paper .paper-label {
-        flex: 0 0 auto;
-        padding: 8px 10px;
-        background: var(--navy);
-        color: var(--white);
-        font-size: 20px;
-        font-weight: 800;
-        text-align: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
 
       /* ── Hero ─────────────────────────────────────────────────────────── */
@@ -366,10 +432,10 @@
         gap: 22px;
       }
 
-      .hero-stage .paper { flex: 1 1 0; max-height: 100%; }
+      .hero-stage .paper { flex: 1 1 0; }
 
       /* A single page gets the whole stage. */
-      .hero-stage.single .paper { max-width: 1000px; }
+      .hero-stage.single .paper { max-width: 940px; }
 
       /* A set fans into an overlapping pile rather than a tidy row. Three
          side-by-side cards on a 1168px stage are ~370px wide, and a board page
@@ -408,14 +474,84 @@
       }
 
       /* ── What's included ──────────────────────────────────────────────── */
+      /* Rows are explicit, not auto: the page cards size themselves against
+         their slot, and a slot with an indefinite height gives them nothing to
+         measure against. Capped in height too — the grid is there to show what
+         a buyer gets, not to be the slide, and the pages were big enough to
+         crowd out the panel that lists what's in the download. */
+      /* A white card holding the grid and its overflow caption, so the tiles
+         read as a contents page rather than as thumbnails scattered on the
+         background.
+
+         margin: auto 0 is load-bearing. The stage is a flex item that grows,
+         but the max-height stops it short — and the leftover space then piles
+         up below it as a dead band. Auto margins in a flex column absorb that
+         space evenly, so the stage centres and the panel below sits on the
+         bottom edge where it belongs. */
+      .included-stage {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        max-height: 700px;
+        margin: auto 0;
+        padding: 30px 30px 24px;
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        box-shadow: var(--shadow-card);
+      }
+
       .tile-grid {
+        flex: 1 1 auto;
+        min-height: 0;
         display: grid;
         gap: 18px;
         align-content: center;
+        align-items: center;
         justify-items: center;
       }
 
-      .tile-grid .paper { min-height: 0; max-height: 100%; }
+      .tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        max-height: 100%;
+      }
+
+      /* Every card is the SAME shape, unlike the hero's, where each page keeps
+         its own. Boards differ wildly in proportion — a 12x3 grid next to a
+         6x8 one — and cards cut to each board's own aspect made a ragged row
+         that read as a layout bug rather than as a contents page. The page is
+         letterboxed inside the card with object-fit: contain, and since the
+         card is white and so is the page, the letterboxing reads as margin.
+         Nothing is clipped: the box is definite and the image is contained. */
+      /* Capped by WIDTH, never by a percentage height: the card's height falls
+         out of its width and the ratio, so a width cap is what keeps a row of
+         one or two boards from growing taller than its slot. A percentage
+         height here would be measured against an indefinite parent and ignored,
+         which is the trap that clipped these cards in the first place. */
+      .tile .paper {
+        width: 100%;
+        max-width: var(--tile-max, 300px);
+        aspect-ratio: 3 / 2;
+      }
+
+      /* Plain text, not a pill: eight navy pills on a white card read as eight
+         buttons. The card behind the grid is already doing the containing. */
+      .tile .tile-label {
+        flex: 0 0 auto;
+        max-width: 100%;
+        color: var(--navy);
+        font-size: 23px;
+        font-weight: 800;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
 
       .overflow-note {
         width: 100%;
@@ -443,22 +579,28 @@
       .included-panel ul { font-size: 22px; line-height: 1.5; }
 
       /* ── How it works ─────────────────────────────────────────────────── */
-      /* Sized by its copy, not by the slide. Stretching the strip makes four
-         600px-tall white cards with two lines of text at the top of each. */
+      /* Capped, then centred by the auto margins — the same trick as .tile-grid
+         and for the same reason. Left to stretch the full slide, the four cards
+         are 700px tall with two lines of text marooned at the top of each; left
+         to hug their copy, they float in the middle of a large empty band. */
       .steps-strip {
         width: 100%;
         display: flex;
         align-items: stretch;
         gap: 20px;
-        margin-top: 26px;
+        max-height: 470px;
+        margin: auto 0;
       }
 
       .step-card {
         position: relative;
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
         background: var(--white);
         border-radius: 22px;
-        padding: 46px 22px 26px;
+        padding: 64px 24px 44px;
         box-shadow: var(--shadow-card);
         text-align: center;
       }
@@ -468,13 +610,13 @@
         top: -24px;
         left: 50%;
         transform: translateX(-50%);
-        width: 54px;
-        height: 54px;
+        width: 64px;
+        height: 64px;
         border-radius: 50%;
-        background: var(--brand-purple);
+        background: var(--accent);
         color: var(--white);
         font-weight: 800;
-        font-size: 27px;
+        font-size: 32px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -483,12 +625,12 @@
 
       /* Inline SVG, never an emoji — see rail 2 at the top of this file. */
       .step-card .step-icon {
-        width: 62px;
-        height: 62px;
-        margin: 0 auto 12px;
+        width: 84px;
+        height: 84px;
+        margin: 0 auto 20px;
         display: block;
         fill: none;
-        stroke: var(--blue-mid);
+        stroke: var(--accent);
         stroke-width: 5;
         stroke-linecap: round;
         stroke-linejoin: round;
@@ -496,51 +638,90 @@
 
       .step-card .step-title {
         font-weight: 800;
-        font-size: 27px;
-        margin-bottom: 8px;
+        font-size: 32px;
+        margin-bottom: 12px;
         color: var(--navy);
       }
 
       .step-card .step-body {
-        font-size: 19px;
+        font-size: 22px;
         line-height: 1.4;
         color: #333;
       }
 
-      /* Groups the elements that should stay together and centres them in the
-         leftover height as one block, instead of each one finding its own
-         corner and leaving a hole in the middle of the slide. */
-      .band-group {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 44px;
+      /* ── On a device ──────────────────────────────────────────────────── */
+      /* The stage lays out in the scene photo's own pixel space and is scaled
+         and offset to cover the slide as one unit, so the screen quad in
+         TabletScene stays in lockstep with where the photo actually is. */
+      .mockup-stage {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+        transform-origin: 0 0;
       }
 
-      .qr-block {
+      .mockup-photo {
+        position: absolute;
+        inset: 0;
         width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 24px;
+        height: 100%;
+        display: block;
       }
 
-      .qr-block .qr-prompt {
-        background: var(--navy);
-        color: var(--white);
-        font-weight: 800;
-        font-size: 27px;
-        padding: 14px 22px;
-        border-radius: 14px;
-      }
-
-      .qr-block img {
-        width: 168px;
-        height: 168px;
-        padding: 9px;
+      /* Warped onto the tablet's glass by the inline matrix3d. transform-origin
+         must be 0 0 — the homography maps the element's own top-left corner to
+         the quad's, and a centred origin silently offsets the whole solve. */
+      .mockup-screen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
         background: var(--white);
-        border-radius: 14px;
-        box-shadow: var(--shadow-card);
+        overflow: hidden;
+      }
+
+      /* contain, so a board of any shape sits on the screen letterboxed rather
+         than stretched to fill it — a squashed board reads as a distorted
+         product, which is the opposite of what this slide is for. */
+      .mockup-screen img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: var(--white);
+      }
+
+      /* Faint diagonal glare, so the board reads as a lit display rather than
+         as a picture pasted onto the glass. */
+      .mockup-screen::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          115deg,
+          rgba(255, 255, 255, 0.20) 0%,
+          rgba(255, 255, 255, 0.06) 38%,
+          rgba(255, 255, 255, 0) 62%
+        );
+      }
+
+      /* These room photos are dim and warm; the scrim is what keeps the navy
+         title and the footer readable over them. Top and bottom only, so the
+         tablet in the middle stays untouched. */
+      .mockup-scrim {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: linear-gradient(
+          180deg,
+          rgba(251, 247, 241, 0.94) 0%,
+          rgba(251, 247, 241, 0.55) 22%,
+          rgba(251, 247, 241, 0) 40%,
+          rgba(251, 247, 241, 0) 68%,
+          rgba(251, 247, 241, 0.70) 88%,
+          rgba(251, 247, 241, 0.90) 100%
+        );
       }
 
       /* ── About ────────────────────────────────────────────────────────── */
@@ -552,40 +733,61 @@
         margin: auto 0;
         display: flex;
         align-items: center;
-        gap: 40px;
-        padding: 44px 40px;
+        gap: 48px;
+        padding: 60px 52px;
         background: rgba(255, 255, 255, 0.92);
         border-radius: 24px;
         box-shadow: var(--shadow-card);
       }
 
-      /* Fixed square so the row can't reflow if the photo is swapped for one
-         with a different aspect; object-position sits above centre because the
-         source is a head-and-shoulders crop and dead centre cuts the forehead. */
+      /* A frame with the photo cropped inside it, so the row can't reflow if
+         the photo is ever swapped for one with a different aspect, and so the
+         image can't spill past the circle.
+
+         The source (brittany-founder.jpg) is a framed head-and-shoulders
+         portrait at 484x522. Cropping to a square leaves ~8% vertical overflow,
+         which is what object-position moves within — enough to sit the eyes
+         above centre, which is where a portrait wants them.
+
+         Worth knowing if the photo is replaced: object-position only does
+         anything when there is overflow to pan. The previous source was square,
+         so in a square frame it moved nothing at all and the face sat off to
+         one side of the circle no matter what was declared here. Check the
+         source's aspect before trusting this line.
+
+         Sized at 270px against a 484px-wide source: at the slides' device scale
+         of 2 that is 540 device pixels, so the photo is barely upscaled. */
       .founder-photo {
         flex: 0 0 auto;
-        width: 230px;
-        height: 230px;
+        width: 270px;
+        height: 270px;
         border-radius: 50%;
-        object-fit: cover;
-        object-position: 50% 38%;
-        border: 5px solid var(--white);
+        overflow: hidden;
+        border: 6px solid var(--white);
         box-shadow: 0 6px 18px rgba(19, 73, 111, 0.22);
+      }
+
+      .founder-photo img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 50% 42%;
       }
 
       .founder-copy { flex: 1 1 auto; min-width: 0; }
 
       .founder-hi {
-        font-size: 36px;
+        font-size: 44px;
         font-weight: 800;
-        margin-bottom: 12px;
-        color: var(--brand-purple);
+        margin-bottom: 16px;
+        color: var(--accent);
       }
 
       .founder-copy p {
-        font-size: 23px;
+        font-size: 27px;
         line-height: 1.45;
-        margin-bottom: 10px;
+        margin-bottom: 14px;
       }
 
       .founder-copy p:last-child { margin-bottom: 0; font-weight: 700; }

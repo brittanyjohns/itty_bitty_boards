@@ -399,15 +399,19 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         expect(response.body).to include("Open board ##{board.id}")
       end
 
-      it "links a published draft by its numeric listing id, never by the stored URL string" do
+      it "links a draft to the seller's listing editor, by numeric id, never by the stored URL string" do
         sign_in admin
         # The stored URL is whatever Etsy's API handed back; the href is built
-        # from the bigint id so a string column can never reach an href.
+        # from the bigint id so a string column can never reach an href. It
+        # points at the seller editor because a draft has no public page — the
+        # public URL Etsy returns is a dead end until someone activates it.
         printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://www.etsy.com/listing/987/core-words")
 
         get admin_dashboard_board_printable_path(printable)
 
-        expect(response.body).to include("https://www.etsy.com/listing/987\"")
+        expect(response.body).to include(
+          "https://www.etsy.com/your/shops/me/listing-editor/edit/987#media\"",
+        )
         expect(response.body).not_to include("core-words\"")
         expect(response.body).not_to include("Create Etsy draft")
       end

@@ -4,7 +4,12 @@
     Shows the real board pages on a room background rather than a mocked-up
     product, so what sells the listing is the thing being sold. The pages are
     never cropped (see .paper in the layout): a board page has genuine margins
-    and how much of the sheet it fills depends on the board's shape. %>
+    and how much of the sheet it fills depends on the board's shape.
+
+    Two things rotate per listing so a shop page doesn't read as one product
+    photographed five times: the room scene (hashed by BrandAssets) and the
+    palette the ribbon, badge and footer band draw from (hashed separately by
+    Palette, so the two don't move in lockstep). %>
 <div class="slide has-ribbon">
   <% if @background %>
     <img class="bg-image" src="<%= @background %>" alt="" />
@@ -21,12 +26,24 @@
     <div class="title-banner <%= "small" if @title.to_s.length > 26 %>"><%= @title %></div>
     <div class="headline-callout"><%= @headline %></div>
 
+    <%# The one claim a competitor's printable can't match, given its own object
+        rather than a line in the footer list. Inline SVG speaker, never an
+        emoji — see rail 2 in the layout. %>
+    <div class="audio-badge">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M8 18h8l12-9v30l-12-9H8z" />
+        <path d="M34 18c3 3.5 3 8.5 0 12" />
+        <path d="M40 13c5 6 5 16 0 22" />
+      </svg>
+      <span><%= Printables::SlideCopy.audio_companion_badge %></span>
+    </div>
+
     <%# One page gets the stage to itself; a set fans so the count is legible
         before a word of the description is read. %>
     <div class="hero-stage stretch <%= @thumbnails.size > 1 ? "fan" : "single" %>">
       <% if @thumbnails.any? %>
         <% @thumbnails.each do |tile| %>
-          <div class="paper">
+          <div class="paper" style="aspect-ratio: <%= tile[:width] %> / <%= tile[:height] %>;">
             <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
           </div>
         <% end %>
@@ -38,7 +55,7 @@
 
   <div class="footer-strip">
     <div class="footer-bullets">
-      <div class="footer-title"><%= Printables::SlideCopy.free_voice_headline %></div>
+      <div class="footer-title"><%= Printables::SlideCopy.audio_companion_headline %></div>
       <ul class="bullets">
         <% Printables::SlideCopy.hero_footer_bullets.each do |bullet| %>
           <li><%= bullet %></li>
@@ -52,5 +69,7 @@
         <span class="qr-caption">Scan to hear it</span>
       </div>
     <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
   </div>
 </div>

@@ -34,17 +34,47 @@ module Printables
       "INSTANT DOWNLOAD · READY TO PRINT"
     end
 
-    def free_voice_eyebrow = "Included free"
+    # "Audio companion", not "voice output": the thing being sold is a printed
+    # board, and the phrase has to say that something comes WITH it that speaks.
+    # "Voice output" is AAC jargon — an SLP parses it instantly and a parent
+    # shopping for their kid does not.
+    def audio_companion_badge = "FREE AUDIO COMPANION · EVERY WORD SPEAKS"
 
-    def free_voice_headline = "Scan any page to hear every word out loud"
+    def audio_companion_eyebrow = "Included free"
 
-    def free_voice_sub = "Works on any phone, tablet or Chromebook. No app, no sign-in."
+    def audio_companion_headline = "Scan any page and hear every word out loud"
 
-    def whats_included_title = "What's included"
+    def audio_companion_sub = "Works on any phone, tablet or Chromebook. No app, no sign-in."
+
+    # The "on a device" slide. A buyer looking at a printable doesn't know the
+    # same board opens on the tablet already on their kitchen table; this is the
+    # one slide that shows it rather than saying it.
+    def on_a_device_badge = "THE SAME BOARD · ON ANY TABLET"
+
+    def on_a_device_headline = "Print it, or open it on a screen"
+
+    def on_a_device_bullets
+      [
+        "Scan the QR and the board opens online",
+        "Tap any word and it talks — free",
+        "Phone, tablet or Chromebook. No app.",
+      ]
+    end
+
+    # Small, on every footer strip. A gallery image outlives the listing — it
+    # gets pinned, screenshotted and reshared — so it should say where it came
+    # from without an Etsy page around it.
+    def site_mark = "speakanyway.com"
+
+    def whats_included_title(low_ink: false)
+      low_ink ? "Low-ink version included" : "What's included"
+    end
+
+    def low_ink_headline = "Every page again in low-ink — saves your printer"
 
     def how_it_works_title = "How it works"
 
-    def how_it_works_headline = "Every printable comes with FREE voice output"
+    def how_it_works_headline = "Every printable comes with a free audio companion"
 
     # Four steps, not the pipeline's three: "print" and "cut or laminate" are
     # separate jobs for a buyer deciding whether this fits their week, and the
@@ -54,7 +84,7 @@ module Printables
         {title: "Download", body: "Instant PDF. No waiting, no shipping."},
         {title: "Print", body: "Full colour or low-ink, on plain Letter paper."},
         {title: "Cut & laminate", body: "Optional — laminate to make it last a school year."},
-        {title: "Scan to hear it", body: "The QR opens the same board online, and it speaks."},
+        {title: "Scan to hear it", body: "The QR opens the same board online — tap a word, it talks."},
       ]
     end
 
@@ -68,8 +98,8 @@ module Printables
         "because the tools we were handed were expensive, locked to one " \
         "device, and never there when we actually needed them.",
         "Every printable here is one I wanted for my own kids — and every one " \
-        "comes with free voice output online, so the words are always within " \
-        "reach, and always heard.",
+        "comes with a free audio companion online, so the words are always " \
+        "within reach, and always heard.",
       ]
     end
 
@@ -77,7 +107,7 @@ module Printables
 
     def why_choose_bullets
       [
-        "Free voice output online — no subscription",
+        "Free audio companion online — no subscription",
         "Works on any device — no app install",
         "Built by a parent who needed it to work",
         "Used by SLPs, teachers, aides and families",
@@ -86,7 +116,7 @@ module Printables
 
     def hero_footer_bullets
       [
-        "Free voice output online",
+        "Free audio companion — no app, no subscription",
         "Print at home, use anywhere",
         "Personal & classroom license",
       ]

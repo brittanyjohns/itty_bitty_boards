@@ -32,14 +32,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Board printables now get a real listing gallery.** The marketplace images
   used to be the printed cover and a text slide, shrunk onto a square mat —
   honest about what you're buying, but invisible next to purpose-built art in an
-  Etsy search grid. A printable now gets four square marketing slides: a hero
-  showing the actual board pages in a room setting with an instant-download
-  banner, a what's-included grid that names every board in a set, a
-  four-step how-it-works, and an about slide. Every one is generated
-  automatically — there's still nothing to make by hand. Printables made before
-  this keep their old images until you hit **Regenerate** (the admin page flags
-  them, publishing re-renders on its own, and
-  `rake printables:refresh_listing_images` does them in bulk).
+  Etsy search grid. A printable now gets six square marketing slides: a hero
+  showing the actual board pages in a room setting, under an instant-download
+  banner and a "free audio companion — every word speaks" badge; the board
+  itself shown on a tablet held in someone's hands, so "it also opens on a
+  screen" is something a buyer can see rather than read; a what's-included grid
+  that names every board in a set; the same grid again in low-ink, so the
+  low-ink version is shown rather than claimed; a four-step how-it-works with
+  the "scan to try this board free" code in the footer; and an about slide. Every one is generated automatically — there's still nothing to
+  make by hand. Printables made before this keep their old images until you hit
+  **Regenerate** (the admin page flags them, publishing re-renders on its own,
+  and `rake printables:refresh_listing_images` does them in bulk).
+
+- **Every listing gets its own colours.** The gallery slides pick one of five
+  on-brand colourways from the board itself, independently of which room photo
+  the hero draws, so a shop page of printables doesn't read as one product
+  photographed five times. The pick is stable: regenerating a printable never
+  re-skins a listing that's already live.
+
+- **Listing copy says "free audio companion" instead of "free voice output".**
+  Across the gallery slides and the Etsy/TPT description text. It's the single
+  biggest differentiator against every other AAC printable on the marketplace,
+  and "voice output" is jargon a parent shopping for their kid doesn't parse.
+  Listings already published keep the copy saved on them.
 
 - **Admin board builder: folder tiles now open their page without speaking.**
   A tile that opens another page is a door, not a word — tapping "Food" to get
@@ -52,6 +67,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Board pages were being sliced off at the bottom of the listing images.**
+  On the what's-included slide especially, each board page was cut short of its
+  last row — a broken-looking image on the one slide whose job is to show what
+  you get. The page cards are now sized from the thumbnail's real dimensions, so
+  nothing is cropped, and the pages are sized to leave room for the panel
+  listing what's in the download rather than crowding it out.
+
+- **The founder photo sat off-centre in its circle on the about slide.** The
+  crop had no effect at all — the source photo is square, so there was nothing
+  to shift inside a square frame.
 - **New boards kept coming out Title Cased, even after the casing backfill had
   been run.** Tiles are meant to default to lowercase ("happy", "all done"), but
   a freshly built board still rendered "Happy" and "All Done" — and re-running
