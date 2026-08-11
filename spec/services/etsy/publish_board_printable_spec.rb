@@ -21,10 +21,12 @@ RSpec.describe Etsy::PublishBoardPrintable do
     allow(client).to receive(:upload_image).and_return(true)
     allow(client).to receive(:upload_file).and_return(true)
 
-    # Grover renders two PNGs; the bytes themselves are irrelevant here.
+    # Grover renders the four slides; the bytes themselves are irrelevant here.
     allow_any_instance_of(Boards::Printables::RenderListingImages).to receive(:call) do
-      printable.attach_image!(bytes: "png", variant: BoardPrintable::IMAGE_COVER)
-      printable.attach_image!(bytes: "png", variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
+      BoardPrintable::LISTING_IMAGE_ORDER.each do |variant|
+        printable.attach_image!(bytes: "png", variant: variant)
+      end
+      printable.purge_legacy_listing_images!
     end
   end
 
@@ -65,14 +67,16 @@ RSpec.describe Etsy::PublishBoardPrintable do
       publish
     end
 
-    it "uploads the cover first and the what's-included second" do
+    # Rank 1 is the search thumbnail, and the hero is the only slide that shows
+    # the actual boards — so it has to lead.
+    it "uploads the four slides in listing rank order, hero first" do
       ranks = []
       allow(client).to receive(:upload_image) { |_id, opts| ranks << [opts[:rank], opts[:filename]] }
 
       publish
 
-      expect(ranks.map(&:first)).to eq([1, 2])
-      expect(ranks.first.last).to start_with("cover-")
+      expect(ranks.map(&:first)).to eq((1..BoardPrintable::LISTING_IMAGE_ORDER.size).to_a)
+      expect(ranks.first.last).to start_with("hero-")
     end
 
     it "uploads every PDF variant as a download file" do
@@ -85,8 +89,21 @@ RSpec.describe Etsy::PublishBoardPrintable do
     it "renders the gallery images when they are missing, so the draft can go live" do
       expect(printable.listing_images?).to be false
       publish
-      expect(printable.reload.listing_images?).to be true
+      expect(printable.reload.listing_images_current?).to be true
     end
+
+    # "Has images" isn't a strong enough guard: a printable generated before the
+    # redesign has them, and they're the retired pair.
+    it "re-renders a gallery left over from the retired two-image design" do
+      printable.attach_image!(bytes: "old", variant: BoardPrintable::IMAGE_COVER)
+      printable.attach_image!(bytes: "old", variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
+
+      publish
+
+      expect(printable.reload.image_files.map { |f| f.metadata["variant"] })
+        .to match_array(BoardPrintable::LISTING_IMAGE_ORDER)
+    end
+
   end
 
   describe "guards" do

@@ -8,18 +8,22 @@ RSpec.describe Boards::Printables::RenderPageThumbnails do
   let(:grover_opts) { [] }
 
   before do
-    grover = instance_double(Grover, to_jpeg: "jpeg-bytes")
+    grover = instance_double(Grover, to_png: "png-bytes")
     allow(Grover).to receive(:new) do |_html, **opts|
       grover_opts << opts
       grover
     end
+    # The trim decodes a real PNG; "png-bytes" isn't one. It already fails soft,
+    # but stubbing keeps that off the critical path of these examples — the trim
+    # has its own coverage below.
+    allow_any_instance_of(described_class).to receive(:trim_trailing_blank) { |_, png| png }
   end
 
   it "returns one inline thumbnail per board, keyed by board id" do
     result = described_class.new(boards: [board, other]).call
 
     expect(result.keys).to contain_exactly(board.id, other.id)
-    expect(result[board.id].data_uri).to start_with("data:image/jpeg;base64,")
+    expect(result[board.id].data_uri).to start_with("data:image/png;base64,")
   end
 
   # Grover reads device_scale_factor only from inside viewport; the same trap
@@ -63,5 +67,43 @@ RSpec.describe Boards::Printables::RenderPageThumbnails do
       .with(hash_including(hide_colors: false)).and_call_original
 
     described_class.new(boards: [board]).call
+  end
+
+  # How much of a Letter sheet a board fills depends on its shape — a wide,
+  # short grid leaves over half the page blank, and on a listing slide that
+  # reads as a broken image rather than as a margin.
+  describe "trimming the blank paper below the board" do
+    subject(:service) { described_class.new(boards: []) }
+
+    # The outer stub short-circuits the method under test here.
+    before { allow_any_instance_of(described_class).to receive(:trim_trailing_blank).and_call_original }
+
+    def png_with_content_height(content_height, total_height: 400, width: 200)
+      image = ChunkyPNG::Image.new(width, total_height, ChunkyPNG::Color::WHITE)
+      content_height.times { |y| width.times { |x| image[x, y] = ChunkyPNG::Color.rgb(20, 70, 110) } }
+      image.to_blob
+    end
+
+    it "cuts the blank rows off the bottom, keeping a margin" do
+      png = png_with_content_height(100)
+
+      trimmed = ChunkyPNG::Image.from_blob(service.send(:trim_trailing_blank, png))
+
+      expect(trimmed.height).to eq(100 + described_class::TRIM_MARGIN_PX)
+      expect(trimmed.width).to eq(200)
+    end
+
+    it "leaves a page whose content runs to the bottom edge alone" do
+      png = png_with_content_height(400, total_height: 400)
+
+      trimmed = ChunkyPNG::Image.from_blob(service.send(:trim_trailing_blank, png))
+
+      expect(trimmed.height).to eq(400)
+    end
+
+    # An untrimmed thumbnail is a worse-looking slide, not a broken one.
+    it "returns the original bytes when the image can't be decoded" do
+      expect(service.send(:trim_trailing_blank, "not-a-png")).to eq("not-a-png")
+    end
   end
 end

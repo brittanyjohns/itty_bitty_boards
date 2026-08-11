@@ -1,0 +1,598 @@
+<%# Layout for the square marketplace listing slides (hero, what's included,
+    how it works, about).
+
+    Separate from layouts/pdf_printable.html.erb on purpose. That layout is the
+    printed product and is measured in inches and points; this one is a 1280px
+    marketing canvas that is never printed. They shared a layout once — the
+    gallery was the print sheet scaled to 0.73 on a square mat — and the result
+    was honest but unsellable next to purpose-built competitor art.
+
+    Ported from speakanyway-printables:
+      src/templates/shared/branded-frame.css   -> the shared chrome below
+      src/templates/previews/hero-board.css    -> .hero-*
+      src/templates/previews/whats-included.css-> .included-*
+      src/plugins/aac/templates/previews/about-saw.css -> .steps-strip, .founder-band
+
+    Rails is authoritative for listings created from the Rails admin; that repo
+    is authoritative for the ones its pipeline originates. They may differ —
+    just not by accident. Same rule as Etsy::CopyRules.
+
+    Three rails hold across every change here:
+
+    1. Nothing is fetched over the network by the CHROME. Nunito is inlined by
+       Boards::Printables::Fonts, and the logo, founder photo and room scenes by
+       Boards::Printables::BrandAssets. The one documented exception is the
+       board symbol art inside a page thumbnail, which loads from the CDN
+       exactly as it does when the product PDF is printed.
+    2. No emoji, and no decorative glyph outside Nunito's coverage. The render
+       box's Chrome has no guaranteed colour-emoji font, so the pipeline's
+       emoji step icons and its "*", "•" and arrow pseudo-element bullets would
+       ship as tofu boxes to Etsy. Icons are inline SVG; bullets are CSS-drawn
+       shapes. This repo already learned this once with U+2713 on the printed
+       what's-included page.
+    3. Every band is a fixed height and the copy that fills it is bounded
+       (Printables::SlideCopy). Text that outgrows its band doesn't wrap here,
+       it overlaps the next one. %>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Listing image</title>
+
+    <style>
+      <%= Boards::Printables::Fonts.face_css %>
+
+      :root {
+        --navy: #13496f;
+        --blue-mid: #0163aa;
+        --cyan: #4ECDE6;
+        --magenta: #C857E8;
+        --cream: #FBF7F1;
+        --white: #FFFFFF;
+        --ink: #1A1A1A;
+
+        --brand-purple: #5b2a86;
+        --brand-sky-deep: #79b8ec;
+        --brand-green-soft: #c9f08a;
+
+        --shadow-soft: 0 18px 40px rgba(19, 73, 111, 0.18);
+        --shadow-card: 0 24px 56px rgba(19, 73, 111, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html, body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      body {
+        font-family: Nunito, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink);
+        background: var(--cream);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      p, li { text-wrap: pretty; hyphens: none; }
+
+      /* ── The canvas ───────────────────────────────────────────────────── */
+      /* Etsy shows listing photos in a square frame and letterboxes anything
+         else, so the slide IS square rather than being cropped to one. */
+      .slide {
+        position: relative;
+        width: 1280px;
+        height: 1280px;
+        overflow: hidden;
+        background: var(--cream);
+      }
+
+      /* Background photo as an <img>, not a CSS url() — the src is a data URI
+         and this keeps the encoding in one place (BrandAssets). */
+      .slide .bg-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: 0;
+      }
+
+      /* The room photos are bright and busy; without this the navy title and
+         the white paper cards both lose contrast against a sunlit window. */
+      .slide .bg-scrim {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: linear-gradient(
+          180deg,
+          rgba(251, 247, 241, 0.88) 0%,
+          rgba(251, 247, 241, 0.42) 34%,
+          rgba(251, 247, 241, 0.62) 72%,
+          rgba(251, 247, 241, 0.90) 100%
+        );
+      }
+
+      .slide.bg-sky {
+        background:
+          radial-gradient(circle at 20% 18%, rgba(255,255,255,0.9) 0 110px, transparent 140px),
+          radial-gradient(circle at 78% 22%, rgba(255,255,255,0.75) 0 70px, transparent 110px),
+          linear-gradient(180deg, #b9e2ff 0%, #dff0ff 60%, #f7fbff 100%);
+      }
+
+      /* ── Slide stack ──────────────────────────────────────────────────── */
+      /* Everything except the hero lays out as a flex column rather than a set
+         of absolutely-positioned bands at hand-tuned offsets. The bands drift:
+         a board with a long name grows its card, an overflow caption appears
+         only for a set, and the fixed offsets that looked right for one
+         printable had the caption colliding with a tile label on the next.
+         A column can't collide with itself. */
+      .slide-stack {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+        padding: 52px 56px 56px;
+      }
+
+      /* The footer strip is anchored to the bottom edge, so the column has to
+         stop above it. */
+      .slide-stack.has-footer { padding-bottom: 214px; }
+
+      .slide-stack > * { flex: 0 0 auto; max-width: 100%; }
+
+      /* The one element that absorbs the leftover height, so a short board and
+         a tall one both produce a balanced slide. */
+      .slide-stack > .stretch {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+      }
+
+      /* ── Shared chrome ────────────────────────────────────────────────── */
+      .logo-corner {
+        position: absolute;
+        z-index: 5;
+        top: 34px;
+        right: 34px;
+        width: 108px;
+        height: 108px;
+      }
+
+      .title-banner {
+        position: relative;
+        z-index: 4;
+        display: inline-block;
+        margin: 0;
+        padding: 20px 36px;
+        background: var(--navy);
+        color: var(--white);
+        border-radius: 18px;
+        font-weight: 800;
+        font-size: 52px;
+        line-height: 1.05;
+        max-width: 880px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .title-banner.small { font-size: 44px; }
+
+      .headline-callout {
+        position: relative;
+        z-index: 4;
+        display: inline-block;
+        margin: 0;
+        padding: 16px 30px;
+        background: var(--white);
+        color: var(--ink);
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 32px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      /* The one claim that answers "do I have to wait for this in the post?" */
+      .instant-ribbon {
+        position: absolute;
+        z-index: 6;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 16px 56px;
+        background: var(--ink);
+        color: var(--white);
+        font-weight: 800;
+        font-size: 25px;
+        letter-spacing: 0.1em;
+        text-align: center;
+      }
+
+      .slide.has-ribbon .title-banner { margin-top: 96px; }
+
+      .accent-panel {
+        position: absolute;
+        z-index: 4;
+        border-radius: 18px;
+        padding: 26px 30px;
+        color: var(--white);
+        background: var(--brand-purple);
+        box-shadow: var(--shadow-card);
+        font-weight: 700;
+        font-size: 27px;
+        line-height: 1.25;
+      }
+
+      .accent-panel .accent-eyebrow {
+        display: block;
+        font-size: 17px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0.85;
+        margin-bottom: 6px;
+      }
+
+      .accent-panel .accent-sub {
+        display: block;
+        margin-top: 10px;
+        font-weight: 600;
+        font-size: 21px;
+        opacity: 0.95;
+      }
+
+      /* ── CSS-drawn bullets (never a glyph) ────────────────────────────── */
+      .bullets { list-style: none; }
+
+      .bullets li {
+        position: relative;
+        padding-left: 30px;
+      }
+
+      .bullets li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.55em;
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        transform: rotate(45deg);
+        background: var(--brand-purple);
+      }
+
+      .bullets.on-dark li::before { background: var(--brand-green-soft); }
+
+      /* ── Footer strip ─────────────────────────────────────────────────── */
+      .footer-strip {
+        position: absolute;
+        z-index: 4;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        min-height: 190px;
+        padding: 26px 56px;
+        background: var(--brand-green-soft);
+        display: flex;
+        align-items: center;
+        gap: 34px;
+      }
+
+      .footer-strip .footer-bullets { flex: 1; min-width: 0; }
+
+      .footer-strip .footer-title {
+        font-weight: 800;
+        font-size: 25px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+        color: var(--navy);
+      }
+
+      .footer-strip ul { font-size: 21px; line-height: 1.5; }
+
+      .footer-strip .footer-qr {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .footer-strip .footer-qr img {
+        width: 132px;
+        height: 132px;
+        padding: 7px;
+        background: var(--white);
+        border-radius: 12px;
+      }
+
+      .footer-strip .footer-qr .qr-caption {
+        font-size: 17px;
+        font-weight: 800;
+        color: var(--navy);
+      }
+
+      /* ── Paper card: how a board page is presented on every slide ─────── */
+      /* The thumbnail arrives already trimmed to its content
+         (RenderPageThumbnails), so the card hugs the page rather than forcing
+         it to a fixed box — height is driven by the image's own aspect and
+         capped by the slot. A white sheet with a shadow is what makes it read
+         as a printed page. */
+      .paper {
+        background: var(--white);
+        border-radius: 10px;
+        box-shadow: var(--shadow-card);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-self: center;
+      }
+
+      .paper img {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        object-fit: contain;
+        background: var(--white);
+      }
+
+      .paper .paper-label {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        background: var(--navy);
+        color: var(--white);
+        font-size: 20px;
+        font-weight: 800;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* ── Hero ─────────────────────────────────────────────────────────── */
+      /* The ribbon overlays the top edge, so the hero's column starts below it. */
+      .slide-stack.has-ribbon { padding-top: 108px; }
+
+      .hero-stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+      }
+
+      .hero-stage .paper { flex: 1 1 0; max-height: 100%; }
+
+      /* A single page gets the whole stage. */
+      .hero-stage.single .paper { max-width: 1000px; }
+
+      /* A set fans into an overlapping pile rather than a tidy row. Three
+         side-by-side cards on a 1168px stage are ~370px wide, and a board page
+         at that size is a coloured smudge — the buyer can count the pages but
+         can't see a single word. Overlapping buys each card ~50% more width
+         and reads as "more than one board" just as fast. */
+      /* The widths have to close: three cards at W overlapping by V occupy
+         3W - 2V, and anything over 100% runs the outer pages off the slide
+         edge. 40% and 11% land at 98% and leave room for the rotation to
+         bleed without clipping. */
+      .hero-stage.fan { gap: 0; }
+      .hero-stage.fan .paper { flex: 0 0 40%; }
+
+      .hero-stage.fan .paper:nth-child(1) {
+        transform: rotate(-3deg);
+        margin-right: -11%;
+        z-index: 1;
+      }
+
+      .hero-stage.fan .paper:nth-child(2) { z-index: 3; }
+
+      .hero-stage.fan .paper:nth-child(3) {
+        transform: rotate(3deg);
+        margin-left: -11%;
+        z-index: 2;
+      }
+
+      .hero-empty {
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--navy);
+        background: rgba(255,255,255,0.9);
+        border-radius: 18px;
+        padding: 40px 48px;
+        text-align: center;
+      }
+
+      /* ── What's included ──────────────────────────────────────────────── */
+      .tile-grid {
+        display: grid;
+        gap: 18px;
+        align-content: center;
+        justify-items: center;
+      }
+
+      .tile-grid .paper { min-height: 0; max-height: 100%; }
+
+      .overflow-note {
+        width: 100%;
+        text-align: center;
+        font-size: 25px;
+        font-weight: 800;
+        color: var(--navy);
+      }
+
+      .included-panel {
+        width: 100%;
+        background: var(--ink);
+        color: var(--white);
+        border-radius: 18px;
+        padding: 24px 30px;
+        box-shadow: var(--shadow-card);
+      }
+
+      .included-panel .included-title {
+        font-weight: 800;
+        font-size: 27px;
+        margin-bottom: 12px;
+      }
+
+      .included-panel ul { font-size: 22px; line-height: 1.5; }
+
+      /* ── How it works ─────────────────────────────────────────────────── */
+      /* Sized by its copy, not by the slide. Stretching the strip makes four
+         600px-tall white cards with two lines of text at the top of each. */
+      .steps-strip {
+        width: 100%;
+        display: flex;
+        align-items: stretch;
+        gap: 20px;
+        margin-top: 26px;
+      }
+
+      .step-card {
+        position: relative;
+        flex: 1;
+        background: var(--white);
+        border-radius: 22px;
+        padding: 46px 22px 26px;
+        box-shadow: var(--shadow-card);
+        text-align: center;
+      }
+
+      .step-card .step-num {
+        position: absolute;
+        top: -24px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        background: var(--brand-purple);
+        color: var(--white);
+        font-weight: 800;
+        font-size: 27px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow-soft);
+      }
+
+      /* Inline SVG, never an emoji — see rail 2 at the top of this file. */
+      .step-card .step-icon {
+        width: 62px;
+        height: 62px;
+        margin: 0 auto 12px;
+        display: block;
+        fill: none;
+        stroke: var(--blue-mid);
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .step-card .step-title {
+        font-weight: 800;
+        font-size: 27px;
+        margin-bottom: 8px;
+        color: var(--navy);
+      }
+
+      .step-card .step-body {
+        font-size: 19px;
+        line-height: 1.4;
+        color: #333;
+      }
+
+      /* Groups the elements that should stay together and centres them in the
+         leftover height as one block, instead of each one finding its own
+         corner and leaving a hole in the middle of the slide. */
+      .band-group {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 44px;
+      }
+
+      .qr-block {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+      }
+
+      .qr-block .qr-prompt {
+        background: var(--navy);
+        color: var(--white);
+        font-weight: 800;
+        font-size: 27px;
+        padding: 14px 22px;
+        border-radius: 14px;
+      }
+
+      .qr-block img {
+        width: 168px;
+        height: 168px;
+        padding: 9px;
+        background: var(--white);
+        border-radius: 14px;
+        box-shadow: var(--shadow-card);
+      }
+
+      /* ── About ────────────────────────────────────────────────────────── */
+      /* Hugs its copy and floats in the middle of what's left, rather than
+         stretching: a stretched band is a 700px-tall white card with three
+         lines of text marooned in the centre of it. */
+      .founder-band {
+        width: 100%;
+        margin: auto 0;
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        padding: 44px 40px;
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        box-shadow: var(--shadow-card);
+      }
+
+      /* Fixed square so the row can't reflow if the photo is swapped for one
+         with a different aspect; object-position sits above centre because the
+         source is a head-and-shoulders crop and dead centre cuts the forehead. */
+      .founder-photo {
+        flex: 0 0 auto;
+        width: 230px;
+        height: 230px;
+        border-radius: 50%;
+        object-fit: cover;
+        object-position: 50% 38%;
+        border: 5px solid var(--white);
+        box-shadow: 0 6px 18px rgba(19, 73, 111, 0.22);
+      }
+
+      .founder-copy { flex: 1 1 auto; min-width: 0; }
+
+      .founder-hi {
+        font-size: 36px;
+        font-weight: 800;
+        margin-bottom: 12px;
+        color: var(--brand-purple);
+      }
+
+      .founder-copy p {
+        font-size: 23px;
+        line-height: 1.45;
+        margin-bottom: 10px;
+      }
+
+      .founder-copy p:last-child { margin-bottom: 0; font-weight: 700; }
+    </style>
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>

@@ -20,6 +20,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Board printables now get a real listing gallery.** The marketplace images
+  used to be the printed cover and a text slide, shrunk onto a square mat —
+  honest about what you're buying, but invisible next to purpose-built art in an
+  Etsy search grid. A printable now gets four square marketing slides: a hero
+  showing the actual board pages in a room setting with an instant-download
+  banner, a what's-included grid that names every board in a set, a
+  four-step how-it-works, and an about slide. Every one is generated
+  automatically — there's still nothing to make by hand. Printables made before
+  this keep their old images until you hit **Regenerate** (the admin page flags
+  them, publishing re-renders on its own, and
+  `rake printables:refresh_listing_images` does them in bulk).
+
 - **Admin board builder: folder tiles now open their page without speaking.**
   A tile that opens another page is a door, not a word — tapping "Food" to get
   to the food page was putting a word into the utterance the communicator

@@ -1,0 +1,46 @@
+<%# The trust slide. On a digital-download listing the buyer is trusting a
+    stranger with a file they can't inspect first, and the founder story is the
+    one claim in the gallery a competitor can't copy.
+
+    Board-agnostic, like how_it_works. Degrades to copy alone if the photo is
+    missing rather than rendering an empty circle. %>
+<div class="slide bg-sky">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-footer">
+    <div class="title-banner"><%= Printables::SlideCopy.about_title %></div>
+
+    <div class="founder-band">
+      <% if @founder_photo %>
+        <img class="founder-photo" src="<%= @founder_photo %>" alt="Brittany, founder of SpeakAnyWay" />
+      <% end %>
+
+      <div class="founder-copy">
+        <div class="founder-hi"><%= Printables::SlideCopy.founder_greeting %></div>
+        <% Printables::SlideCopy.founder_paragraphs.each do |paragraph| %>
+          <p><%= paragraph %></p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.why_choose_title %></div>
+      <ul class="bullets">
+        <% Printables::SlideCopy.why_choose_bullets.each do |bullet| %>
+          <li><%= bullet %></li>
+        <% end %>
+      </ul>
+    </div>
+
+    <% if @qr_data_url %>
+      <div class="footer-qr">
+        <img src="<%= @qr_data_url %>" alt="Scan to open SpeakAnyWay" />
+        <span class="qr-caption">Try it free</span>
+      </div>
+    <% end %>
+  </div>
+</div>

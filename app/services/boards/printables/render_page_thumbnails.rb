@@ -17,16 +17,21 @@ module Boards
       PORTRAIT = { width: 612, height: 792 }.freeze
       LANDSCAPE = { width: 792, height: 612 }.freeze
 
-      # A thumbnail is rendered at ~2x its slot on a 1280px slide, which is
-      # enough to stay crisp at 2560px output without carrying a full-page
-      # retina PNG into the HTML.
+      # A thumbnail is rendered at ~2x its slot on a 1280px slide, which is what
+      # the hero needs: there the page is nearly slide-width, so anything less
+      # is visibly soft in the one image that competes in an Etsy search grid.
       SCALE = 2
 
-      # JPEG, not PNG. Eight full board pages base64'd into one document is
-      # megabytes of HTML string, and Grover holds the whole thing in memory
-      # through the render. Board art is dense and photographic enough that q82
-      # is invisible at tile size.
-      QUALITY = 82
+      # Blank paper left below the board, in device pixels, once the trim has
+      # found the last row of content. Roughly 6mm at SCALE 2 — enough that the
+      # page still reads as a printed sheet with a margin rather than as art
+      # cropped flush to its edge.
+      TRIM_MARGIN_PX = 24
+
+      # Rows are sampled rather than scanned pixel by pixel. A board tile is
+      # never narrower than a few dozen pixels at this scale, so a stride of 4
+      # cannot miss one, and it makes the scan ~4x cheaper.
+      TRIM_SAMPLE_STRIDE = 4
 
       Thumbnail = Struct.new(:board_id, :data_uri, :landscape, keyword_init: true)
 
@@ -59,9 +64,11 @@ module Boards
           formats: [:html],
         )
 
+        png = trim_trailing_blank(screenshot(html, data[:landscape]))
+
         Thumbnail.new(
           board_id: board.id,
-          data_uri: "data:image/jpeg;base64,#{Base64.strict_encode64(screenshot(html, data[:landscape]))}",
+          data_uri: "data:image/png;base64,#{Base64.strict_encode64(png)}",
           landscape: data[:landscape],
         )
       rescue StandardError => e
@@ -94,9 +101,44 @@ module Boards
           html,
           viewport: viewport,
           full_page: false,
-          quality: QUALITY,
           print_background: true,
-        ).to_jpeg
+        ).to_png
+      end
+
+      # Cuts the blank paper off the bottom of a rendered page.
+      #
+      # How much of a Letter sheet a board fills depends entirely on its shape:
+      # a 12x3 grid is wide and short and leaves over half the page empty, and
+      # on a listing slide that reads as a broken image rather than as a margin.
+      #
+      # Measured, not calculated. The obvious approach — take the header height
+      # and board height RenderAssetData already computes — does not work:
+      # the header renders ~24mm against the 30mm it reserves, and a tall board
+      # is clamped by .board-sizer's max-height so its computed height overstates
+      # what is actually drawn. Both errors run in the direction that would slice
+      # tiles off. Scanning up from the bottom for the last row that differs from
+      # the page background is exact for every board shape, and costs ~1s.
+      def trim_trailing_blank(png)
+        image = ChunkyPNG::Image.from_blob(png)
+        background = image[image.width - 2, image.height - 2]
+
+        last_content_row = (image.height - 1).downto(0).find do |y|
+          (0...image.width).step(TRIM_SAMPLE_STRIDE).any? { |x| image[x, y] != background }
+        end
+        return png if last_content_row.nil?
+
+        # +1 turns the last content ROW INDEX into a height, so the margin below
+        # it is exactly TRIM_MARGIN_PX.
+        height = [last_content_row + 1 + TRIM_MARGIN_PX, image.height].min
+        return png if height >= image.height
+
+        # good_compression, not best: best buys ~4% for 4x the CPU, and this
+        # runs once per board on a job that already renders a browser page.
+        image.crop(0, 0, image.width, height).to_blob(:good_compression)
+      rescue StandardError => e
+        # An untrimmed thumbnail is a worse-looking slide, not a broken one.
+        Rails.logger.warn("[RenderPageThumbnails] trim failed: #{e.class}: #{e.message}")
+        png
       end
     end
   end

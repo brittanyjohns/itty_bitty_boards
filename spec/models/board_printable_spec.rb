@@ -17,7 +17,7 @@ RSpec.describe BoardPrintable do
 
     before do
       printable.attach_pdf!(filename: "core.pdf", bytes: "pdf", variant: described_class::VARIANT_FULL)
-      printable.attach_image!(bytes: "png", variant: described_class::IMAGE_COVER)
+      printable.attach_image!(bytes: "png", variant: described_class::IMAGE_HERO)
       printable.reload
     end
 
@@ -26,10 +26,40 @@ RSpec.describe BoardPrintable do
     end
 
     it "exposes the images separately, in listing rank order" do
+      printable.attach_image!(bytes: "png", variant: described_class::IMAGE_ABOUT)
       printable.attach_image!(bytes: "png", variant: described_class::IMAGE_WHATS_INCLUDED)
 
       expect(printable.reload.listing_images_view.map { |i| i[:variant] })
-        .to eq([described_class::IMAGE_COVER, described_class::IMAGE_WHATS_INCLUDED])
+        .to eq([described_class::IMAGE_HERO, described_class::IMAGE_WHATS_INCLUDED,
+                described_class::IMAGE_ABOUT])
+    end
+
+    # A blob from the retired two-image gallery would otherwise sort to the end
+    # of listing_images_view and get uploaded to Etsy as a real listing photo.
+    describe "images left over from the retired gallery design" do
+      before { printable.attach_image!(bytes: "old", variant: described_class::IMAGE_COVER) }
+
+      it "are hidden from the gallery view" do
+        expect(printable.reload.listing_images_view.map { |i| i[:variant] })
+          .not_to include(described_class::IMAGE_COVER)
+      end
+
+      it "make the printable read as not current, so publishing re-renders" do
+        expect(printable.reload.listing_images?).to be true
+        expect(printable.listing_images_current?).to be false
+      end
+
+      it "are purged on request, leaving the current slides alone" do
+        described_class::LISTING_IMAGE_ORDER.each do |variant|
+          printable.attach_image!(bytes: "png", variant: variant)
+        end
+
+        printable.reload.purge_legacy_listing_images!
+
+        expect(printable.reload.image_files.map { |f| f.metadata["variant"] })
+          .to match_array(described_class::LISTING_IMAGE_ORDER)
+        expect(printable.listing_images_current?).to be true
+      end
     end
 
     it "treats a blob written before the kind metadata existed as a PDF" do
@@ -41,7 +71,7 @@ RSpec.describe BoardPrintable do
     end
 
     it "replaces an image variant instead of accumulating renders" do
-      printable.attach_image!(bytes: "png-2", variant: described_class::IMAGE_COVER)
+      printable.attach_image!(bytes: "png-2", variant: described_class::IMAGE_HERO)
 
       expect(printable.reload.image_files.length).to eq(1)
     end

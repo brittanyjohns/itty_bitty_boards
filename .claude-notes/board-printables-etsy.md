@@ -109,25 +109,74 @@ saved.
 
 ## Gallery images
 
-`Boards::Printables::RenderListingImages` renders two PNGs through the **same**
-templates and CSS as the printed wrapper pages
-(`layouts/pdf_printable` with `@listing_image` set, which switches on the
-`.as-listing-image` square-canvas rules):
+`Boards::Printables::RenderListingImages` renders **four** square 2560px slides
+through `layouts/listing_image.html.erb` — a marketing canvas of its own, not
+the print sheet. `LISTING_IMAGE_ORDER` is the Etsy rank order, and rank 1 is the
+search thumbnail:
 
-- `cover` — literally the product's first page, built from
-  `RenderWrappers#cover_assigns` so the QR target can't drift.
-- `whats_included` — a slide naming the boards in the set. Text and labels only:
-  rasterizing PDF page thumbnails would need poppler/ImageMagick that isn't in
-  the deploy image.
+| Slide | Board-specific? | Ported from (`speakanyway-printables`) |
+|---|---|---|
+| `hero` | yes — real page thumbnails on a room background | `previews/hero-board.*` |
+| `whats_included` | yes — capped thumbnail grid + count | `previews/whats-included.*` |
+| `how_it_works` | no | `plugins/aac/.../about-saw.*` (steps half) |
+| `about` | no | `plugins/aac/.../about-saw.*` (founder half) |
+
+**Rails is authoritative for listings the Rails admin originates**; the pipeline
+is authoritative for the ones its own steps 11/13/14 originate. Same rule, and
+the same drift hazard, as `Etsy::CopyRules` above. Deliberate differences: no
+mockup-scene compositing (that needs the calibrated scene library and a
+homography solve — still steps 13/14), and no per-slug variant machinery, so
+Rails renders one fixed look.
+
+Rules that hold across the slides:
+
+- **Board pages are HTML before they are a PDF.** `RenderPageThumbnails`
+  screenshots `api/boards/print` + `layouts/pdf` with the same assigns
+  `CollectPages` prints from. The old note here said page thumbnails would need
+  poppler/ImageMagick, which the deploy image lacks — they don't, and that is
+  what unlocked showing real boards in the gallery.
+- **Thumbnails are trimmed by measurement, not calculation.** How much of a
+  Letter sheet a board fills depends on its shape; a 12x3 grid leaves over half
+  the page blank and reads as a broken image. The header renders ~24mm against
+  the 30mm `RenderAssetData` reserves, and a tall board is clamped by
+  `.board-sizer`'s max-height — both errors run in the direction that slices
+  tiles off, so the trim scans up from the bottom for the last non-background
+  row instead.
+- **Thumbnails render once** and are shared by `hero` and `whats_included`;
+  planning (`ContentTilePlan`, capped at `MAX_TILES`) happens first so Grover is
+  only paid for tiles that get shown. Budget: `min(boards, 8) + 4` renders.
+- **No emoji, no decorative glyphs.** The render box's Chrome has no guaranteed
+  colour-emoji font. Step icons are inline SVG and list bullets are CSS-drawn
+  shapes; the source templates use emoji and would have shipped tofu boxes.
+- **Chrome is hermetic, board art is not.** Fonts, logo, founder photo, room
+  scenes and QR are all base64 (`BrandAssets`, `Fonts`). Board symbol art inside
+  a thumbnail loads from the CDN, exactly as it does when the product PDF is
+  printed — the one documented exception, and why the hermeticity spec asserts
+  on slide HTML only.
+- **The room scene is picked by hashing the board.** A listing is already live
+  by the time anyone regenerates it; a random pick would re-skin it each time.
+  Reordering `BrandAssets::SCENES` re-skins every existing listing.
 
 Etsy will create a listing with no photos but won't let it go live without one,
-so `PublishBoardPrintable` renders them if they're missing. The richer gallery
-— lifestyle mockups, scene shots, the about slide — stays in the printables
-pipeline's steps 13/14.
+so `PublishBoardPrintable` renders them when they aren't current.
+
+**`listing_images?` is not a strong enough guard — use `listing_images_current?`.**
+A printable generated before this redesign still has images: the retired
+`cover`/`whats_included` pair. Four things stop those reaching a live listing:
+`listing_images_view` filters to known variants, `purge_legacy_listing_images!`
+removes them after a successful re-render, the publish guard checks currency,
+and the admin card shows a staleness badge. Bulk refresh:
+`rake printables:refresh_listing_images`.
 
 Images are written to a **versioned** blob key. CloudFront ignores query
 strings, so re-uploading to a stable key leaves the admin looking at the
 previous render (same lesson as `Boards::GeneratePreviewAssets`).
+
+**Grover reads `device_scale_factor` only inside `viewport`.** A top-level one
+is accepted and silently ignored — that shipped every listing image at 816px
+instead of 2040 until it was caught. `width:`/`height:` are PDF-only keys, and
+`to_png`/`to_jpeg` set the screenshot type themselves. Specs pin the nested
+option because the failure is invisible: the render still succeeds, just small.
 
 ## Storage layout
 
