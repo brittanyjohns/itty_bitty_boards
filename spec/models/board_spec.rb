@@ -130,6 +130,47 @@ RSpec.describe Board, type: :model do
         expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/source.webp")
       end
     end
+
+    # A clone used to copy the source tile's display_label verbatim, one line
+    # after set_labels had folded it — so a Title Cased seed board propagated
+    # "Higher" into every board built from it.
+    context "tile casing on clone" do
+      def clone_tile_reading(text, source_attrs = {})
+        source_image = FactoryBot.create(:image, user: user)
+        source_image.update_columns(label: text.downcase, display_label: text)
+        tile = FactoryBot.create(:board_image, board: board, image: source_image)
+        tile.update_columns({ label: text.downcase, display_label: text }.merge(source_attrs))
+
+        # Match on the lowercase key, not image_id: the clone re-resolves each
+        # tile to the best image for the label and may land on a different row.
+        # reload so a second call in one example sees the tile it just added.
+        cloned = board.reload.clone_with_images(user.id)
+        cloned.reload.board_images.find_by(label: text.downcase)
+      end
+
+      it "folds a stuck leading capital on a word tile" do
+        expect(clone_tile_reading("Higher").display_label).to eq("higher")
+      end
+
+      it "keeps the capital on a door tile" do
+        tile = clone_tile_reading("Food", data: { "mute_name" => true })
+        expect(tile.display_label).to eq("Food")
+      end
+
+      it "keeps deliberate casing" do
+        expect(clone_tile_reading("iPad").display_label).to eq("iPad")
+      end
+
+      # A key legend is not vocabulary: folding these would spell in lowercase
+      # and rename the Space key to "space".
+      it "keeps a keyboard key's legend" do
+        space = clone_tile_reading("Space", data: { "tile_type" => "action", "tile_action" => "space" })
+        letter = clone_tile_reading("A", data: { "tile_type" => "letter" })
+
+        expect(space.display_label).to eq("Space")
+        expect(letter.display_label).to eq("A")
+      end
+    end
   end
 
   describe "#check_in_use (before_save)" do

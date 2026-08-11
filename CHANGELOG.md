@@ -18,6 +18,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Words on newly built boards were still coming out Title Cased.** Tiles are
+  supposed to default to lowercase, the AAC core-vocabulary convention, and the
+  creation paths were fixed for that — but cloning a board copied the source's
+  tile text over the top of the fold, one step after it happened. Since the
+  Board Builder builds every set by cloning a seed board, and those seeds were
+  authored before the rule existed, every built board inherited their casing:
+  "Higher" next to "swing" on the same page. Cloned word tiles are now folded
+  like any other defaulted tile. Folder tiles — the ones you tap to open a page
+  — keep their capital, and deliberate casing ("iPad", "TV", "HELP", "I") is
+  left alone as always.
+
 - **MySpeak pages published setup instructions as the communicator's own
   words.** Every profile was created with placeholder copy already saved into
   its bio and intro, so any page that had never been personalized greeted

@@ -247,7 +247,18 @@ an explicit decision, not a drive-by edit.
   label and `Boards::BoardTreeBuilder` pins the blueprint's folder label; both
   bypass the lowercase default by design. `predictive_board_id` alone does NOT
   identify a folder (predictive/dynamic word tiles carry it too), so never use
-  it to infer that a tile's casing was intentional.
+  it to infer that a tile's casing was intentional. `BoardImage#door_tile?` is
+  the test: the `mute_name`/nav flags, or a pointer at a board that isn't
+  `board_type: "predictive"`. `#authored_tile_text?` widens that to every tile
+  whose text isn't a word — doors plus keyboard keys ("A", "Space"), which
+  carry a `data["tile_type"]`.
+- **A CLONED tile's text is defaulted, not authored.** It carries whatever the
+  source board happened to store, so it gets the same casing rule as any other
+  defaulted tile — `BoardImage#cloned_display_label_from` folds it, and only
+  `authored_tile_text?` tiles keep their casing. Copying `display_label` verbatim (which both clone
+  paths used to do, one line after `set_labels` had folded it) makes every seed
+  board's casing permanent in every board built from it: that is what kept the
+  Board Builder emitting Title Case after the creation paths were fixed.
 - **A published board's slug is frozen.** `/pb/<slug>` is printed into QR codes
   and pasted into IEPs, with no redirect behind it. `Board#freeze_published_slug`
   silently reverts a slug change on a published board (reverts, never raises —

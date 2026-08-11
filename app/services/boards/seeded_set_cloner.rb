@@ -185,7 +185,11 @@ module Boards
         new_board_image.board_id = target.id
         new_board_image.image_id = image.id
         new_board_image.set_labels
-        new_board_image.display_label = board_image.display_label
+        # Fold, don't copy — a seed board's casing is defaulted text, and copying
+        # it verbatim is what propagated the seeds' Title Case into every built
+        # set. Doors ("Food") keep their capital.
+        intended_display_label = new_board_image.cloned_display_label_from(board_image)
+        new_board_image.display_label = intended_display_label
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
         new_board_image.audio_url = board_image.audio_url
@@ -193,9 +197,10 @@ module Boards
 
         # BoardImage#set_defaults (before_create) derives label from the image,
         # so an upgraded art image stored under different casing ("people") would
-        # rename the tile. Restore the AUTHORED tile text ("People") post-save.
-        if new_board_image.label != board_image.label || new_board_image.display_label != board_image.display_label
-          new_board_image.update_columns(label: board_image.label, display_label: board_image.display_label)
+        # rename the tile. Restore the intended tile text post-save — the folded
+        # display text, not the source's, or this would undo the fold above.
+        if new_board_image.label != board_image.label || new_board_image.display_label != intended_display_label
+          new_board_image.update_columns(label: board_image.label, display_label: intended_display_label)
         end
       end
     end
