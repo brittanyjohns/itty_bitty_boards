@@ -294,12 +294,38 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
       expect(board.reload.board_images.last.image_id).to eq(arted.id)
     end
 
-    it "keeps the caller's authored casing as the cell's display_label" do
+    # A `label:` is the WORD, not display text. Pinning it verbatim made this
+    # endpoint the last way to mint Title Cased tiles: a word list typed the
+    # natural way ("Yes / No / Say it again") built a board that read that way.
+    it "folds a plain leading capital out of the caller's label" do
       with_art(create(:image, label: "stop", user_id: admin_user.id))
 
       bulk_post([{ label: "Stop" }])
 
-      expect(board.reload.board_images.last.display_label).to eq("Stop")
+      expect(board.reload.board_images.last.display_label).to eq("stop")
+    end
+
+    it "folds a multi-word label the same way" do
+      bulk_post([{ label: "Say it again" }])
+
+      expect(board.reload.board_images.last.display_label).to eq("say it again")
+    end
+
+    it "keeps casing the caller could only have typed on purpose" do
+      with_art(create(:image, label: "ipad", user_id: admin_user.id))
+
+      bulk_post([{ label: "iPad" }])
+
+      expect(board.reload.board_images.last.display_label).to eq("iPad")
+    end
+
+    it "keeps a folder tile's capital" do
+      page = create(:board, user: admin_user, name: "Food")
+      with_art(create(:image, label: "food", user_id: admin_user.id))
+
+      bulk_post([{ label: "Food", predictive_board_id: page.id }])
+
+      expect(board.reload.board_images.last.display_label).to eq("Food")
     end
 
     it "does not override an explicit display_label with the authored casing" do
