@@ -31,6 +31,7 @@ class BoardPrintable < ApplicationRecord
   KIND_IMAGE = "image".freeze
 
   IMAGE_HERO = "hero".freeze
+  IMAGE_ON_A_DEVICE = "on_a_device".freeze
   IMAGE_WHATS_INCLUDED = "whats_included".freeze
   IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
   IMAGE_HOW_IT_WORKS = "how_it_works".freeze
@@ -46,6 +47,10 @@ class BoardPrintable < ApplicationRecord
   # the admin badge and forces a re-render before publishing.
   LISTING_IMAGE_ORDER = [
     IMAGE_HERO,
+    # Rank 2: the claim a buyer scrolling an Etsy gallery is least likely to
+    # believe from text alone is that this printable also opens on a screen and
+    # talks. It goes before the inventory slides.
+    IMAGE_ON_A_DEVICE,
     IMAGE_WHATS_INCLUDED,
     IMAGE_WHATS_INCLUDED_LOW_INK,
     IMAGE_HOW_IT_WORKS,

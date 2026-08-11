@@ -46,6 +46,21 @@ module Printables
 
     def audio_companion_sub = "Works on any phone, tablet or Chromebook. No app, no sign-in."
 
+    # The "on a device" slide. A buyer looking at a printable doesn't know the
+    # same board opens on the tablet already on their kitchen table; this is the
+    # one slide that shows it rather than saying it.
+    def on_a_device_badge = "THE SAME BOARD · ON ANY TABLET"
+
+    def on_a_device_headline = "Print it, or open it on a screen"
+
+    def on_a_device_bullets
+      [
+        "Scan the QR and the board opens online",
+        "Tap any word and it talks — free",
+        "Phone, tablet or Chromebook. No app.",
+      ]
+    end
+
     # Small, on every footer strip. A gallery image outlives the listing — it
     # gets pinned, screenshotted and reshared — so it should say where it came
     # from without an Etsy page around it.

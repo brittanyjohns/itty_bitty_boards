@@ -23,13 +23,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Board printables now get a real listing gallery.** The marketplace images
   used to be the printed cover and a text slide, shrunk onto a square mat —
   honest about what you're buying, but invisible next to purpose-built art in an
-  Etsy search grid. A printable now gets five square marketing slides: a hero
+  Etsy search grid. A printable now gets six square marketing slides: a hero
   showing the actual board pages in a room setting, under an instant-download
-  banner and a "free audio companion — every word speaks" badge; a
-  what's-included grid that names every board in a set; the same grid again in
-  low-ink, so the low-ink version is shown rather than claimed; a four-step
-  how-it-works with the "scan to try this board free" code in the footer; and an
-  about slide. Every one is generated automatically — there's still nothing to
+  banner and a "free audio companion — every word speaks" badge; the board
+  itself shown on a tablet held in someone's hands, so "it also opens on a
+  screen" is something a buyer can see rather than read; a what's-included grid
+  that names every board in a set; the same grid again in low-ink, so the
+  low-ink version is shown rather than claimed; a four-step how-it-works with
+  the "scan to try this board free" code in the footer; and an about slide. Every one is generated automatically — there's still nothing to
   make by hand. Printables made before this keep their old images until you hit
   **Regenerate** (the admin page flags them, publishing re-renders on its own,
   and `rake printables:refresh_listing_images` does them in bulk).

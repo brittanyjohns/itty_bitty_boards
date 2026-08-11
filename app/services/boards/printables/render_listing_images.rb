@@ -33,6 +33,7 @@ module Boards
       # => BoardPrintable::LISTING_IMAGE_ORDER
       def call
         printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO)
+        printable.attach_image!(bytes: render("on_a_device", assigns: on_a_device_assigns), variant: BoardPrintable::IMAGE_ON_A_DEVICE)
         printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: false)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
         printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: true)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
         printable.attach_image!(bytes: render("how_it_works", assigns: shared_assigns), variant: BoardPrintable::IMAGE_HOW_IT_WORKS)
@@ -144,6 +145,20 @@ module Boards
           tile_max_px: plan.tile_max_px,
           overflow_note: plan.overflow_note,
           items: included_items,
+        )
+      end
+
+      # Reuses the root board's header-hidden grid thumbnail — it is already
+      # rendered, and a page with no print header is what actually reads as a
+      # screen. This slide costs one Grover render, not two.
+      def on_a_device_assigns
+        scene = TabletScene.for(board)
+
+        shared_assigns.merge(
+          title: Boards::AssetRendering.board_title_for(board),
+          scene: scene,
+          scene_data_uri: scene.data_uri,
+          board_data_uri: grid_thumbnails(low_ink: false).dig(board.id)&.data_uri,
         )
       end
 

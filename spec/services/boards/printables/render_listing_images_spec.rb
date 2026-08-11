@@ -64,7 +64,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(Boards::Printables::RenderPageThumbnails).to have_received(:new)
       .with(hash_including(hide_colors: true, hide_header: true))
 
-    colour, low_ink = slide_html[1], slide_html[2]
+    colour, low_ink = slide_html[2], slide_html[3]
     expect(colour).to include("What&#39;s included")
     expect(low_ink).to include("Low-ink version included")
   end
@@ -162,7 +162,17 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
     described_class.new(printable: printable).call
 
-    expect(slide_html.second).to include("Core Words", "Feelings")
+    expect(slide_html[2]).to include("Core Words", "Feelings")
+  end
+
+  # The one claim a buyer is least likely to believe from text alone. It reuses
+  # the root board's header-hidden thumbnail rather than paying Grover again.
+  it "warps the root board onto a tablet without rendering it a second time" do
+    described_class.new(printable: printable).call
+
+    device = slide_html[1]
+    expect(device).to include("matrix3d(", "mockup-screen")
+    expect(device).to include("data:image/jpeg;base64,")
   end
 
   it "writes a fresh key on every render so a regenerate isn't hidden by the CDN" do

@@ -649,6 +649,81 @@
         color: #333;
       }
 
+      /* ── On a device ──────────────────────────────────────────────────── */
+      /* The stage lays out in the scene photo's own pixel space and is scaled
+         and offset to cover the slide as one unit, so the screen quad in
+         TabletScene stays in lockstep with where the photo actually is. */
+      .mockup-stage {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+        transform-origin: 0 0;
+      }
+
+      .mockup-photo {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      /* Warped onto the tablet's glass by the inline matrix3d. transform-origin
+         must be 0 0 — the homography maps the element's own top-left corner to
+         the quad's, and a centred origin silently offsets the whole solve. */
+      .mockup-screen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        background: var(--white);
+        overflow: hidden;
+      }
+
+      /* contain, so a board of any shape sits on the screen letterboxed rather
+         than stretched to fill it — a squashed board reads as a distorted
+         product, which is the opposite of what this slide is for. */
+      .mockup-screen img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: var(--white);
+      }
+
+      /* Faint diagonal glare, so the board reads as a lit display rather than
+         as a picture pasted onto the glass. */
+      .mockup-screen::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          115deg,
+          rgba(255, 255, 255, 0.20) 0%,
+          rgba(255, 255, 255, 0.06) 38%,
+          rgba(255, 255, 255, 0) 62%
+        );
+      }
+
+      /* These room photos are dim and warm; the scrim is what keeps the navy
+         title and the footer readable over them. Top and bottom only, so the
+         tablet in the middle stays untouched. */
+      .mockup-scrim {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: linear-gradient(
+          180deg,
+          rgba(251, 247, 241, 0.94) 0%,
+          rgba(251, 247, 241, 0.55) 22%,
+          rgba(251, 247, 241, 0) 40%,
+          rgba(251, 247, 241, 0) 68%,
+          rgba(251, 247, 241, 0.70) 88%,
+          rgba(251, 247, 241, 0.90) 100%
+        );
+      }
+
       /* ── About ────────────────────────────────────────────────────────── */
       /* Hugs its copy and floats in the middle of what's left, rather than
          stretching: a stretched band is a 700px-tall white card with three

@@ -125,6 +125,7 @@ search thumbnail:
 | Slide | Board-specific? | Ported from (`speakanyway-printables`) |
 |---|---|---|
 | `hero` | yes — real page thumbnails on a room background | `previews/hero-board.*` |
+| `on_a_device` | yes — the root board warped onto a photographed tablet | step 14 + `templates/compose-mockup.ts` |
 | `whats_included` | yes — capped thumbnail grid of the colour pages | `previews/whats-included.*` |
 | `whats_included_low_ink` | yes — the same grid rendered `hide_colors` | — |
 | `how_it_works` | no | `plugins/aac/.../about-saw.*` (steps half) |
@@ -132,9 +133,36 @@ search thumbnail:
 
 **Rails is authoritative for listings the Rails admin originates**; the pipeline
 is authoritative for the ones its own steps 11/13/14 originate. Same rule, and
-the same drift hazard, as `Etsy::CopyRules` above. The deliberate difference
-that remains: no mockup-scene compositing (that needs the calibrated scene
-library and a homography solve — still steps 13/14).
+the same drift hazard, as `Etsy::CopyRules` above.
+
+### The tablet mockup
+
+`on_a_device` is a narrow port of that repo's step 14. Rails does **not** have
+its scene library or its calibration tool, and doesn't need them: two of its
+nineteen scenes are `kind: "tablet"` board stagings, and those two photos plus
+their hand-clicked screen corners are vendored into
+`Boards::Printables::TabletScene`. The other seventeen stage products this app
+doesn't make (ID cards, device tags, stickers, tattoos) or warp a printed sheet
+onto furniture — that compositing is still that repo's job.
+
+Three things hold the warp together:
+
+- **The quads are copied, not re-measured.** They are the corners someone
+  clicked in that repo's `calibrate-mockup-scene.html`, in the scene JPG's own
+  pixel space. Re-deriving them by eye puts the board a few pixels off the glass.
+- **Everything inside `.mockup-stage` lays out in those same scene pixels**, and
+  the stage as a whole is scaled and offset to cover the slide. `object-fit:
+  cover` on the photo would move it without telling anything where the corners
+  went, which is why `TabletScene#cover_placement` computes the placement itself.
+- **The board is letterboxed into a rectangle of the quad's own proportions
+  before it is warped.** A homography maps *any* rectangle onto the quad, so
+  handing it a portrait board doesn't fail — it silently stretches the board on
+  the glass, which reads as a distorted product.
+
+`Boards::Printables::Homography` is a straight port of that repo's
+`homography.ts` (Gaussian elimination, then the 3x3 embedded column-major into a
+CSS `matrix3d`). Unlike the copy rules, this one is fixed maths — a divergence
+here is a bug, not a decision.
 
 Rules that hold across the slides:
 
@@ -181,9 +209,11 @@ Rules that hold across the slides:
   `MAX_TILES`) happens first so Grover is only paid for tiles that get shown,
   and the three passes are memoized: colour-with-header for the hero, colour and
   low-ink without a header for the two grids. Budget:
-  `min(boards, 3) + min(boards, 8) * 2 + 5` — up to 24 renders (~40s) for an
+  `min(boards, 3) + min(boards, 8) * 2 + 6` — up to 25 renders (~40s) for an
   eight-board set, which is why this is a Sidekiq job and never a request
-  thread. A fourth pass means a slide is re-rendering pixels it already had.
+  thread. A fourth pass means a slide is re-rendering pixels it already had —
+  `on_a_device` deliberately reuses the root board's header-hidden grid
+  thumbnail rather than rendering its own.
 - **No emoji, no decorative glyphs.** The render box's Chrome has no guaranteed
   colour-emoji font. Step icons are inline SVG and list bullets are CSS-drawn
   shapes; the source templates use emoji and would have shipped tofu boxes.
