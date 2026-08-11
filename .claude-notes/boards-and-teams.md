@@ -279,14 +279,30 @@ call is **not** gated in real production.)
 `POST /api/boards/import_obf` takes three mutually exclusive inputs, and
 **all three must keep working** — dropping one silently breaks a client:
 
-- `file` with a `.obz` extension → `ObzImporter`, synchronous, creates a
-  `BoardGroup`.
+- `file` with a `.obz` extension → `ImportObzJob`, creates a `BoardGroup`.
 - `file` with a `.obf` extension → parsed to a Hash and handed to
   `ImportFromObfJob`. Anything that isn't a JSON object is a 422 at the
   controller, never a job that fails in the background where the user can't
   see it.
 - `data` (a JSON body) → same job, no `BoardGroup` unless `board_group_id`
   is supplied.
+
+**Every branch creates its target row inside the request and answers `202`
+with an id to poll** — `board_group_id` for `.obz`, `board_id` for `.obf` and
+`data`. That is not cosmetic: a response with no id gives the client nothing
+to follow, so the frontend has to guess, and a failure in the job never
+reaches the user. It also turns a row that can't be created into a visible
+422 instead of a job that dies alone. The job then only fills the row in,
+writing the same statuses every other generation job uses and
+`BoardGenerationStatusPage` polls: `processing` → `complete` / `failed`.
+
+**A board row is never saved without a slug.** `boards.slug` defaults to `""`
+and `validates :slug, uniqueness: true` does not skip blanks, so the *second*
+slug-less board in the whole table fails validation. `ImportFromObfJob` used
+to save one, log the rejection at `debug` (production runs at `info`), and
+return — every `.obf` import after the first silently created nothing, with
+no board, no error, and no log line. Call `generate_unique_slug` before
+`save` on any new board; `find_or_init_board_for_import` already does.
 
 The app's own `download_obf` produces a bare `.obf`, so the `.obf` file
 branch is what makes export→import round-trip. It was missing until

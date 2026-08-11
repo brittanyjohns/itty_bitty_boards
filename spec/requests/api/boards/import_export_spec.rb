@@ -60,26 +60,57 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       # example would otherwise drain into this one's assertions.
       before { ImportFromObfJob.jobs.clear }
 
-      it "accepts the file and queues the import" do
+      # The board row is created inside the request so the response can hand
+      # back an id — without one the client has nothing to poll and a failure
+      # in the job never reaches the user.
+      it "accepts the file, creates the board to poll, and queues the import" do
         expect {
           post "/api/boards/import_obf",
                params: { file: obf_upload },
                headers: auth_headers(user)
         }.to change { ImportFromObfJob.jobs.size }.by(1)
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:accepted)
         body = JSON.parse(response.body)
         expect(body["status"]).to eq("ok")
+        expect(body["board_id"]).to be_present
+        expect(body["import_status"]).to eq("queued")
         expect(body["include_images"]).to eq(false)
+
+        board = user.boards.find(body["board_id"])
+        expect(board.slug).to be_present
       end
 
-      it "creates the board once the queued job runs" do
+      it "fills in that board once the queued job runs" do
         post "/api/boards/import_obf",
              params: { file: obf_upload },
              headers: auth_headers(user)
+        board_id = JSON.parse(response.body)["board_id"]
 
-        expect { ImportFromObfJob.drain }.to change { user.boards.count }.by(1)
-        expect(user.boards.last.status).to eq("active")
+        expect { ImportFromObfJob.drain }.not_to change { user.boards.count }
+
+        board = user.boards.find(board_id)
+        expect(board.status).to eq("complete")
+        expect(board.board_images.count).to be > 0
+      end
+
+      # `boards.slug` defaults to "" and `validates :slug, uniqueness: true`
+      # does not skip blanks, so ONE existing slug-less board was enough to
+      # fail every later import's `board.save` — silently, because the job
+      # logged that at :debug and production runs at :info. Every board we
+      # create must generate a slug before saving.
+      it "still creates the board when a slug-less board already exists" do
+        create(:board, user: create(:user), slug: "")
+
+        expect {
+          post "/api/boards/import_obf",
+               params: { file: obf_upload },
+               headers: auth_headers(user)
+        }.to change { user.boards.count }.by(1)
+
+        expect(response).to have_http_status(:accepted)
+        ImportFromObfJob.drain
+        expect(user.boards.last.status).to eq("complete")
       end
 
       it "passes the image opt-in through to the job" do
@@ -91,9 +122,9 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
              },
              headers: auth_headers(user)
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:accepted)
         expect(JSON.parse(response.body)["include_images"]).to eq(true)
-        options = ImportFromObfJob.jobs.last["args"].last
+        options = ImportFromObfJob.jobs.last["args"][3]
         expect(options).to include("include_images" => true, "license_acknowledged" => true)
       end
 

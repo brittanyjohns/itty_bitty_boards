@@ -752,6 +752,11 @@ class API::BoardsController < API::ApplicationController
 
   def analyze_obz
     uploaded_file = params[:file]
+    if uploaded_file.blank?
+      render json: { error: "No file or data provided" }, status: :unprocessable_content
+      return
+    end
+
     report = ObzAnalyzer.analyze(uploaded_file.read)
     render json: report
   end
@@ -800,13 +805,22 @@ class API::BoardsController < API::ApplicationController
           return
         end
 
+        board = build_obf_placeholder_board(json_data)
+        unless board
+          render json: { error: "OBF import failed: could not create the board" },
+                 status: :unprocessable_content
+          return
+        end
+
         # Sidekiq serializes args to JSON — pass string-keyed hash.
-        ImportFromObfJob.perform_async(json_data, current_user.id, nil, import_options.stringify_keys)
+        ImportFromObfJob.perform_async(json_data, current_user.id, nil, import_options.stringify_keys, board.id)
         render json: {
           status: "ok",
           message: "Importing OBF file #{file_name}",
+          board_id: board.id,
+          import_status: board.status,
           include_images: import_options[:include_images],
-        }
+        }, status: :accepted
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_content
       end
@@ -822,16 +836,49 @@ class API::BoardsController < API::ApplicationController
       end
       board_name = json_data["name"] || "Imported Board"
 
+      board = build_obf_placeholder_board(json_data)
+      unless board
+        render json: { error: "OBF import failed: could not create the board" },
+               status: :unprocessable_content
+        return
+      end
+
       # Sidekiq serializes args to JSON — pass string-keyed hash.
-      ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id, import_options.stringify_keys)
+      ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id, import_options.stringify_keys, board.id)
       render json: {
         status: "ok",
         message: "Importing OBF data for board #{board_name}",
+        board_id: board.id,
+        import_status: board.status,
         include_images: import_options[:include_images],
-      }
+      }, status: :accepted
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_content
     end
+  end
+
+  # The .obz branch creates its BoardGroup inside the request, so a failure is
+  # a visible 422 and the response carries an id the client can poll while the
+  # job runs. The .obf branch does the same with the Board itself — without an
+  # id there is nothing for the frontend to follow, and a failure in the job is
+  # invisible to the user.
+  #
+  # `generate_unique_slug` is load-bearing: `boards.slug` defaults to "" and
+  # `validates :slug, uniqueness: true` does not skip blanks, so a board saved
+  # without one collides with the first slug-less row in the table.
+  def build_obf_placeholder_board(json_data)
+    board = Board.new(
+      name: json_data["name"].presence || "Imported Board",
+      user: current_user,
+      status: "queued",
+    )
+    board.assign_parent
+    board.generate_unique_slug
+    board.save!
+    board
+  rescue => e
+    Rails.logger.error "[import_obf] could not create the board to import into: #{e.message}"
+    nil
   end
 
   # A bare .obf upload is a single JSON board document (an .obz is a zip of
