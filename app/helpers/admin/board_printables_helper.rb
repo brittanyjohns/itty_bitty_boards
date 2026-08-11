@@ -17,6 +17,21 @@ module Admin
       "#{base_url}/pb/#{Boards::Printables::CollectPages.qr_key_for(board)}"
     end
 
+    # Built from the numeric listing id rather than the stored
+    # `etsy_listing_url`, even though we have the URL Etsy handed back.
+    #
+    # `etsy_listing_url` is a string column, so a link_to href reading it is an
+    # XSS sink as far as any analysis can tell — the fact that only Etsy's API
+    # response ever writes it isn't visible at the call site, and wouldn't stay
+    # true if something else started writing the column. The id is a bigint, so
+    # there is nothing to inject, and Etsy resolves this canonical form to the
+    # same listing as the slug URL.
+    def etsy_listing_url_for(printable)
+      return nil if printable.etsy_listing_id.blank?
+
+      "https://www.etsy.com/listing/#{printable.etsy_listing_id.to_i}"
+    end
+
     # The list is capped at PUBLIC_BOARD_LIMIT, so which boards you see depends
     # on the sort — the summary line says which one picked them.
     def board_sort_label(sort)

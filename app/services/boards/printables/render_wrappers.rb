@@ -53,12 +53,10 @@ module Boards
         )
       end
 
-      private
-
-      attr_reader :board, :board_count, :topic
-
-      def set? = board_count > 1
-
+      # Public because RenderListingImages renders the SAME cover as a PNG for
+      # the marketplace gallery. Sharing the assigns rather than rebuilding them
+      # is what keeps the listing's first image identical to the product's first
+      # page — including the QR target, which is easy to get subtly wrong.
       def cover_assigns
         {
           title: Boards::AssetRendering.board_title_for(board),
@@ -68,6 +66,12 @@ module Boards
           public_url: public_url,
         }
       end
+
+      private
+
+      attr_reader :board, :board_count, :topic
+
+      def set? = board_count > 1
 
       # `low_ink` is only ever true for a set, where this page is bound into the
       # low-ink file alone and must describe that file rather than the pair.

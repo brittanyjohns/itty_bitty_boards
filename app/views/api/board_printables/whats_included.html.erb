@@ -1,0 +1,43 @@
+<%# The "what's included" gallery image — the slide a buyer uses to judge how
+    much they're getting before reading a word of the description.
+
+    Deliberately built from the same .sheet / .page-head / .step primitives as
+    the printed wrapper pages so the listing gallery and the product itself
+    look like one thing. It is never bound into a PDF; it exists only as a PNG,
+    rendered through layouts/pdf_printable with .as-listing-image on <body>.
+
+    It names the boards rather than quoting a page count: for a set, "People,
+    Feelings, Food, Play…" is most of the reason to buy, and a page number tells
+    a buyer nothing. %>
+<div class="sheet whats-included">
+  <div class="sheet-body">
+    <div class="page-head">
+      <p class="eyebrow">What's included</p>
+      <h2><%= @heading %></h2>
+      <div class="rule"></div>
+      <% if @subtitle.present? %>
+        <p class="intro"><%= @subtitle %></p>
+      <% end %>
+    </div>
+
+    <div class="steps">
+      <% @items.each do |item| %>
+        <%# An SVG tick, not U+2713 — Nunito has no glyph for it and the render
+            box's fallback fonts are not guaranteed to either, so the character
+            is a tofu-box risk. Same reasoning as the heart on the About page. %>
+        <div class="step wide">
+          <span class="num">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.2 12.3 2.4 8.5l1.4-1.4 2.4 2.4 6-6L13.6 5z"/></svg>
+          </span>
+          <div><p class="lead"><%= item %></p></div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @board_labels.present? %>
+      <div class="callout">
+        <p><strong>Boards in this set:</strong> <%= @board_labels.to_sentence %></p>
+      </div>
+    <% end %>
+  </div>
+</div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_10_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_10_140100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -236,9 +236,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_120000) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "listing_copy", default: {}, null: false
+    t.bigint "etsy_listing_id"
+    t.string "etsy_listing_url"
+    t.datetime "etsy_published_at"
+    t.text "etsy_error"
     t.index ["board_id", "status"], name: "index_board_printables_on_board_id_and_status"
     t.index ["board_id"], name: "index_board_printables_on_board_id"
     t.index ["created_by_id"], name: "index_board_printables_on_created_by_id"
+    t.index ["etsy_listing_id"], name: "index_board_printables_on_etsy_listing_id"
   end
 
   create_table "board_screenshot_cells", force: :cascade do |t|
@@ -621,6 +627,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_120000) do
     t.index ["sender_deleted_at"], name: "index_messages_on_sender_deleted_at"
     t.index ["sender_id"], name: "index_messages_on_sender_id"
     t.index ["sent_at"], name: "index_messages_on_sent_at"
+  end
+
+  create_table "oauth_credentials", force: :cascade do |t|
+    t.string "provider", null: false
+    t.text "refresh_token"
+    t.text "access_token"
+    t.datetime "access_token_expires_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider"], name: "index_oauth_credentials_on_provider", unique: true
   end
 
   create_table "open_symbols", force: :cascade do |t|

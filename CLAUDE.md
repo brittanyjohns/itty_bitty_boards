@@ -303,6 +303,14 @@ an explicit decision, not a drive-by edit.
   email or track real users. Transactional mail is covered by the same rule at
   the delivery layer: `StagingMailInterceptor` drops every message on staging
   unless the recipient is in `STAGING_MAIL_ALLOWLIST`.
+- **Rails creates marketplace DRAFTS and never activates one.**
+  `Etsy::Client#create_listing` hardcodes `state: "draft"` and the client
+  implements no activate call — the absence is the guarantee. Publishing a
+  board printable to Etsy means creating a draft; going live stays a deliberate
+  click in the Etsy seller UI. Relatedly, Etsy's refresh token is single-use and
+  rotates on every exchange, so it lives in `oauth_credentials` (not ENV) and
+  Rails holds a **separate authorization** from the one `speakanyway-printables`
+  uses — a shared grant makes the two invalidate each other.
 - **Email verification is keyed on `email_verified_at`, never `confirmed_at`.**
   `User#mark_email_verified!` is the only writer. Verified status may be
   conferred ONLY by a path where the user clicked a link delivered to their
@@ -329,6 +337,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/marketing-assets.md` | AAC Classroom Kit hosting: `MarketingAsset`, internal endpoints, marketing print style, QR scannability rule (do not re-add long UTMs to tag QRs) |
 | `.claude-notes/internal-api.md` | Internal `/api/internal/` surface: bearer auth + admin identity, public-CDN download path (`src` vs `original_url`), image + board search endpoints, `Images::CommercialLicense` licensing rule |
 | `.claude-notes/image-generation.md` | AI tile art: `Images::PromptBuilder` (the single prompt source of truth, always-wrap rule), symbol vs illustrated style resolution, part-of-speech homograph disambiguation, transparency/quality API params + model fallback, refusal retry, variations via the edit endpoint, prompt provenance on docs |
+| `.claude-notes/board-printables-etsy.md` | Publishing a board printable to a marketplace: the drafts-only rule, Etsy's rotating refresh token + why Rails holds a separate grant, the ported Etsy v3 API quirks, listing-copy rules (and their Ruby↔TypeScript drift), Grover-rendered gallery images, the TPT paste sheet |
 | `.claude-notes/writing-suggestions.md` | Contextual writing suggestions (`POST /api/suggestions`): field registry + context allow-list, the no-safety-keys privacy invariant, OpenAI generator + fixtures, free/no-credit contract, user opt-out toggle |
 
 Related tracked docs: `docs/rds-migration-runbook.md`, `docs/stripe-setup.md`,

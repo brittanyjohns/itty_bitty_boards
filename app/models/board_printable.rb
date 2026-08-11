@@ -22,6 +22,19 @@ class BoardPrintable < ApplicationRecord
   VARIANT_COLOR = "color".freeze
   VARIANT_LOW_INK = "low_ink".freeze
 
+  # `files` holds two kinds of blob: the printable PDFs a buyer downloads, and
+  # the PNG gallery images a marketplace listing needs. They are separated by
+  # blob metadata rather than a second attachment because the PNGs arrived long
+  # after the PDFs and re-homing the existing ones would have churned every
+  # stored key. Blobs written before this existed carry no "kind", and are PDFs.
+  KIND_PDF = "pdf".freeze
+  KIND_IMAGE = "image".freeze
+
+  IMAGE_COVER = "cover".freeze
+  IMAGE_WHATS_INCLUDED = "whats_included".freeze
+  # Etsy shows gallery photos in listing order; the cover earns rank 1.
+  LISTING_IMAGE_ORDER = [IMAGE_COVER, IMAGE_WHATS_INCLUDED].freeze
+
   belongs_to :board
   belongs_to :created_by, class_name: "User", optional: true
 
@@ -44,33 +57,64 @@ class BoardPrintable < ApplicationRecord
   def storage_key_for(filename) = "board_printables/#{id}/#{filename}"
 
   def attach_pdf!(filename:, bytes:, variant:)
-    key = storage_key_for(filename)
-    # Purge anything already at the deterministic key first, same reason as
-    # MarketingAsset#attach_pdf! — create_and_upload! would otherwise collide.
-    files.find { |f| f.key == key }&.purge
-
-    blob = ActiveStorage::Blob.create_and_upload!(
-      io: StringIO.new(bytes),
+    attach_blob!(
       filename: filename,
+      bytes: bytes,
       content_type: "application/pdf",
-      key: key,
-      metadata: { "variant" => variant },
+      metadata: { "variant" => variant, "kind" => KIND_PDF },
     )
-    files.attach(blob)
-    blob
   end
 
+  # Unlike the PDFs, a listing image is written to a VERSIONED key: CloudFront
+  # ignores query strings, so re-uploading to the same key leaves the admin
+  # looking at the previous render and wondering why "Regenerate" did nothing.
+  # Same lesson as Boards::GeneratePreviewAssets. Any earlier render of this
+  # variant is purged first so the versioned keys can't pile up.
+  def attach_image!(bytes:, variant:)
+    image_files.select { |f| f.metadata["variant"] == variant }.each(&:purge)
+    reload_files_association
+
+    filename = "#{variant.dasherize}-#{SecureRandom.hex(4)}.png"
+    attach_blob!(
+      filename: filename,
+      bytes: bytes,
+      content_type: "image/png",
+      metadata: { "variant" => variant, "kind" => KIND_IMAGE },
+    )
+  end
+
+  # The downloadable product. Deliberately PDFs only — the admin download
+  # buttons and the /api/board_printables/:id/download_url contract both read
+  # this, and neither should start handing out marketing images.
   def files_view
+    view_for(pdf_files)
+  end
+
+  # The marketplace gallery images, in the order Etsy should rank them.
+  def listing_images_view
+    view_for(image_files).sort_by { |f| LISTING_IMAGE_ORDER.index(f[:variant]) || LISTING_IMAGE_ORDER.size }
+  end
+
+  def pdf_files
     return [] unless files.attached?
 
-    files.map do |file|
-      {
-        variant: file.metadata["variant"].presence || VARIANT_FULL,
-        filename: file.filename.to_s,
-        url: url_for_file(file),
-        byte_size: file.byte_size,
-      }
-    end
+    files.select { |f| f.metadata["kind"].presence != KIND_IMAGE }
+  end
+
+  def image_files
+    return [] unless files.attached?
+
+    files.select { |f| f.metadata["kind"] == KIND_IMAGE }
+  end
+
+  def listing_images? = image_files.any?
+
+  def etsy_published? = etsy_listing_id.present?
+
+  # The copy an admin has saved, or the generated default when nothing has been
+  # saved yet — so the show page can preview a listing before anyone edits it.
+  def listing_copy_or_default
+    listing_copy.presence || Etsy::ListingCopy.new(self).build
   end
 
   def api_view
@@ -86,6 +130,41 @@ class BoardPrintable < ApplicationRecord
   end
 
   private
+
+  # `files` is memoized once loaded, so a purge inside a multi-step render is
+  # invisible to the next `files.find` without this.
+  def reload_files_association
+    files.reset
+    files_attachments.reset
+  end
+
+  def attach_blob!(filename:, bytes:, content_type:, metadata:)
+    key = storage_key_for(filename)
+    # Purge anything already at the deterministic key first, same reason as
+    # MarketingAsset#attach_pdf! — create_and_upload! would otherwise collide.
+    files.find { |f| f.key == key }&.purge
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new(bytes),
+      filename: filename,
+      content_type: content_type,
+      key: key,
+      metadata: metadata,
+    )
+    files.attach(blob)
+    blob
+  end
+
+  def view_for(collection)
+    collection.map do |file|
+      {
+        variant: file.metadata["variant"].presence || VARIANT_FULL,
+        filename: file.filename.to_s,
+        url: url_for_file(file),
+        byte_size: file.byte_size,
+      }
+    end
+  end
 
   # Production S3 is `public: true`, so the URL is CDN_HOST + key rather than
   # a presigned one — same convention as Board#pdf_url and

@@ -1,0 +1,75 @@
+<%# Editable listing copy. Prefilled from Etsy::ListingCopy when nothing has
+    been saved yet, so the page always shows a publishable draft rather than
+    empty boxes — but nothing is written to the database until Save. %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Listing copy</h2>
+    <% if @printable.listing_copy.blank? %>
+      <span class="text-[11px] text-t3">Generated defaults — not saved yet</span>
+    <% end %>
+  </div>
+  <p class="text-[11px] text-t3 mb-4">Used for Etsy and for the copy-and-paste blocks below. Edit freely, then Save.</p>
+
+  <%= form_tag update_listing_admin_dashboard_board_printable_path(@printable), method: :patch, data: { turbo: false } do %>
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-t2 mb-1" for="listing_title">
+        Title
+        <span class="text-t3 font-normal">— Etsy caps this at <%= Etsy::CopyRules::TITLE_MAX %></span>
+      </label>
+      <%= text_field_tag :title, @listing["title"], id: "listing_title",
+            class: "admin-input w-full", maxlength: Etsy::CopyRules::TITLE_MAX,
+            data: { counter_target: "listing_title_count" } %>
+      <p class="text-[11px] text-t3 mt-1">
+        <span id="listing_title_count"><%= @listing["title"].to_s.length %></span>/<%= Etsy::CopyRules::TITLE_MAX %>
+      </p>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-t2 mb-1" for="listing_summary">Summary</label>
+      <%= text_field_tag :summary, @listing["summary"], id: "listing_summary", class: "admin-input w-full" %>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-t2 mb-1" for="listing_description">
+        Description
+        <span class="text-t3 font-normal">— plain text; Etsy renders no formatting</span>
+      </label>
+      <%= text_area_tag :description, @listing["description"], id: "listing_description",
+            rows: 14, class: "admin-input w-full font-mono text-[11px]" %>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-t2 mb-1" for="listing_tags">
+          Tags
+          <span class="text-t3 font-normal">— comma separated, max <%= Etsy::CopyRules::TAG_MAX %> of <%= Etsy::CopyRules::TAG_LEN_MAX %> chars</span>
+        </label>
+        <%= text_field_tag :tags, Array(@listing["tags"]).join(", "), id: "listing_tags", class: "admin-input w-full" %>
+        <p class="text-[11px] text-t3 mt-1">
+          Anything Etsy would silently drop is removed on save, so what you see here is what Etsy gets.
+        </p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="listing_price">Price (USD)</label>
+        <%= text_field_tag :price,
+              format("%.2f", (@listing["price_cents"].presence || Etsy::ListingCopy::DEFAULT_PRICE_CENTS).to_i / 100.0),
+              id: "listing_price", class: "admin-input w-full" %>
+      </div>
+    </div>
+
+    <%= submit_tag "Save listing copy",
+          class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer" %>
+  <% end %>
+</div>
+
+<% content_for :head_extra do %>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var title = document.getElementById("listing_title");
+      var count = document.getElementById("listing_title_count");
+      if (title && count) {
+        title.addEventListener("input", function () { count.textContent = title.value.length; });
+      }
+    });
+  </script>
+<% end %>

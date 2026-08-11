@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Board printables can be listed for sale from the admin dashboard.** A
+  finished printable's page now carries the whole last mile: a link to the board
+  it was built from (and every sub-board in the tree), editable listing copy
+  generated from the board's own name and topic, marketplace gallery images
+  rendered from the same templates as the printed pages, a **Create Etsy draft**
+  button that talks to the Etsy API directly, and copy-to-clipboard blocks for
+  Teachers Pay Teachers — which has no seller API — laid out field by field in
+  the order their upload form asks for them. Nothing here can put a listing
+  live: Etsy listings are created as drafts and published by hand, after a human
+  has looked at the category, the photos, and the return policy.
+
 ### Changed
 
 - **Admin board builder: folder tiles now open their page without speaking.**

@@ -1,0 +1,47 @@
+<%# Paste-ready copy for the marketplaces with no seller API. Teachers Pay
+    Teachers is the whole reason this exists — the only way to list there is to
+    type into their upload form, so the fields are laid out in the order the
+    form asks for them. %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Teachers Pay Teachers</h2>
+  <p class="text-[11px] text-t3 mb-4">
+    TPT has no seller API. Copy each field into their upload form. The subject, grade, and
+    resource-type values are sensible defaults from TPT's fixed lists — change them if the
+    board's vocabulary suits a different range.
+  </p>
+  <%= render "copy_fields", fields: @marketplace_copy.tpt_fields, prefix: "tpt" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Generic</h2>
+  <p class="text-[11px] text-t3 mb-4">Plain title, description, and tags for anywhere else.</p>
+  <%= render "copy_fields", fields: @marketplace_copy.generic_fields, prefix: "generic" %>
+</div>
+
+<% content_for :head_extra do %>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll("[data-copy-target]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var source = document.getElementById(button.dataset.copyTarget);
+          if (!source) return;
+          // execCommand is the fallback: navigator.clipboard is undefined on
+          // plain-http origins, which is how the admin runs locally.
+          var done = function () {
+            var original = button.textContent;
+            button.textContent = "Copied";
+            setTimeout(function () { button.textContent = original; }, 1200);
+          };
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(source.value).then(done);
+          } else {
+            source.select();
+            document.execCommand("copy");
+            window.getSelection().removeAllRanges();
+            done();
+          }
+        });
+      });
+    });
+  </script>
+<% end %>
