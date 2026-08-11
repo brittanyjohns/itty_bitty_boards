@@ -10,15 +10,6 @@
 module Boards
   module Printables
     class RenderWrappers
-      # Navy at 400px, on WHITE — the pipeline fills its QR with cream to melt
-      # into a cream page, but ours sits inside a white card in both the colour
-      # and ink-light variants, where a cream fill prints as a visible square
-      # inside the card. White also maximises scan contrast, which is the whole
-      # job of this image.
-      QR_DARK = "#13496f".freeze
-      QR_LIGHT = "#FFFFFF".freeze
-      QR_SIZE = 400
-
       def initialize(board:, board_count:, topic: nil)
         @board = board
         @board_count = board_count
@@ -100,7 +91,7 @@ module Boards
       end
 
       def board_url
-        @board_url ||= "#{CollectPages::QR_BASE_URL}/#{CollectPages.qr_key_for(board)}"
+        @board_url ||= Qr.target_url_for(board)
       end
 
       def subtitle
@@ -114,17 +105,7 @@ module Boards
       # represents the whole bundle. Every interior board page targets its own
       # board (see CollectPages).
       def qr_data_url
-        @qr_data_url ||= begin
-          png = RQRCode::QRCode.new(board_url).as_png(
-            bit_depth: 8,
-            border_modules: 0,
-            color_mode: ChunkyPNG::COLOR_TRUECOLOR,
-            color: QR_DARK,
-            fill: QR_LIGHT,
-            size: QR_SIZE,
-          )
-          "data:image/png;base64,#{Base64.strict_encode64(png.to_s)}"
-        end
+        @qr_data_url ||= Qr.data_url_for(board_url)
       end
 
       def render(template, assigns:)
