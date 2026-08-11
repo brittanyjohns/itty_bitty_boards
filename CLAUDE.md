@@ -241,6 +241,17 @@ an explicit decision, not a drive-by edit.
   "I" are preserved. Judged **per word**, so one styled word can't exempt a
   whole label. Treating any capital as deliberate is what made the lowercase
   default a no-op on exactly the input it exists to fix.
+- **An ENGLISH `language_settings` entry is not a translation.** `set_labels`
+  reads `images.language_settings[lang]["display_label"]` BEFORE the column and
+  takes a real (non-English) translation verbatim as authored text. The "en"
+  entry is not authored — `Image#translate_to` writes it for whatever language
+  it was asked for — so it is case-normalized like any other default. Taking it
+  verbatim let Title Case ("You", "All Done") skip `Labels::CaseNormalizer`
+  entirely, and because backfills fold the `display_label` COLUMN, the capital
+  survived every fold and was re-inherited by each new board built from that
+  image. Anything that folds casing has to reach the jsonb too
+  (`lib/tasks/tile_label_casing.rake`), and a clean column is no evidence the
+  jsonb is clean.
 - **A category tile's label is authored, not defaulted.** Folder tiles keep
   their capital ("Food", "Play") — an AAC board leans on it to separate a page
   you open from a word you speak. The OBF importer pins the authored button

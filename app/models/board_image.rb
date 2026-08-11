@@ -181,9 +181,25 @@ class BoardImage < ApplicationRecord
     # matching key, so defaulting from it would flatten the image's authored
     # display text ("Food" -> "food", "iPad" -> "ipad"). Use the translated
     # label when this tile has one, otherwise the image's own display text.
-    translated = image_language_settings["display_label"]
+    # An ENGLISH entry is not a translation. `Image#translate_to` writes
+    # `{ label:, display_label: }` for whatever language it was asked for, so an
+    # "en" entry is the translator's own output for the language the label was
+    # already in — defaulted text wearing a translation's clothes. Taking it
+    # verbatim let a Title Cased jsonb value ("You", "All Done") skip
+    # Labels::CaseNormalizer entirely, and because the backfill in
+    # `lib/tasks/tile_label_casing.rake` folds the display_label COLUMN, the
+    # capital survived every fold and was re-inherited by each new board built
+    # from that image. Normalize it like any other default; a genuine
+    # non-English translation stays verbatim.
+    translated = image_language_settings["display_label"].presence
     default_source = image_language_settings["label"].presence || image.display_label
-    self.display_label = translated.presence || normalized_default_label(default_source, lang)
+
+    self.display_label =
+      if translated && !Labels::CaseNormalizer.english?(lang)
+        translated
+      else
+        normalized_default_label(translated || default_source, lang)
+      end
   end
 
   # Tile text defaulted from the Image gets consistent casing so tiles created

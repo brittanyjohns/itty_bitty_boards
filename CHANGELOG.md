@@ -43,6 +43,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **New boards kept coming out Title Cased, even after the casing backfill had
+  been run.** Tiles are meant to default to lowercase ("happy", "all done"), but
+  a freshly built board still rendered "Happy" and "All Done" — and re-running
+  the fold reported nothing left to fix. The stuck capitals were not in the
+  label columns the backfill reads; they were in the per-language copy of the
+  tile text stored alongside each symbol, which a tile reads first and used to
+  copy verbatim. So the fold cleaned the columns, the next board re-inherited
+  the capitals from the untouched copy, and the loop repeated. English entries
+  are now case-normalized like any other defaulted text, and the backfill folds
+  them too. Genuine translations are untouched — a Spanish board still renders
+  exactly what was translated for it.
+
 - **Marketplace gallery images were rendering at a quarter of their intended
   resolution.** The listing images for a board printable were meant to come out
   at 2040px square, comfortably over Etsy's 2000px recommendation, but the

@@ -21,6 +21,9 @@ namespace :labels do
   #   bin/rails labels:fold_casing APPLY=1 BOARD_ID=5827
   #   bin/rails labels:fold_casing APPLY=1             # everything
   #
+  # Images are folded in two places: the `display_label` column AND the English
+  # entries of the `language_settings` jsonb, which feed tile text verbatim.
+  #
   # Env: BOARD_ID, USER_ID (scope) · INCLUDE_LINKED=1 · IMAGES=0 (tiles only)
   #      LIMIT (cap rows touched) · SAMPLE (rows to print, default 25)
   #      ONLY=down (just fold stuck capitals) | up | both (default)
@@ -69,10 +72,48 @@ namespace :labels do
     rel
   end
 
+  # `images.language_settings` holds a per-language copy of the tile text. Only
+  # the ENGLISH entries are folded: `BoardImage#set_labels` takes a genuine
+  # non-English translation verbatim, so folding "tú" here would rewrite what a
+  # Spanish board renders. An English entry is not a translation at all — it is
+  # `Image#translate_to` output for the language the label was already in, which
+  # set_labels used to hand to the tile verbatim. That is how a stuck capital
+  # ("You", "All Done") outlived every fold of the display_label COLUMN and got
+  # re-inherited by each new board.
+  fold_translations = lambda do |img, changes, apply:|
+    settings = img.language_settings
+    return unless settings.is_a?(Hash) && settings.any?
+
+    updated = settings.deep_dup
+    rewritten = false
+
+    settings.each do |lang, entry|
+      next unless entry.is_a?(Hash)
+      next unless Labels::CaseNormalizer.english?(lang)
+
+      old = entry["display_label"].to_s
+      next if old.empty?
+
+      new = Labels::CaseNormalizer.normalize(old, language: lang, part_of_speech: img.part_of_speech)
+      next unless recase_only.call(old, new)
+
+      dir = direction.call(old, new)
+      next unless keep_direction.call(dir)
+
+      changes[:translations] << [img, old, new, dir]
+      updated[lang] = entry.merge("display_label" => new)
+      rewritten = true
+    end
+
+    # One write per image however many entries moved, and update_columns for the
+    # same reason the columns use it: no set_label, no audio re-render, no touch.
+    img.update_columns(language_settings: updated) if rewritten && apply
+  end
+
   # Yields [record, old_text, new_text] for every row the fold would rewrite.
   collect = lambda do |apply:|
     limit = ENV["LIMIT"].presence&.to_i
-    changes = { tiles: [], images: [] }
+    changes = { tiles: [], images: [], translations: [] }
 
     scope_tiles.call.includes(:image).find_each do |bi|
       break if limit && changes[:tiles].size >= limit
@@ -96,15 +137,19 @@ namespace :labels do
 
         old = img.display_label.to_s
         new = Labels::CaseNormalizer.normalize(old, part_of_speech: img.part_of_speech)
-        next unless recase_only.call(old, new)
+        dir = recase_only.call(old, new) ? direction.call(old, new) : nil
 
-        dir = direction.call(old, new)
-        next unless keep_direction.call(dir)
+        if dir && keep_direction.call(dir)
+          changes[:images] << [img, old, new, dir]
+          # update_columns, not update!: this must not fire set_label, the audio
+          # re-render hooks, or touch updated_at across the library.
+          img.update_columns(display_label: new) if apply
+        end
 
-        changes[:images] << [img, old, new, dir]
-        # update_columns, not update!: this must not fire set_label, the audio
-        # re-render hooks, or touch updated_at across the library.
-        img.update_columns(display_label: new) if apply
+        # Unconditional: the column and the jsonb drift apart independently, and
+        # a clean column is exactly the case where the jsonb is the thing still
+        # feeding capitals into new boards.
+        fold_translations.call(img, changes, apply: apply)
       end
     end
 
@@ -115,7 +160,7 @@ namespace :labels do
     sample = (ENV["SAMPLE"].presence || 25).to_i
     verb = applied ? "rewrote" : "would rewrite"
 
-    %i[tiles images].each do |kind|
+    %i[tiles images translations].each do |kind|
       rows = changes[kind]
       down, up = rows.partition { |row| row[3] == :down }
       puts "\n#{kind.to_s.capitalize}: #{verb} #{rows.size} " \
@@ -128,6 +173,7 @@ namespace :labels do
         puts "  #{heading}:"
         group.first(sample).each do |record, old, new, _dir|
           where = kind == :tiles ? "board #{record.board_id}" : "image #{record.id}"
+          where += " (en)" if kind == :translations
           puts format("    %-20s %-18s -> %s", where, old.inspect, new.inspect)
         end
         puts "    … #{group.size - sample} more" if group.size > sample
@@ -158,7 +204,7 @@ namespace :labels do
     report.call(changes, applied: apply)
 
     if apply
-      total = changes[:tiles].size + changes[:images].size
+      total = changes.values.sum(&:size)
       puts "\nDone. #{total} row(s) updated."
     end
   end
