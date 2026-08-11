@@ -21,6 +21,14 @@ This mirrors the policy already enforced in `speakanyway-printables`
 activate a listing, that is a decision to make explicitly, not a parameter to
 add.
 
+It also decides where the admin's "Edit draft on Etsy" link points.
+`Admin::BoardPrintablesHelper#etsy_listing_url_for` builds the **seller's**
+listing editor (`/your/shops/me/listing-editor/edit/:id#media`), not
+`etsy.com/listing/:id` — a draft has no public page, so the public URL Etsy's
+API hands back (and which is still stored on `etsy_listing_url`) is a dead end
+until someone activates the listing, which is the click the link exists to lead
+up to. `#media` opens on the photos section, which is what an admin checks first.
+
 ## The token-rotation hazard (read before touching auth)
 
 Etsy's OAuth refresh token is **single-use and rotates on every exchange** — the

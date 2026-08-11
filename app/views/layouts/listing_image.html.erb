@@ -635,25 +635,27 @@
         box-shadow: var(--shadow-card);
       }
 
-      /* Fixed square so the row can't reflow if the photo is swapped for one
-         with a different aspect.
+      /* A frame with the photo cropped inside it, so the row can't reflow if
+         the photo is ever swapped for one with a different aspect, and so the
+         image can't spill past the circle.
 
-         object-position does NOT work here and never did: the source is 640x632
-         — square — so in a square frame with object-fit: cover there are about
-         three pixels of overflow to pan, and the face stayed parked off to the
-         right of the circle. The image has to be bigger than the frame before
-         any of it can be moved.
+         The source (brittany-founder.jpg) is a framed head-and-shoulders
+         portrait at 484x522. Cropping to a square leaves ~8% vertical overflow,
+         which is what object-position moves within — enough to sit the eyes
+         above centre, which is where a portrait wants them.
 
-         So: the image is oversized and its own (FACE_X, FACE_Y) point is pinned
-         to the centre of the circle. left/top put the image's origin at the
-         centre; the negative translate — in percentages of the image's own box,
-         which is what a percentage translate resolves against — drags the face
-         onto it. Retune both numbers together if the photo is ever replaced. */
+         Worth knowing if the photo is replaced: object-position only does
+         anything when there is overflow to pan. The previous source was square,
+         so in a square frame it moved nothing at all and the face sat off to
+         one side of the circle no matter what was declared here. Check the
+         source's aspect before trusting this line.
+
+         Sized at 270px against a 484px-wide source: at the slides' device scale
+         of 2 that is 540 device pixels, so the photo is barely upscaled. */
       .founder-photo {
-        position: relative;
         flex: 0 0 auto;
-        width: 300px;
-        height: 300px;
+        width: 270px;
+        height: 270px;
         border-radius: 50%;
         overflow: hidden;
         border: 6px solid var(--white);
@@ -661,16 +663,11 @@
       }
 
       .founder-photo img {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        /* Just enough over 100% to have something to pan; more than this and
-           the crop closes on the face and clips the top of the head. */
-        width: 132%;
-        height: 132%;
+        display: block;
+        width: 100%;
+        height: 100%;
         object-fit: cover;
-        /* FACE_X 64%, FACE_Y 42% of the source. */
-        transform: translate(-64%, -42%);
+        object-position: 50% 42%;
       }
 
       .founder-copy { flex: 1 1 auto; min-width: 0; }
