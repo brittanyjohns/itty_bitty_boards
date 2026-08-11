@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Every board printable now includes a third, trim-ready PDF.** Alongside the
+  full-colour and low-ink versions, each board is printed once more with the
+  header removed so the board fills as much of the sheet as possible — the
+  version to print when you're cutting and laminating. The QR code moves to the
+  top corner rather than disappearing with the header, so the free audio
+  companion is still one scan away after the page has been trimmed. A single
+  board arrives as one file holding all three; a board set arrives as three
+  files, each with its own cover and instructions.
+
 - **Regenerate and delete board printables from the admin dashboard.**
   *Regenerate* rebuilds a printable's PDFs from the board as it is now — the
   sub-board tree is re-walked, so pages added since the first run are picked up
@@ -28,6 +37,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   has looked at the category, the photos, and the return policy.
 
 ### Changed
+
+- **The listing gallery's tablet slide now shows the SpeakAnyWay app, not a
+  printout.** The board sits inside the app's own header — board name, speech
+  bar, play/clear/download — instead of being a printed page with its scan-me
+  band warped onto the glass, so the slide reads as "this also opens on the
+  tablet you already own" rather than as a photo of paper taped to a screen.
 
 - **Board printables now get a real listing gallery.** The marketplace images
   used to be the printed cover and a text slide, shrunk onto a square mat —

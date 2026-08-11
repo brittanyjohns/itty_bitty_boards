@@ -109,6 +109,24 @@
         margin-left: 4mm;
       }
 
+      /* The trim-ready page: no logo, title or scan-me line, just the code in
+         the top-right corner. The band is reserved rather than overlaid — a
+         width-limited board fills the sheet edge to edge, and a floating QR
+         would sit on top of tiles. Keep it in step with
+         RenderAssetData#header_band_height_mm. */
+      .header-qr-only {
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-start;
+        height: 18mm;
+      }
+
+      .header-qr-only .qr-small img {
+        width: 0.6in;
+        height: 0.6in;
+        margin: 0 2mm 0 0;
+      }
+
       .board-wrap {
         min-width: 0;
         min-height: 0;

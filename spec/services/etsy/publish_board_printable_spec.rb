@@ -81,8 +81,9 @@ RSpec.describe Etsy::PublishBoardPrintable do
 
     it "uploads every PDF variant as a download file" do
       printable.attach_pdf!(filename: "core-words.low-ink.pdf", bytes: "b", variant: BoardPrintable::VARIANT_LOW_INK)
+      printable.attach_pdf!(filename: "core-words.trim-ready.pdf", bytes: "c", variant: BoardPrintable::VARIANT_TRIM_READY)
 
-      expect(client).to receive(:upload_file).twice
+      expect(client).to receive(:upload_file).exactly(3).times
       publish
     end
 
@@ -136,6 +137,20 @@ RSpec.describe Etsy::PublishBoardPrintable do
       result = publish
 
       expect(result.error).to match(/caps a download file at 20 MB/)
+      expect(client).not_to have_received(:create_listing)
+    end
+
+    # A board printable ships three files, comfortably inside Etsy's five. The
+    # guard is here for the fourth variant nobody remembers to count — Etsy
+    # rejects the extra upload after the draft already exists.
+    it "refuses more download files than a listing can carry" do
+      (Etsy::Client::MAX_DOWNLOAD_FILES + 1).times do |i|
+        printable.attach_pdf!(filename: "extra-#{i}.pdf", bytes: "x", variant: BoardPrintable::VARIANT_COLOR)
+      end
+
+      result = publish
+
+      expect(result.error).to match(/caps a listing at 5 download files/)
       expect(client).not_to have_received(:create_listing)
     end
 

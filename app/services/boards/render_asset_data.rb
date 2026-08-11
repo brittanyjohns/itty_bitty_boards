@@ -1,11 +1,29 @@
 # app/services/boards/render_asset_data.rb
 module Boards
   class RenderAssetData
-    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, routes:, qr_target_url: :default, include_qr: true)
+    # How much of the print header a page carries. Three states rather than two
+    # booleans, because "hide the header" and "keep the QR" can contradict each
+    # other and the combination that matters most — no title band, code intact —
+    # is exactly the one two booleans make ambiguous.
+    #
+    #   full    — logo, board title, scan-me line and the QR beside them.
+    #   qr_only — a small QR alone in the top-right. The board gets nearly the
+    #             whole sheet, and the code survives the buyer trimming the band.
+    #   none    — nothing. Used for screen mockups and grid thumbnails, where a
+    #             printed QR reads as an ad pasted on the glass.
+    HEADER_FULL = "full".freeze
+    HEADER_QR_ONLY = "qr_only".freeze
+    HEADER_NONE = "none".freeze
+    HEADER_MODES = [HEADER_FULL, HEADER_QR_ONLY, HEADER_NONE].freeze
+
+    # `hide_header:` is kept for the callers that only ever wanted all-or-
+    # nothing (board previews, the print endpoints, grid thumbnails). Pass
+    # `header_mode:` to reach the third state; it wins when both are given.
+    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, header_mode: nil, routes:, qr_target_url: :default, include_qr: true)
       @board = board
       @screen_size = screen_size
       @hide_colors = hide_colors
-      @hide_header = hide_header
+      @header_mode = resolve_header_mode(header_mode, hide_header)
       @routes = routes
       @qr_target_url_override = qr_target_url
       @include_qr = include_qr
@@ -28,7 +46,8 @@ module Boards
         qr_data_url: qr_data_url,
         screen_size: screen_size,
         hide_colors: hide_colors,
-        hide_header: hide_header,
+        header_mode: header_mode,
+        hide_header: header_mode == HEADER_NONE,
         columns: columns,
         rows: rows,
         tiles: tiles,
@@ -44,7 +63,14 @@ module Boards
 
     private
 
-    attr_reader :board, :screen_size, :hide_colors, :hide_header, :routes
+    attr_reader :board, :screen_size, :hide_colors, :header_mode, :routes
+
+    def resolve_header_mode(mode, hide_header)
+      return hide_header ? HEADER_NONE : HEADER_FULL if mode.blank?
+
+      mode = mode.to_s
+      HEADER_MODES.include?(mode) ? mode : HEADER_FULL
+    end
 
     def resolved_qr_target_url
       return nil unless @include_qr
@@ -77,12 +103,25 @@ module Boards
       rows > columns
     end
 
+    # The qr_only band reserves room for the code and nothing else — the QR
+    # prints at 0.6in there, so 20mm clears it with a little air. Reserving the
+    # space rather than floating the QR over the sheet is deliberate: a
+    # width-limited board spans the full page, and an overlaid code would land
+    # on top of tiles.
+    def header_band_height_mm(landscape)
+      case header_mode
+      when HEADER_NONE then 0
+      when HEADER_QR_ONLY then 20.0
+      else landscape ? 30.0 : 34.0
+      end
+    end
+
     def fitted_board_dimensions_mm(columns:, rows:, landscape:)
       page_width_mm = landscape ? 279.4 : 215.9
       page_height_mm = landscape ? 215.9 : 279.4
 
       outer_padding_mm = 6.0
-      header_height_mm = hide_header ? 0 : (landscape ? 30.0 : 34.0)
+      header_height_mm = header_band_height_mm(landscape)
       footer_buffer_mm = 2.0
 
       available_width_mm = page_width_mm - outer_padding_mm

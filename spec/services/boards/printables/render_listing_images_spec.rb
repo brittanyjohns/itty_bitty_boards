@@ -165,14 +165,28 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(slide_html[2]).to include("Core Words", "Feelings")
   end
 
-  # The one claim a buyer is least likely to believe from text alone. It reuses
-  # the root board's header-hidden thumbnail rather than paying Grover again.
-  it "warps the root board onto a tablet without rendering it a second time" do
+  # The one claim a buyer is least likely to believe from text alone.
+  it "warps the root board onto a tablet" do
     described_class.new(printable: printable).call
 
     device = slide_html[1]
     expect(device).to include("matrix3d(", "mockup-screen")
     expect(device).to include("data:image/jpeg;base64,")
+  end
+
+  # What sits on the glass is the app, not a sheet of paper: the same board
+  # inside SpeakAnyWay's own chrome, titled with the board's name. A bare
+  # printed page there reads as a photograph of a printout taped to a tablet,
+  # which is the opposite of what this slide is for.
+  it "shows the board inside the app's chrome, titled with the board name" do
+    described_class.new(printable: printable).call
+
+    screen = rendered_html.find { |html| html.include?("app-chrome") }
+    expect(screen).to be_present
+    expect(screen).to include("Core Words", "sentence-bar", "Sign in")
+    # The board on the screen is the header-less render, so the printed
+    # scan-me band never ends up on the glass.
+    expect(screen).not_to include("Created with SpeakAnyWay AAC")
   end
 
   it "writes a fresh key on every render so a regenerate isn't hidden by the CDN" do

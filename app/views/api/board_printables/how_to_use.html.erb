@@ -5,11 +5,13 @@
     Exception — step 1, which is the one claim this page makes about the
     document it sits in, so it can only ever describe THAT document:
 
-      single board  → one file holding a colour half and a low-ink half
-      set, colour   → this file is all colour
-      set, low-ink  → this file is all low-ink
+      single board     → one file holding a colour, a low-ink and a
+                         trim-ready copy of the board
+      set, colour      → this file is all colour
+      set, low-ink     → this file is all low-ink
+      set, trim-ready  → this file is all header-less, QR in the corner
 
-    Neither set variant mentions the other file. A reader holding the low-ink
+    No set variant mentions the other files. A reader holding the low-ink
     print doesn't need to be told a colour one exists somewhere; being told so
     just raises a question the page can't answer.
 
@@ -37,17 +39,25 @@
         <span class="num">1</span>
         <div>
           <% if !@is_set %>
-            <p class="lead">Printed twice</p>
+            <p class="lead">Printed three ways</p>
             <p>
-              This file includes the board twice: once in full color, then again
-              with white tile backgrounds for a cleaner, lower-ink print. Use
-              whichever fits your printer.
+              This file includes the board three times: in full color, again
+              with white tile backgrounds for a lower-ink print, and once more
+              with no header so the board fills the whole page. Use whichever
+              fits your printer.
             </p>
-          <% elsif @low_ink %>
+          <% elsif @variant == BoardPrintable::VARIANT_LOW_INK %>
             <p class="lead">Printed low-ink</p>
             <p>
               Every board in this file uses white tile backgrounds, so it prints
               cleanly and goes easy on your ink.
+            </p>
+          <% elsif @variant == BoardPrintable::VARIANT_TRIM_READY %>
+            <p class="lead">Printed to the edges</p>
+            <p>
+              Every board in this file drops the page header so the board prints
+              as large as the sheet allows. The QR code moves to the top corner,
+              so it still opens online after you trim and laminate.
             </p>
           <% else %>
             <p class="lead">Printed in full color</p>

@@ -1,5 +1,6 @@
-# Renders the five marketplace gallery slides for a printable: the hero, what's
-# included in colour, the same in low-ink, how it works, and about.
+# Renders the six marketplace gallery slides for a printable: the hero, the
+# board on a tablet, what's included in colour, the same in low-ink, how it
+# works, and about.
 #
 # Etsy will create a listing with no photos but won't let it go live without
 # one, so these are the minimum a draft needs to be finishable — but they're
@@ -85,8 +86,9 @@ module Boards
       #           header is just the slide's own title band again, and hiding it
       #           gives the board the whole tile.
       #
-      # Budget: min(boards, 3) + min(boards, 8) * 2 renders, plus five slides.
-      # That is why this runs on Sidekiq and never on a request thread.
+      # Budget: min(boards, 3) + min(boards, 8) * 2 renders, plus six slides and
+      # the one device screen. That is why this runs on Sidekiq and never on a
+      # request thread.
       def hero_thumbnails
         @hero_thumbnails ||= RenderPageThumbnails.new(
           boards: plan.boards.first(HERO_TILES),
@@ -148,17 +150,24 @@ module Boards
         )
       end
 
-      # Reuses the root board's header-hidden grid thumbnail — it is already
-      # rendered, and a page with no print header is what actually reads as a
-      # screen. This slide costs one Grover render, not two.
+      # The tablet shows the board inside the APP's chrome, not a bare printed
+      # page: a Letter sheet warped onto the glass reads as a photograph of
+      # paper taped to a screen, and carries nothing that says the thing on it
+      # talks. RenderDeviceScreen wraps the root board's already-rendered
+      # header-less thumbnail in that chrome — one extra Grover render for the
+      # slide whose whole job is "this also opens on the tablet you own".
       def on_a_device_assigns
         scene = TabletScene.for(board)
+        title = Boards::AssetRendering.board_title_for(board)
 
         shared_assigns.merge(
-          title: Boards::AssetRendering.board_title_for(board),
+          title: title,
           scene: scene,
           scene_data_uri: scene.data_uri,
-          board_data_uri: grid_thumbnails(low_ink: false).dig(board.id)&.data_uri,
+          board_data_uri: RenderDeviceScreen.new(
+            title: title,
+            thumbnail: grid_thumbnails(low_ink: false)[board.id],
+          ).call,
         )
       end
 

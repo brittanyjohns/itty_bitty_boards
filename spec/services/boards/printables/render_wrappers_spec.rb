@@ -11,7 +11,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
   let(:rendered) { {} }
 
   before do
-    order = %i[cover how_to_use license credits cover_low_ink how_to_use_low_ink]
+    order = %i[cover how_to_use license credits cover_low_ink how_to_use_low_ink how_to_use_trim_ready]
     index = 0
     allow(Grover).to receive(:new) do |html, **_opts|
       rendered[order[index]] = html
@@ -102,15 +102,15 @@ RSpec.describe Boards::Printables::RenderWrappers do
   end
 
   describe "the how-to-use page" do
-    it "explains the two prints of one board for a single board" do
+    it "explains the three prints of one board for a single board" do
       render
 
       expect(rendered[:how_to_use]).to include("This communication board")
-      expect(rendered[:how_to_use]).to include("includes the board twice")
+      expect(rendered[:how_to_use]).to include("includes the board three times")
       expect(rendered[:how_to_use]).to include("The same board")
     end
 
-    # A set ships as two separate FILES (MergePdf#call), and this page is bound
+    # A set ships as three separate FILES (MergePdf#call), and this page is bound
     # into each one, so it describes the file it's in and nothing else. Naming
     # the other file would raise a question this page can't answer — the reader
     # is holding one print, not a pair.
@@ -130,18 +130,44 @@ RSpec.describe Boards::Printables::RenderWrappers do
         expect(rendered[:how_to_use_low_ink]).to include("white tile backgrounds")
       end
 
-      it "never mentions the other file from either one" do
+      # The trim-ready file is the one whose QR moved, so it is the one page
+      # that has to say where the code went — a buyer who can't find it assumes
+      # the header-less print is the one without the audio companion.
+      it "tells the trim-ready file the header is gone and the QR moved" do
         render(board_count: 4)
 
-        [rendered[:how_to_use], rendered[:how_to_use_low_ink]].each do |html|
-          expect(html).not_to include("two files")
-          expect(html).not_to include("twice")
+        expect(rendered[:how_to_use_trim_ready]).to include("Printed to the edges")
+        expect(rendered[:how_to_use_trim_ready]).to include("drops the page header")
+        expect(rendered[:how_to_use_trim_ready]).to include("QR code moves to the top corner")
+      end
+
+      it "never mentions the other files from any one of them" do
+        render(board_count: 4)
+
+        [
+          rendered[:how_to_use],
+          rendered[:how_to_use_low_ink],
+          rendered[:how_to_use_trim_ready],
+        ].each do |html|
+          expect(html).not_to include("three files")
+          expect(html).not_to include("three times")
         end
       end
 
-      it "renders a low-ink how-to only for a set" do
-        expect(render(board_count: 4)).to have_key(:how_to_use_low_ink)
-        expect(render).not_to have_key(:how_to_use_low_ink)
+      it "renders the per-variant how-tos only for a set" do
+        set = render(board_count: 4)
+        expect(set).to have_key(:how_to_use_low_ink)
+        expect(set).to have_key(:how_to_use_trim_ready)
+
+        single = render
+        expect(single).not_to have_key(:how_to_use_low_ink)
+        expect(single).not_to have_key(:how_to_use_trim_ready)
+      end
+
+      # The trim-ready file is full colour: rendering it a second cover would
+      # be the same pixels and one more Grover run per printable.
+      it "reuses the colour cover for the trim-ready file" do
+        expect(render(board_count: 4)).not_to have_key(:cover_trim_ready)
       end
     end
 

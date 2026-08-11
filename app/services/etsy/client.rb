@@ -33,8 +33,12 @@ module Etsy
     TAXONOMY_CACHE_KEY = "etsy/seller_taxonomy_ids".freeze
     TAXONOMY_CACHE_TTL = 12.hours
 
-    # Etsy caps a single download file at 20 MB.
+    # Etsy caps a single download file at 20 MB, and a listing at five of them.
+    # A board printable ships three (colour, low-ink, trim-ready), so the
+    # ceiling only matters if a fourth variant is ever added — which is exactly
+    # when a silent drop would be hardest to notice.
     FILE_CAP_BYTES = 20 * 1024 * 1024
+    MAX_DOWNLOAD_FILES = 5
 
     TIMEOUT = 30
     OPEN_TIMEOUT = 10

@@ -80,6 +80,11 @@ module Etsy
 
       return "Listing title and description are required." if copy["title"].blank? || copy["description"].blank?
 
+      if printable.pdf_files.size > Client::MAX_DOWNLOAD_FILES
+        return "This printable has #{printable.pdf_files.size} PDFs; Etsy caps a listing at " \
+               "#{Client::MAX_DOWNLOAD_FILES} download files."
+      end
+
       oversized = printable.pdf_files.find { |f| f.byte_size > Client::FILE_CAP_BYTES }
       if oversized
         return "#{oversized.filename} is #{ActiveSupport::NumberHelper.number_to_human_size(oversized.byte_size)}; " \

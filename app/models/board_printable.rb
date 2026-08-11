@@ -2,8 +2,9 @@
 # board plus its whole subboard tree). Admin-only; this is the in-app port of
 # the speakanyway-printables pipeline's PDF-producing core.
 #
-# One attachment for a single board (the 6-page document), two for a subboard
-# bundle (a colour variant and a low-ink variant, each fully wrapped).
+# One attachment for a single board (one document holding every variant of the
+# page), three for a subboard bundle (colour, low-ink and trim-ready, each
+# fully wrapped).
 #
 # Deliberately NOT `board.pdf_file` — that's the existing single-page cached
 # board export and it's exposed through Board#api_view.
@@ -16,11 +17,20 @@ class BoardPrintable < ApplicationRecord
   # worker for hours by typo.
   MAX_BOARDS_CEILING = 100
 
-  # The single-board document carries both the colour and the low-ink page,
-  # so it is neither variant — it's the whole printable.
+  # The single-board document carries the colour, low-ink and trim-ready pages
+  # together, so it is none of those variants — it's the whole printable.
   VARIANT_FULL = "full".freeze
   VARIANT_COLOR = "color".freeze
   VARIANT_LOW_INK = "low_ink".freeze
+  # Full colour with the print header replaced by a corner QR: the board fills
+  # the sheet, and the code survives a buyer trimming the page down before
+  # laminating it. Ships alongside the other two, never instead of them.
+  VARIANT_TRIM_READY = "trim_ready".freeze
+
+  # Order is the order the files are attached, listed in the admin, and
+  # uploaded to a marketplace — colour first, because it's the one a buyer
+  # prints if they only print one.
+  DOWNLOAD_VARIANTS = [VARIANT_COLOR, VARIANT_LOW_INK, VARIANT_TRIM_READY].freeze
 
   # `files` holds two kinds of blob: the printable PDFs a buyer downloads, and
   # the PNG gallery images a marketplace listing needs. They are separated by

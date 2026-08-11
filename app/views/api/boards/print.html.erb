@@ -1,4 +1,23 @@
-<% unless @hide_header %>
+<%# Three header states, from @header_mode (Boards::RenderAssetData) — never a
+    pair of booleans. The QR lives INSIDE this block, so "hide the header" and
+    "keep the code" are the same decision and have to be made in one place.
+
+    qr_only is what the trim-ready PDF prints: buyers cut the title band off to
+    laminate the board, and the code has to survive that cut.
+
+    Falls back to @hide_header so a caller that renders this template with its
+    own assigns — rather than through RenderAssetData — still gets the old
+    all-or-nothing behaviour instead of an unstyled full header. %>
+<% header_mode = @header_mode.presence || (@hide_header ? Boards::RenderAssetData::HEADER_NONE : Boards::RenderAssetData::HEADER_FULL) %>
+<% if header_mode == Boards::RenderAssetData::HEADER_QR_ONLY %>
+  <div class="header header-qr-only">
+    <% if @qr_data_url.present? %>
+      <div class="qr-small">
+        <img src="<%= @qr_data_url %>" alt="QR code">
+      </div>
+    <% end %>
+  </div>
+<% elsif header_mode != Boards::RenderAssetData::HEADER_NONE %>
   <div class="header">
     <div class="header-inner">
       <div class="logo">
