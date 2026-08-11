@@ -103,11 +103,12 @@ Rails.application.routes.draw do
     end
     get "feedback", to: "feedback#index", as: :dashboard_feedback
     get "word_events", to: "word_events#index", as: :dashboard_word_events
-    resources :board_printables, only: [:index, :show, :create], as: :dashboard_board_printables do
+    resources :board_printables, only: [:index, :show, :create, :destroy], as: :dashboard_board_printables do
       member do
         patch :update_listing
         post :publish_to_etsy
         post :regenerate_listing_images
+        post :regenerate
       end
     end
   end

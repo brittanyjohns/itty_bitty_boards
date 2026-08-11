@@ -151,4 +151,42 @@ RSpec.describe Boards::Printables::Generate do
 
     expect(printable.reload.files.count).to eq(1)
   end
+
+  # The admin "Regenerate" action re-runs this on a record that already has
+  # files. The filename carries the board slug, so a rename would otherwise
+  # leave the previous PDF attached and downloadable next to the fresh one.
+  it "purges a previous run's PDF when the board slug has changed" do
+    printable = printable_for
+    described_class.new(printable: printable).call
+
+    root.update_column(:slug, "core-words-v2")
+    described_class.new(printable: printable).call
+    printable.reload
+
+    expect(printable.files_view.map { |f| f[:filename] }).to eq(["core-words-v2.pdf"])
+  end
+
+  # A subboard added since the first run flips the document from one full file
+  # to a colour/low-ink pair; the orphaned "full" file is not a real download.
+  it "purges the single-board file when the tree has grown into a bundle" do
+    printable = printable_for(include_subboards: true)
+    described_class.new(printable: printable).call
+
+    link(root, create(:board, user: user, name: "Food"))
+    described_class.new(printable: printable).call
+    printable.reload
+
+    expect(printable.files_view.map { |f| f[:variant] })
+      .to match_array([BoardPrintable::VARIANT_COLOR, BoardPrintable::VARIANT_LOW_INK])
+  end
+
+  it "leaves the listing images alone when the PDFs are regenerated" do
+    printable = printable_for
+    described_class.new(printable: printable).call
+    printable.attach_image!(bytes: "png", variant: BoardPrintable::IMAGE_HERO)
+
+    described_class.new(printable: printable).call
+
+    expect(printable.reload.image_files.map { |f| f.metadata["variant"] }).to eq([BoardPrintable::IMAGE_HERO])
+  end
 end

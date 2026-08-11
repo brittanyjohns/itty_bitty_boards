@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Regenerate and delete board printables from the admin dashboard.**
+  *Regenerate* rebuilds a printable's PDFs from the board as it is now — the
+  sub-board tree is re-walked, so pages added since the first run are picked up
+  — while keeping the listing copy you already reviewed and any Etsy draft it's
+  linked to; the old downloads are replaced only once the new ones are safely
+  built. *Delete* removes a printable and its files. An Etsy draft is never
+  touched by either action, so deleting says plainly that the draft is still
+  sitting in the Etsy seller UI waiting for you to remove it there.
+
 - **Board printables can be listed for sale from the admin dashboard.** A
   finished printable's page now carries the whole last mile: a link to the board
   it was built from (and every sub-board in the tree), editable listing copy
