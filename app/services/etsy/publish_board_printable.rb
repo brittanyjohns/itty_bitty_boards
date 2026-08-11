@@ -93,16 +93,20 @@ module Etsy
     # without one, so a draft with an empty gallery is a dead end. Rendering
     # here rather than refusing means one button still gets you a finishable
     # draft.
+    # Guarded on "current", not "any": a printable generated before the gallery
+    # was redesigned still HAS images — the retired cover/what's-included pair —
+    # and publishing those would put the old two-image gallery on a live
+    # listing.
     def render_listing_images_if_missing
-      return if printable.listing_images?
+      return if printable.listing_images_current?
 
       Boards::Printables::RenderListingImages.new(printable: printable).call
       printable.reload
     end
 
     def upload_images(listing_id)
-      printable.image_files
-               .sort_by { |f| BoardPrintable::LISTING_IMAGE_ORDER.index(f.metadata["variant"]) || 99 }
+      printable.current_image_files
+               .sort_by { |f| BoardPrintable::LISTING_IMAGE_ORDER.index(f.metadata["variant"]) }
                .each_with_index do |file, index|
         client.upload_image(
           listing_id,

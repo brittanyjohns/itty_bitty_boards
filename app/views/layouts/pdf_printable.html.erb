@@ -566,40 +566,19 @@
         border: 1pt solid var(--cyan);
       }
 
-      /* ── Marketplace gallery image ───────────────────────────────────────
-         Etsy shows listing photos in a square frame and letterboxes anything
-         else, so the 8.5×11 sheet is scaled down and centred on a square
-         canvas here rather than handed over portrait and cropped by Etsy.
-
-         Gated entirely behind .as-listing-image, which only
-         Boards::Printables::RenderListingImages sets. The PDF render path
-         never sets it, so every rule above stays exactly as it prints. */
-      body.as-listing-image {
-        width: 8.5in;
-        height: 8.5in;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--cream-deep);
-        overflow: hidden;
-      }
-
-      body.as-listing-image.ink-light {
-        background: #fff;
-      }
-
-      /* 8.5/11 leaves the sheet just short of the canvas edges; the outer
-         padding is what turns the remainder into a deliberate mat. */
-      body.as-listing-image .sheet {
-        transform: scale(0.73);
-        box-shadow: 0 0.06in 0.3in rgba(19, 73, 111, 0.22);
-      }
     </style>
   </head>
 
-  <%# Joined rather than interpolated side by side: a stray space here changes
+  <%# This layout prints, and only prints. The marketplace gallery used to
+      render through it too, with .as-listing-image scaling the sheet onto a
+      square mat — honest, and invisible next to purpose-built competitor art.
+      The slides now have their own canvas in layouts/listing_image.html.erb,
+      which is free to be a marketing surface without any of the rules above
+      having to hold for it.
+
+      Joined rather than interpolated side by side: a stray space here changes
       the rendered attribute for every PDF page, and the wrapper specs pin it. %>
-  <body class="<%= [("ink-light" if @ink_light), ("as-listing-image" if @listing_image)].compact.join(" ") %>">
+  <body class="<%= [("ink-light" if @ink_light)].compact.join(" ") %>">
     <%= yield %>
   </body>
 </html>

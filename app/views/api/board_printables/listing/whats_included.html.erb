@@ -1,0 +1,45 @@
+<%# The slide a buyer uses to judge how much they're getting before reading a
+    word of the description.
+
+    Names the boards rather than quoting a page count: for a set, "People,
+    Feelings, Food, Play" is most of the reason to buy, and a page number tells
+    a buyer nothing. The grid is capped and shaped by ContentTilePlan — an
+    uncapped row of 20 pages rendered hairlines nobody could read. %>
+<div class="slide bg-sky">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack">
+    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title %></div>
+
+    <%# Tile captions only earn their space when there is more than one board to
+        tell apart — on a single-board printable the label just repeats the
+        title two inches above it. %>
+    <% show_labels = @tiles.size > 1 %>
+
+    <div class="tile-grid stretch" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
+      <% @tiles.each do |tile| %>
+        <div class="paper">
+          <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+          <% if show_labels && tile[:label].present? %>
+            <div class="paper-label"><%= tile[:label] %></div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @overflow_note.present? %>
+      <div class="overflow-note"><%= @overflow_note %></div>
+    <% end %>
+
+    <div class="included-panel">
+      <div class="included-title">In your download</div>
+      <ul class="bullets on-dark">
+        <% @items.each do |item| %>
+          <li><%= item %></li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+</div>

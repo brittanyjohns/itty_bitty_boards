@@ -1,0 +1,56 @@
+<%# The listing's first image, and the only one most buyers ever see — it is the
+    thumbnail competing in an Etsy search grid.
+
+    Shows the real board pages on a room background rather than a mocked-up
+    product, so what sells the listing is the thing being sold. The pages are
+    never cropped (see .paper in the layout): a board page has genuine margins
+    and how much of the sheet it fills depends on the board's shape. %>
+<div class="slide has-ribbon">
+  <% if @background %>
+    <img class="bg-image" src="<%= @background %>" alt="" />
+    <div class="bg-scrim"></div>
+  <% end %>
+
+  <div class="instant-ribbon"><%= Printables::SlideCopy.instant_download_banner %></div>
+
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-ribbon has-footer">
+    <div class="title-banner <%= "small" if @title.to_s.length > 26 %>"><%= @title %></div>
+    <div class="headline-callout"><%= @headline %></div>
+
+    <%# One page gets the stage to itself; a set fans so the count is legible
+        before a word of the description is read. %>
+    <div class="hero-stage stretch <%= @thumbnails.size > 1 ? "fan" : "single" %>">
+      <% if @thumbnails.any? %>
+        <% @thumbnails.each do |tile| %>
+          <div class="paper">
+            <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+          </div>
+        <% end %>
+      <% else %>
+        <div class="hero-empty"><%= @headline %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.free_voice_headline %></div>
+      <ul class="bullets">
+        <% Printables::SlideCopy.hero_footer_bullets.each do |bullet| %>
+          <li><%= bullet %></li>
+        <% end %>
+      </ul>
+    </div>
+
+    <% if @qr_data_url %>
+      <div class="footer-qr">
+        <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        <span class="qr-caption">Scan to hear it</span>
+      </div>
+    <% end %>
+  </div>
+</div>

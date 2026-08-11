@@ -1,0 +1,74 @@
+<%# Answers the question that stops a digital-download sale: "what do I actually
+    have to do with this once I've paid?"
+
+    Board-agnostic — identical on every listing — so it costs one render and
+    nothing can go stale on it.
+
+    The icons are inline SVG. The pipeline's version of this slide uses emoji
+    step icons; the render box's Chrome has no guaranteed colour-emoji font, so
+    those would ship to Etsy as tofu boxes. %>
+<div class="slide bg-sky">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-footer">
+    <div class="title-banner"><%= Printables::SlideCopy.how_it_works_title %></div>
+    <div class="headline-callout"><%= Printables::SlideCopy.how_it_works_headline %></div>
+
+    <div class="band-group stretch">
+      <div class="steps-strip">
+    <% Printables::SlideCopy.how_it_works_steps.each_with_index do |step, index| %>
+      <div class="step-card">
+        <div class="step-num"><%= index + 1 %></div>
+
+        <svg class="step-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <% case index %>
+          <% when 0 %>
+            <%# Download: tray with an arrow into it %>
+            <path d="M24 6v22" />
+            <path d="M14 20l10 10 10-10" />
+            <path d="M8 36v4h32v-4" />
+          <% when 1 %>
+            <%# Print: printer with a sheet emerging %>
+            <path d="M14 18V8h20v10" />
+            <path d="M8 18h32v14H8z" />
+            <path d="M14 28h20v12H14z" />
+          <% when 2 %>
+            <%# Cut: scissors %>
+            <path d="M10 8l20 26" />
+            <path d="M38 8L18 34" />
+            <circle cx="13" cy="39" r="5" />
+            <circle cx="35" cy="39" r="5" />
+          <% else %>
+            <%# Scan to hear: phone with sound waves %>
+            <path d="M10 6h16v36H10z" />
+            <path d="M33 17c3 3.5 3 10.5 0 14" />
+            <path d="M39 12c5 6 5 18 0 24" />
+          <% end %>
+        </svg>
+
+        <div class="step-title"><%= step[:title] %></div>
+        <div class="step-body"><%= step[:body] %></div>
+      </div>
+      <% end %>
+    </div>
+
+      <% if @qr_data_url %>
+        <div class="qr-block">
+          <div class="qr-prompt">Scan to try this board free</div>
+          <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.free_voice_eyebrow %></div>
+      <ul class="bullets">
+        <li><%= Printables::SlideCopy.free_voice_sub %></li>
+      </ul>
+    </div>
+  </div>
+</div>

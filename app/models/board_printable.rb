@@ -30,10 +30,23 @@ class BoardPrintable < ApplicationRecord
   KIND_PDF = "pdf".freeze
   KIND_IMAGE = "image".freeze
 
-  IMAGE_COVER = "cover".freeze
+  IMAGE_HERO = "hero".freeze
   IMAGE_WHATS_INCLUDED = "whats_included".freeze
-  # Etsy shows gallery photos in listing order; the cover earns rank 1.
-  LISTING_IMAGE_ORDER = [IMAGE_COVER, IMAGE_WHATS_INCLUDED].freeze
+  IMAGE_HOW_IT_WORKS = "how_it_works".freeze
+  IMAGE_ABOUT = "about".freeze
+
+  # Etsy shows gallery photos in listing order, and the first is the search
+  # thumbnail — so the hero, which is the only one that shows the actual boards,
+  # earns rank 1.
+  LISTING_IMAGE_ORDER = [IMAGE_HERO, IMAGE_WHATS_INCLUDED, IMAGE_HOW_IT_WORKS, IMAGE_ABOUT].freeze
+
+  # The gallery used to be a scaled-down print sheet: a "cover" plus a
+  # what's-included slide. Nothing renders a cover any more, but printables
+  # generated before the redesign still carry the blob, and it must not reach a
+  # live listing — hence the name survives here and nowhere else. Everything
+  # that guards against it tests "not in LISTING_IMAGE_ORDER" rather than
+  # matching this, so a variant retired later is caught without a code change.
+  IMAGE_COVER = "cover".freeze
 
   belongs_to :board
   belongs_to :created_by, class_name: "User", optional: true
@@ -91,8 +104,11 @@ class BoardPrintable < ApplicationRecord
   end
 
   # The marketplace gallery images, in the order Etsy should rank them.
+  #
+  # Filtered, not just sorted: a blob from the retired two-image gallery would
+  # otherwise sort to the end and get uploaded as a real listing photo.
   def listing_images_view
-    view_for(image_files).sort_by { |f| LISTING_IMAGE_ORDER.index(f[:variant]) || LISTING_IMAGE_ORDER.size }
+    view_for(current_image_files).sort_by { |f| LISTING_IMAGE_ORDER.index(f[:variant]) }
   end
 
   def pdf_files
@@ -108,6 +124,31 @@ class BoardPrintable < ApplicationRecord
   end
 
   def listing_images? = image_files.any?
+
+  # Images from the current four-slide gallery only.
+  def current_image_files
+    image_files.select { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
+  end
+
+  # Whether the gallery on this printable is the one we ship today. A printable
+  # carrying only the retired cover/what's-included pair has images, but not
+  # ones that should go anywhere near a listing — so "has images" is not a
+  # strong enough guard for publishing.
+  def listing_images_current?
+    variants = current_image_files.map { |f| f.metadata["variant"] }
+    LISTING_IMAGE_ORDER.all? { |variant| variants.include?(variant) }
+  end
+
+  # Blobs from a retired gallery design. Purged after a re-render rather than
+  # before it, so a render that fails leaves the old images in place instead of
+  # emptying the gallery.
+  def purge_legacy_listing_images!
+    stale = image_files.reject { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
+    return if stale.empty?
+
+    stale.each(&:purge)
+    reload_files_association
+  end
 
   def etsy_published? = etsy_listing_id.present?
 

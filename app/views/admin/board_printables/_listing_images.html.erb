@@ -10,9 +10,20 @@
           class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
   </div>
   <p class="text-[11px] text-t3 mb-4">
-    Cover and what's-included, rendered from the same templates as the printed pages.
-    Lifestyle mockups still come from the speakanyway-printables pipeline — add those in Etsy.
+    Hero, what's-included, how-it-works and about — square marketing slides built from
+    this board's own pages. Lifestyle mockups still come from the speakanyway-printables
+    pipeline; add those in Etsy.
   </p>
+
+  <%# A printable rendered before the four-slide redesign still has images, so
+      "has any" would look fine while the gallery is the retired pair. Publishing
+      re-renders on its own, but the admin should know before clicking. %>
+  <% if @printable.listing_images? && !@printable.listing_images_current? %>
+    <p class="text-xs mb-4 px-3 py-2 rounded border"
+       style="border-color: var(--border); color: var(--t1);">
+      These were rendered with the old two-image gallery. Regenerate before publishing.
+    </p>
+  <% end %>
 
   <% images = @printable.listing_images_view %>
   <% if images.any? %>
@@ -20,8 +31,10 @@
       <% images.each_with_index do |image, index| %>
         <div>
           <%= link_to image[:url], target: "_blank", rel: "noopener" do %>
+            <%# object-contain, not cover: the slides are square and cropping one
+                in the preview hides exactly the edge problems worth catching. %>
             <%= image_tag image[:url], alt: image[:variant],
-                  class: "w-40 h-40 object-cover rounded-lg border", style: "border-color: var(--border);" %>
+                  class: "w-40 h-40 object-contain rounded-lg border bg-white", style: "border-color: var(--border);" %>
           <% end %>
           <p class="text-[11px] text-t3 mt-1">
             Rank <%= index + 1 %> · <%= image[:variant].humanize %>

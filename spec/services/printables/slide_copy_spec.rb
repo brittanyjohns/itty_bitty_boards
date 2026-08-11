@@ -1,0 +1,61 @@
+require "rails_helper"
+
+RSpec.describe Printables::SlideCopy do
+  describe ".hero_headline" do
+    it "leads with the topic when the printable has one" do
+      expect(described_class.hero_headline(board_count: 3, topic: "the playground"))
+        .to eq("Words for the playground")
+    end
+
+    it "counts the boards for a set" do
+      expect(described_class.hero_headline(board_count: 6)).to eq("6 printable boards in one download")
+    end
+
+    it "doesn't claim a count for a single board" do
+      expect(described_class.hero_headline(board_count: 1)).to eq("A printable communication board")
+    end
+  end
+
+  # Every one of these sits in a fixed-height band on a 1280px slide. Copy that
+  # outgrows its band doesn't wrap, it overlaps the next one — and nothing about
+  # a rendered PNG makes that obvious until it's on Etsy.
+  describe "copy that has to fit its band" do
+    it "keeps every bullet inside the length the layout can hold" do
+      bullets = described_class.why_choose_bullets +
+                described_class.hero_footer_bullets +
+                described_class.how_it_works_steps.map { |s| s[:body] }
+
+      expect(bullets.map(&:length)).to all(be <= described_class::MAX_BULLET_LENGTH)
+    end
+
+    it "keeps the bullet lists short enough to stack in one strip" do
+      expect(described_class.why_choose_bullets.size).to be <= 4
+      expect(described_class.hero_footer_bullets.size).to be <= 3
+    end
+
+    it "ships exactly four how-it-works steps, one per card in the strip" do
+      steps = described_class.how_it_works_steps
+
+      expect(steps.size).to eq(4)
+      expect(steps.map { |s| s[:title] }).to all(be_present)
+    end
+  end
+
+  # The render box's Chrome has no guaranteed colour-emoji font, so an emoji in
+  # slide copy ships to Etsy as a tofu box. Icons are inline SVG instead.
+  it "carries no emoji or decorative glyphs outside the font's coverage" do
+    all_copy = [
+      described_class.instant_download_banner,
+      described_class.free_voice_headline,
+      described_class.free_voice_sub,
+      described_class.founder_greeting,
+      described_class.why_choose_title,
+      *described_class.founder_paragraphs,
+      *described_class.why_choose_bullets,
+      *described_class.hero_footer_bullets,
+      *described_class.how_it_works_steps.flat_map { |s| [s[:title], s[:body]] },
+    ].join(" ")
+
+    expect(all_copy).not_to match(/[\u{1F000}-\u{1FAFF}\u{2190}-\u{27BF}\u{FE0F}]/)
+  end
+end

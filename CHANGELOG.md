@@ -20,6 +20,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Board printables now get a real listing gallery.** The marketplace images
+  used to be the printed cover and a text slide, shrunk onto a square mat —
+  honest about what you're buying, but invisible next to purpose-built art in an
+  Etsy search grid. A printable now gets four square marketing slides: a hero
+  showing the actual board pages in a room setting with an instant-download
+  banner, a what's-included grid that names every board in a set, a
+  four-step how-it-works, and an about slide. Every one is generated
+  automatically — there's still nothing to make by hand. Printables made before
+  this keep their old images until you hit **Regenerate** (the admin page flags
+  them, publishing re-renders on its own, and
+  `rake printables:refresh_listing_images` does them in bulk).
+
 - **Admin board builder: folder tiles now open their page without speaking.**
   A tile that opens another page is a door, not a word — tapping "Food" to get
   to the food page was putting a word into the utterance the communicator
@@ -30,6 +42,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   built are repaired by `rake admin_board_builder:mute_folder_tiles`.
 
 ### Fixed
+
+- **Marketplace gallery images were rendering at a quarter of their intended
+  resolution.** The listing images for a board printable were meant to come out
+  at 2040px square, comfortably over Etsy's 2000px recommendation, but the
+  retina scale was being passed where the renderer never reads it — so every
+  image uploaded so far was 816px, soft on a desktop listing page and softer
+  when Etsy zooms it. The images are full size now. Existing listings need their
+  images regenerated from the admin page to pick this up.
 
 - **Words on newly built boards were still coming out Title Cased.** Tiles are
   supposed to default to lowercase, the AAC core-vocabulary convention, and the
