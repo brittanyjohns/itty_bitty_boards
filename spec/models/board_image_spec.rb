@@ -82,6 +82,47 @@ RSpec.describe BoardImage, type: :model do
       # Non-English boards get sentence case, not English Title Case.
       expect(board_image.display_label).to eq("Hello")
     end
+
+    # An "en" entry is Image#translate_to output for the language the label was
+    # already in — defaulted text, not authored styling. Taking it verbatim is
+    # what let "You"/"All Done" skip the normalizer and land on a fresh board.
+    context "with an English language_settings entry" do
+      let(:english_board) { FactoryBot.create(:board, user: user, language: "en") }
+
+      it "case-normalizes it instead of using it verbatim" do
+        image = FactoryBot.create(:image, label: "want", part_of_speech: "verb",
+                                          language_settings: { "en" => { "label" => "want", "display_label" => "Want" } })
+        board_image = FactoryBot.create(:board_image, board: english_board, image: image, language: "en")
+        board_image.set_labels
+
+        expect(board_image.display_label).to eq("want")
+      end
+
+      it "folds a capital the normalizer could never have produced" do
+        image = FactoryBot.create(:image, label: "all done", part_of_speech: "social",
+                                          language_settings: { "en" => { "label" => "all done", "display_label" => "All Done" } })
+        board_image = FactoryBot.create(:board_image, board: english_board, image: image, language: "en")
+        board_image.set_labels
+
+        expect(board_image.display_label).to eq("all done")
+      end
+
+      it "still keeps deliberate casing and the standalone pronoun" do
+        image = FactoryBot.create(:image, label: "my ipad", part_of_speech: "noun",
+                                          language_settings: { "en" => { "label" => "my ipad", "display_label" => "My iPad" } })
+        board_image = FactoryBot.create(:board_image, board: english_board, image: image, language: "en")
+        board_image.set_labels
+
+        expect(board_image.display_label).to eq("my iPad")
+      end
+
+      it "leaves a non-English translation verbatim" do
+        board_image = FactoryBot.create(:board_image, board: board, image: image, language: "es")
+        board_image.set_labels
+
+        expect(board_image.display_label).to eq("Hola")
+      end
+    end
   end
 
   describe "display_label casing on create" do
