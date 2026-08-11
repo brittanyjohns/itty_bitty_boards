@@ -156,6 +156,20 @@ class BoardPrintable < ApplicationRecord
     LISTING_IMAGE_ORDER.all? { |variant| variants.include?(variant) }
   end
 
+  # PDFs left over from an earlier generation of this same record. A re-run
+  # overwrites the deterministic key when the filename matches, but the filename
+  # carries the board slug and the variant set depends on how many boards the
+  # walk found — so a renamed board, or a subboard added since the first run,
+  # leaves a stale download sitting next to the fresh one. Purged AFTER the new
+  # files are attached, so a failed re-render never empties the record.
+  def purge_stale_pdfs!(keep_keys)
+    stale = pdf_files.reject { |f| keep_keys.include?(f.key) }
+    return if stale.empty?
+
+    stale.each(&:purge)
+    reload_files_association
+  end
+
   # Blobs from a retired gallery design. Purged after a re-render rather than
   # before it, so a render that fails leaves the old images in place instead of
   # emptying the gallery.

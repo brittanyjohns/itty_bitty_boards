@@ -111,5 +111,70 @@ RSpec.describe "labels rake tasks", type: :task do
 
       expect(stuck.reload.display_label.downcase).to eq("eat breakfast")
     end
+
+    # The jsonb is what BoardImage#set_labels reads FIRST, so a clean
+    # display_label column with a stuck capital in language_settings is the
+    # exact state that kept re-inheriting capitals onto every new board.
+    context "language_settings" do
+      def image_with_translations(settings, label: "want", part_of_speech: "verb")
+        create(:image, label: label, user_id: user.id, part_of_speech: part_of_speech,
+                       language_settings: settings)
+      end
+
+      it "folds a stuck capital out of the English entry" do
+        image = image_with_translations({ "en" => { "label" => "want", "display_label" => "Want" } })
+
+        run("fold_casing", APPLY: 1)
+
+        expect(image.reload.language_settings["en"]["display_label"]).to eq("want")
+      end
+
+      it "leaves a genuine non-English translation verbatim" do
+        image = image_with_translations({
+          "en" => { "label" => "want", "display_label" => "Want" },
+          "es" => { "label" => "quiero", "display_label" => "Quiero" },
+        })
+
+        run("fold_casing", APPLY: 1)
+
+        expect(image.reload.language_settings["es"]["display_label"]).to eq("Quiero")
+      end
+
+      it "leaves the matching label key untouched" do
+        image = image_with_translations({ "en" => { "label" => "want", "display_label" => "Want" } })
+
+        run("fold_casing", APPLY: 1)
+
+        expect(image.reload.language_settings["en"]["label"]).to eq("want")
+      end
+
+      it "folds the jsonb even when the display_label column is already clean" do
+        image = image_with_translations(
+          { "en" => { "label" => "all done", "display_label" => "All Done" } },
+          label: "all done", part_of_speech: "social",
+        )
+        image.update_columns(display_label: "all done")
+
+        run("fold_casing", APPLY: 1)
+
+        expect(image.reload.language_settings["en"]["display_label"]).to eq("all done")
+      end
+
+      it "writes nothing on a dry run" do
+        image = image_with_translations({ "en" => { "label" => "want", "display_label" => "Want" } })
+
+        run("fold_casing")
+
+        expect(image.reload.language_settings["en"]["display_label"]).to eq("Want")
+      end
+
+      it "is skipped entirely by IMAGES=0" do
+        image = image_with_translations({ "en" => { "label" => "want", "display_label" => "Want" } })
+
+        run("fold_casing", APPLY: 1, IMAGES: 0)
+
+        expect(image.reload.language_settings["en"]["display_label"]).to eq("Want")
+      end
+    end
   end
 end

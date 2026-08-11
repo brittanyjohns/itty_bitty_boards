@@ -529,5 +529,90 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         expect(flash[:alert]).to be_present
       end
     end
+
+    describe "POST regenerate" do
+      it "re-runs the PDF pipeline on the same record" do
+        sign_in admin
+
+        expect(GenerateBoardPrintableJob).to receive(:perform_async).with(printable.id)
+
+        post regenerate_admin_dashboard_board_printable_path(printable)
+
+        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
+        expect(printable.reload.status).to eq("pending")
+      end
+
+      it "keeps the listing copy and the Etsy draft — regenerating is about the document" do
+        sign_in admin
+        allow(GenerateBoardPrintableJob).to receive(:perform_async)
+        printable.update!(listing_copy: { "title" => "Reviewed title" }, etsy_listing_id: 987)
+
+        post regenerate_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.listing_copy["title"]).to eq("Reviewed title")
+        expect(printable.etsy_listing_id).to eq(987)
+      end
+
+      it "clears a previous failure so the status card isn't stale while it re-runs" do
+        sign_in admin
+        allow(GenerateBoardPrintableJob).to receive(:perform_async)
+        printable.update_columns(status: "failed", error_message: "Chrome died")
+
+        post regenerate_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.status).to eq("pending")
+        expect(printable.error_message).to be_nil
+      end
+
+      it "refuses a printable that is already generating" do
+        sign_in admin
+        printable.update_columns(status: "generating")
+
+        expect(GenerateBoardPrintableJob).not_to receive(:perform_async)
+
+        post regenerate_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to be_present
+      end
+
+      it "refuses a non-admin" do
+        sign_in create(:user)
+
+        expect(GenerateBoardPrintableJob).not_to receive(:perform_async)
+
+        post regenerate_admin_dashboard_board_printable_path(printable)
+        expect(response).to redirect_to(root_path)
+      end
+    end
+
+    describe "DELETE destroy" do
+      it "deletes the printable and its files" do
+        sign_in admin
+
+        expect {
+          delete admin_dashboard_board_printable_path(printable)
+        }.to change(BoardPrintable, :count).by(-1)
+
+        expect(response).to redirect_to(admin_dashboard_board_printables_path)
+        expect(flash[:notice]).to include("Core Words")
+      end
+
+      it "leaves the board itself alone" do
+        sign_in admin
+
+        delete admin_dashboard_board_printable_path(printable)
+
+        expect(Board.find_by(id: board.id)).to be_present
+      end
+
+      it "refuses a non-admin" do
+        sign_in create(:user)
+
+        expect {
+          delete admin_dashboard_board_printable_path(printable)
+        }.not_to change(BoardPrintable, :count)
+
+        expect(response).to redirect_to(root_path)
+      end
+    end
   end
 end

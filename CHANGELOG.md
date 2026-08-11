@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Regenerate and delete board printables from the admin dashboard.**
+  *Regenerate* rebuilds a printable's PDFs from the board as it is now — the
+  sub-board tree is re-walked, so pages added since the first run are picked up
+  — while keeping the listing copy you already reviewed and any Etsy draft it's
+  linked to; the old downloads are replaced only once the new ones are safely
+  built. *Delete* removes a printable and its files. An Etsy draft is never
+  touched by either action, so deleting says plainly that the draft is still
+  sitting in the Etsy seller UI waiting for you to remove it there.
+
 - **Board printables can be listed for sale from the admin dashboard.** A
   finished printable's page now carries the whole last mile: a link to the board
   it was built from (and every sub-board in the tree), editable listing copy
@@ -68,6 +77,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **The founder photo sat off-centre in its circle on the about slide.** The
   crop had no effect at all — the source photo is square, so there was nothing
   to shift inside a square frame.
+- **New boards kept coming out Title Cased, even after the casing backfill had
+  been run.** Tiles are meant to default to lowercase ("happy", "all done"), but
+  a freshly built board still rendered "Happy" and "All Done" — and re-running
+  the fold reported nothing left to fix. The stuck capitals were not in the
+  label columns the backfill reads; they were in the per-language copy of the
+  tile text stored alongside each symbol, which a tile reads first and used to
+  copy verbatim. So the fold cleaned the columns, the next board re-inherited
+  the capitals from the untouched copy, and the loop repeated. English entries
+  are now case-normalized like any other defaulted text, and the backfill folds
+  them too. Genuine translations are untouched — a Spanish board still renders
+  exactly what was translated for it.
 
 - **Marketplace gallery images were rendering at a quarter of their intended
   resolution.** The listing images for a board printable were meant to come out

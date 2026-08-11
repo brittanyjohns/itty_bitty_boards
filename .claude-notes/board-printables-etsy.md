@@ -250,6 +250,33 @@ instead of 2040 until it was caught. `width:`/`height:` are PDF-only keys, and
 `to_png`/`to_jpeg` set the screenshot type themselves. Specs pin the nested
 option because the failure is invisible: the render still succeeds, just small.
 
+## Regenerating and deleting a printable
+
+`POST /admin/board_printables/:id/regenerate` re-runs `GenerateBoardPrintableJob`
+on the **same record** so it picks up board edits — `Boards::Printables::Generate`
+re-walks the tree and rewrites `board_ids`, so a sub-board added since the first
+run is included. It resets `status` to `pending` and clears `error_message`, and
+is refused while the record is already `pending`/`generating`.
+
+What it deliberately does NOT touch: `listing_copy`, `etsy_listing_id`, and the
+gallery images. Clearing reviewed copy, or the pointer to a live Etsy draft,
+would be a worse surprise than stale marketing images — which the existing
+**Regenerate** button on the listing-images card re-renders. The redirect notice
+says so.
+
+A re-run can produce different filenames (the name carries the board slug) or a
+different variant set (one `full` file becomes a `color`/`low_ink` pair once the
+tree grows past one board), so `Generate` calls
+`BoardPrintable#purge_stale_pdfs!` with the keys it just wrote. That runs
+**after** the new files are attached — same rule as the listing images — so a
+failed re-render leaves the previous downloads in place rather than emptying the
+record.
+
+`DELETE /admin/board_printables/:id` destroys the record; Active Storage purges
+its PDFs and images with it. It cannot touch Etsy — this app implements no
+listing update or delete call — so the confirm dialog names the surviving draft
+id when one exists (`Admin::BoardPrintablesHelper#board_printable_delete_confirm`).
+
 ## Storage layout
 
 `BoardPrintable#files` holds both kinds of blob, separated by blob metadata
