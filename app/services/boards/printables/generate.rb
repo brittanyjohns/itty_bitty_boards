@@ -33,9 +33,14 @@ module Boards
           slug: printable.board.slug.presence || "board-#{printable.board.id}",
         ).call
 
-        files.each do |file|
+        blobs = files.map do |file|
           printable.attach_pdf!(filename: file.filename, bytes: file.bytes, variant: file.variant)
         end
+
+        # A re-run of the same record can produce different filenames (renamed
+        # board) or a different variant set (a subboard added since last time),
+        # so anything not written by THIS run is a stale download.
+        printable.purge_stale_pdfs!(blobs.map(&:key))
 
         printable.update!(
           status: "complete",

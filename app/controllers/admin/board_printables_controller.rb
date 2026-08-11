@@ -78,6 +78,44 @@ module Admin
       end
     end
 
+    # Re-runs the whole PDF pipeline on the SAME record so the printable picks
+    # up board edits. The tree is re-walked (Generate rewrites board_ids), so a
+    # subboard added since the first run is included.
+    #
+    # Listing copy, the Etsy listing id and the gallery images are deliberately
+    # left alone: regenerating is about the document, and silently clearing an
+    # admin's reviewed copy — or the pointer to a live Etsy draft — would be a
+    # far worse surprise than stale marketing images they can re-render with the
+    # button that already exists.
+    def regenerate
+      printable = BoardPrintable.find(params[:id])
+
+      if %w[pending generating].include?(printable.status)
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable is already generating."
+        return
+      end
+
+      printable.update!(status: "pending", error_message: nil)
+      GenerateBoardPrintableJob.perform_async(printable.id)
+
+      redirect_to admin_dashboard_board_printable_path(printable),
+                  notice: "Regenerating from the current board… the listing images are now out of date, so re-render those when it finishes."
+    end
+
+    # Destroys the record and (via Active Storage) its PDFs and gallery images.
+    # Nothing is sent to Etsy: an existing draft stays where it is, because this
+    # app never mutates a listing's state — see Etsy::Client.
+    def destroy
+      printable = BoardPrintable.find(params[:id])
+      name = printable.board&.name || "Board ##{printable.board_id}"
+
+      printable.destroy!
+
+      redirect_to admin_dashboard_board_printables_path,
+                  notice: "Deleted the printable for “#{name}”."
+    end
+
     def regenerate_listing_images
       printable = BoardPrintable.find(params[:id])
 

@@ -29,6 +29,17 @@
     <span class="<%= board_printable_status_badge(@printable.status) %> inline-block text-xs rounded px-2.5 py-1"><%= @printable.status %></span>
     <% if %w[pending generating].include?(@printable.status) %>
       <span class="text-xs text-t3">This page refreshes automatically every 5 seconds.</span>
+    <% else %>
+      <%# Regenerating re-walks the board tree, so this is how a printable picks
+          up board edits. It keeps the listing copy and any Etsy draft. %>
+      <%= button_to "Regenerate", regenerate_admin_dashboard_board_printable_path(@printable),
+            method: :post,
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+            form: { data: { turbo_confirm: "Rebuild this printable from the board as it is now? The PDFs are replaced; your listing copy is kept, and the listing images will need re-rendering." } } %>
+      <%= button_to "Delete printable", admin_dashboard_board_printable_path(@printable),
+            method: :delete,
+            class: "text-xs font-medium px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white cursor-pointer",
+            form: { data: { turbo_confirm: board_printable_delete_confirm(@printable) } } %>
     <% end %>
   </div>
 

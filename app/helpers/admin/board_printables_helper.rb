@@ -32,6 +32,17 @@ module Admin
       "https://www.etsy.com/listing/#{printable.etsy_listing_id.to_i}"
     end
 
+    # Deleting the record can't touch Etsy — Rails only ever creates drafts and
+    # implements no update/delete call — so a printable already on Etsy has to
+    # say so loudly, or an admin deletes the record and assumes the draft went
+    # with it.
+    def board_printable_delete_confirm(printable)
+      base = "Delete this printable and its PDFs? This can't be undone."
+      return base unless printable.etsy_published?
+
+      "#{base} Etsy draft #{printable.etsy_listing_id} stays on Etsy — remove it there yourself."
+    end
+
     # The list is capped at PUBLIC_BOARD_LIMIT, so which boards you see depends
     # on the sort — the summary line says which one picked them.
     def board_sort_label(sort)
