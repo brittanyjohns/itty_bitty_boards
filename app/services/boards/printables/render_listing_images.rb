@@ -141,6 +141,7 @@ module Boards
           tiles: tiles_from(grid_thumbnails(low_ink: low_ink)),
           columns: plan.columns,
           rows: plan.rows,
+          tile_max_px: plan.tile_max_px,
           overflow_note: plan.overflow_note,
           items: included_items,
         )

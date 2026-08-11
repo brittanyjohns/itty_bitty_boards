@@ -27,26 +27,32 @@
         title two inches above it. %>
     <% show_labels = @tiles.size > 1 %>
 
-    <%# Both tracks are explicit: the cards size themselves against their slot,
-        and an auto row gives them nothing definite to measure against. %>
-    <div class="tile-grid stretch"
-         style="grid-template-columns: repeat(<%= @columns %>, 1fr);
-                grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
-      <% @tiles.each do |tile| %>
-        <div class="tile">
-          <div class="paper" style="aspect-ratio: <%= tile[:width] %> / <%= tile[:height] %>;">
-            <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+    <div class="included-stage stretch" style="--tile-max: <%= @tile_max_px %>px;">
+      <%# Both tracks are minmax(0, 1fr), and the 0 matters as much as the 1fr.
+          A bare `1fr` is `minmax(auto, 1fr)`, so a track can never shrink below
+          its content's min-content width — and a tile caption is `nowrap`, so a
+          long board name silently pushed the last column off the slide. The
+          rows are explicit for the other half of the same problem: an auto row
+          gives the page card nothing definite to size itself against. %>
+      <div class="tile-grid"
+           style="grid-template-columns: repeat(<%= @columns %>, minmax(0, 1fr));
+                  grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
+        <% @tiles.each do |tile| %>
+          <div class="tile">
+            <div class="paper">
+              <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
+            </div>
+            <% if show_labels && tile[:label].present? %>
+              <div class="tile-label"><%= tile[:label] %></div>
+            <% end %>
           </div>
-          <% if show_labels && tile[:label].present? %>
-            <div class="tile-label"><%= tile[:label] %></div>
-          <% end %>
-        </div>
+        <% end %>
+      </div>
+
+      <% if @overflow_note.present? %>
+        <div class="overflow-note"><%= @overflow_note %></div>
       <% end %>
     </div>
-
-    <% if @overflow_note.present? %>
-      <div class="overflow-note"><%= @overflow_note %></div>
-    <% end %>
 
     <div class="included-panel">
       <div class="included-title">In your download</div>

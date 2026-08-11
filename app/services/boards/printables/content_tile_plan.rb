@@ -25,7 +25,7 @@ module Boards
         def board_id = board.id
       end
 
-      attr_reader :tiles, :columns, :rows, :overflow_note
+      attr_reader :tiles, :columns, :rows, :tile_max_px, :overflow_note
 
       def self.build(boards:, max_tiles: MAX_TILES)
         boards = Array(boards)
@@ -36,6 +36,7 @@ module Boards
           tiles: shown.map { |b| Tile.new(board: b, label: label_for(b)) },
           columns: columns,
           rows: rows_for(shown.size, columns),
+          tile_max_px: tile_max_px_for(columns),
           overflow_note: overflow_note(boards.size - shown.size),
         )
       end
@@ -68,21 +69,36 @@ module Boards
         (count / columns.to_f).ceil
       end
 
-      # Boards, not pages: every tile in the grid is one board, and low-ink now
-      # has a slide of its own rather than a mention in this caption.
+      # How wide a page card may get, in CSS px on the 1280px slide. The cards
+      # are a uniform shape, so height follows from width — capping the width is
+      # what stops a row of one or two boards growing taller than its slot,
+      # without reaching for a percentage height the card can't resolve.
+      def self.tile_max_px_for(columns)
+        case columns
+        when 0, 1 then 720
+        when 2 then 520
+        when 3 then 380
+        else 300
+        end
+      end
+
+      # Pages, not boards: each withheld board is one more page in the colour
+      # PDF, and a buyer counts pages. Low-ink isn't counted here — it has a
+      # slide of its own now rather than a mention in this caption.
       def self.overflow_note(withheld)
         return nil unless withheld.positive?
 
-        noun = withheld == 1 ? "board" : "boards"
-        "+#{withheld} more #{noun} in this set"
+        noun = withheld == 1 ? "page" : "pages"
+        "+#{withheld} more #{noun}"
       end
 
-      private_class_method :label_for, :columns_for, :rows_for, :overflow_note
+      private_class_method :label_for, :columns_for, :rows_for, :tile_max_px_for, :overflow_note
 
-      def initialize(tiles:, columns:, rows:, overflow_note:)
+      def initialize(tiles:, columns:, rows:, tile_max_px:, overflow_note:)
         @tiles = tiles
         @columns = columns
         @rows = rows
+        @tile_max_px = tile_max_px
         @overflow_note = overflow_note
       end
 

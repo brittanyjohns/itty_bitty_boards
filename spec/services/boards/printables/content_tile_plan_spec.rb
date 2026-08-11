@@ -66,16 +66,34 @@ RSpec.describe Boards::Printables::ContentTilePlan do
       expect(plan.overflow_note).to be_nil
     end
 
-    it "counts only the boards the grid withheld" do
+    it "counts only the pages the grid withheld" do
       plan = described_class.build(boards: boards(12))
 
-      expect(plan.overflow_note).to eq("+4 more boards in this set")
+      expect(plan.overflow_note).to eq("+4 more pages")
     end
 
-    it "uses the singular for a single withheld board" do
+    it "uses the singular for a single withheld page" do
       plan = described_class.build(boards: boards(9), max_tiles: 8)
 
-      expect(plan.overflow_note).to eq("+1 more board in this set")
+      expect(plan.overflow_note).to eq("+1 more page")
+    end
+  end
+
+  # The cards are a uniform shape so the row can't come out ragged, which means
+  # height follows from width — the width cap is what keeps a row of one or two
+  # boards from outgrowing its slot.
+  describe "the card width cap" do
+    it "gives a sparse row bigger cards than a full one" do
+      one = described_class.build(boards: boards(1)).tile_max_px
+      four = described_class.build(boards: boards(4)).tile_max_px
+      eight = described_class.build(boards: boards(8)).tile_max_px
+
+      expect(one).to be > four
+      expect(four).to be > eight
+    end
+
+    it "caps an empty plan rather than returning nil" do
+      expect(described_class.build(boards: []).tile_max_px).to be_positive
     end
   end
 
