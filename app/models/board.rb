@@ -675,6 +675,29 @@ class Board < ApplicationRecord
     end
   end
 
+  # Last-resort thumbnail: a board with no rendered preview and no seed URL
+  # renders as a broken image everywhere it's listed. Seed the column from one
+  # of the board's OWN tiles.
+  #
+  # For a page inside a set, `Boards::SubBoardThumbnails` is the better and
+  # preferred source — it uses the folder tile that opens the page, which is
+  # the picture the user already associates with it. This covers what that
+  # can't reach: a board with no folder tile pointing at it (hand-picked into
+  # a set, or a set root).
+  #
+  # Safe to leave in place: #display_image_url still prefers the live preview
+  # (and a custom cover) over the column, so the seed can never pin a stale
+  # image once a real preview exists.
+  def seed_display_image_from_tiles!
+    return false if display_image_url.present?
+
+    url = board_images.includes(:image).detect { |bi| bi.image && bi.tile_image_url.present? }&.tile_image_url
+    return false if url.blank?
+
+    update_column(:display_image_url, url)
+    true
+  end
+
   def rearrange_images(layout = nil, screen_size = "lg")
     ActiveRecord::Base.logger.silence do
       layout ||= calculate_grid_layout_for_screen_size(screen_size)

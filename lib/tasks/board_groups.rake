@@ -116,6 +116,44 @@ namespace :board_groups do
 
     puts "\nDry run only — re-run without DRY_RUN to apply." if dry_run
   end
+
+  # Sets created before BoardGroup#seed_display_images! existed have member
+  # boards whose display_image_url is blank and whose preview hasn't been
+  # rendered — they show as broken thumbnails on the set page. Seed each from
+  # its own tiles and pin the set's cover by reference. Idempotent: anything
+  # that already resolves an image is left alone.
+  #
+  #   DRY_RUN=1 rake board_groups:backfill_display_images   # preview
+  #   rake board_groups:backfill_display_images             # apply
+  #   USER_ID=740 rake board_groups:backfill_display_images # scope to one owner
+  desc "Seed missing display images on board sets and their member boards (DRY_RUN=1 to preview; USER_ID=N to scope)"
+  task backfill_display_images: :environment do
+    dry_run = %w[1 true yes].include?(ENV["DRY_RUN"].to_s.downcase.strip)
+
+    groups = BoardGroup.all
+    groups = groups.where(user_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    seeded_boards = 0
+    seeded_groups = 0
+
+    groups.find_each do |group|
+      missing = group.boards.reject { |board| board.display_image_url.present? }
+      needs_cover = group.cover_board_id.blank? && group.read_attribute(:display_image_url).blank?
+      next if missing.empty? && !needs_cover
+
+      if dry_run
+        puts "set ##{group.id} #{group.name.inspect}: #{missing.size} board(s) without an image" \
+             "#{needs_cover ? ', no cover' : ''}"
+        next
+      end
+
+      seeded_boards += missing.count(&:seed_display_image_from_tiles!)
+      seeded_groups += 1 if group.seed_display_images!
+    end
+
+    puts "Seeded #{seeded_boards} board image(s) and #{seeded_groups} set cover(s)."
+    puts "Dry run only — re-run without DRY_RUN to apply." if dry_run
+  end
 end
 
 # Every board in a builder set: BFS the predictive_board_id links from the root,
