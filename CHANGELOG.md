@@ -7,6 +7,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A Sensory section on the care card.** Sound, touch and light, plus a
+  "what helps when it's too much" line — the things that cut across a whole day
+  and had nowhere to live before. Noise on the bus and lights in a classroom
+  aren't a meals question, so it's its own section rather than a corner of
+  Meals.
+
+### Changed
+
+- **Fewer, sharper care choices.** The lists had grown longer than anyone reads.
+  Communication drops "facial expressions" (near-universal, so it said almost
+  nothing) and "writing", and folds "echolalia" into "some speech"; the
+  help-level and seating lists shrink to the choices that actually change what a
+  helper does. Anything removed has a better home in the detail lines added last
+  release. **Nobody loses an answer they already gave** — retired choices are
+  still accepted, they just aren't offered to anyone new.
+
 - **Care options can now be retired without destroying answers people already
   gave.** Removing a choice from the care registry used to erase it from every
   profile still holding it, the next time that profile was saved for any reason

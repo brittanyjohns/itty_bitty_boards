@@ -31,7 +31,12 @@ RSpec.describe "API::CareSections", type: :request do
         section["fields"].each_with_index do |field, idx|
           source = spec[:fields][idx]
           expect(field["type"]).to eq(source[:type].to_s)
-          expect(field["options"]).to eq(source[:options])
+          # OFFERED options, not the raw registry: an option that has been
+          # retired is still accepted on save but must never be presented as a
+          # fresh choice. See Profile::DEPRECATED_CARE_OPTIONS.
+          expected = source[:options] &&
+                     Profile.offered_care_options(section["key"], source)
+          expect(field["options"]).to eq(expected)
         end
       end
     end
@@ -88,6 +93,21 @@ RSpec.describe "API::CareSections", type: :request do
         %w[c_ABC123 c_abc12 c_abc1234 communication ../etc c_abcxyz].each do |key|
           expect(key).not_to match(Profile::CARE_CUSTOM_KEY_FORMAT)
           expect(key).not_to match(translated)
+        end
+      end
+    end
+
+    it "never offers an option that has been retired" do
+      get "/api/care_sections"
+      body = JSON.parse(response.body)
+
+      Profile::DEPRECATED_CARE_OPTIONS.each do |section_key, fields|
+        served = body["sections"].find { |s| s["key"] == section_key }
+        next unless served
+
+        fields.each do |field_key, mapping|
+          offered = served["fields"].find { |f| f["key"] == field_key }&.dig("options") || []
+          expect(offered).not_to include(*mapping.keys)
         end
       end
     end

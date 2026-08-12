@@ -594,6 +594,25 @@ class Profile < ApplicationRecord
         { key: "notes", type: :short_text },
       ],
     },
+    # Sensory is its own section rather than a sub-topic of Meals, deliberately:
+    # "won't eat anything cold" is a meals fact, but noise on the bus and lights
+    # in a classroom cut across every other section and had nowhere to live.
+    "sensory" => {
+      fields: [
+        { key: "sound", type: :multi_select,
+          options: %w[loud_noises_hurt uses_ear_defenders warn_before_alarms
+                      likes_music] },
+        { key: "touch", type: :multi_select,
+          options: %w[ask_before_touching dislikes_light_touch
+                      likes_deep_pressure] },
+        { key: "light", type: :multi_select,
+          options: %w[bright_light_hurts flickering_bothers prefers_dim] },
+        # The single most useful line on this section for someone with a
+        # distressed person in front of them.
+        { key: "calming", type: :short_text },
+        { key: "notes", type: :short_text },
+      ],
+    },
     "transportation" => {
       fields: [
         { key: "mode", type: :multi_select,
@@ -644,7 +663,36 @@ class Profile < ApplicationRecord
   # Shape: { "section" => { "field" => { "old_option" => "new_option_or_nil" } } }
   # A nil replacement means "no equivalent — drop it on remap", which still only
   # happens when someone deliberately runs the task.
-  DEPRECATED_CARE_OPTIONS = {}.freeze
+  DEPRECATED_CARE_OPTIONS = {
+    "communication" => {
+      "methods" => {
+        # Folded into some_speech: a product call, not a clinical one. Note for
+        # whoever revisits this — echolalia and "some speech" answer different
+        # questions for the person reading the card (whether they talk vs how to
+        # interpret what they say), and this app models gestalt language
+        # processing elsewhere. If parents ask for the distinction back, the
+        # option key can simply be re-added; the answers merged into some_speech
+        # are what can't be un-merged, so check care:audit_options first.
+        "echolalia" => "some_speech",
+        # Near-universal, so it carried almost no information as a checkbox.
+        "facial_expressions" => nil,
+        # Real but rare, and better as a detail line ("hand him a pen and he'll
+        # write it") than as a chip everyone scans past.
+        "writing" => nil,
+      },
+      "help_level" => {
+        "needs_setup" => "needs_prompts",
+        "hand_over_hand" => "partner_required",
+      },
+    },
+    "transportation" => {
+      "seating" => {
+        # Both are "which seat", which is a detail line, not a category.
+        "specific_seat" => nil,
+        "front_seat_only" => nil,
+      },
+    },
+  }.freeze
 
   def self.retired_care_options(section_key, field)
     DEPRECATED_CARE_OPTIONS.dig(section_key, field[:key])&.keys || []
