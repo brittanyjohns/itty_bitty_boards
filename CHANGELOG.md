@@ -7,6 +7,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Care sections take detail lines, not just pick-from-a-list answers.** The
+  preset choices answer "which of these applies"; the thing you actually need to
+  pass on to a substitute is usually specific and still changing — "Drinks:
+  watered-down apple juice, we're trying others", "Pieces: cut big ones up",
+  "Won't eat anything cold". Every built-in section now takes up to eight
+  label/value lines alongside its presets, the same rows a section you write
+  yourself already had.
+
+- **The care schema is now served to the app** (`GET /api/care_sections`).
+  The editor's option chips came from a copy of the list hand-maintained in the
+  frontend, and `sanitize_care_settings` drops an option it doesn't recognize
+  rather than rejecting it — so renaming one here silently erased that answer
+  from every profile on its next save, with no error anywhere. The app now
+  renders whatever this endpoint sends. Changing the care options no longer
+  needs a matching frontend release.
+
 - **Text tiles: a tile picture rendered from typed text.** New
   `POST /api/board_images/:id/create_text_image` renders the tile's word in a
   chosen font, size, weight, case, alignment and colors, and attaches the PNG
@@ -18,14 +34,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   bucket so it never competes with paid AI work, and an identical repeat request
   is served without re-rendering. `POST /api/images/generate` now rejects
   `style=text` (422) rather than silently falling back to an AI style.
-
-- **The care schema is now served to the app** ().
-  The editor's option chips came from a copy of the list hand-maintained in the
-  frontend, and  drops an option it doesn't recognize
-  rather than rejecting it — so renaming one here silently erased that answer
-  from every profile on its next save, with no error anywhere. The app now
-  renders whatever this endpoint sends. Changing the care options no longer
-  needs a matching frontend release.
 
 - **Care sections on a MySpeak page.** Beyond the intro and About Me blurb, a
   communicator's page can now carry optional, structured sections covering how
