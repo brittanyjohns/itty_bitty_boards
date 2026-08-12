@@ -48,9 +48,14 @@ class ImportObzJob
       # Nothing in the import path renders a board snapshot, so without this an
       # imported set has no cover at all: BoardGroup#preview_image_url reads
       # through to the root board's attachment, and the import status page has
-      # nothing to show. Only the root is rendered — it is the set's cover, and
-      # a large .obz would otherwise queue a Grover render per page.
+      # nothing to show.
+      #
+      # Only the ROOT is rendered. Every other page gets the folder tile that
+      # opens it as its thumbnail instead — a render per page would put one
+      # headless-Chrome run per .obf onto the shared :default queue, and a real
+      # vocabulary set runs to 50-200 pages.
       result[:root_board].run_generate_preview_job
+      set_sub_board_thumbnails!(result, current_user)
 
       board_group.update_column(:status, "complete")
       board_group.import_source_file.purge
@@ -61,5 +66,23 @@ class ImportObzJob
     Rails.logger.error "\n**** SIDEKIQ - ImportObzJob #{board_group_id} \n\nERROR **** \n#{e.message}\n#{e.backtrace&.join("\n")}\n"
     board_group&.update_column(:status, "failed")
     raise
+  end
+
+  private
+
+  # The importer already hands back every board it created, so there's no need
+  # to re-walk the graph to find them. A thumbnail is a nicety — never fail a
+  # finished import over one.
+  def set_sub_board_thumbnails!(result, current_user)
+    board_ids = Array(result[:boards]&.values).compact.map(&:id)
+    return if board_ids.size < 2
+
+    Boards::SubBoardThumbnails.apply!(
+      owner: current_user,
+      board_ids: board_ids,
+      root_id: result[:root_board].id,
+    )
+  rescue => e
+    Rails.logger.error "[ImportObzJob] sub-board thumbnails failed: #{e.class}: #{e.message}"
   end
 end

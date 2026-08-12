@@ -39,6 +39,76 @@ RSpec.describe ImportObzJob do
     expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(board_group.reload.root_board_id)
   end
 
+  # A multi-page .obz must not queue a render per page: that is one
+  # headless-Chrome run per .obf on the shared :default queue, and a real
+  # vocabulary set runs to 50-200 pages. Only the root — the set's cover — is
+  # rendered; the rest take the folder tile that opens them.
+  context "with a multi-board .obz" do
+    def precreate_links_group!
+      board_group = BoardGroup.create!(name: "Imported links.obz", user_id: user.id, status: "queued")
+      board_group.import_source_file.attach(
+        io: File.open(Rails.root.join("spec/data/links.obz")),
+        filename: "links.obz", content_type: "application/zip",
+      )
+      board_group
+    end
+
+    it "renders exactly one preview no matter how many pages were imported" do
+      board_group = precreate_links_group!
+
+      expect {
+        described_class.new.perform(board_group.id, user.id, {})
+      }.to change { user.boards.count }.by(3)
+        .and change { GenerateBoardPreviewJob.jobs.size }.by(1)
+
+      expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(board_group.reload.root_board_id)
+    end
+
+    # What apply! then DOES with those ids is covered deterministically in
+    # spec/services/boards/sub_board_thumbnails_spec.rb. Asserting the outcome
+    # here instead would be vacuous: no .obz fixture in spec/data has a folder
+    # tile carrying artwork, so every child resolves to a blank tile image and
+    # the assertion would never fire.
+    it "hands every imported page to the thumbnailer, keyed on the root" do
+      board_group = precreate_links_group!
+      allow(Boards::SubBoardThumbnails).to receive(:apply!).and_call_original
+
+      described_class.new.perform(board_group.id, user.id, {})
+
+      board_group.reload
+      expect(Boards::SubBoardThumbnails).to have_received(:apply!) do |args|
+        expect(args[:owner]).to eq(user)
+        expect(args[:root_id]).to eq(board_group.root_board_id)
+        expect(args[:board_ids]).to match_array(board_group.boards.pluck(:id))
+      end
+    end
+
+    # An imported page is an ordinary board — if the user edits it later and
+    # earns a real rendered preview, that preview should win over the folder
+    # tile. Only the Board Builder purges.
+    it "does not purge previews from imported pages" do
+      board_group = precreate_links_group!
+      allow(Boards::SubBoardThumbnails).to receive(:apply!).and_call_original
+
+      described_class.new.perform(board_group.id, user.id, {})
+
+      expect(Boards::SubBoardThumbnails).to have_received(:apply!) do |args|
+        expect(args[:purge_previews]).to be_falsey
+      end
+    end
+
+    # A thumbnail is a nicety — it must never fail an import that otherwise
+    # finished.
+    it "still completes the import when thumbnailing blows up" do
+      board_group = precreate_links_group!
+      allow(Boards::SubBoardThumbnails).to receive(:apply!).and_raise(StandardError, "boom")
+
+      described_class.new.perform(board_group.id, user.id, {})
+
+      expect(board_group.reload.status).to eq("complete")
+    end
+  end
+
   it "purges the uploaded .obz once the import succeeds" do
     board_group = precreate_board_group!
 

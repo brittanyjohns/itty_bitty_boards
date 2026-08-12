@@ -91,6 +91,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   even when some artwork is still coming, using the word itself in place of any
   picture that isn't ready, and the cover is redrawn once the real artwork
   lands. Printable PDFs are unaffected — they still wait for the real artwork.
+  The pages inside an imported set now show a picture too: each one uses the
+  folder tile you tap to open it, the same way a built board set already did.
 
 - **Boards built through the internal API still came out Title Cased.** The
   endpoint treated the word you send as authored display text and pinned its

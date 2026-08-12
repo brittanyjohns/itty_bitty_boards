@@ -283,36 +283,17 @@ class BuildBoardSetJob
   end
 
   # Sub-boards aren't rendered to a PNG preview (GenerateBoardPreviewJob skips
-  # builder_child boards). Instead each sub-board's thumbnail is the folder tile
-  # that opens it — "whatever board image represents it" wherever that tile lives
-  # in the set (the root for top-level fringe pages, the Phrases board for the
-  # function pages, etc.). We resolve that tile's image and write it onto the
-  # sub-board's denormalized display_image_url COLUMN (the tier-3 seed thumbnail
-  # in Board#display_image_url), then purge any stray preview_image so the column
-  # wins. update_column skips callbacks so this never re-enqueues a preview.
+  # builder_child boards) — each one's thumbnail is the folder tile that opens
+  # it. Shared with the .obz import, which has the same "don't queue a render
+  # per page" problem: see Boards::SubBoardThumbnails. Previews are purged here
+  # because a builder sub-board is never meant to have one.
   def set_sub_board_previews_from_tiles!(root)
-    owner = root.user
-    ids = set_board_ids(root)
-    child_ids = ids - [root.id]
-    return if child_ids.empty?
-
-    # The folder tiles (anywhere in the set) that open each child board. If a
-    # child is reachable from more than one tile, any one is a fine thumbnail.
-    tiles_by_child = BoardImage
-      .where(board_id: ids, predictive_board_id: child_ids)
-      .includes(:image)
-      .index_by(&:predictive_board_id)
-
-    Board.where(id: child_ids).find_each do |child|
-      tile = tiles_by_child[child.id]
-      next unless tile
-
-      url = tile.tile_image_url(owner)
-      next if url.blank?
-
-      child.update_column(:display_image_url, url) unless child.read_attribute(:display_image_url) == url
-      child.preview_image.purge if child.preview_image.attached?
-    end
+    Boards::SubBoardThumbnails.apply!(
+      owner: root.user,
+      board_ids: set_board_ids(root),
+      root_id: root.id,
+      purge_previews: true,
+    )
   end
 
   # Attach every board in the built set to its builder BoardGroup, so the set is
