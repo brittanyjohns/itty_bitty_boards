@@ -164,6 +164,10 @@ Rails.application.routes.draw do
     get "audio/play", to: "audio#play"
 
     get "preset_colors", to: "application#preset_colors"
+    # The MySpeak care schema. Static reference data, no auth — see the
+    # controller. The editor renders its option chips from this rather than
+    # from a hand-copied duplicate of Profile::CARE_SECTIONS.
+    get "care_sections", to: "care_sections#index"
     get "voices", to: "application#voice_options"
 
     get "public_boards", to: "boards#public_boards"
