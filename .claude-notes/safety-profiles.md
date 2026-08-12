@@ -142,7 +142,20 @@ multiple-choice and short-answer, deliberately unlike the free-text bio.
   frontend previously carried a hand-copied duplicate, and since
   `sanitize_care_settings` DROPS an unrecognized key rather than rejecting it, a
   rename deleted that answer from every profile with no error and no 422.
-- **Removing or renaming an option still deletes stored data.**
+- **Retiring an option is a TWO-STEP process, and step one is one line.**
+  `Profile::DEPRECATED_CARE_OPTIONS` maps
+  `section => field => { retired_key => replacement_or_nil }`. Adding a key
+  there makes `care_registry_view` stop OFFERING it while
+  `sanitize_care_settings` keeps ACCEPTING it — so nobody picks it fresh and
+  nobody loses what they already wrote. Then `rake care:audit_options` reports
+  who still holds one and `rake care:remap_options` (dry-run by default,
+  `DRY_RUN=false` to apply, `PROFILE_ID=n` to scope) moves them onto their
+  replacements via `CareOptionRemap` (`app/services/`). Only once the audit
+  reports zero is it safe to delete the key from `CARE_SECTIONS` and from
+  `DEPRECATED_CARE_OPTIONS`. **Do not skip to the delete** — see below.
+  A rename is a remove plus an add: deprecate the old key, add the new one, map
+  old => new.
+- **Removing an option WITHOUT deprecating it still deletes stored data.**
   `sanitize_care_settings` is a `before_save`, not a check on the incoming
   payload, so it re-cleans the whole blob on *every* profile save — an avatar
   upload is enough. Retiring an option therefore needs a backfill first, or a

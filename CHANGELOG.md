@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Care options can now be retired without destroying answers people already
+  gave.** Removing a choice from the care registry used to erase it from every
+  profile still holding it, the next time that profile was saved for any reason
+  at all. A retired option is now still accepted on save while no longer being
+  offered, and `rake care:audit_options` / `rake care:remap_options` move the
+  stored answers onto their replacements before the option is finally deleted.
+
 - **Care sections take detail lines, not just pick-from-a-list answers.** The
   preset choices answer "which of these applies"; the thing you actually need to
   pass on to a substitute is usually specific and still changing — "Drinks:
