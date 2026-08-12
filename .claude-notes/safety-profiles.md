@@ -131,9 +131,24 @@ multiple-choice and short-answer, deliberately unlike the free-text bio.
   **drops rather than rejects** — a stale frontend must not be able to 422 a
   parent out of saving. If nothing survives, the key is deleted so
   `has_care_info?` stays honest.
-- **The frontend registry must not drift.** `src/data/careSections.ts` mirrors
-  the option keys verbatim; a renamed key is silently dropped on save, not
-  reported.
+- **The registry is SERVED, not duplicated** — `GET /api/care_sections`
+  (`API::CareSectionsController`, unauthenticated like `preset_colors`; it is a
+  static schema with no user data in it). `Profile.care_registry_view` emits the
+  sections in registry order, every field's type, its options where it has them,
+  every cap the sanitizer enforces, and `CARE_CUSTOM_KEY_FORMAT` translated to
+  JavaScript anchors (Ruby's `\A`/`\z` don't compile in a JS RegExp).
+  `src/data/careSections.ts` keeps a bundled copy only as an offline/first-paint
+  fallback. **This is why editing CARE_SECTIONS is now safe to do alone** — the
+  frontend previously carried a hand-copied duplicate, and since
+  `sanitize_care_settings` DROPS an unrecognized key rather than rejecting it, a
+  rename deleted that answer from every profile with no error and no 422.
+- **Removing or renaming an option still deletes stored data.**
+  `sanitize_care_settings` is a `before_save`, not a check on the incoming
+  payload, so it re-cleans the whole blob on *every* profile save — an avatar
+  upload is enough. Retiring an option therefore needs a backfill first, or a
+  deprecation window where the key stays in the constant (accepted by the
+  sanitizer, hidden from the editor) until the data is migrated. Tracked in
+  itty-bitty-frontend#679.
 - **Care fields are never eligible for writing suggestions** — same rule as
   `SAFETY_SENSITIVE_KEYS`. Nothing here goes to OpenAI.
 - Care info is deliberately **not** on the Safety ID card or device tag; those

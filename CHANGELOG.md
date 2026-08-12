@@ -7,6 +7,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **The care schema is now served to the app** (`GET /api/care_sections`).
+  The editor's option chips came from a copy of the list hand-maintained in the
+  frontend, and `sanitize_care_settings` drops an option it doesn't recognize
+  rather than rejecting it — so renaming one here silently erased that answer
+  from every profile on its next save, with no error anywhere. The app now
+  renders whatever this endpoint sends. Changing the care options no longer
+  needs a matching frontend release.
+
+- **The care schema is now served to the app** ().
+  The editor's option chips came from a copy of the list hand-maintained in the
+  frontend, and  drops an option it doesn't recognize
+  rather than rejecting it — so renaming one here silently erased that answer
+  from every profile on its next save, with no error anywhere. The app now
+  renders whatever this endpoint sends. Changing the care options no longer
+  needs a matching frontend release.
+
 - **Care sections on a MySpeak page.** Beyond the intro and About Me blurb, a
   communicator's page can now carry optional, structured sections covering how
   they communicate, personal care, meals and snacks, and getting to and from

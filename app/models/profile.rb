@@ -621,6 +621,51 @@ class Profile < ApplicationRecord
   CARE_ITEM_VALUE_MAX = 200
   CARE_SHORT_TEXT_MAX = 300
 
+  # The care schema as the editor needs it — the whole registry, its caps, and
+  # the custom-key format, in one payload.
+  #
+  # This lives beside CARE_SECTIONS deliberately. The frontend used to carry a
+  # hand-copied duplicate of every option key, and sanitize_care_settings drops
+  # an unrecognized key rather than rejecting it — so a rename here silently
+  # deleted the parent's answer on their next save, with no error and no 422.
+  # Serving the registry means a change to the constant reaches the editor
+  # without a frontend deploy, and there is no second copy to drift.
+  #
+  # Sections are an ARRAY, not a hash: CARE_SECTIONS is insertion-ordered and
+  # that order is the order the editor renders in.
+  def self.care_registry_view
+    {
+      sections: CARE_SECTIONS.map do |key, spec|
+        {
+          key: key,
+          fields: spec[:fields].map do |field|
+            out = { key: field[:key], type: field[:type] }
+            out[:options] = field[:options] if field[:options]
+            out
+          end,
+        }
+      end,
+      limits: {
+        max_custom_sections: MAX_CUSTOM_CARE_SECTIONS,
+        max_custom_items: MAX_CARE_CUSTOM_ITEMS,
+        max_multi_select: MAX_CARE_MULTI_SELECT,
+        title_max: CARE_TITLE_MAX,
+        item_label_max: CARE_ITEM_LABEL_MAX,
+        item_value_max: CARE_ITEM_VALUE_MAX,
+        short_text_max: CARE_SHORT_TEXT_MAX,
+      },
+      custom_key_format: js_custom_key_format,
+    }
+  end
+
+  # Ruby anchors \A and \z are not valid in a JavaScript RegExp, so translate
+  # rather than shipping Regexp#source raw — a consumer that compiled it would
+  # throw. Derived from the constant on purpose: a hand-written copy of the
+  # pattern is exactly the kind of duplicate this endpoint exists to remove.
+  def self.js_custom_key_format
+    CARE_CUSTOM_KEY_FORMAT.source.sub('\A', "^").sub('\z', "$")
+  end
+
   PUBLIC_PAGE_KEYS = %w[
     public_page
     socials
