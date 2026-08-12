@@ -75,6 +75,10 @@ module Boards
       # attached; reload so the caller sees every board just added rather
       # than that stale, empty cache.
       group.reload
+      # Outside the transaction: a thumbnail is cosmetic, so it seeds after the
+      # group is safely committed rather than being able to roll it back.
+      group.seed_display_images!
+      group
     end
 
     # The map's membership must not silently freeze the moment a group is
@@ -92,6 +96,7 @@ module Boards
 
       newly_reachable.each { |member| add_board!(group, member) }
       group.reload
+      group.seed_display_images!
     end
 
     # Now that the set has a home board and a membership list, its links can be

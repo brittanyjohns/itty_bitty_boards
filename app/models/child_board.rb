@@ -114,6 +114,24 @@ class ChildBoard < ApplicationRecord
     user.can_add_boards_to_account?([child_account_id])
   end
 
+  # Board card for UNAUTHENTICATED public pages (the MySpeak page's board
+  # grid). Deliberately NOT api_view: that emits `added_by` — the email of
+  # whoever assigned the board — plus the assigning user's id and the board
+  # owner's name, none of which belongs on a page with no authentication and
+  # none of which a card renders. Keys mirror the frontend's `PublicBoardCard`
+  # type (itty-bitty-frontend/src/data/profiles.ts).
+  def public_card_view
+    {
+      id: id,
+      board_id: board_id,
+      name: board.name,
+      display_image_url: display_image_url || preview_image_url,
+      preview_image_url: preview_image_url,
+      bg_color: board.bg_color,
+      text_color: board.text_color,
+    }
+  end
+
   def api_view
     {
       id: id,

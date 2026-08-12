@@ -345,4 +345,81 @@ RSpec.describe "API::Profiles", type: :request do
       expect(profile.reload.settings["theme"]).to be_nil
     end
   end
+
+  # The MySpeak page is unauthenticated and is the page a printed QR code
+  # lands on. Its board lists used to be serialized with the full editor
+  # api_view, which both cost seconds per request and published identities
+  # (Board#api_view -> in_use_by / communicator_account_data;
+  # ChildBoard#api_view -> added_by, the assigning user's EMAIL).
+  describe "GET /api/profiles/public/:slug board payload" do
+    let(:owner) { FactoryBot.create(:user, email: "assigning-parent@example.com") }
+    let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Sky Doe") }
+    let!(:profile) do
+      Profile.new(profileable: child, username: "sky-boards", slug: "sky-boards").tap(&:save!)
+    end
+    let!(:library_board) do
+      FactoryBot.create(:board, user: admin_user, predefined: true, published: true, parent_type: "User")
+    end
+    let!(:favorite) do
+      board = FactoryBot.create(:board, user: owner, name: "Snack Time")
+      FactoryBot.create(:child_board, board: board, child_account: child, favorite: true, created_by: owner)
+    end
+
+    before do
+      allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    end
+
+    it "serves the communicator's boards as cards without the assigner's email" do
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(response).to have_http_status(:ok)
+      card = JSON.parse(response.body)["public_boards"].first
+      expect(card["name"]).to eq("Snack Time")
+      expect(card["board_id"]).to eq(favorite.board_id)
+      expect(card).not_to have_key("added_by")
+      expect(card).not_to have_key("added_by_id")
+      expect(card).not_to have_key("board_owner_name")
+      expect(response.body).not_to include("assigning-parent@example.com")
+    end
+
+    it "serves the admin library as cards without communicator identities" do
+      get "/api/profiles/public/#{profile.slug}"
+
+      cards = JSON.parse(response.body)["general_public_boards"]
+      expect(cards.map { |c| c["id"] }).to include(library_board.id)
+      cards.each do |card|
+        expect(card).not_to have_key("in_use_by")
+        expect(card).not_to have_key("communicator_account_data")
+      end
+      # The page legitimately shows this communicator's own name; what must not
+      # appear is any communicator name reachable through a library board card.
+      expect(cards.to_json).not_to include("Sky Doe")
+    end
+
+    it "invalidates the ETag when a library board changes" do
+      get "/api/profiles/public/#{profile.slug}"
+      first_etag = response.headers["ETag"]
+      expect(first_etag).to be_present
+
+      library_board.touch
+
+      get "/api/profiles/public/#{profile.slug}"
+      expect(response.headers["ETag"]).not_to eq(first_etag)
+    end
+
+    # public_page_board_ids used to pluck the ChildBoard join row's own id and
+    # hand it to Board.where(id:), so the favorited Board could never be found
+    # and Last-Modified always collapsed to the profile's own timestamp.
+    it "tracks the favorited board's updated_at in Last-Modified" do
+      board_touched_at = 1.hour.from_now.change(usec: 0)
+      profile.update_columns(updated_at: 3.days.ago)
+      favorite.board.update_columns(updated_at: board_touched_at)
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(Time.parse(response.headers["Last-Modified"]))
+        .to be_within(2.seconds).of(board_touched_at)
+    end
+  end
 end

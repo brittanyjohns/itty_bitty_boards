@@ -135,6 +135,47 @@ class BoardGroup < ApplicationRecord
     read_attribute(:display_image_url)
   end
 
+  # Give a brand-new set something to show. A member board's preview is
+  # rendered asynchronously, so at creation time most members have neither a
+  # preview_image nor a display_image_url and render as broken thumbnails.
+  #
+  # Sub-boards get the same thumbnail an imported or built set gets:
+  # `Boards::SubBoardThumbnails` resolves the folder tile that OPENS each page
+  # (one query for the whole set, no Grover render per page). `purge_previews:
+  # false` — these are ordinary boards, so a real preview must keep winning
+  # over the seeded column. Anything it can't reach (a board hand-picked into
+  # the set with no folder tile pointing at it) falls back to one of the
+  # board's own tiles.
+  #
+  # The set's own cover is then pinned BY REFERENCE (`settings["cover_board_id"]`),
+  # never by copying a board's URL into the column — a copied preview URL
+  # carries a `?v=` that goes stale the moment that preview is regenerated.
+  # Nothing already chosen is overwritten, by reference or by column.
+  def seed_display_images!
+    member_ids = board_group_boards.pluck(:board_id).uniq
+    if member_ids.any?
+      Boards::SubBoardThumbnails.apply!(
+        owner: user,
+        board_ids: member_ids,
+        root_id: root_board_id,
+        purge_previews: false,
+      )
+    end
+    # A fresh relation, not the (possibly cached) association — it has to see
+    # the columns SubBoardThumbnails just wrote.
+    boards.includes(board_images: :image).load.each(&:seed_display_image_from_tiles!)
+
+    return false if cover_board_id.present? || read_attribute(:display_image_url).present?
+
+    candidates = [root_board, *board_group_boards.order(:position).map(&:board)].compact.uniq
+    cover = candidates.detect { |board| board.display_image_url.present? }
+    return false unless cover
+
+    self.settings = (settings || {}).merge("cover_board_id" => cover.id)
+    save!
+    true
+  end
+
   # Delegates to the root board's rendered preview once import/build has
   # produced one. Used by the frontend's generic generation-status poller
   # (BoardGenerationStatusPage) while status is still "queued"/"processing" —

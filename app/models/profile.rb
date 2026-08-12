@@ -236,15 +236,20 @@ class Profile < ApplicationRecord
   end
 
   # --- Boards ---
+  # Preloads matter here: both of these are serialized straight into the public
+  # profile payload, and every board card reads display_image_url /
+  # preview_image_url, which are ActiveStorage lookups.
+  BOARD_CARD_PRELOADS = [{ preview_image_attachment: :blob }, { preset_display_image_attachment: :blob }].freeze
+
   def user_boards
     return [] if profileable.nil?
-    return profileable.boards.main_boards.alphabetical if profileable_type == "User"
+    return profileable.boards.main_boards.alphabetical.includes(:user, *BOARD_CARD_PRELOADS) if profileable_type == "User"
     []
   end
 
   def communication_boards
     if profileable&.respond_to?(:favorite_boards) && profileable.favorite_boards.present?
-      profileable.favorite_boards
+      profileable.favorite_boards.includes(board: BOARD_CARD_PRELOADS)
     else
       # Board.public_boards
       []
@@ -363,8 +368,8 @@ class Profile < ApplicationRecord
       has_safety_info: has_safety_info?,
 
       # Boards shown publicly should be safe/public
-      public_boards: public_boards.map(&:api_view),
-      general_public_boards: Board.public_boards.map(&:api_view),
+      public_boards: public_boards.map(&:public_card_view),
+      general_public_boards: Board.public_board_cards,
 
       # If you need this for the UI, keep it minimal
       profileable_type: profileable_type,
@@ -402,9 +407,9 @@ class Profile < ApplicationRecord
       settings: public_settings(kind: :public_page),
 
       # If you want this on creator pages, keep it public-only
-      public_boards: public_boards.map(&:api_view),
+      public_boards: public_boards.map(&:public_card_view),
       user_boards: user_boards.map(&:api_view),
-      general_public_boards: Board.public_boards.map(&:api_view),
+      general_public_boards: Board.public_board_cards,
       # NOTE: email intentionally omitted — use settings["show_email"]
       # on the frontend if the user opted in to displaying contact info.
       public_about_html: safe_html(public_about&.body&.to_s),
@@ -449,7 +454,7 @@ class Profile < ApplicationRecord
       claim_token: claim_token,
       claim_url: claim_url,
       sku: sku,
-      general_public_boards: Board.public_boards.map(&:api_view),
+      general_public_boards: Board.public_board_cards,
     }
   end
 

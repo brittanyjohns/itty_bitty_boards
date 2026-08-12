@@ -887,6 +887,28 @@ collections of boards. CRUD is open to any signed-in user;
   counts own non-predefined sets; `User#at_board_group_limit?` is the gate
   (admins exempt). `create` returns **HTTP 422** `{ error, limit, count }` at
   the cap. **Not 402** — 402 is reserved for credit exhaustion.
+- **A new set always gets a thumbnail.** Board previews are rendered
+  asynchronously, so at creation time a member board typically has neither a
+  `preview_image` nor a `display_image_url` — it renders as a broken image on
+  the set page. `BoardGroup#seed_display_images!` (called from
+  `Boards::BoardGroupCreator` on both create and re-sync, and from
+  `API::BoardGroupsController#create` after members are attached) runs
+  `Boards::SubBoardThumbnails` over the members — the same folder-tile
+  thumbnail an imported or built set gets, one query for the whole set rather
+  than a Grover render per page — with `purge_previews: false`, since these are
+  ordinary boards whose real preview must keep winning. Anything that leaves
+  blank (a board hand-picked into a set with no folder tile pointing at it, or
+  the root) falls back to the board's own tiles via
+  `Board#seed_display_image_from_tiles!`. It then pins the set's cover. Two
+  rails: the seed goes in the
+  `display_image_url` **column**, which `Board#display_image_url` treats as the
+  lowest-priority fallback — a real preview or a custom cover still wins, so the
+  seed can never pin a stale image. And the **set's** cover is pinned *by
+  reference* (`settings["cover_board_id"]`), never by copying a board's URL,
+  since a copied preview URL carries a `?v=` that goes stale on the next
+  preview regen. Nothing already set — a pinned `cover_board_id`, a chosen
+  column value — is overwritten. Backfill for pre-existing sets:
+  `rake board_groups:backfill_display_images` (`DRY_RUN=1`, `USER_ID=N`).
 - **`add_board` route.** `POST /api/board_groups/:id/add_board/:board_id`
   (`BoardGroup#add_board` does the join + layout init). Beyond the owner-or-admin
   set check, the *board* must belong to the caller or be predefined/public.

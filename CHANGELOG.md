@@ -89,6 +89,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the set's home board as something it could delete along with the page. Back
   tiles are now recognised as going back, so the dialog only ever offers the
   pages a board genuinely owns.
+- **MySpeak pages load fast again.** Opening a communicator's public page —
+  the page a printed QR code lands on — was taking around eleven seconds. Every
+  visit was rebuilding the entire public board library from scratch, in the
+  same detail the board editor needs, when all the page draws is a grid of
+  covers. The page now sends just what the grid shows and reuses the library
+  between visitors, so it comes up quickly on a phone in a waiting room.
+
+- **Public pages no longer include information about other people.** The board
+  data on a MySpeak page carried details that were never shown but were sent to
+  every visitor anyway: the names of other communicators using the same public
+  board, and the email address of whoever assigned a board to this
+  communicator. Public pages now carry only what the page renders — the board's
+  name, cover, and colours.
 
 - **Boards no longer end up with a permanently blank cover.** An imported board
   never had a preview picture made for it at all, so it showed an empty frame
@@ -101,6 +114,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   lands. Printable PDFs are unaffected — they still wait for the real artwork.
   The pages inside an imported set now show a picture too: each one uses the
   folder tile you tap to open it, the same way a built board set already did.
+
+- **A board set made from your own linked boards showed broken thumbnails.**
+  Making a set from a board and the pages it links to left every page with an
+  empty picture box. Those pages now get the same treatment as an imported or
+  built set — each shows the folder tile you tap to open it, falling back to
+  one of its own tiles — and the set itself picks up a cover from its first
+  board, so it looks right the moment it's created. Existing sets are fixed by
+  a one-off backfill.
 - **Etsy was cropping the edges off every printable's listing photos.** The
   gallery slides are square, on the assumption that Etsy letterboxes anything
   that isn't — but the listing page frames a photo 4:5 and crops 10% off each
