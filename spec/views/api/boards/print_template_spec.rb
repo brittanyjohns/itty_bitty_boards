@@ -122,6 +122,34 @@ RSpec.describe "api/boards/print.html.erb", type: :view do
     end
   end
 
+  # A tile picture that HANGS — an S3 key not written yet, art still coming back
+  # from generation — never fires onerror, so Grover's networkidle0 wait never
+  # settles and the board ends up with no preview at all. The deadline swaps
+  # those tiles for their placeholder, which cancels the request. It is opt-in
+  # because a printable PDF is a paid artifact and must keep waiting for the
+  # real symbol.
+  describe "unloaded-image deadline" do
+    let(:tiles) { [tile(label: "happy", image_url: "https://cdn.example/happy.png")] }
+
+    it "carries the placeholder on the tile so a swap can happen after load" do
+      node = tile_nodes(render_print(tiles)).first
+      img = node.at_css(".tile-media img")
+
+      expect(img["data-placeholder-src"]).to start_with("data:image/svg+xml")
+      expect(img["onerror"]).to include("swapTileToPlaceholder")
+    end
+
+    it "arms the deadline when one is given" do
+      html = render_print(tiles, image_load_deadline_ms: 8_000)
+
+      expect(html).to include("window.__tileImageDeadlineMs = 8000")
+    end
+
+    it "leaves the page waiting indefinitely when no deadline is given" do
+      expect(render_print(tiles)).not_to include("__tileImageDeadlineMs =")
+    end
+  end
+
   it "still suppresses the caption on an image tile when hide_label is set" do
     html = render_print([tile(label: "cat", image_url: "https://cdn.example/cat.png", hide_label: true)])
     node = tile_nodes(html).first

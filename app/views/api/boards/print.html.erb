@@ -9,6 +9,57 @@
     own assigns — rather than through RenderAssetData — still gets the old
     all-or-nothing behaviour instead of an unstyled full header. %>
 <% header_mode = @header_mode.presence || (@hide_header ? Boards::RenderAssetData::HEADER_NONE : Boards::RenderAssetData::HEADER_FULL) %>
+
+<%# Tile art falls back to the label-drawn placeholder in two situations, and
+    both land here so the swap looks identical either way.
+
+    onerror covers a picture that FAILS (404 on an S3 key that was never
+    written, a dead remote URL). @image_load_deadline_ms covers a picture that
+    HANGS — the request that neither resolves nor errors, so onerror never
+    fires. Grover waits on networkidle0, so one hanging tile means the render
+    never returns at all and the board ends up with no snapshot; setting the
+    src to the data-URL placeholder cancels the pending request and lets the
+    network settle.
+
+    The deadline is opt-in (Boards::RenderAssetData defaults it to nil) because
+    only the auto preview wants it. Printable PDFs are a paid artifact and must
+    keep waiting for the real symbol rather than shipping a placeholder. %>
+<% if @image_load_deadline_ms.to_i > 0 %>
+  <script>
+    window.__tileImageDeadlineMs = <%= @image_load_deadline_ms.to_i %>;
+  </script>
+<% end %>
+<script>
+  function swapTileToPlaceholder(img) {
+    if (img.dataset.placeholderApplied) return;
+
+    var placeholder = img.getAttribute("data-placeholder-src");
+    if (!placeholder) return;
+
+    img.dataset.placeholderApplied = "1";
+    img.onerror = null;
+    img.src = placeholder;
+    img.classList.add("tile-placeholder-image");
+
+    // The placeholder already draws the word, so the caption underneath would
+    // just repeat it.
+    var tile = img.closest(".tile");
+    var label = tile && tile.querySelector(".label");
+    if (label) label.style.display = "none";
+  }
+
+  if (window.__tileImageDeadlineMs) {
+    window.setTimeout(function () {
+      var images = document.querySelectorAll("img[data-tile-image]");
+      for (var i = 0; i < images.length; i++) {
+        var img = images[i];
+        // naturalWidth guards the decoded-but-broken case: `complete` is true
+        // for an image that finished loading nothing.
+        if (!img.complete || img.naturalWidth === 0) swapTileToPlaceholder(img);
+      }
+    }, window.__tileImageDeadlineMs);
+  }
+</script>
 <% if header_mode == Boards::RenderAssetData::HEADER_QR_ONLY %>
   <div class="header header-qr-only">
     <% if @qr_data_url.present? %>
@@ -108,7 +159,9 @@
               <img
                 src="<%= t["image_url"] %>"
                 alt="<%= t["label"] %>"
-                onerror="this.onerror=null; this.src='<%= placeholder_src %>'; this.classList.add('tile-placeholder-image'); var lbl=this.closest('.tile').querySelector('.label'); if(lbl) lbl.style.display='none';"
+                data-tile-image
+                data-placeholder-src="<%= placeholder_src %>"
+                onerror="swapTileToPlaceholder(this);"
               >
             <% else %>
               <img

@@ -97,4 +97,40 @@ RSpec.describe Boards::GeneratePreviewAssets, type: :service do
       expect(second_updated_at).to be > first_updated_at
     end
   end
+
+  # A board whose tile art isn't written yet (fresh .obz import, art still in
+  # flight from GenerateImagesJob) must still end up with a snapshot. Those
+  # tiles issue requests that hang rather than 404, Grover waits on
+  # networkidle0, and without a bound the render never returns and the board is
+  # left with no cover at all — which is what "Preview unavailable" was.
+  describe "rendering a board whose art isn't ready" do
+    it "gives the page a deadline to stop waiting on unloaded tiles" do
+      allow(Boards::RenderAssetData).to receive(:new).and_call_original
+
+      described_class.new(
+        board: board,
+        routes: Rails.application.routes.url_helpers,
+      ).call(generate_png: true)
+
+      expect(Boards::RenderAssetData).to have_received(:new).with(
+        hash_including(image_load_deadline_ms: described_class::IMAGE_LOAD_DEADLINE_MS),
+      )
+      expect(described_class::IMAGE_LOAD_DEADLINE_MS).to be > 0
+    end
+
+    # The global Grover timeout is effectively infinite, so one stalled render
+    # pins a Sidekiq thread forever instead of failing and retrying.
+    it "bounds the render so a stalled page can't pin a worker" do
+      service = described_class.new(
+        board: board,
+        routes: Rails.application.routes.url_helpers,
+      )
+      service.call(generate_png: true)
+
+      expect(Grover).to have_received(:new).with(
+        anything, hash_including(timeout: described_class::RENDER_TIMEOUT_MS),
+      )
+      expect(described_class::RENDER_TIMEOUT_MS).to be < 300_000
+    end
+  end
 end

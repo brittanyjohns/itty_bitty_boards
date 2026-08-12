@@ -104,6 +104,14 @@ class GenerateImagesJob
           # "failed", "partial", or leave it alone.
           board.update_column(:status, "complete_with_errors")
         end
+
+        # The board's preview was rendered before this job ran (GenerateBoardJob
+        # snapshots right after find_or_create_images_from_word_list), so it
+        # shows label placeholders for every tile whose art was still being
+        # generated. Re-render now that the art exists, otherwise that
+        # placeholder snapshot is the board's cover permanently. Skipped when
+        # every image failed — there is nothing new to draw.
+        board.run_generate_preview_job if failed_image_ids.size < images.size
       end
     rescue => e
       Rails.logger.error(

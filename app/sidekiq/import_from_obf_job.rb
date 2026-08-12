@@ -23,6 +23,9 @@ class ImportFromObfJob
     imported, _data = Board.from_obf(board_data, current_user, board_group, @board.id, import_options: import_options || {})
     if imported
       @board = imported
+      # Same gap as ImportObzJob: the import writes tiles but never renders a
+      # snapshot, so the board lands on its status page with no cover.
+      @board.run_generate_preview_job
       @board.update_column(:status, "complete")
     else
       Rails.logger.error "[ImportFromObfJob] import produced no board (board_id=#{@board.id})"

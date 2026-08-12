@@ -27,6 +27,18 @@ RSpec.describe ImportFromObfJob do
       expect(board.board_images.count).to be > 0
     end
 
+    # Same gap ImportObzJob had: the import writes tiles but renders no
+    # snapshot, so the board lands on its status page with an empty cover.
+    it "renders a preview for the imported board" do
+      board = precreate_board!
+
+      expect {
+        described_class.new.perform(board_data, user.id, nil, {}, board.id)
+      }.to change { GenerateBoardPreviewJob.jobs.size }.by(1)
+
+      expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(board.id)
+    end
+
     it "marks the board failed and logs at error when the import blows up" do
       board = precreate_board!
       allow(Board).to receive(:from_obf).and_raise(StandardError, "boom")
