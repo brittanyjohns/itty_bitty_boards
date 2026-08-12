@@ -38,7 +38,15 @@
        brand hex in a rule takes it out of the rotation and every listing in the
        shop starts sharing it again. The fixed colours — navy title banner,
        white paper cards, black ribbon, navy-on-white QR — are the ones carrying
-       contrast, and they stay out of the palette on purpose. %>
+       contrast, and they stay out of the palette on purpose.
+    5. No CONTENT sits within `--safe-x` of the left or right edge. Etsy does
+       not letterbox a square photo — the listing page frames it 4:5 and
+       cover-crops, taking 10% off each side, and the seller-side "Adjust
+       thumbnail" dialog crops again for the search grid. At the old 56px inset
+       that removed the first letter of the board name and better than half the
+       QR, on every listing in the shop. Backgrounds and band fills still bleed
+       edge to edge; it is only the type, the QR and the logo that move in. A
+       new inset written as a literal px value reintroduces the bug. %>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -60,6 +68,12 @@
 
         --shadow-soft: 0 18px 40px rgba(19, 73, 111, 0.18);
         --shadow-card: 0 24px 56px rgba(19, 73, 111, 0.28);
+
+        /* The horizontal safe zone — see rail 5 at the top of this file.
+           12.5% of the 1280px canvas, against the 10% Etsy actually takes off
+           each side. Every inset that holds CONTENT reads this token; band
+           backgrounds still bleed to the edge. */
+        --safe-x: 160px;
 
         /* Rotated per listing by Boards::Printables::Palette. These defaults
            are its first entry, so a slide rendered without a palette (a spec,
@@ -95,8 +109,9 @@
       p, li { text-wrap: pretty; hyphens: none; }
 
       /* ── The canvas ───────────────────────────────────────────────────── */
-      /* Etsy shows listing photos in a square frame and letterboxes anything
-         else, so the slide IS square rather than being cropped to one. */
+      /* Square, because that is the shape Etsy's search grid uses and the one
+         all six slides share. It is NOT the shape every view uses — see rail 5
+         above; the safe zone is what makes a square source survive the crops. */
       .slide {
         position: relative;
         width: 1280px;
@@ -155,7 +170,7 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 20px;
-        padding: 52px 56px 56px;
+        padding: 52px var(--safe-x) 56px;
       }
 
       /* The footer strip is anchored to the bottom edge, so the column has to
@@ -177,7 +192,7 @@
         position: absolute;
         z-index: 5;
         top: 34px;
-        right: 34px;
+        right: var(--safe-x);
         width: 108px;
         height: 108px;
       }
@@ -197,7 +212,6 @@
         font-weight: 800;
         font-size: 64px;
         line-height: 1.05;
-        max-width: 940px;
         box-shadow: var(--shadow-soft);
       }
 
@@ -255,7 +269,7 @@
         top: 0;
         left: 0;
         right: 0;
-        padding: 16px 56px;
+        padding: 16px var(--safe-x);
         background: var(--ink);
         color: var(--white);
         font-weight: 800;
@@ -329,7 +343,7 @@
         right: 0;
         bottom: 0;
         min-height: 226px;
-        padding: 24px 56px 46px;
+        padding: 24px var(--safe-x) 46px;
         background: var(--band);
         display: flex;
         align-items: center;
@@ -342,7 +356,7 @@
          beside it is what a buyer is meant to act on. */
       .footer-strip .site-mark {
         position: absolute;
-        left: 56px;
+        left: var(--safe-x);
         bottom: 16px;
         font-size: 19px;
         font-weight: 800;
@@ -434,11 +448,12 @@
 
       .hero-stage .paper { flex: 1 1 0; }
 
-      /* A single page gets the whole stage. */
-      .hero-stage.single .paper { max-width: 940px; }
+      /* A single page gets the whole stage — which the safe zone has already
+         narrowed to 960px, so this needs no cap of its own. */
+      .hero-stage.single .paper { max-width: 100%; }
 
       /* A set fans into an overlapping pile rather than a tidy row. Three
-         side-by-side cards on a 1168px stage are ~370px wide, and a board page
+         side-by-side cards on the 960px stage are ~300px wide, and a board page
          at that size is a coloured smudge — the buyer can count the pages but
          can't see a single word. Overlapping buys each card ~50% more width
          and reads as "more than one board" just as fast. */

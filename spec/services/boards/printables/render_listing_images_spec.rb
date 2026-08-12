@@ -221,6 +221,48 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(slide_html.join("\n")).not_to include('src="http')
   end
 
+  # Etsy does not letterbox a square photo. The listing page frames it 4:5 and
+  # cover-crops, taking 10% off each side; at the old flat 56px inset that
+  # sliced the first letter off the board name and better than half the QR on
+  # every listing in the shop. The margin is the whole fix, so it is asserted
+  # rather than left to a comment.
+  describe "the horizontal safe zone" do
+    # Every rule that positions CONTENT against a side edge. Band fills still
+    # bleed; it is the type, the QR and the logo that have to move in.
+    SAFE_ZONE_RULES = [
+      ".slide-stack",       # title banner, headline, audio badge, page stage
+      ".instant-ribbon",
+      ".footer-strip",
+      ".footer-strip .site-mark",
+      ".logo-corner",
+    ].freeze
+
+    let(:css) { slide_html.first }
+
+    def declarations_for(selector)
+      css[/^\s*#{Regexp.escape(selector)}\s*\{(.*?)\}/m, 1]
+    end
+
+    it "reserves more than the 10% of each side that Etsy's 4:5 crop takes" do
+      described_class.new(printable: printable).call
+
+      safe_x = css[/--safe-x:\s*(\d+)px/, 1]&.to_i
+      expect(safe_x).to be_present
+      expect(safe_x).to be >= described_class::CANVAS_PX * 0.10
+    end
+
+    it "insets every content-bearing edge from the token, never a literal" do
+      described_class.new(printable: printable).call
+
+      SAFE_ZONE_RULES.each do |selector|
+        block = declarations_for(selector)
+        expect(block).to be_present, "#{selector} is gone — move its inset, don't drop it"
+        expect(block).to include("var(--safe-x)"),
+                         "#{selector} sets a side inset Etsy will crop through:\n#{block}"
+      end
+    end
+  end
+
   def thumbnail_for(target)
     Boards::Printables::RenderPageThumbnails::Thumbnail.new(
       board_id: target.id,
