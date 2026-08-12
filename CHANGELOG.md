@@ -89,12 +89,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   covers. The page now sends just what the grid shows and reuses the library
   between visitors, so it comes up quickly on a phone in a waiting room.
 
+- **Public profile pages load again for users who have favorited a board.**
+  A page could fail outright rather than render — the error depended only on
+  whether the owner had ever starred one of their own boards.
+
 - **Public pages no longer include information about other people.** The board
   data on a MySpeak page carried details that were never shown but were sent to
   every visitor anyway: the names of other communicators using the same public
   board, and the email address of whoever assigned a board to this
-  communicator. Public pages now carry only what the page renders — the board's
-  name, cover, and colours.
+  communicator. The same was true of your own public profile page, where the
+  board list carried the names of *your* communicators to anyone who opened it.
+  Public pages now carry only what the page renders — the board's name, cover,
+  and colours. Nothing about how these pages look has changed.
 
 - **Boards no longer end up with a permanently blank cover.** An imported board
   never had a preview picture made for it at all, so it showed an empty frame

@@ -422,4 +422,81 @@ RSpec.describe "API::Profiles", type: :request do
         .to be_within(2.seconds).of(board_touched_at)
     end
   end
+
+  # A User profile's public page (`/u/:slug`, profile_kind "public_page") lists
+  # the user's OWN boards. That list was still going through Board#api_view,
+  # so every visitor received `in_use_by` — the names of that user's own
+  # communicators — plus communicator_account_data.
+  describe "GET /api/profiles/public/:slug user_boards payload" do
+    let(:owner) { FactoryBot.create(:user) }
+    let!(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Rowan Doe") }
+    let!(:profile) do
+      Profile.new(profileable: owner, username: "pat-pages", slug: "pat-pages").tap(&:save!)
+    end
+    # board_type must be set: Board.main_boards filters through non_menus,
+    # whose `where.not(board_type: "menu")` drops rows with a NULL board_type.
+    let!(:board) do
+      FactoryBot.create(:board, user: owner, name: "Morning Routine",
+                        published: true, board_type: "board", sub_board: false)
+    end
+
+    before do
+      allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+      board.update!(in_use: true)
+      FactoryBot.create(:child_board, board: board, child_account: child, created_by: owner)
+    end
+
+    it "serves the page as the public_page kind" do
+      expect(profile.reload).to be_public_page
+    end
+
+    it "lists the user's boards with the fields the public grids render" do
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(response).to have_http_status(:ok)
+      card = JSON.parse(response.body)["user_boards"].find { |b| b["id"] == board.id }
+      expect(card).to be_present
+      expect(card["name"]).to eq("Morning Routine")
+      expect(card["slug"]).to eq(board.slug)
+      expect(card["published"]).to be(true)
+      expect(card["predefined"]).to be(false)
+      expect(card["can_edit"]).to be(false)
+    end
+
+    it "does not publish the owner's communicator names" do
+      get "/api/profiles/public/#{profile.slug}"
+
+      cards = JSON.parse(response.body)["user_boards"]
+      cards.each do |card|
+        expect(card).not_to have_key("in_use_by")
+        expect(card).not_to have_key("communicator_account_data")
+      end
+      expect(response.body).not_to include("Rowan Doe")
+    end
+
+    # `favorite_boards` differs in RETURN TYPE by profileable:
+    # ChildAccount#favorite_boards -> ChildBoard join rows,
+    # User#favorite_boards -> Boards. Preloading `board:` against the Board
+    # relation raises AssociationNotFoundError and 500s the whole public page.
+    context "when the user has favorited a board" do
+      before { board.update!(favorite: true) }
+
+      it "serves the page instead of raising on the preload" do
+        get "/api/profiles/public/#{profile.slug}"
+
+        expect(response).to have_http_status(:ok)
+        cards = JSON.parse(response.body)["public_boards"]
+        expect(cards.map { |c| c["id"] }).to include(board.id)
+      end
+
+      it "still serializes those boards as cards" do
+        get "/api/profiles/public/#{profile.slug}"
+
+        card = JSON.parse(response.body)["public_boards"].find { |c| c["id"] == board.id }
+        expect(card["name"]).to eq("Morning Routine")
+        expect(card).not_to have_key("in_use_by")
+        expect(card).not_to have_key("communicator_account_data")
+      end
+    end
+  end
 end
