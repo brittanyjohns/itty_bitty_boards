@@ -4,5 +4,8 @@
   - [critical, 1]
   - [default, 3]
   - [ai_images, 4]
+  # Above ai_images on purpose: a text tile is a ~1s local render and the user
+  # is watching a spinner, so it must not queue behind OpenAI calls.
+  - [text_images, 3]
   - [audio, 2]
   - [varients, 5]

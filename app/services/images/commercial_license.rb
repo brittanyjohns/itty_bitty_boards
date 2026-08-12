@@ -28,8 +28,10 @@ module Images
     # source_types whose provenance we cannot vouch for. Scraped or unknown.
     UNTRUSTED_SOURCE_TYPES = ["GoogleSearch", nil, ""].freeze
 
-    # We generated it; it's ours.
-    OWNED_SOURCE_TYPE = "OpenAI".freeze
+    # We generated it; it's ours. Text tiles are rendered in-house in an OFL
+    # font, whose license covers the font software and not the rendered pixels,
+    # so a printable containing one is sellable.
+    OWNED_SOURCE_TYPES = ["OpenAI", Doc::SOURCE_TYPE_TEXT_TILE].freeze
 
     Result = Struct.new(:license, :type, :commercial_safe, :attribution_required, :share_alike) do
       def commercial_safe? = !!commercial_safe
@@ -70,7 +72,7 @@ module Images
 
       def safe?(doc:, type:, protected_symbol:, share_alike:, non_commercial:, no_derivatives:, include_share_alike:)
         return false if protected_symbol
-        return true  if doc.source_type == OWNED_SOURCE_TYPE
+        return true  if OWNED_SOURCE_TYPES.include?(doc.source_type)
         return false if UNTRUSTED_SOURCE_TYPES.include?(doc.source_type)
         return false if type.blank?
         return false if non_commercial || no_derivatives

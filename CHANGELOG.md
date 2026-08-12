@@ -7,6 +7,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Text tiles: a tile picture rendered from typed text.** New
+  `POST /api/board_images/:id/create_text_image` renders the tile's word in a
+  chosen font, size, weight, case, alignment and colors, and attaches the PNG
+  exactly like generated art — so print, PDF, OBF/OBZ export and the offline
+  cache all treat it as an ordinary tile image. **Free**: no OpenAI call and no
+  credit charge, drawn in-house with the existing headless-Chrome pipeline. Five
+  OFL typefaces ship vendored (Atkinson Hyperlegible, Andika, Lexend, Nunito,
+  Fredoka). Runs on its own `text_images` Sidekiq queue and its own rate-limit
+  bucket so it never competes with paid AI work, and an identical repeat request
+  is served without re-rendering. `POST /api/images/generate` now rejects
+  `style=text` (422) rather than silently falling back to an AI style.
+
 - **Care sections on a MySpeak page.** Beyond the intro and About Me blurb, a
   communicator's page can now carry optional, structured sections covering how
   they communicate, personal care, meals and snacks, and getting to and from

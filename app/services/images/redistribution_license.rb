@@ -24,8 +24,11 @@ module Images
     # obligation suffixes are stripped, so "cc by-nc-sa 4.0" lands on "cc by".
     REDISTRIBUTABLE_FAMILIES = ["public domain", "cc0", "cc by"].freeze
 
-    # We generated it; it's ours.
-    OWNED_SOURCE_TYPE = "OpenAI".freeze
+    # We generated it; it's ours. Text tiles are rendered in-house from the
+    # user's own words in an OFL font, so they belong here rather than in
+    # USER_AUTHORED_SOURCE_TYPES — no user_id match should be required for a
+    # teammate exporting a shared board.
+    OWNED_SOURCE_TYPES = ["OpenAI", Doc::SOURCE_TYPE_TEXT_TILE].freeze
 
     # Scraped from the web: not the user's content, and carrying no license.
     UNTRUSTED_SOURCE_TYPES = ["GoogleSearch"].freeze
@@ -60,7 +63,7 @@ module Images
           return Result.new(true, nil, false, true, nil)
         end
 
-        if doc.source_type == OWNED_SOURCE_TYPE || speakanyway_authored?(doc)
+        if OWNED_SOURCE_TYPES.include?(doc.source_type) || speakanyway_authored?(doc)
           return Result.new(true, nil, false, false, nil)
         end
 

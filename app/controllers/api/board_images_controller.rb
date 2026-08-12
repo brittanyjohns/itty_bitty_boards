@@ -1,8 +1,8 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
   before_action :set_board_image, only: %i[ show ]
-  before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit set_current_audio attach_youtube_video upload_video clear_video ]
-  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation upload_audio reset_audio move destroy attach_youtube_video upload_video clear_video ]
+  before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit create_text_image set_current_audio attach_youtube_video upload_video clear_video ]
+  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation create_text_image upload_audio reset_audio move destroy attach_youtube_video upload_video clear_video ]
 
   # Extension used for the stored blob, keyed by the uploaded content type.
   # Only covers types in BoardImage.accepted_video_content_types — anything
@@ -257,6 +257,43 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  # POST /api/board_images/:id/create_text_image
+  #
+  # Renders the tile's picture from typed text instead of generating one. No
+  # OpenAI call, so deliberately NO check_credits! — this is free, and that is
+  # the headline of the feature. Don't add a credit gate here without changing
+  # the button copy, which promises "no credits used".
+  #
+  # @board_image is loaded owner-scoped by set_owned_board_image.
+  def create_text_image
+    options = Images::TextTile::Options.from_params(params)
+    unless options.valid?
+      render json: { error: "invalid_text_tile_options" }, status: :unprocessable_content
+      return
+    end
+
+    stored = @board_image.data&.dig("text_image")
+    @board_image.data = (@board_image.data || {}).merge("text_image" => options.to_h)
+    # Assigned both ways, not just when true: the form shows the tile's current
+    # hide_label state, so unchecking the box has to put the label back.
+    @board_image.data["hide_label"] = options.hide_label
+
+    # Nothing about the picture changed and we still have it — skip the Chrome
+    # fork. Tweaking a colour back and forth is cheap to do and expensive to
+    # serve, so the no-op case must not cost a render.
+    if unchanged_render?(stored, options)
+      @board_image.save!
+      render json: @board_image.api_view(current_user)
+      return
+    end
+
+    @board_image.status = "generating"
+    @board_image.save!
+    RenderTextTileJob.perform_async(@board_image.id, options.to_h)
+
+    render json: @board_image.api_view(current_user)
+  end
+
   def create_image_variation
     # @board_image is loaded owner-scoped by set_owned_board_image.
     return unless check_credits!(feature_key: "image_variation", feature_name: "AI Image Variations")
@@ -446,6 +483,21 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   private
+
+  # Would this text-tile request paint exactly what the tile already shows?
+  # Compares only the pixel-affecting options (Options#render_digest drops
+  # hide_label), and insists the doc it produced is still there and still the
+  # picture on screen — a stale config with a deleted doc must re-render.
+  def unchanged_render?(stored, options)
+    return false if stored.blank?
+    return false if @board_image.display_image_url.blank?
+
+    doc_id = stored["doc_id"]
+    return false if doc_id.blank?
+    return false unless Doc.exists?(id: doc_id)
+
+    Images::TextTile::Options.from_params(stored.symbolize_keys).render_digest == options.render_digest
+  end
 
   # "<label>-custom-<timestamp>.<ext>" — the "custom" marker is what flags the
   # clip as user-supplied everywhere else (has_custom_audio?,

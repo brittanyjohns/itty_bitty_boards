@@ -32,6 +32,13 @@ class Doc < ApplicationRecord
   # that fails unsafely.
   SOURCE_TYPE_USER = "User".freeze
 
+  # A tile picture we rendered ourselves from text the user typed — see
+  # Images::TextTile. No third party is involved: the glyphs come from an OFL
+  # font (which licenses the font software, not the pixels it draws), so the
+  # bytes are ours to export and to sell. Both license services treat it the
+  # same way they treat "OpenAI".
+  SOURCE_TYPE_TEXT_TILE = "SpeakAnyWayText".freeze
+
   default_scope { where(deleted_at: nil) }
   belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true, touch: true

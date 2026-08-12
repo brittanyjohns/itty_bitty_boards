@@ -51,6 +51,13 @@ class Rack::Attack
   AI_LIMIT              = env_int("RACK_ATTACK_AI_LIMIT", 30)
   AI_PERIOD             = env_int("RACK_ATTACK_AI_PERIOD", 60)
 
+  # Text tiles are free and fast, so they get a looser ceiling than AI — but
+  # each one still forks a headless Chrome, so "free" can't mean "unbounded".
+  # Its own bucket deliberately: a user styling a board's worth of text tiles
+  # must not burn the AI budget they paid for.
+  TEXT_IMAGE_LIMIT      = env_int("RACK_ATTACK_TEXT_IMAGE_LIMIT", 60)
+  TEXT_IMAGE_PERIOD     = env_int("RACK_ATTACK_TEXT_IMAGE_PERIOD", 60)
+
   # Export (per user) — enqueues a job that can read hundreds of S3 objects
   # and write up to a 200MB attachment. The most expensive unthrottled
   # endpoint on the API before this.
@@ -85,6 +92,9 @@ class Rack::Attack
 
   # AI-generation path suffixes (the issue's `/generate*` + audio generation).
   AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images].freeze
+
+  # Free in-house text-tile rendering. Not in AI_GEN_SUFFIXES on purpose.
+  TEXT_IMAGE_PATHS = %r{\A/api/board_images/\d+/create_text_image\z}
 
   # POST export-package surfaces: single board (+ linked set) and Board Set.
   EXPORT_PACKAGE_PATHS = %r{\A/api/(boards/\d+|board_groups/\d+)/export_package(\.\w+)?\z}
@@ -189,6 +199,12 @@ class Rack::Attack
 
   throttle("ai_generation/user", limit: AI_LIMIT, period: AI_PERIOD) do |req|
     user_discriminator(req) if ai_generation_request?(req)
+  end
+
+  # --- Throttles: text tile rendering (per user) ---------------------------
+
+  throttle("text_image/user", limit: TEXT_IMAGE_LIMIT, period: TEXT_IMAGE_PERIOD) do |req|
+    user_discriminator(req) if req.post? && req.path.match?(TEXT_IMAGE_PATHS)
   end
 
   # --- Throttles: export (per user) -----------------------------------------

@@ -181,3 +181,21 @@ RSpec.describe "API::Images", type: :request do
     end
   end
 end
+
+RSpec.describe "API::Images generate — the text style is not a prompt style", type: :request do
+  let!(:user) { create(:user) }
+
+  # "text" belongs to the tile editor's free create_text_image endpoint. If it
+  # reached here, Images::PromptBuilder.resolve_style would silently ignore it
+  # and bill the user for an AAC symbol they didn't ask for.
+  it "422s instead of generating" do
+    expect {
+      post "/api/images/generate",
+           params: { image: { label: "more", image_prompt: "plus sign" }, style: "text" },
+           headers: auth_headers(user)
+    }.not_to change(GenerateImageJob.jobs, :size)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(JSON.parse(response.body)["error"]).to eq("invalid_style")
+  end
+end

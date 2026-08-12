@@ -125,3 +125,27 @@ RSpec.describe Images::RedistributionLicense do
     end
   end
 end
+
+RSpec.describe Images::RedistributionLicense, "text tiles" do
+  let(:owner) { create(:user) }
+  let(:stranger) { create(:user) }
+  let(:doc) do
+    create(:image, user: owner).docs.create!(
+      source_type: Doc::SOURCE_TYPE_TEXT_TILE, user_id: owner.id,
+    )
+  end
+
+  # Rendered in-house from the user's own words in an OFL font. Without this
+  # the predicate falls through to "no redistributable license on record" and
+  # text tiles vanish from OBF/OBZ exports with no error.
+  it "is bundlable for the owner" do
+    expect(described_class.for(doc, exporting_user: owner)).to be_bundlable
+  end
+
+  it "is bundlable for a teammate exporting a shared board" do
+    result = described_class.for(doc, exporting_user: stranger)
+
+    expect(result).to be_bundlable
+    expect(result).not_to be_attribution_required
+  end
+end

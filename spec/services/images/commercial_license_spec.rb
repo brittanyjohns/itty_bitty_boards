@@ -195,3 +195,11 @@ RSpec.describe Images::CommercialLicense do
     end
   end
 end
+
+RSpec.describe Images::CommercialLicense, "text tiles" do
+  it "is commercially safe — the OFL covers the font software, not the pixels" do
+    doc = create(:image).docs.create!(source_type: Doc::SOURCE_TYPE_TEXT_TILE)
+
+    expect(described_class.for(doc)).to be_commercial_safe
+  end
+end
