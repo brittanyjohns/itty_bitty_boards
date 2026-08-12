@@ -95,6 +95,8 @@ class ObzImporter
 
     link_dynamic_boards!(dynamic_data_rows, boards_by_obf_id, obf_id_by_path, root_board)
 
+    stamp_back_tiles!
+
     persist_import_audit!
 
     { boards: boards_by_obf_id, root_board: root_board, dynamic_data: dynamic_data_rows }
@@ -152,11 +154,33 @@ class ObzImporter
       board_image = BoardImage.find_by(id: row["board_image_id"])
       next unless board_image
 
-      target = resolve_link_target(dynamic_board, boards_by_obf_id, obf_id_by_path) || root_board
+      resolved = resolve_link_target(dynamic_board, boards_by_obf_id, obf_id_by_path)
+      target = resolved || root_board
       next unless target
 
       board_image.update_columns(predictive_board_id: target.id)
+
+      # A button whose load_board we couldn't resolve is being pointed at the
+      # root so navigation doesn't dead-end. That's a manufactured way home, not
+      # a folder into a subboard — flag it so structural walks don't follow it.
+      # (Genuine back buttons are caught afterwards by Boards::BackTileStamper,
+      # which reads direction off the set's depths.)
+      next if resolved
+
+      board_image.update_columns(data: (board_image.data || {}).merge("back_tile" => true))
     end
+  end
+
+  # An OBF back button is just a button with `load_board` — the format carries
+  # no "this one goes back" marker — so direction has to be worked out from the
+  # set once every link is resolved. Never fatal: a set that misses this is
+  # still importable, and the board_images:stamp_back_tiles rake task can fix it.
+  def stamp_back_tiles!
+    return unless @board_group
+
+    Boards::BackTileStamper.new(@board_group.reload).call
+  rescue StandardError => e
+    Rails.logger.warn "[ObzImporter] Failed to flag back tiles: #{e.message}"
   end
 
   def resolve_link_target(dynamic_board, boards_by_obf_id, obf_id_by_path)

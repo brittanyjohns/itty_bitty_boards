@@ -263,6 +263,17 @@ an explicit decision, not a drive-by edit.
   `board_type: "predictive"`. `#authored_tile_text?` widens that to every tile
   whose text isn't a word — doors plus keyboard keys ("A", "Space"), which
   carry a `data["tile_type"]`.
+- **`data["back_tile"]` is the navigation-DIRECTION signal; `mute_name` is not.**
+  Folder links run both ways in practice — every page in a set carries a way
+  home stored as an ordinary folder tile — so a walk over `predictive_board_id`
+  cannot tell a descent from a way back on its own. `BoardImage#back_tile?`
+  (`back_tile` / `nav_tile` / `override_frozen`) is what any structural walk
+  must consult; `Boards::BackTileStamper` sets it from `Boards::SetDepths`, so
+  nothing depends on a creation path having flagged it. `mute_name` is
+  deliberately excluded: `BuildBoardSetJob` mutes EVERY folder tile in a builder
+  set, so keying direction off it would stop a builder root cascading its own
+  pages. Following an unflagged back tile is what made deleting a page inside an
+  imported set offer to delete that set's home board.
 - **A CLONED tile's text is defaulted, not authored.** It carries whatever the
   source board happened to store, so it gets the same casing rule as any other
   defaulted tile — `BoardImage#cloned_display_label_from` folds it, and only

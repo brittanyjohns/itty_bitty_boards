@@ -90,26 +90,11 @@ module Boards
     end
 
     # BFS from the root board over the edges. Boards in the set never reached
-    # get no depth entry → nil depth / reachable: false downstream.
+    # get no depth entry → nil depth / reachable: false downstream. Shared with
+    # Boards::BackTileStamper, which reads the same depths to tell a descent
+    # from a way back; the edges are already built here, so hand them over.
     def compute_depths(edges)
-      depths = {}
-      return depths if root_board_id.blank?
-
-      adjacency = Hash.new { |h, k| h[k] = [] }
-      edges.each { |e| adjacency[e[:from]] << e[:to] }
-
-      depths[root_board_id] = 0
-      queue = [root_board_id]
-      until queue.empty?
-        current = queue.shift
-        adjacency[current].each do |neighbor|
-          next if depths.key?(neighbor)
-
-          depths[neighbor] = depths[current] + 1
-          queue << neighbor
-        end
-      end
-      depths
+      Boards::SetDepths.new(board_group, edges: edges).call
     end
 
     def build_stats(board_payloads, depth_by_id)

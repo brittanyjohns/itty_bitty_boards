@@ -49,10 +49,42 @@ module Boards
 
     attr_reader :board, :user
 
-    # Every board reachable from `board` through folder tiles, minus the root
-    # itself. LinkedBoardsFinder already handles link cycles and caps the walk.
+    # Every board this one descends into through folder tiles.
+    #
+    # Two things keep the walk from climbing UP out of the board: it refuses to
+    # follow a back tile (BoardImage.back_tile_data?), and it refuses to enter
+    # the home board of any set this board belongs to. Without them, a child
+    # page's "go back" tile leads to the set root and then back down across
+    # every sibling, and the whole set reads as this page's subboards.
+    #
+    # Residual gap: a board in NO board group whose back tile was never flagged
+    # has no directional signal at all — a symmetric pair of links is genuinely
+    # ambiguous. The editor's "This tile goes back" toggle is the fix there.
     def tree
-      @tree ||= LinkedBoardsFinder.new(board).call.reject { |b| b.id == board.id }
+      @tree ||= begin
+        walk = ReachableBoardIds.new([board.id], exclude_ids: set_root_ids, skip_back_tiles: true)
+        # A truncated walk under-reports what is excluded, which is the unsafe
+        # direction — offer no cascade rather than a wrong one.
+        if walk.truncated?
+          []
+        else
+          ids = walk.ids - [board.id]
+          by_id = Board.where(id: ids).index_by(&:id)
+          ids.filter_map { |id| by_id[id] }
+        end
+      end
+    end
+
+    # The home board of every set this board belongs to. Union across all
+    # groups and deliberately not scoped to `user`: excluding a board can only
+    # ever shrink what gets deleted, so the conservative reading is the correct
+    # one, and it covers multi-group and shared membership for free.
+    def set_root_ids
+      @set_root_ids ||= board.board_groups
+        .where.not(root_board_id: nil)
+        .where.not(root_board_id: board.id)
+        .distinct
+        .pluck(:root_board_id)
     end
 
     def tree_ids

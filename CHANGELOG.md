@@ -82,6 +82,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Deleting a page in a board set no longer offers to delete the set's home
+  board.** A page's "go back" tile is stored the same way as a tile that opens a
+  sub-page, so deleting a page counted everything its back tile reached as one
+  of that page's own sub-boards — on an imported set, the delete dialog listed
+  the set's home board as something it could delete along with the page. Back
+  tiles are now recognised as going back, so the dialog only ever offers the
+  pages a board genuinely owns.
 - **MySpeak pages load fast again.** Opening a communicator's public page —
   the page a printed QR code lands on — was taking around eleven seconds. Every
   visit was rebuilding the entire public board library from scratch, in the
