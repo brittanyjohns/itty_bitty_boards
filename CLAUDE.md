@@ -308,6 +308,14 @@ an explicit decision, not a drive-by edit.
   POST** — never on public page-open. It is also never sent to OpenAI: no
   `Profile::SAFETY_SENSITIVE_KEYS` entry may appear in a
   `Suggestions::Registry` context allow-list (enforced by spec).
+- **A MySpeak page has two gated reveals, and only one may notify.**
+  `safety_view` (emergency info) logs a `ProfileView` **and** alerts the parent;
+  `care_view` (`settings["care"]` — communication, personal care, meals,
+  transportation) logs with `view_kind: "care"` and returns before the throttle
+  claim, geolocation, and notifier. Care sections are day-to-day support info a
+  substitute teacher reads routinely; routing them through the emergency alert
+  would train parents to ignore it. Care fields are equally never sent to
+  OpenAI. Details: `.claude-notes/safety-profiles.md`.
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);

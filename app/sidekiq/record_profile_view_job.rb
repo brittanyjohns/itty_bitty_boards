@@ -6,6 +6,11 @@
 # happens here, off the request, so the public emergency page always loads fast
 # and is never broken by this feature.
 #
+#
+# `kind` is a trailing optional arg so jobs already enqueued during a deploy
+# keep working. "care" (the care-sections reveal) logs and returns at step 3;
+# only "safety" continues into the alert.
+#
 # Flow:
 #   1. Bail unless this is a safety profile with an owner to notify.
 #   2. Coarse IP→location lookup (best-effort; nil on any failure).
@@ -21,10 +26,11 @@ class RecordProfileViewJob
 
   NOTIFY_THROTTLE_WINDOW = (ENV["SAFETY_VIEW_THROTTLE_SECONDS"] || 1.hour.to_i).to_i
 
-  def perform(profile_id, ip_address = nil, user_agent = nil)
+  def perform(profile_id, ip_address = nil, user_agent = nil, kind = "safety")
     profile = Profile.find_by(id: profile_id)
     return if profile.nil? || !profile.safety?
 
+    kind = "safety" unless kind == "care"
     owner = profile.alert_recipient
 
     # Always log the raw view (IP + timestamp) for the abuse-pattern history.
@@ -33,7 +39,13 @@ class RecordProfileViewJob
       user_agent: user_agent,
       viewed_at: Time.current,
       notified: false,
+      view_kind: kind,
     )
+
+    # A care-sections reveal is logged and stops here — no throttle claim, no
+    # geolocation lookup, no email. See ProfileView for why only the emergency
+    # reveal is allowed to notify.
+    return if kind == "care"
 
     return if owner.nil?
     return unless profile.view_alerts_enabled?

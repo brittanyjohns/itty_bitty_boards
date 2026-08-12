@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_10_140100) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -888,6 +888,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_140100) do
     t.datetime "viewed_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "view_kind", default: "safety", null: false
     t.index ["profile_id", "viewed_at"], name: "index_profile_views_on_profile_id_and_viewed_at"
     t.index ["profile_id"], name: "index_profile_views_on_profile_id"
   end
