@@ -1352,15 +1352,19 @@ class Board < ApplicationRecord
 
   SCREEN_SIZES = %w[sm md lg].freeze
 
+  # Cells are collected in `position` order. This used to assign into a plain
+  # Array at `layout_to_set[bi.id]` — indexing by the GLOBAL board_images
+  # primary key — and then `.compact` the holes away. That allocated an array
+  # sized to MAX(board_images.id) for every call, so the cost of serializing a
+  # 30-tile board grew with the size of the whole board_images table.
+  # `api_view` calls this three times per board (lg/md/sm), so on any endpoint
+  # that serializes a list of boards it dominated the request. Nothing
+  # consumes the index positions — every caller reads each cell's own x/y —
+  # so build the dense list directly.
   def print_grid_layout_for_screen_size(screen_size)
-    layout_to_set = []
-    board_images.order(:position).each_with_index do |bi, i|
-      if bi.layout[screen_size]
-        layout_to_set[bi.id] = bi.layout[screen_size]
-      end
-    end
-    layout_to_set = layout_to_set.compact # Remove nil values
-    layout_to_set
+    @grid_layouts ||= {}
+    @grid_layouts[screen_size] ||=
+      board_images.order(:position).filter_map { |bi| bi.layout[screen_size] }
   end
 
   def print_grid_layout
@@ -1401,6 +1405,7 @@ class Board < ApplicationRecord
 
     self.layout[screen_size] = layout_to_set
     self.board_images.reset
+    @grid_layouts = nil # tile layouts just changed; drop the read-side memo
     self.save!
   end
 
@@ -1473,6 +1478,7 @@ class Board < ApplicationRecord
     end
     self.save
     self.board_images.reset
+    @grid_layouts = nil # tile layouts just changed; drop the read-side memo
   end
 
   # Open cells in the authored grid before a new tile would spill onto a fresh
@@ -1529,6 +1535,7 @@ class Board < ApplicationRecord
     end
     self.layout[screen_size] = layout_to_set
     self.board_images.reset
+    @grid_layouts = nil # tile layouts just changed; drop the read-side memo
     self.save!
   end
 
@@ -2329,6 +2336,50 @@ class Board < ApplicationRecord
     else
       large_screen_columns > 0 ? large_screen_columns : 12
     end
+  end
+
+  # Board card for UNAUTHENTICATED public pages (the MySpeak page's board grid).
+  # Deliberately NOT api_view: that emits `in_use_by` and
+  # `communicator_account_data` — the names, account ids, and avatar URLs of
+  # every communicator using the board — which must never be served on a page
+  # with no authentication. It also runs three rows_for_screen_size passes per
+  # board that a card doesn't render. Keys mirror the frontend's
+  # `PublicBoardCard` type (itty-bitty-frontend/src/data/profiles.ts).
+  def public_card_view
+    {
+      id: id,
+      board_id: id,
+      slug: slug,
+      name: name,
+      display_image_url: display_image_url,
+      preview_image_url: preview_image_url,
+      preset_display_image_url: preset_display_image_url,
+    }
+  end
+
+  # The curated admin board library, rendered as public cards. Identical for
+  # every visitor, so it is computed once rather than per request — this used
+  # to be `Board.public_boards.map(&:api_view)` inlined into every public
+  # profile payload, which serialized the whole library on each page load.
+  # Rails.cache is Redis in production and :null_store in test, so this must
+  # stay correct when the block runs every time.
+  def self.public_board_cards
+    Rails.cache.fetch(public_board_cards_cache_key, expires_in: 15.minutes) do
+      public_boards
+        .includes(preview_image_attachment: :blob, preset_display_image_attachment: :blob)
+        .map(&:public_card_view)
+    end
+  end
+
+  # Also folded into the public profile ETag so a library change can invalidate
+  # a cached page (the library rides along in that payload).
+  def self.public_board_cards_cache_key
+    scope = public_boards
+    [
+      "public_board_cards/v1",
+      scope.count,
+      scope.maximum(:updated_at)&.utc&.to_fs(:nsec),
+    ].join("/")
   end
 
   def list_api_view(viewing_user = nil)

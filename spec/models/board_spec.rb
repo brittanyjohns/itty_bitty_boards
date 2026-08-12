@@ -1153,4 +1153,103 @@ RSpec.describe Board, type: :model do
   # deleted in favor of Boards::ObfExporter (see
   # spec/services/boards/obf_exporter_spec.rb), which covers the same ground:
   # spec-shaped output, load_board linking, and sound omission.
+
+  describe "#print_grid_layout_for_screen_size" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    def add_tile(position:, layout:)
+      bi = FactoryBot.create(:board_image, board: board, image: FactoryBot.create(:image, user: user))
+      bi.update_columns(position: position, layout: layout)
+      bi
+    end
+
+    it "returns each tile's cell for the screen size, in position order" do
+      add_tile(position: 1, layout: { "lg" => { "i" => "b", "x" => 1, "y" => 0, "w" => 1, "h" => 1 } })
+      add_tile(position: 0, layout: { "lg" => { "i" => "a", "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
+
+      cells = board.reload.print_grid_layout_for_screen_size("lg")
+
+      expect(cells.map { |c| c["i"] }).to eq(%w[a b])
+    end
+
+    it "skips tiles with no cell for that screen size" do
+      add_tile(position: 0, layout: { "lg" => { "i" => "a", "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
+      add_tile(position: 1, layout: { "sm" => { "i" => "b", "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
+
+      expect(board.reload.print_grid_layout_for_screen_size("lg").size).to eq(1)
+    end
+
+    # Regression: this used to build a plain Array indexed by the GLOBAL
+    # board_images primary key and then compact the holes away, so the work and
+    # memory for a two-tile board scaled with MAX(board_images.id) across the
+    # whole table. api_view calls it three times per board, which is what made
+    # serializing a list of boards take seconds in production.
+    it "does not scale with the size of the board_images id space" do
+      a = add_tile(position: 0, layout: { "lg" => { "i" => "a", "x" => 0, "y" => 0, "w" => 1, "h" => 2 } })
+      b = add_tile(position: 1, layout: { "lg" => { "i" => "b", "x" => 1, "y" => 0, "w" => 1, "h" => 1 } })
+      a.update_columns(id: 5_000_001)
+      b.update_columns(id: 5_000_002)
+
+      cells = board.reload.print_grid_layout_for_screen_size("lg")
+
+      expect(cells.size).to eq(2)
+      expect(board.rows_for_screen_size("lg")).to eq(2)
+    end
+
+    it "drops the memo when the layout is recalculated" do
+      add_tile(position: 0, layout: {})
+      expect(board.reload.print_grid_layout_for_screen_size("lg")).to eq([])
+
+      board.calculate_grid_layout_for_screen_size("lg", true)
+
+      expect(board.print_grid_layout_for_screen_size("lg").size).to eq(1)
+    end
+  end
+
+  describe "#public_card_view / .public_board_cards" do
+    let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+    let!(:public_board) do
+      FactoryBot.create(:board, user: admin_user, predefined: true, published: true, parent_type: "User")
+    end
+
+    it "carries the keys the public board card renders" do
+      view = public_board.public_card_view
+
+      expect(view.keys).to contain_exactly(
+        :id, :board_id, :slug, :name,
+        :display_image_url, :preview_image_url, :preset_display_image_url
+      )
+      expect(view[:id]).to eq(public_board.id)
+      expect(view[:board_id]).to eq(public_board.id)
+      expect(view[:name]).to eq(public_board.name)
+    end
+
+    # The MySpeak page is unauthenticated. api_view emits in_use_by (a joined
+    # list of communicator NAMES) and communicator_account_data (their account
+    # ids, names, and avatar URLs); none of that may ride along on a public page.
+    it "omits the communicator identities api_view exposes" do
+      view = public_board.public_card_view
+
+      expect(view).not_to have_key(:in_use_by)
+      expect(view).not_to have_key(:communicator_account_data)
+      expect(view).not_to have_key(:user_name)
+      expect(view).not_to have_key(:data)
+      expect(view).not_to have_key(:settings)
+    end
+
+    it "returns one card per public board" do
+      cards = described_class.public_board_cards
+
+      expect(cards.map { |c| c[:id] }).to include(public_board.id)
+      expect(cards.size).to eq(described_class.public_boards.count)
+    end
+
+    it "changes its cache key when a public board is touched" do
+      before_key = described_class.public_board_cards_cache_key
+      public_board.touch
+
+      expect(described_class.public_board_cards_cache_key).not_to eq(before_key)
+    end
+  end
 end

@@ -297,6 +297,22 @@ an explicit decision, not a drive-by edit.
   POST** — never on public page-open. It is also never sent to OpenAI: no
   `Profile::SAFETY_SENSITIVE_KEYS` entry may appear in a
   `Suggestions::Registry` context allow-list (enforced by spec).
+- **An unauthenticated endpoint never serializes a board with `api_view`.**
+  `Board#api_view` publishes `in_use_by` (every communicator NAME using the
+  board) and `communicator_account_data` (their ids, names, avatars);
+  `ChildBoard#api_view` publishes `added_by`, the assigning user's EMAIL. Both
+  models carry a `public_card_view` for public pages, matching the frontend's
+  `PublicBoardCard` type. `api_view` is also the expensive one — it runs three
+  `rows_for_screen_size` passes per board — so reaching for it on a public list
+  leaks and is slow at the same time. Details:
+  `.claude-notes/safety-profiles.md`.
+- **`print_grid_layout_for_screen_size` must build a DENSE list.** It once
+  assigned into a plain Array at `layout_to_set[bi.id]` — the global
+  `board_images` primary key — then compacted the holes away, so serializing a
+  30-tile board allocated an array sized to `MAX(board_images.id)` and the cost
+  of every `Board#api_view` grew with the whole table. Nothing reads the index
+  positions; every consumer reads each cell's own `x`/`y`. The memo it now
+  keeps is cleared wherever tile layouts are rewritten (`board_images.reset`).
 - **Never seed `profiles.bio` or `profiles.intro` with instructional copy.**
   Both are PUBLIC — `/my/:slug` prints the bio as "About me" and speaks the
   intro aloud on "Hear my intro" — so placeholder text stored there is

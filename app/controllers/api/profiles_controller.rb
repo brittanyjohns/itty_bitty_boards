@@ -419,6 +419,10 @@ class API::ProfilesController < API::ApplicationController
       boards_scope.count,
       boards_scope.maximum(:id),
       boards_scope.maximum(:updated_at)&.utc&.to_fs(:nsec),
+      # The admin board library rides along in the body as
+      # `general_public_boards`, so a change to it has to be able to bust a
+      # cached page — without this a client can be served a stale 304.
+      Board.public_board_cards_cache_key,
     ]
   end
 
@@ -430,8 +434,11 @@ class API::ProfilesController < API::ApplicationController
 
   def public_page_board_ids(profile)
     if profile.profileable_type == "ChildAccount"
-      board_ids = profile.communication_boards.pluck(:id)
-      return board_ids
+      # communication_boards is favorite_boards, which returns ChildBoard join
+      # rows — pluck the Board they point at, not the join row's own id. These
+      # ids are handed to Board.where(id:) by the freshness helpers below, so
+      # plucking :id keyed the ETag off arbitrary unrelated boards.
+      return profile.communication_boards.pluck(:board_id).compact.uniq
     end
     public_page = profile_public_page_settings(profile)
 

@@ -18,6 +18,25 @@ info** — medical details + emergency contacts + emergency notes
   frontend can show the "Emergency Info" button without shipping the data.
   `GET public` therefore carries **no** medical info or contacts — the wall is
   real, not just a UI modal.
+- **The public page serializes boards as CARDS, never `api_view`.** `#public`
+  is unauthenticated, so both board lists in the payload go through the
+  card-sized serializers: `Board#public_card_view` for `general_public_boards`
+  and `ChildBoard#public_card_view` for `public_boards`. The full `api_view`
+  on either model publishes identities — `Board#api_view` carries `in_use_by`
+  (a joined list of every communicator NAME using the board) plus
+  `communicator_account_data` (their account ids, names, avatar URLs), and
+  `ChildBoard#api_view` carries `added_by`, the EMAIL of whoever assigned the
+  board. The card keys mirror the frontend's `PublicBoardCard` type
+  (`itty-bitty-frontend/src/data/profiles.ts`), which is all the MySpeak board
+  grid renders. Adding a field to a public card is a decision about what the
+  whole internet sees.
+- **`general_public_boards` is the whole admin library, so it is cached, not
+  per-request.** `Board.public_board_cards` memoizes into `Rails.cache` (Redis
+  in prod) keyed on `Board.public_board_cards_cache_key` (count + max
+  `updated_at`). That key is also folded into `profile_public_etag`, because
+  the library rides along in the body and would otherwise be unable to
+  invalidate a 304. Serializing it inline with `api_view` is what made this
+  endpoint take 11.5s in production (of which ~10.3s was Ruby, not SQL).
 - **The gated reveal records + alerts.** `POST /api/profiles/public/:slug/safety_view`
   (`API::ProfilesController#safety_view`, unauthenticated) is the deliberate
   "open emergency info" action. It (a) returns the sensitive payload
