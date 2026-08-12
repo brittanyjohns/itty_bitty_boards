@@ -110,13 +110,17 @@ class API::BoardGroupsController < API::ApplicationController
     screen_size = board_group_params[:screen_size] || "lg"
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
     Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"
-    if board_group.save
-      mark_default(board_group)
-      # board_group.calculate_grid_layout_for_screen_size(screen_size)
-      render json: board_group.api_view_with_boards(current_user), status: :created
-    else
+    unless board_group.save
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_content
+      return
     end
+
+    mark_default(board_group)
+    # board_group.calculate_grid_layout_for_screen_size(screen_size)
+
+    # Members are attached BEFORE rendering: the response has to carry the
+    # boards (and the cover seeded from them), and #seed_display_images! can
+    # only pick a cover once the group actually has members.
     if boards.blank?
       Rails.logger.debug "No boards provided, saving empty board group"
     else
@@ -124,7 +128,11 @@ class API::BoardGroupsController < API::ApplicationController
         board_group_board = board_group.add_board(board)
         board_group_board.save!
       end
+      board_group.reload
     end
+    board_group.seed_display_images!
+
+    render json: board_group.api_view_with_boards(current_user), status: :created
   end
 
   def rearrange_boards
