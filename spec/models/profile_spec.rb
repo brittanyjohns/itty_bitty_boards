@@ -337,6 +337,98 @@ RSpec.describe Profile, type: :model do
         )
       end
 
+      # Detail lines on a BUILT-IN section. The chips answer "which of these
+      # applies"; the specific, provisional thing a parent needs to pass on
+      # ("Drinks: watered-down apple juice, trying others") fits neither a chip
+      # nor a shared `notes` blob.
+      describe "detail lines on a built-in section" do
+        it "keeps label/value rows alongside the preset values" do
+          result = care(
+            "meals" => {
+              "values" => { "eating" => "some_help" },
+              "items" => [
+                { "label" => "Drinks", "value" => "Watered-down apple juice, trying others" },
+                { "label" => "Pieces", "value" => "Cut big pieces up" },
+              ],
+            },
+          )
+
+          expect(result["sections"]["meals"]["values"]).to eq("eating" => "some_help")
+          expect(result["sections"]["meals"]["items"]).to eq(
+            [
+              { "label" => "Drinks", "value" => "Watered-down apple juice, trying others" },
+              { "label" => "Pieces", "value" => "Cut big pieces up" },
+            ],
+          )
+        end
+
+        it "keeps a section that has only lines and no preset values" do
+          result = care(
+            "meals" => { "items" => [{ "label" => "Temperature", "value" => "Won't eat cold food" }] },
+          )
+
+          expect(result["sections"]["meals"]["values"]).to eq({})
+          expect(result["sections"]["meals"]["items"].length).to eq(1)
+        end
+
+        it "still drops a section with neither values nor lines" do
+          result = care("meals" => { "items" => [{ "label" => " ", "value" => "" }] })
+          expect(result).to be_nil
+        end
+
+        it "omits the key entirely rather than storing an empty list" do
+          result = care("meals" => { "values" => { "eating" => "some_help" } })
+          expect(result["sections"]["meals"]).not_to have_key("items")
+        end
+
+        it "applies the same caps and stripping as a custom section" do
+          result = care(
+            "meals" => {
+              "items" => Array.new(Profile::MAX_CARE_CUSTOM_ITEMS + 3) do
+                { "label" => "l" * (Profile::CARE_ITEM_LABEL_MAX + 5),
+                  "value" => "<b>v</b>" + "v" * (Profile::CARE_ITEM_VALUE_MAX + 5) }
+              end,
+            },
+          )
+
+          items = result["sections"]["meals"]["items"]
+          expect(items.length).to eq(Profile::MAX_CARE_CUSTOM_ITEMS)
+          expect(items.first["label"].length).to eq(Profile::CARE_ITEM_LABEL_MAX)
+          expect(items.first["value"]).not_to include("<b>")
+          expect(items.first["value"].length).to eq(Profile::CARE_ITEM_VALUE_MAX)
+        end
+
+        it "drops rows that are neither labelled nor filled, keeping the rest" do
+          result = care(
+            "meals" => {
+              "values" => { "eating" => "some_help" },
+              "items" => [
+                { "label" => "", "value" => "" },
+                { "label" => "Pieces", "value" => "" },
+                { "label" => "", "value" => "No straws" },
+                "not a hash",
+              ],
+            },
+          )
+
+          expect(result["sections"]["meals"]["items"]).to eq(
+            [
+              { "label" => "Pieces", "value" => "" },
+              { "label" => "", "value" => "No straws" },
+            ],
+          )
+        end
+
+        it "leaves a section stored before lines existed untouched" do
+          # Backwards compatibility: rows written by the previous release have
+          # no "items" key at all and must round-trip unchanged.
+          result = care("meals" => { "enabled" => true, "values" => { "eating" => "tube_fed" } })
+          expect(result["sections"]["meals"]).to eq(
+            "enabled" => true, "values" => { "eating" => "tube_fed" },
+          )
+        end
+      end
+
       it "drops unknown sections, unknown fields, and out-of-registry options" do
         result = care(
           "communication" => {

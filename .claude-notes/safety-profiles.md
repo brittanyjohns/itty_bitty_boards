@@ -149,6 +149,14 @@ multiple-choice and short-answer, deliberately unlike the free-text bio.
   deprecation window where the key stays in the constant (accepted by the
   sanitizer, hidden from the editor) until the data is migrated. Tracked in
   itty-bitty-frontend#679.
+- **Built-in sections carry `items` too** — the same label/value rows as a
+  custom section, same caps, same `clean_care_items`. The presets answer "which
+  of these applies"; the specific, provisional detail a parent needs to hand on
+  ("Drinks: watered-down apple juice, trying others") fits neither a chip nor the
+  shared `notes` field. A built-in section now survives on lines alone, so
+  `clean_builtin_care_section` returns nil only when values AND items are empty.
+  The key is omitted rather than stored as `[]`, and a row written before this
+  shipped round-trips unchanged.
 - **Care fields are never eligible for writing suggestions** — same rule as
   `SAFETY_SENSITIVE_KEYS`. Nothing here goes to OpenAI.
 - Care info is deliberately **not** on the Safety ID card or device tag; those

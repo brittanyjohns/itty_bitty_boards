@@ -1168,19 +1168,26 @@ class Profile < ApplicationRecord
       clean_values[field[:key]] = cleaned if cleaned.present?
     end
 
-    return nil if clean_values.empty?
+    # Detail lines. The preset chips answer "which of these applies"; the real
+    # thing a parent needs to hand a substitute is usually specific and
+    # provisional — "Drinks: watered-down apple juice, trying others". That
+    # doesn't compress into a chip and doesn't belong buried in `notes`, so a
+    # built-in section carries the same label/value rows a custom one does.
+    items = clean_care_items(section["items"])
 
-    { "enabled" => care_enabled?(section["enabled"]), "values" => clean_values }
+    return nil if clean_values.empty? && items.empty?
+
+    cleaned = { "enabled" => care_enabled?(section["enabled"]), "values" => clean_values }
+    cleaned["items"] = items if items.any?
+    cleaned
   end
 
-  def clean_custom_care_section(section)
-    title = care_text(section["title"], CARE_TITLE_MAX)
-    return nil if title.blank?
+  # Shared by built-in and custom sections — same caps, same stripping, same
+  # "a row with neither a label nor a value isn't a row" rule.
+  def clean_care_items(raw_items)
+    return [] unless raw_items.is_a?(Array)
 
-    raw_items = section["items"]
-    raw_items = [] unless raw_items.is_a?(Array)
-
-    items = raw_items.filter_map do |item|
+    raw_items.filter_map do |item|
       next unless item.is_a?(Hash)
 
       label = care_text(item["label"], CARE_ITEM_LABEL_MAX)
@@ -1189,6 +1196,13 @@ class Profile < ApplicationRecord
 
       { "label" => label.to_s, "value" => value.to_s }
     end.first(MAX_CARE_CUSTOM_ITEMS)
+  end
+
+  def clean_custom_care_section(section)
+    title = care_text(section["title"], CARE_TITLE_MAX)
+    return nil if title.blank?
+
+    items = clean_care_items(section["items"])
 
     return nil if items.empty?
 
