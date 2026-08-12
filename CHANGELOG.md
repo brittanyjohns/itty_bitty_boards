@@ -82,6 +82,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **MySpeak pages load fast again.** Opening a communicator's public page —
+  the page a printed QR code lands on — was taking around eleven seconds. Every
+  visit was rebuilding the entire public board library from scratch, in the
+  same detail the board editor needs, when all the page draws is a grid of
+  covers. The page now sends just what the grid shows and reuses the library
+  between visitors, so it comes up quickly on a phone in a waiting room.
+
+- **Public pages no longer include information about other people.** The board
+  data on a MySpeak page carried details that were never shown but were sent to
+  every visitor anyway: the names of other communicators using the same public
+  board, and the email address of whoever assigned a board to this
+  communicator. Public pages now carry only what the page renders — the board's
+  name, cover, and colours.
+
 - **Boards no longer end up with a permanently blank cover.** An imported board
   never had a preview picture made for it at all, so it showed an empty frame
   on the import screen and in your board list until you happened to edit it.
