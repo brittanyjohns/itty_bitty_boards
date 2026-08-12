@@ -26,6 +26,19 @@ RSpec.describe ImportObzJob do
     expect(board_group.root_board_id).to be_present
   end
 
+  # Nothing else in the import path renders a snapshot, so without this the
+  # imported set has no cover: BoardGroup#preview_image_url reads through to the
+  # root board's attachment, and the import status page shows an empty frame.
+  it "renders a preview for the imported root board" do
+    board_group = precreate_board_group!
+
+    expect {
+      described_class.new.perform(board_group.id, user.id, {})
+    }.to change { GenerateBoardPreviewJob.jobs.size }.by(1)
+
+    expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(board_group.reload.root_board_id)
+  end
+
   it "purges the uploaded .obz once the import succeeds" do
     board_group = precreate_board_group!
 

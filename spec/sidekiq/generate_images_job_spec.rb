@@ -109,4 +109,35 @@ RSpec.describe GenerateImagesJob, type: :job do
       }.not_to change { user.reload.plan_credits_balance }
     end
   end
+
+  # GenerateBoardJob snapshots the board right after the tiles exist but while
+  # their art is still being generated here, so that preview is all label
+  # placeholders. Without a re-render it stays the board's cover forever.
+  describe "refreshing the board preview once the art exists" do
+    let(:plain_board) { FactoryBot.create(:board, user: user, board_type: "dynamic") }
+    let(:doc) { instance_double(Doc, tile_url: "https://cdn.example/generated.png") }
+
+    before { plain_board.add_image(image.id) }
+
+    it "re-renders the preview after generating art" do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(doc)
+      allow(doc).to receive(:update)
+
+      expect {
+        described_class.new.perform([image.id], plain_board.id)
+      }.to change { GenerateBoardPreviewJob.jobs.size }.by(1)
+
+      expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(plain_board.id)
+    end
+
+    # Nothing new was drawn, so re-rendering would just burn a Grover run to
+    # reproduce the placeholder snapshot the board already has.
+    it "skips the re-render when every image failed" do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)
+
+      expect {
+        described_class.new.perform([image.id], plain_board.id)
+      }.not_to change { GenerateBoardPreviewJob.jobs.size }
+    end
+  end
 end

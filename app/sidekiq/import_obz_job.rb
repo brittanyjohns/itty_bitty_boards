@@ -45,6 +45,13 @@ class ImportObzJob
     ).import!
 
     if result[:root_board]
+      # Nothing in the import path renders a board snapshot, so without this an
+      # imported set has no cover at all: BoardGroup#preview_image_url reads
+      # through to the root board's attachment, and the import status page has
+      # nothing to show. Only the root is rendered — it is the set's cover, and
+      # a large .obz would otherwise queue a Grover render per page.
+      result[:root_board].run_generate_preview_job
+
       board_group.update_column(:status, "complete")
       board_group.import_source_file.purge
     else
