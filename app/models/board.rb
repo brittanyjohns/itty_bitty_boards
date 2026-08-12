@@ -2380,6 +2380,27 @@ class Board < ApplicationRecord
     }
   end
 
+  # The public-page variant of the card, for a User profile's own board grid
+  # (`Profile#public_page_view` -> user_boards). Same no-identities rule as
+  # public_card_view — it just carries the few extra presentational flags the
+  # richer public grids read (BoardGrid / BoardGridItem / PublicFeaturedBoards).
+  #
+  # can_edit / locked / in_a_public_group are pinned false rather than derived:
+  # public_page_view has no viewer, so `api_view` was already being called with
+  # viewing_user = nil, and all three were false for every visitor. Pinning
+  # them keeps the payload identical for those keys while making it obvious
+  # that a public page never grants edit affordances.
+  def public_page_card_view
+    public_card_view.merge(
+      user_id: user_id,
+      predefined: predefined,
+      published: published,
+      can_edit: false,
+      locked: false,
+      in_a_public_group: false,
+    )
+  end
+
   # The curated admin board library, rendered as public cards. Identical for
   # every visitor, so it is computed once rather than per request — this used
   # to be `Board.public_boards.map(&:api_view)` inlined into every public

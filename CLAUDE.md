@@ -313,9 +313,15 @@ an explicit decision, not a drive-by edit.
   board) and `communicator_account_data` (their ids, names, avatars);
   `ChildBoard#api_view` publishes `added_by`, the assigning user's EMAIL. Both
   models carry a `public_card_view` for public pages, matching the frontend's
-  `PublicBoardCard` type. `api_view` is also the expensive one — it runs three
-  `rows_for_screen_size` passes per board — so reaching for it on a public list
-  leaks and is slow at the same time. Details:
+  `PublicBoardCard` type; `Board#public_page_card_view` is the slightly wider
+  card the User public page's grids need. **All three** board lists in the
+  public profile payload are carded — `general_public_boards`, `public_boards`,
+  and `user_boards` (a User's own page, where `in_use_by` is that user's own
+  communicators' names). The frontend gates every one of these fields behind
+  `!isPublicGrid && can_edit`, so they were never rendered — only transmitted,
+  which is why the leak survived so long. `api_view` is also the expensive one
+  — it runs three `rows_for_screen_size` passes per board — so reaching for it
+  on a public list leaks and is slow at the same time. Details:
   `.claude-notes/safety-profiles.md`.
 - **`print_grid_layout_for_screen_size` must build a DENSE list.** It once
   assigned into a plain Array at `layout_to_set[bi.id]` — the global

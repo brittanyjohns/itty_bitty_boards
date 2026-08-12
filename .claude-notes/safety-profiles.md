@@ -19,17 +19,31 @@ info** — medical details + emergency contacts + emergency notes
   `GET public` therefore carries **no** medical info or contacts — the wall is
   real, not just a UI modal.
 - **The public page serializes boards as CARDS, never `api_view`.** `#public`
-  is unauthenticated, so both board lists in the payload go through the
-  card-sized serializers: `Board#public_card_view` for `general_public_boards`
-  and `ChildBoard#public_card_view` for `public_boards`. The full `api_view`
-  on either model publishes identities — `Board#api_view` carries `in_use_by`
-  (a joined list of every communicator NAME using the board) plus
-  `communicator_account_data` (their account ids, names, avatar URLs), and
-  `ChildBoard#api_view` carries `added_by`, the EMAIL of whoever assigned the
-  board. The card keys mirror the frontend's `PublicBoardCard` type
-  (`itty-bitty-frontend/src/data/profiles.ts`), which is all the MySpeak board
-  grid renders. Adding a field to a public card is a decision about what the
-  whole internet sees.
+  is unauthenticated, so **all three** board lists in the payload go through
+  card-sized serializers, with no exceptions left:
+  | payload key | serializer | page |
+  |---|---|---|
+  | `general_public_boards` | `Board#public_card_view` | both |
+  | `public_boards` | `ChildBoard#public_card_view` | MySpeak (`/my/:slug`) |
+  | `user_boards` | `Board#public_page_card_view` | User page (`/u/:slug`) |
+
+  The full `api_view` on either model publishes identities — `Board#api_view`
+  carries `in_use_by` (a joined list of every communicator NAME using the
+  board) plus `communicator_account_data` (their account ids, names, avatar
+  URLs), and `ChildBoard#api_view` carries `added_by`, the EMAIL of whoever
+  assigned the board. On a User's own public page `in_use_by` is that user's
+  OWN communicators' names, which is exactly the thing a public page must not
+  hand out. The frontend gates all of it behind `!isPublicGrid && can_edit`,
+  so none of it was ever rendered publicly — it was only ever transmitted,
+  which is the whole failure mode: a field nobody sees is a field nobody
+  notices leaving. `public_page_card_view` is the wider of the two Board
+  cards (it adds `predefined` / `published` / `user_id` and pins `can_edit`,
+  `locked`, `in_a_public_group` to false) because the User page's grids
+  (`BoardGrid` / `BoardGridItem` / `PublicFeaturedBoards`) read more than the
+  MySpeak grid does. `Profile#api_view` — the AUTHENTICATED view behind
+  `GET /api/profiles/:id`, which the edit form uses — keeps `api_view` for
+  `user_boards`; only the public payloads are carded. Adding a field to a
+  public card is a decision about what the whole internet sees.
 - **`general_public_boards` is the whole admin library, so it is cached, not
   per-request.** `Board.public_board_cards` memoizes into `Rails.cache` (Redis
   in prod) keyed on `Board.public_board_cards_cache_key` (count + max

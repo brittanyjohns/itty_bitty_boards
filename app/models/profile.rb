@@ -247,12 +247,21 @@ class Profile < ApplicationRecord
     []
   end
 
+  # `favorite_boards` is polymorphic in RETURN TYPE, not just in receiver:
+  # ChildAccount#favorite_boards returns ChildBoard join rows, User#favorite_boards
+  # returns Boards. The preload has to follow that — `includes(board: ...)` on a
+  # Board relation raises AssociationNotFoundError and 500s the public page.
+  # Both branches still answer `public_card_view`, which is what the callers need.
   def communication_boards
-    if profileable&.respond_to?(:favorite_boards) && profileable.favorite_boards.present?
-      profileable.favorite_boards.includes(board: BOARD_CARD_PRELOADS)
+    return [] unless profileable&.respond_to?(:favorite_boards)
+
+    favorites = profileable.favorite_boards
+    return [] if favorites.blank?
+
+    if favorites.klass == Board
+      favorites.includes(*BOARD_CARD_PRELOADS)
     else
-      # Board.public_boards
-      []
+      favorites.includes(board: BOARD_CARD_PRELOADS)
     end
   end
 
@@ -408,7 +417,7 @@ class Profile < ApplicationRecord
 
       # If you want this on creator pages, keep it public-only
       public_boards: public_boards.map(&:public_card_view),
-      user_boards: user_boards.map(&:api_view),
+      user_boards: user_boards.map(&:public_page_card_view),
       general_public_boards: Board.public_board_cards,
       # NOTE: email intentionally omitted — use settings["show_email"]
       # on the frontend if the user opted in to displaying contact info.

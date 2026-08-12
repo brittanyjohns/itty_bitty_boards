@@ -1252,4 +1252,56 @@ RSpec.describe Board, type: :model do
       expect(described_class.public_board_cards_cache_key).not_to eq(before_key)
     end
   end
+
+  describe "#public_page_card_view" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: owner, predefined: false, published: true) }
+
+    it "carries the presentational flags the public grids read" do
+      view = board.public_page_card_view
+
+      expect(view.keys).to contain_exactly(
+        :id, :board_id, :slug, :name,
+        :display_image_url, :preview_image_url, :preset_display_image_url,
+        :user_id, :predefined, :published,
+        :can_edit, :locked, :in_a_public_group
+      )
+      expect(view[:name]).to eq(board.name)
+      expect(view[:published]).to be(true)
+      expect(view[:predefined]).to be(false)
+    end
+
+    # A User's own public page listed their boards with the full api_view, so
+    # every visitor received in_use_by — a joined list of that user's own
+    # communicators' names — plus communicator_account_data (ids, names,
+    # avatars). The frontend gates both behind `!isPublicGrid && can_edit`, so
+    # neither was ever rendered publicly; they were only ever transmitted.
+    it "omits the communicator identities api_view exposes" do
+      view = board.public_page_card_view
+
+      expect(view).not_to have_key(:in_use_by)
+      expect(view).not_to have_key(:communicator_account_data)
+      expect(view).not_to have_key(:in_use)
+      expect(view).not_to have_key(:user_name)
+    end
+
+    it "omits the bulk fields a card never renders" do
+      view = board.public_page_card_view
+
+      %i[data settings layout word_list word_sample margin_settings
+         large_screen_rows medium_screen_rows small_screen_rows].each do |key|
+        expect(view).not_to have_key(key)
+      end
+    end
+
+    # public_page_view has no viewer, so api_view was already being called with
+    # viewing_user = nil and these were false for everyone. Pinned, not derived.
+    it "never grants edit affordances" do
+      view = board.public_page_card_view
+
+      expect(view[:can_edit]).to be(false)
+      expect(view[:locked]).to be(false)
+      expect(view[:in_a_public_group]).to be(false)
+    end
+  end
 end
