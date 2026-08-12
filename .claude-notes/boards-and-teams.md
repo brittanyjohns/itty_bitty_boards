@@ -695,16 +695,44 @@ builder_set, subboards } }` (counts exact, name lists capped at 10).
 Unreferenced boards delete in one step as before.
 
 - **Subboards count as usage, and the cascade is opt-in.** `Boards::SubboardTree`
-  walks the board's *outbound* folder links (`Boards::LinkedBoardsFinder`, which
-  handles cycles and caps the walk) and splits the tree into boards safe to
-  cascade and boards that must be kept — kept when predefined/template, owned by
-  someone else, on a communicator dashboard, shared with a team, or reachable
-  from a folder tile outside the deleted set. The summary
-  (`{ total, deletable_count, kept_count, names, kept_names }`) rides in the 409,
-  and `delete_subboards=true` alongside `confirm=true` destroys `deletable_ids`
-  and the root in one transaction. Without that param a confirmed delete still
-  takes only the board itself — the cascade never happens silently. The tree is
-  `nil` for builder roots, whose set already cascades through the group below.
+  walks the board's *outbound* folder links (`Boards::ReachableBoardIds`, an
+  id-only BFS that handles cycles and caps the walk) and splits the tree into
+  boards safe to cascade and boards that must be kept — kept when
+  predefined/template, owned by someone else, on a communicator dashboard,
+  shared with a team, or reachable from a folder tile outside the deleted set.
+  The summary (`{ total, deletable_count, kept_count, names, kept_names }`)
+  rides in the 409, and `delete_subboards=true` alongside `confirm=true`
+  destroys `deletable_ids` and the root in one transaction. Without that param a
+  confirmed delete still takes only the board itself — the cascade never happens
+  silently. The tree is `nil` for builder roots, whose set already cascades
+  through the group below. A truncated walk yields an empty tree: under-reporting
+  what is excluded is the unsafe direction, so no cascade is offered at all.
+
+- **Folder links are bidirectional in practice, so the walk must not follow a
+  back tile.** Every page in a set carries a way home, stored as an ordinary
+  folder tile pointing at the root — so a naive outbound walk from a child page
+  climbs UP to the root and then back DOWN across every sibling, and the page
+  reads as owning the whole set. `data["back_tile"]` is the direction signal
+  (`BoardImage#back_tile?`, which also honours `nav_tile` and `override_frozen`
+  but **never `mute_name`** — `BuildBoardSetJob` mutes every folder tile in a
+  builder set, so it says nothing about direction). Two things keep the walk
+  honest: it refuses to follow a back tile, and it refuses to enter the
+  `root_board_id` of any group the board belongs to (union across all groups,
+  unscoped by user — excluding can only shrink a delete). Residual gap: a board
+  in no group whose back tile was never flagged has no directional signal, which
+  is what the editor's "This tile goes back" toggle is for.
+
+- **Back tiles are flagged by depth, not by label.** `Boards::BackTileStamper`
+  marks any link whose target is at the same or shallower `Boards::SetDepths`
+  depth — covering go-back-to-root, go-back-to-parent, and a nav row's sibling
+  links — with a board nothing links to treated as infinitely deep, so its links
+  out are ways back rather than ownership. It runs at OBZ import and at
+  `BoardGroupCreator`, is idempotent, and never raises (a set without the flags
+  still maps fine, it just leans on the root guard). Backfill:
+  `rake board_images:stamp_back_tiles` (DRY_RUN by default). OBF/OBZ carries no
+  marker for a back button, which is why direction has to be derived; the
+  importer additionally flags its own root-fallback links inline, since a link
+  it manufactured to stop navigation dead-ending is a way home by construction.
 
 - **Builder roots cascade the whole set.** A confirmed delete of a
   `builder_root` board routes through its builder BoardGroup

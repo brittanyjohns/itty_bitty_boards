@@ -344,4 +344,48 @@ RSpec.describe BoardImage, type: :model do
       expect(board_image.is_audio_current?(attachment, "")).to be(false)
     end
   end
+
+  describe "#back_tile?" do
+    let(:board_image) { build(:board_image) }
+
+    it "is true when the tile carries the back_tile flag" do
+      board_image.data = { "back_tile" => true }
+      expect(board_image.back_tile?).to be(true)
+    end
+
+    it "is true for a nav-row tile" do
+      board_image.data = { Boards::NavRowSync::NAV_TILE_KEY => true }
+      expect(board_image.back_tile?).to be(true)
+    end
+
+    it "is true for an 'Always navigate home' tile" do
+      board_image.data = { "override_frozen" => true }
+      expect(board_image.back_tile?).to be(true)
+    end
+
+    # BuildBoardSetJob mutes EVERY folder tile in a builder set, so treating
+    # mute_name as a back signal would stop a builder root cascading its own
+    # pages.
+    it "is false for a muted folder tile" do
+      board_image.data = { "mute_name" => true }
+      expect(board_image.back_tile?).to be(false)
+    end
+
+    it "is false when the tile has no data" do
+      board_image.data = nil
+      expect(board_image.back_tile?).to be(false)
+    end
+  end
+
+  describe ".back_tile_data?" do
+    it "applies the same rule to a raw hash" do
+      expect(described_class.back_tile_data?({ "back_tile" => true })).to be(true)
+      expect(described_class.back_tile_data?({ "mute_name" => true })).to be(false)
+    end
+
+    it "is false for a non-hash" do
+      expect(described_class.back_tile_data?(nil)).to be(false)
+      expect(described_class.back_tile_data?("back_tile")).to be(false)
+    end
+  end
 end

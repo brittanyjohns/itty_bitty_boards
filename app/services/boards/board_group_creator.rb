@@ -32,6 +32,7 @@ module Boards
           @created = true
         end
       end
+      stamp_back_tiles!(@group)
       @group
     end
 
@@ -91,6 +92,19 @@ module Boards
 
       newly_reachable.each { |member| add_board!(group, member) }
       group.reload
+    end
+
+    # Now that the set has a home board and a membership list, its links can be
+    # read directionally: anything that doesn't take you further from home is a
+    # way back, not a folder into a subboard. Runs outside the lock and never
+    # raises — a set without the flags still maps fine, it just relies on the
+    # root guard in Boards::SubboardTree instead.
+    def stamp_back_tiles!(group)
+      return if group.blank?
+
+      Boards::BackTileStamper.new(group).call
+    rescue StandardError => e
+      Rails.logger.warn "[BoardGroupCreator] Failed to flag back tiles: #{e.message}"
     end
 
     def add_board!(group, member)

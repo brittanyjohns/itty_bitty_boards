@@ -82,6 +82,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Deleting a page in a board set no longer offers to delete the set's home
+  board.** A page's "go back" tile is stored the same way as a tile that opens a
+  sub-page, so deleting a page counted everything its back tile reached as one
+  of that page's own sub-boards — on an imported set, the delete dialog listed
+  the set's home board as something it could delete along with the page. Back
+  tiles are now recognised as going back, so the dialog only ever offers the
+  pages a board genuinely owns.
+
 - **Etsy was cropping the edges off every printable's listing photos.** The
   gallery slides are square, on the assumption that Etsy letterboxes anything
   that isn't — but the listing page frames a photo 4:5 and crops 10% off each

@@ -185,6 +185,46 @@ RSpec.describe "API::Boards destroy safety", type: :request do
     end
   end
 
+  # A child page in an imported set carries a Go back tile to the set root,
+  # stored as a plain folder tile. Following it made the page look like it owned
+  # the whole set, and the cascade offered to delete the set's home board.
+  describe "a page in an imported set with a go-back tile to the root" do
+    let!(:medic)  { create(:board, user: user, name: "With a Medic") }
+    let!(:hurts)  { create(:board, user: user, name: "Where it hurts") }
+    let!(:spell)  { create(:board, user: user, name: "Spell a word") }
+    let!(:qwerty) { create(:board, user: user, name: "QWERTY Keyboard") }
+
+    before do
+      create(:board_image, board: medic, predictive_board_id: hurts.id)
+      create(:board_image, board: hurts, predictive_board_id: medic.id)
+      create(:board_image, board: spell, predictive_board_id: medic.id)
+      create(:board_image, board: spell, predictive_board_id: qwerty.id)
+
+      group = create(:board_group, user: user)
+      [medic, hurts, spell].each { |b| group.board_group_boards.create!(board: b) }
+      group.update!(root_board_id: medic.id)
+    end
+
+    it "does not offer the set root as a subboard of the page" do
+      delete_board(spell, as: user)
+
+      expect(response).to have_http_status(:conflict)
+      usage = JSON.parse(response.body)["usage"]
+      expect(usage["subboards"]["names"]).to eq(["QWERTY Keyboard"])
+      expect(usage["subboards"]).to include("total" => 1, "deletable_count" => 1)
+    end
+
+    it "cascades only the page's own subboard, leaving the set intact" do
+      delete_board(spell, as: user, confirm: "true", delete_subboards: "true")
+
+      expect(response.status).to be_in([200, 204])
+      expect(Board.exists?(spell.id)).to be false
+      expect(Board.exists?(qwerty.id)).to be false
+      expect(Board.exists?(medic.id)).to be true
+      expect(Board.exists?(hurts.id)).to be true
+    end
+  end
+
   describe "authorization" do
     let(:admin)      { create(:admin_user) }
     let(:other_user) { create(:user) }

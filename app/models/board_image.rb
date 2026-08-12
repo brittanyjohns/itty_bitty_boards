@@ -259,6 +259,30 @@ class BoardImage < ApplicationRecord
     predictive_board&.board_type != "predictive"
   end
 
+  # The navigation-direction signal: true when this tile goes BACK or SIDEWAYS
+  # within a board set rather than DOWN into a subboard — a "go back"/home tile,
+  # or a nav-row tile pointing at a sibling page. Structural walks must not
+  # follow these, or deleting a child page looks like it owns the whole set.
+  #
+  # Deliberately NOT keyed on `mute_name`: BuildBoardSetJob mutes EVERY folder
+  # tile in a builder set, so it says nothing about which way a link points.
+  # `nav_tile` covers the whole nav row (self tile → root, the rest → siblings)
+  # and neither is a descent. `override_frozen` is the "Always navigate home"
+  # toggle — a user-declared back tile already, so don't make them set two flags.
+  def back_tile?
+    self.class.back_tile_data?(data)
+  end
+
+  # Same rule off a raw `data` hash, so a walk can decide from plucked jsonb
+  # without instantiating the record.
+  def self.back_tile_data?(data)
+    return false unless data.is_a?(Hash)
+
+    data["back_tile"] == true ||
+      data[Boards::NavRowSync::NAV_TILE_KEY] == true ||
+      data["override_frozen"] == true
+  end
+
   # Delegates to the underlying Image's language_settings. Stored `label` /
   # `display_label` columns reflect the board's authored language; this resolves
   # the viewer's preferred language at read time.
