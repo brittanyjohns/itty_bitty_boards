@@ -363,6 +363,19 @@ an explicit decision, not a drive-by edit.
   rotates on every exchange, so it lives in `oauth_credentials` (not ENV) and
   Rails holds a **separate authorization** from the one `speakanyway-printables`
   uses — a shared grant makes the two invalidate each other.
+- **`child_accounts.settings` MERGES on update; `details` REPLACES.** The two
+  jsonb blobs have opposite semantics on purpose, and both are load-bearing.
+  Several frontend surfaces save `settings` as a fresh literal holding only
+  their own slice, so a wholesale assignment dropped every key the saving
+  screen didn't know about — dashboard layout columns, `primary_team_id`,
+  archive/reclaim/fallback state. `details` stays a replace because the AAC
+  profile clears a field by DELETING its key, so merging would make "Not set"
+  a no-op. Two corollaries: clearing a settings key means sending an explicit
+  blank/nil, never omitting it; and anything the replace used to remove as a
+  side effect must now be removed deliberately (`demo_board_limit` on
+  sandbox→active, mirroring `ChildAccount#promote_to_active!`). Note the
+  column has **no DB default**, so `settings` can be `nil` on any row — every
+  reader and writer needs `self.settings ||= {}`.
 - **Email verification is keyed on `email_verified_at`, never `confirmed_at`.**
   `User#mark_email_verified!` is the only writer. Verified status may be
   conferred ONLY by a path where the user clicked a link delivered to their
