@@ -167,5 +167,43 @@ RSpec.describe Boards::NavRowSync do
       expect(home_tiles.size).to eq(1)
       expect(home_tiles.first.label).to eq("Food")
     end
+
+    # The way home goes where the way in was. "Animals" sits at (1, 0) on the
+    # drawer, so that is where the anchor lands — not the first free cell.
+    it "puts the anchor in the same cell as the tile that opens the page" do
+      described_class.call(root)
+
+      home = animals.board_images.reload.find { |bi| bi.predictive_board_id == root.id }
+      expect([home.layout["lg"]["x"], home.layout["lg"]["y"]]).to eq([1, 0])
+    end
+
+    it "swaps with whatever occupied that cell rather than dropping it" do
+      tile(animals, "cat", x: 1, y: 0, position: 2)
+
+      described_class.call(root)
+
+      home = animals.board_images.reload.find { |bi| bi.predictive_board_id == root.id }
+      cat = animals.board_images.reload.find { |bi| bi.label == "cat" }
+      expect([home.layout["lg"]["x"], home.layout["lg"]["y"]]).to eq([1, 0])
+      expect(cat).to be_present
+      expect([cat.layout["lg"]["x"], cat.layout["lg"]["y"]]).not_to eq([1, 0])
+      # Still in the content area, not pushed into the nav region.
+      expect(cat.layout["lg"]["y"]).to eq(0)
+    end
+
+    # A drawer's content area can be taller than the page it opens, so a
+    # mirrored cell that would land inside the nav region is refused outright
+    # rather than clamped into it, where it would fight the nav tiles.
+    it "falls back to the first free cell when the mirrored cell is in the nav region" do
+      animals.board_images.destroy_all
+      drawer.board_images.find_by(label: "Animals").update_column(
+        :layout, { "lg" => { "x" => 3, "y" => 4, "w" => 1, "h" => 1 } }
+      )
+
+      described_class.call(root)
+
+      home = animals.board_images.reload.find { |bi| bi.predictive_board_id == root.id }
+      expect([home.layout["lg"]["x"], home.layout["lg"]["y"]]).to eq([0, 0])
+    end
   end
 end
