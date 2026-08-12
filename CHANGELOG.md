@@ -82,6 +82,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Etsy was cropping the edges off every printable's listing photos.** The
+  gallery slides are square, on the assumption that Etsy letterboxes anything
+  that isn't — but the listing page frames a photo 4:5 and crops 10% off each
+  side, which took the first letter of the board name and better than half the
+  QR code on every listing in the shop. All six slides now keep their text, QR
+  code and logo inside a safe margin so nothing meaningful can be cropped away.
+  Existing listings pick this up when their images are regenerated.
+
 - **Boards built through the internal API still came out Title Cased.** The
   endpoint treated the word you send as authored display text and pinned its
   casing, so a word list typed the natural way — "Yes / No / Say it again" —
