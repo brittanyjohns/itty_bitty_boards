@@ -35,7 +35,10 @@ module CareOptionRemap
     sections = care["sections"]
     return nil unless sections.is_a?(Hash)
 
-    out = Marshal.load(Marshal.dump(care))
+    # deep_dup, not Marshal round-trip: same deep copy for a plain
+    # Hash/Array/String blob, without handing Brakeman a deserialization
+    # warning (and without Marshal's habit of resurrecting arbitrary objects).
+    out = care.deep_dup
     touched = false
 
     Profile::DEPRECATED_CARE_OPTIONS.each do |section_key, fields|

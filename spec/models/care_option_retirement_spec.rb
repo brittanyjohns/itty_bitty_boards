@@ -123,7 +123,7 @@ RSpec.describe "retiring a care option" do
     it "does not mutate the blob it was given" do
       store_methods(%w[some_speech])
       care = profile.reload.settings["care"]
-      before = Marshal.load(Marshal.dump(care))
+      before = care.deep_dup
       CareOptionRemap.apply(care)
       expect(care).to eq(before)
     end
