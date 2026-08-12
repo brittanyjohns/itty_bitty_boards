@@ -218,6 +218,67 @@ RSpec.describe Boards::AdminBuilder::Build do
       expect(child.board_images.find { |bi| bi.label == "back" }.data["mute_name"]).to be(true)
     end
 
+    # The way home goes where the way in was: a communicator who taps "Food" at
+    # a given cell finds "back" at that same cell on the page it opens. The
+    # drafters write the back tile last, so without alignment it would always
+    # land in the bottom-right corner instead.
+    describe "back tile alignment" do
+      def mid_row_root
+        [
+          { "label" => "i", "part_of_speech" => "pronoun" },
+          { "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" },
+          { "label" => "want", "part_of_speech" => "verb" },
+          { "label" => "more", "part_of_speech" => "important_function" },
+        ]
+      end
+
+      def page_with_back
+        food_page(tiles: [
+          { "label" => "apple", "part_of_speech" => "noun" },
+          { "label" => "banana", "part_of_speech" => "noun" },
+          { "label" => "hungry", "part_of_speech" => "adjective" },
+          { "label" => "back", "part_of_speech" => "social", "links_to" => Boards::AdminBuilder::Plan::ROOT_KEY },
+        ])
+      end
+
+      let(:aligned) do
+        build_record(tiles: mid_row_root, columns: 4, tile_count: 4, children: [page_with_back])
+      end
+
+      def cell(board_image)
+        [board_image.layout["lg"]["x"], board_image.layout["lg"]["y"]]
+      end
+
+      it "puts the back tile in the same cell as the folder tile that opens the page" do
+        root = described_class.new(admin_board_build: aligned).call
+        folder = root.board_images.find { |bi| bi.predictive_board_id.present? }
+        child = Board.find(folder.predictive_board_id)
+        back = child.board_images.find { |bi| bi.label == "back" }
+
+        expect(cell(folder)).to eq([1, 0])
+        expect(cell(back)).to eq(cell(folder))
+      end
+
+      # A swap, not an insert: the displaced word takes the corner the back
+      # tile vacated, so the grid stays packed and nothing shifts.
+      it "hands the corner to the word it displaced and renumbers positions to match" do
+        root = described_class.new(admin_board_build: aligned).call
+        child = Board.find(root.board_images.find { |bi| bi.predictive_board_id.present? }.predictive_board_id)
+
+        expect(cell(child.board_images.find { |bi| bi.label == "banana" })).to eq([3, 0])
+        expect(child.board_images.order(:position).map(&:label)).to eq(%w[apple back hungry banana])
+      end
+
+      it "leaves a page with no back tile in authored reading order" do
+        root = described_class.new(admin_board_build: build_record(
+          tiles: mid_row_root, columns: 4, tile_count: 4, children: [food_page],
+        )).call
+        child = Board.find(root.board_images.find { |bi| bi.predictive_board_id.present? }.predictive_board_id)
+
+        expect(child.board_images.order(:position).map(&:label)).to eq(%w[apple banana hungry eat])
+      end
+    end
+
     it "records every page on the build so publish and show can reach them" do
       root = described_class.new(admin_board_build: build).call
       boards = build.reload.art_report["boards"]

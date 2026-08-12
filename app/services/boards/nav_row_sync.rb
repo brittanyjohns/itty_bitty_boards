@@ -62,9 +62,12 @@ module Boards
     end
 
     def children
-      Boards::PredictiveLinkSet
+      set_boards.reject { |b| b.id == @root.id }
+    end
+
+    def set_boards
+      @set_boards ||= Boards::PredictiveLinkSet
         .collect(@root, max_depth: MAX_DEPTH, exclude: ->(b) { b.user_id != @root.user_id })
-        .reject { |b| b.id == @root.id }
     end
 
     def sync_child!(child)
@@ -112,8 +115,55 @@ module Boards
         # the way home speaks its own label.
         data: (board_image.data || {}).merge(NAV_TILE_KEY => true).except("mute_name"),
       )
-      relocate!(child, board_image)
+      place_home_tile!(child, board_image)
       @result.tiles_written += 1
+    end
+
+    # The way home goes WHERE THE WAY IN WAS: the same cell as the folder tile
+    # that opens this page. A page in the nav region gets that for free — its
+    # self tile is written at the root's own cell (see #upsert_nav_tile!) — but
+    # a drawer-tucked page's anchor would otherwise land in the first free cell,
+    # somewhere different on every page.
+    #
+    # Swap rather than insert: the occupant takes the cell the anchor would have
+    # been given, so nothing is dropped and no hole opens up.
+    def place_home_tile!(child, board_image)
+      cell = mirrored_cell(child, except: board_image.id)
+      return relocate!(child, board_image) if cell.nil?
+
+      occupant = occupant_at(child, cell, except: board_image.id)
+      write_cell!(board_image, cell[0], cell[1])
+      relocate!(child, occupant) if occupant
+    end
+
+    # The cell of the tile that links to this page, clamped into its grid.
+    #
+    # The linking tile usually lives on the DRAWER board, not the root, and a
+    # drawer's content area can be taller than this page's — so a mirrored cell
+    # inside the nav region is refused outright rather than clamped into it,
+    # where it would fight the nav tiles this service owns.
+    def mirrored_cell(child, except:)
+      linker = BoardImage.where(board_id: set_boards.map(&:id), predictive_board_id: child.id)
+                         .where.not(id: except)
+                         .reorder(nil)
+                         .find { |bi| bi.layout.is_a?(Hash) && bi.layout["lg"].is_a?(Hash) }
+      return nil if linker.nil?
+
+      cell = linker.layout["lg"]
+      columns = [child.large_screen_columns.to_i, 1].max
+      y = cell["y"].to_i
+      return nil if y >= region.top_y
+
+      [[cell["x"].to_i, columns - 1].min.clamp(0, columns - 1), y]
+    end
+
+    def occupant_at(child, cell, except:)
+      child.board_images.reload.find do |bi|
+        next false if bi.id == except
+
+        at = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+        at.present? && at["x"].to_i == cell[0] && at["y"].to_i == cell[1]
+      end
     end
 
     # Make room for the nav region.

@@ -51,6 +51,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **A page's "back" button now sits where the button that opened it sat.** When
+  a built board set puts a folder tile in a given spot on the main board, the
+  page it opens puts its way home in that same spot — at every level, on every
+  page. Previously the back button landed wherever the word list happened to
+  leave it, usually the bottom-right corner, so finding the way home meant
+  re-scanning the grid on each page instead of reaching for the same cell. The
+  word that was in that spot swaps into the corner, so no tile is lost and the
+  grid stays full. Applies to admin-authored board sets and to sets from the
+  Board Builder; imported OBF/OBZ boards keep their own layouts untouched.
+
 - **The listing gallery's tablet slide now shows the SpeakAnyWay app, not a
   printout.** The board sits inside the app's own header — board name, speech
   bar, play/clear/download — instead of being a printed page with its scan-me

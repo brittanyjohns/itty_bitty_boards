@@ -157,6 +157,31 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
     end
   end
 
+  # The review screen draws a real grid, and Build swaps each page's back tile
+  # into its parent folder tile's cell. Previewing the authored order would show
+  # the admin a layout the build isn't going to produce.
+  it "draws a child page in grid order, with the back tile where its folder tile sits" do
+    pages = Boards::AdminBuilder::Plan.pages(
+      root: {
+        name: "Board", columns: 4, tile_count: 4,
+        tiles: [{ label: "i" }, { label: "Food", links_to: "food" }, { label: "want" }, { label: "more" }],
+      },
+      children: [{
+        key: "food", name: "Food",
+        tiles: [
+          { label: "apple" }, { label: "banana" }, { label: "hungry" },
+          { label: "back", links_to: Boards::AdminBuilder::Plan::ROOT_KEY },
+        ],
+      }],
+    )
+
+    result = described_class.new(pages: pages, commercial_safe_only: false).call
+
+    expect(result[:pages].last[:rows].map(&:label)).to eq(%w[apple back hungry banana])
+    # The root is never rearranged.
+    expect(result[:pages].first[:rows].map(&:label)).to eq(%w[i Food want more])
+  end
+
   it "ignores blank lines in the label list" do
     result = described_class.new(pages: pages_for(["apple", "", "  "]), commercial_safe_only: false).call
     expect(result[:total]).to eq(2)
