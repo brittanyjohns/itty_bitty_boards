@@ -19,6 +19,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   is served without re-rendering. `POST /api/images/generate` now rejects
   `style=text` (422) rather than silently falling back to an AI style.
 
+- **The care schema is now served to the app** ().
+  The editor's option chips came from a copy of the list hand-maintained in the
+  frontend, and  drops an option it doesn't recognize
+  rather than rejecting it — so renaming one here silently erased that answer
+  from every profile on its next save, with no error anywhere. The app now
+  renders whatever this endpoint sends. Changing the care options no longer
+  needs a matching frontend release.
+
 - **Care sections on a MySpeak page.** Beyond the intro and About Me blurb, a
   communicator's page can now carry optional, structured sections covering how
   they communicate, personal care, meals and snacks, and getting to and from
@@ -63,6 +71,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **A page's "back" button now sits where the button that opened it sat.** When
+  a built board set puts a folder tile in a given spot on the main board, the
+  page it opens puts its way home in that same spot — at every level, on every
+  page. Previously the back button landed wherever the word list happened to
+  leave it, usually the bottom-right corner, so finding the way home meant
+  re-scanning the grid on each page instead of reaching for the same cell. The
+  word that was in that spot swaps into the corner, so no tile is lost and the
+  grid stays full. Applies to admin-authored board sets and to sets from the
+  Board Builder; imported OBF/OBZ boards keep their own layouts untouched.
+
 - **The listing gallery's tablet slide now shows the SpeakAnyWay app, not a
   printout.** The board sits inside the app's own header — board name, speech
   bar, play/clear/download — instead of being a printed page with its scan-me
@@ -106,6 +124,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   built are repaired by `rake admin_board_builder:mute_folder_tiles`.
 
 ### Fixed
+
+- **Saving one part of a communicator's settings no longer wipes the rest.**
+  The communicator screen saves settings from several different places, and
+  each one sent only the handful of values it knew about — so saving from one
+  tab quietly erased what another tab had set, including the dashboard column
+  layout and which team a communicator belongs to. Saving now updates only
+  what you actually changed. Clearing a setting still works exactly as before.
+  A related crash is fixed too: updating a communicator that had never had any
+  settings saved could fail outright.
 
 - **Deleting a page in a board set no longer offers to delete the set's home
   board.** A page's "go back" tile is stored the same way as a tile that opens a

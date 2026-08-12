@@ -468,6 +468,20 @@ the root, unmuted so it speaks like a self tile. It has to run *after*
 `evict_occupants!`, which destroys any child folder tile pointing back at the
 root, so an anchor written earlier in the build would not survive.
 
+**The way home goes WHERE THE WAY IN WAS.** A subboard's back tile occupies the
+same `lg` cell as the folder tile that opens it — muscle memory only works if
+the way back is where the way in was, and re-scanning the grid on every page is
+exactly what an AAC layout exists to prevent. A nav-region page gets this for
+free (`upsert_nav_tile!` writes the self tile at the root's own cell); a
+drawer-tucked page gets it from `NavRowSync#place_home_tile!`, which mirrors the
+cell of the tile that links to it — usually on the **drawer**, not the root.
+Two rails there: the move is a **swap**, so the occupant takes the cell the
+anchor would otherwise have been given and no hole opens; and a mirrored `y`
+inside the nav region is **refused, never clamped into it** (a drawer's content
+area can be taller than the page it opens, and clamping would put the anchor in
+a cell `upsert_nav_tile!` owns). The link target stays the root either way — the
+anchor mirrors the drawer tile's *position*, not its destination.
+
 `allow_scroll_if_grown!` remains the safety net for case 3: a home board that
 did grow clears the seed's one-page `disable_scroll` so the new row isn't
 clipped.
@@ -1115,6 +1129,27 @@ Its own invariants:
   second has an escape hatch ("allow a partial row") — a tile count that isn't a
   multiple of the columns leaves dead cells at the right end of the last row.
   Shrinking the board is the fix for a short word list, not ticking the box.
+- **A page's back tile is placed by mirroring, not by authored order.** Tiles
+  otherwise land in pure reading order (`Build#apply_reading_order!`:
+  `x = i % columns`, `y = i / columns`), and both drafters ask the model for
+  "one tile that goes back" — which it reliably writes **last**, parking every
+  page's way home in the bottom-right corner.
+  `Boards::AdminBuilder::BackTileAlignment` swaps it into the cell its parent's
+  folder tile occupies, at every depth. It is a **pure function over the plan**
+  with no database reads: reading-order positions are derivable from a tile's
+  index, so the parent's cell is known from the plan alone. That is what lets
+  `ArtPreview` render the same permutation — otherwise the admin approves a grid
+  the build won't produce. Parentage is BFS from `ROOT_KEY`, so the *shallowest*
+  parent wins when two pages open the same child; x and y are clamped into the
+  child's own grid (pages may carry their own `columns`) and the final clamp
+  handles a ragged last row. A **swap, not an insert** — both tiles are 1×1, so
+  the grid stays packed and the displaced word takes the corner.
+  `Board#apply_layout!` sorts by `[y, x]` and renumbers `position`, so reading
+  order downstream follows the aligned layout for free.
+  **Gap:** nothing guarantees a page *has* a back tile — `FolderTiles` and
+  `PlanValidator#orphan_problems` only enforce the forward direction (a door
+  *into* every child), and there is no admin-side `ensure_home_tile!`. Alignment
+  moves a back tile that exists; it does not create a missing one.
 - **Boards are marked `settings["admin_builder"] = true`** and every member
   action is scoped through `AdminBoardBuild.builder_boards`, the same rail
   `Admin::VideoBoardsController` runs on. Boards are created unpublished;

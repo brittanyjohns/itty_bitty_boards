@@ -1004,10 +1004,15 @@ class ChildAccount < ApplicationRecord
   end
 
   def go_to_words
+    self.settings ||= {}
     settings["go_to_words"] || Board.common_words
   end
 
+  # `settings` has no DB default, so it can be nil on any row — every writer in
+  # this model guards for that, and these readers must too or an ordinary
+  # update 500s before it reaches the controller's save.
   def voice_settings
+    self.settings ||= {}
     settings["voice"] = { name: "polly:kevin", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
     settings["voice"]
   end
@@ -1021,6 +1026,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def voice=(voice_name)
+    self.settings ||= {}
     settings["voice"] ||= {}
     settings["voice"]["name"] = voice_name
     save!

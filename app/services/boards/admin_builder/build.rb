@@ -212,13 +212,24 @@ module Boards
       # Reading order: left to right, top to bottom, in the order the words were
       # authored. apply_layout! sorts by [y, x] and rewrites every tile's
       # position, so the layout — not creation order — decides the final order.
+      #
+      # The one departure from authored order is BackTileAlignment, which swaps
+      # a page's back tile into the cell its parent's folder tile occupies. It
+      # returns a cell index per tile, so the same `% columns` / `/ columns`
+      # math still produces the grid.
+      def cell_indexes
+        @cell_indexes ||= BackTileAlignment.cell_indexes(pages)
+      end
+
       def apply_reading_order!(board, board_images, page)
         columns = page[:columns].to_i
+        cells = cell_indexes[page[:key]] || []
         layout = board_images.each_with_index.map do |board_image, index|
+          cell = cells[index] || index
           {
             "i" => board_image.id.to_s,
-            "x" => index % columns,
-            "y" => index / columns,
+            "x" => cell % columns,
+            "y" => cell / columns,
             "w" => 1,
             "h" => 1,
           }

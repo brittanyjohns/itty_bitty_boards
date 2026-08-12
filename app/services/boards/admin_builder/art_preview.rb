@@ -41,6 +41,12 @@ module Boards
       end
 
       def call
+        # The review grid is drawn in GRID order, not authored order, because
+        # BackTileAlignment moves each page's back tile into the cell its
+        # parent's folder tile occupies. Previewing the authored order would
+        # show the admin a layout the build isn't going to produce.
+        cells = BackTileAlignment.cell_indexes(pages)
+
         previewed = pages.map do |page|
           # `columns`/`tile_count` carry the page's OWN grid through to the view:
           # with mixed grids a page needn't match the main board, so the review
@@ -50,7 +56,7 @@ module Boards
             name: page[:name],
             columns: page[:columns].to_i,
             tile_count: page[:tile_count].to_i,
-            rows: page[:tiles].map { |tile| row_for(tile) },
+            rows: in_grid_order(page[:tiles], cells[page[:key]]).map { |tile| row_for(tile) },
           }
         end
 
@@ -73,6 +79,25 @@ module Boards
       private
 
       attr_reader :pages, :commercial_safe_only
+
+      # `cells[i]` is the cell tile `i` lands in; the grid reads the inverse.
+      # Any tile the permutation doesn't cover keeps its authored slot, so a
+      # missing or short array degrades to plain reading order.
+      def in_grid_order(tiles, cells)
+        return tiles if cells.blank?
+
+        ordered = Array.new(tiles.size)
+        leftover = []
+        tiles.each_with_index do |tile, index|
+          cell = cells[index]
+          if cell.is_a?(Integer) && ordered[cell].nil?
+            ordered[cell] = tile
+          else
+            leftover << tile
+          end
+        end
+        ordered.map { |tile| tile || leftover.shift }.compact
+      end
 
       def searcher
         # limit: 1 — the review grid shows what will actually be attached, not a
