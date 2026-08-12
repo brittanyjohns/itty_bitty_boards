@@ -495,6 +495,15 @@ class API::ImagesController < API::ApplicationController
   end
 
   def generate
+    # "text" is a tile-editor art style, not a prompt style. It has its own
+    # free endpoint (board_images#create_text_image) and no meaning here —
+    # Images::PromptBuilder.resolve_style would silently ignore it and bill the
+    # user for a symbol they didn't ask for. Reject loudly instead.
+    if params[:style].to_s == "text"
+      render json: { error: "invalid_style" }, status: :unprocessable_content
+      return
+    end
+
     @current_user = current_user
     label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
     image_prompt = image_params[:image_prompt]

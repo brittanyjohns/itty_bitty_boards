@@ -136,3 +136,115 @@ placements. The freshly minted URL is known-good and is never re-validated.
 All paid image calls are stubbed when `AppEnv.staging?` — `OpenAiClient#create_image`
 and `ImageEditService` return the bundled `public/placeholder.jpeg`. The rest of
 each pipeline runs normally.
+
+---
+
+# Text tiles (`Images::TextTile`)
+
+A tile picture rendered from **typed text** instead of generated. It is a third
+option in the editor's IMAGE STYLE picker, but it is not an AI style: there is
+no prompt, no OpenAI call, and no credit charge. Everything downstream —
+tile variants, print, OBF/OBZ export, offline cache — treats the result as an
+ordinary tile image, which is the whole point.
+
+## The rules that must not drift
+
+- **Free, and that is load-bearing.** `create_text_image` deliberately does not
+  call `check_credits!`. The button copy says "Free — no credits used" and
+  `spec/requests/api/board_images_text_image_spec.rb` asserts the balance is
+  untouched. Adding a credit gate means changing the copy in the same PR.
+- **`"text"` is not a `PromptBuilder` style.** `resolve_style` ignores values it
+  doesn't recognize, so a `style=text` reaching `images#generate` would bill the
+  user for an AAC symbol they didn't ask for. That path 422s `invalid_style`
+  instead. On the frontend the same split is a type: `ImageStyle` stays the
+  prompt contract, `TileArtStyle` is the per-tile UI union, and only the tile
+  editor sees the wider one.
+- **No fan-out.** `Images::TextTile::Creator` does NOT call
+  `update_all_boards_image_belongs_to`. An AI picture of "more" is the same
+  picture wherever that Image appears; one board's typography is not. The Doc
+  still hangs off the shared `Image` (so it gets `tile_variant`/`tile_url` and
+  shows in that tile's picture gallery), but only the originating BoardImage is
+  repointed. It also leaves `image.status` alone.
+- **`Options` is the only trust boundary.** No raw CSS from the client ever
+  reaches the rendered HTML: the client sends *tokens* (`"m"`, `"upper"`,
+  `"center"`) and a font *key*, and the server owns every CSS value. Colors must
+  match a hex pattern or they're discarded; the text is escaped and capped.
+  `to_h` emits only whitelisted keys, so the persisted blob is safe to feed
+  straight back through `from_params` when the editor reopens.
+- **`Doc::SOURCE_TYPE_TEXT_TILE` must stay in both license services.**
+  `Images::RedistributionLicense` and `Images::CommercialLicense` both fail
+  *closed*: an unrecognized `source_type` resolves to "no redistributable
+  license on record" and the tile is **silently dropped from exports**. Text
+  tiles are in each service's `OWNED_SOURCE_TYPES` — the OFL licenses the font
+  software, not the pixels it draws.
+
+## Rendering
+
+Grover (headless Chrome), not vips/pango and not a stored SVG.
+
+- **SVG is disqualified, not merely worse.** `Doc#tile_variant` returns `nil`
+  unless `image.variable?`, and Rails' default `variable_content_types` excludes
+  `image/svg+xml` — an SVG doc silently bypasses the 288px pipeline every other
+  tile goes through.
+- **Grover is Blink, and so is the preview.** The editor previews with CSS in
+  the browser; using anything else server-side would put preview and result out
+  of sync on shaping, fallback, `text-transform`, and line breaking. That is the
+  most damaging bug this feature can ship.
+- Rendered at 576px and downsampled by the existing `resize_to_limit [288,288]`.
+  `HtmlToPng` (`app/services/html_to_png.rb`) is the one Chrome call site;
+  `Communicators::BaseAssetGenerator` delegates to it.
+- `omit_background` is **verified working** on the installed Grover/Puppeteer —
+  a transparent tile renders RGBA. A transparent background must leave the body
+  unpainted (`background: none`), since omitBackground only shows through where
+  the page paints nothing.
+
+## Fonts
+
+`Images::TextTile::Fonts` vendors woff2 under `app/assets/fonts/text_tiles/`
+(Nunito reuses the printables copy), base64-inlined per render — same hermetic
+rule as `Boards::Printables::Fonts`, and `OFL.txt` ships beside each family.
+
+- **Normal style only.** Italic is Chrome's synthetic oblique, and the frontend
+  requests the same axes (no `ital`) from Google Fonts in `index.html`, so both
+  sides slant identically. Shipping a real italic on one side only breaks parity.
+- **`face_css` emits one family**, never all five — that would be ~400 KB of
+  base64 per render for faces nobody asked for.
+- The key list is a **cross-repo contract** with `TEXT_TILE_FONTS` in
+  `itty-bitty-frontend/src/data/text_tile.ts`. Both sides have a test asserting
+  it and naming the other file.
+
+## Layout parity
+
+`Options#lines` / `#font_size_px` are ported from
+`BoardsHelper#generate_placeholder_image` and have a TypeScript twin,
+`computeTextTileLayout`. Both are tested against the same fixture table.
+
+- Sizes are in **`REFERENCE_CANVAS` (300px) units**; each renderer scales to its
+  own box (576 server, 288 preview). Keeping the numbers in one space is what
+  lets one fixture table test all three.
+- The width fit is capped by a **height fit** (`LINE_HEIGHT`, `PADDING_RATIO`) —
+  without it three wrapped lines at max size clip their descenders.
+- The size token (S/M/L/XL) is a **multiplier**, never an absolute px, so a long
+  label can't overflow whatever size the user picked.
+- The wrap is Latin-centric by construction (characters-per-line). Revisit with
+  `board_image.language` rather than tuning the constants.
+
+## Endpoint
+
+`POST /api/board_images/:id/create_text_image` → `RenderTextTileJob` (queue
+`:text_images`, deliberately **not** `:ai_images` — a ~1s local render must not
+sit behind minute-long OpenAI calls). Sets `status: "generating"` and
+`data["text_image"]`, so the existing realtime refresh path works unchanged.
+
+- The config is written **before** the enqueue, so the editor restores the
+  controls even while the render is in flight or if the job fails.
+- `hide_label` is assigned **both ways** — the form shows the tile's current
+  state, so unchecking the box has to put the label back.
+- **Unchanged-render short circuit:** an identical request (compared on
+  `Options#render_digest`, which excludes `hide_label`) with its Doc still
+  present returns `complete` without forking Chrome. Free and instant invites
+  tweak-and-retry; this is what stops that costing a render each time.
+- Throttled by its own Rack::Attack bucket (`RACK_ATTACK_TEXT_IMAGE_LIMIT`,
+  default 60/min), not the AI one — free renders shouldn't consume a budget the
+  user paid for, but each is still a Chrome fork.
+- Nothing is staging-gated: there are no paid calls on this path.

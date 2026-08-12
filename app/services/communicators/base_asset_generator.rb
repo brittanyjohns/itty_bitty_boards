@@ -61,15 +61,7 @@ module Communicators
     end
 
     def generate_png_from_html(html, width:, height:, scale: 2)
-      grover = Grover.new(
-        html,
-        format: "png",
-        viewport: { width: width, height: height },
-        width: width,
-        height: height,
-        device_scale_factor: scale,
-      )
-      grover.to_png
+      HtmlToPng.call(html: html, width: width, height: height, scale: scale)
     end
 
     def generate_pdf_from_html(html, width:, height:, scale: 2)
