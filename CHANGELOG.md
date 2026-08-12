@@ -7,6 +7,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Care sections on a MySpeak page.** Beyond the intro and About Me blurb, a
+  communicator's page can now carry optional, structured sections covering how
+  they communicate, personal care, meals and snacks, and getting to and from
+  places — mostly pick-from-a-list answers rather than paragraphs, so a
+  substitute teacher or bus driver can scan them in seconds. You can also add
+  your own sections for anything the built-in four don't cover. Like emergency
+  info, none of it shows on page-load: a visitor has to open it deliberately.
+  Unlike emergency info, opening it does **not** send you an alert — these are
+  everyday support details, and an email every time someone checks a snack rule
+  would drown out the alert that matters. Every view is still recorded. (This
+  release adds the data and the page's API; the editing screen and the redesigned
+  public page follow.)
+
 - **Every board printable now includes a third, trim-ready PDF.** Alongside the
   full-colour and low-ink versions, each board is printed once more with the
   header removed so the board fills as much of the sheet as possible — the

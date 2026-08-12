@@ -1,5 +1,5 @@
 class API::ProfilesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[public safety_view check_placeholder generate claim_placeholder next_placeholder check_slug]
+  skip_before_action :authenticate_token!, only: %i[public safety_view care_view check_placeholder generate claim_placeholder next_placeholder check_slug]
 
   def index
     @profile = current_user&.profile
@@ -101,6 +101,37 @@ class API::ProfilesController < API::ApplicationController
     log_safety_profile_view(profile)
 
     render json: profile.safety_details_view
+  end
+
+  # Gated care-details endpoint. Same shape as #safety_view — the open page
+  # withholds settings["care"] and this is the deliberate reveal — but a
+  # DIFFERENT notification contract: the access is logged for the abuse-pattern
+  # history and the parent is NOT alerted. Care sections are day-to-day support
+  # info (how someone communicates, eats, gets home), so a substitute teacher
+  # reading them is routine; routing them through the emergency alert would
+  # train parents to ignore it.
+  def care_view
+    profile = Profile.find_by(slug: params[:slug]) ||
+              Profile.find_by(legacy_slug: params[:slug])
+
+    if profile.nil?
+      render json: { error: "Profile not found" }, status: :not_found
+      return
+    end
+
+    unless profile.safety?
+      render json: { error: "Not a safety profile" }, status: :not_found
+      return
+    end
+
+    if profile.placeholder? && profile.claimed_at.nil?
+      render json: { id: profile.id, settings: {} }
+      return
+    end
+
+    log_care_profile_view(profile)
+
+    render json: profile.care_details_view
   end
 
   def create
@@ -367,6 +398,16 @@ class API::ProfilesController < API::ApplicationController
     RecordProfileViewJob.perform_async(profile.id, request.remote_ip, request.user_agent)
   rescue => e
     Rails.logger.warn("[Profiles#public] failed to enqueue view log: #{e.class}: #{e.message}")
+  end
+
+  # Same hand-off as log_safety_profile_view, but tagged "care" so the job logs
+  # the view and stops short of the parent alert.
+  def log_care_profile_view(profile)
+    return unless profile.safety?
+
+    RecordProfileViewJob.perform_async(profile.id, request.remote_ip, request.user_agent, "care")
+  rescue => e
+    Rails.logger.warn("[Profiles#care_view] failed to enqueue view log: #{e.class}: #{e.message}")
   end
 
   def set_placeholders

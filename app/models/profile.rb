@@ -99,6 +99,7 @@ class Profile < ApplicationRecord
   before_save :set_kind
   before_save :touch_slug_changed_at
   before_save :sanitize_theme_settings
+  before_save :sanitize_care_settings
 
   has_rich_text :public_about
   has_rich_text :public_intro
@@ -367,6 +368,10 @@ class Profile < ApplicationRecord
       settings: public_settings(kind: :safety),
       has_safety_info: has_safety_info?,
 
+      # Same contract for the care sections: the flag ships on page-open, the
+      # data only via the gated care_view endpoint.
+      has_care_info: has_care_info?,
+
       # Boards shown publicly should be safe/public
       public_boards: public_boards.map(&:public_card_view),
       general_public_boards: Board.public_board_cards,
@@ -513,6 +518,100 @@ class Profile < ApplicationRecord
   THEME_HEX_FORMAT = /\A#[0-9a-fA-F]{6}\z/.freeze
   THEME_SLUG_FORMAT = /\A[a-z0-9_-]{1,40}\z/.freeze
 
+  # --- MySpeak care sections ---
+  # Optional, structured "how to support this person day to day" sections stored
+  # on settings["care"]. Deliberately NOT in SAFETY_PAGE_KEYS (they are not open
+  # on page-load) and NOT in SAFETY_SENSITIVE_KEYS (they are not an emergency).
+  # They are served only by the gated care-details endpoint
+  # (POST public/:slug/care_view), which logs the access but does NOT fire the
+  # parent's emergency-view alert — a bus driver checking a snack rule must not
+  # read as someone opening the medical record.
+  #
+  # Shape:
+  #   settings["care"] = {
+  #     "order"    => ["communication", "c_7f3a91"],
+  #     "sections" => {
+  #       "communication" => { "enabled" => true, "values" => { ... } },
+  #       "c_7f3a91"      => { "enabled" => true, "custom" => true,
+  #                            "title" => "Sensory",
+  #                            "items" => [{ "label" => ..., "value" => ... }] },
+  #     },
+  #   }
+  #
+  # Built-in sections validate every value against the registry below; custom
+  # sections are free label/value pairs a parent adds themselves. Whitelist, not
+  # blocklist — an unknown section, field, or option is dropped on save.
+  #
+  # NOTE: no care field may ever appear in a Suggestions::Registry context
+  # allow-list. These are private care details, not copy to hand to OpenAI.
+  CARE_SECTIONS = {
+    "communication" => {
+      fields: [
+        { key: "methods", type: :multi_select,
+          options: %w[aac_device aac_book sign gestures some_speech echolalia
+                      writing eye_gaze partner_assisted facial_expressions] },
+        { key: "help_level", type: :single_select,
+          options: %w[independent needs_setup needs_prompts hand_over_hand
+                      partner_required] },
+        { key: "response_time", type: :single_select,
+          options: %w[right_away needs_time needs_lots_of_time] },
+        { key: "notes", type: :short_text },
+      ],
+    },
+    "personal_care" => {
+      fields: [
+        { key: "toileting", type: :single_select,
+          options: %w[independent needs_reminders needs_help toilet_training
+                      pull_ups diapers] },
+        { key: "schedule", type: :single_select,
+          options: %w[on_request scheduled_times both] },
+        { key: "help_level", type: :single_select,
+          options: %w[independent some_help full_help] },
+        { key: "dressing", type: :single_select,
+          options: %w[independent some_help full_help] },
+        { key: "notes", type: :short_text },
+      ],
+    },
+    "meals" => {
+      fields: [
+        { key: "eating", type: :single_select,
+          options: %w[independent some_help full_help tube_fed] },
+        { key: "textures", type: :multi_select,
+          options: %w[regular soft chopped pureed thickened_liquids] },
+        { key: "equipment", type: :multi_select,
+          options: %w[fork_and_spoon fingers specific_cup straw_only no_straw
+                      adapted_utensils] },
+        { key: "preferences", type: :short_text },
+        { key: "notes", type: :short_text },
+      ],
+    },
+    "transportation" => {
+      fields: [
+        { key: "mode", type: :multi_select,
+          options: %w[bus car_rider walker wheelchair_van parent_pickup] },
+        { key: "seating", type: :multi_select,
+          options: %w[harness car_seat booster wheelchair_securement
+                      specific_seat front_seat_only] },
+        { key: "bus_info", type: :short_text },
+        { key: "notes", type: :short_text },
+      ],
+    },
+  }.freeze
+
+  CARE_KEYS = %w[care].freeze
+
+  # A parent-added section. The key is generated client-side; the format is what
+  # keeps an arbitrary attacker-chosen key out of the settings hash.
+  CARE_CUSTOM_KEY_FORMAT = /\Ac_[0-9a-f]{6}\z/.freeze
+
+  MAX_CUSTOM_CARE_SECTIONS = 4
+  MAX_CARE_CUSTOM_ITEMS = 8
+  MAX_CARE_MULTI_SELECT = 10
+  CARE_TITLE_MAX = 60
+  CARE_ITEM_LABEL_MAX = 60
+  CARE_ITEM_VALUE_MAX = 200
+  CARE_SHORT_TEXT_MAX = 300
+
   PUBLIC_PAGE_KEYS = %w[
     public_page
     socials
@@ -574,6 +673,33 @@ class Profile < ApplicationRecord
     {
       id: id,
       settings: safety_sensitive_settings,
+    }
+  end
+
+  # The sanitized care blob, always a Hash. Only ever reaches a visitor through
+  # #care_details_view.
+  def care_settings
+    raw = settings.is_a?(Hash) ? settings : {}
+    care = raw["care"]
+    care.is_a?(Hash) ? care : {}
+  end
+
+  # True when at least one care section is filled in and enabled. Drives the
+  # frontend's "Care & routines" button without exposing the data itself —
+  # the same contract as has_safety_info?.
+  def has_care_info?
+    sections = care_settings["sections"]
+    return false unless sections.is_a?(Hash)
+
+    sections.any? { |_key, section| section.is_a?(Hash) && section["enabled"] != false }
+  end
+
+  # Payload for the gated care-details endpoint. Carries only the care blob the
+  # open page omits; the frontend merges it into the profile it already loaded.
+  def care_details_view
+    {
+      id: id,
+      settings: { "care" => care_settings },
     }
   end
 
@@ -906,6 +1032,133 @@ class Profile < ApplicationRecord
     else
       settings["theme"] = clean
     end
+  end
+
+  # Whitelist + validate settings["care"] on every save. The controller permits
+  # `settings: {}` wholesale, so this is the only thing standing between a
+  # request body and an unauthenticated public page — same role
+  # sanitize_theme_settings plays for the theme. Unknown sections, unknown
+  # fields, and out-of-registry option values are dropped rather than rejected:
+  # a stale frontend must not be able to 422 a parent out of saving.
+  def sanitize_care_settings
+    return unless settings.is_a?(Hash)
+    return unless settings.key?("care")
+
+    raw = settings["care"]
+    unless raw.is_a?(Hash)
+      settings.delete("care")
+      return
+    end
+
+    raw_sections = raw["sections"]
+    raw_sections = {} unless raw_sections.is_a?(Hash)
+
+    requested_order = raw["order"].is_a?(Array) ? raw["order"].map(&:to_s) : []
+    present_keys = raw_sections.keys.map(&:to_s)
+    # The parent's ordering decides which custom sections survive the cap, so
+    # walk the ordered keys first and only then whatever else is in the hash.
+    candidate_keys = (requested_order & present_keys) | present_keys
+
+    clean_sections = {}
+    custom_count = 0
+
+    candidate_keys.each do |key|
+      section = raw_sections[key]
+      next unless section.is_a?(Hash)
+
+      cleaned =
+        if CARE_SECTIONS.key?(key)
+          clean_builtin_care_section(key, section)
+        elsif key.match?(CARE_CUSTOM_KEY_FORMAT) && custom_count < MAX_CUSTOM_CARE_SECTIONS
+          clean_custom_care_section(section)
+        end
+      next if cleaned.nil?
+
+      custom_count += 1 unless CARE_SECTIONS.key?(key)
+      clean_sections[key] = cleaned
+    end
+
+    if clean_sections.empty?
+      settings.delete("care")
+      return
+    end
+
+    order = requested_order.uniq.select { |k| clean_sections.key?(k) }
+    order += (clean_sections.keys - order)
+
+    settings["care"] = { "order" => order, "sections" => clean_sections }
+  end
+
+  def clean_builtin_care_section(key, section)
+    raw_values = section["values"]
+    raw_values = {} unless raw_values.is_a?(Hash)
+
+    clean_values = {}
+    CARE_SECTIONS.fetch(key)[:fields].each do |field|
+      raw_value = raw_values[field[:key]]
+
+      cleaned =
+        case field[:type]
+        when :multi_select
+          next unless raw_value.is_a?(Array)
+          raw_value.map(&:to_s).uniq
+                   .select { |v| field[:options].include?(v) }
+                   .first(MAX_CARE_MULTI_SELECT)
+        when :single_select
+          value = raw_value.to_s
+          value if field[:options].include?(value)
+        when :short_text
+          care_text(raw_value, CARE_SHORT_TEXT_MAX)
+        end
+
+      clean_values[field[:key]] = cleaned if cleaned.present?
+    end
+
+    return nil if clean_values.empty?
+
+    { "enabled" => care_enabled?(section["enabled"]), "values" => clean_values }
+  end
+
+  def clean_custom_care_section(section)
+    title = care_text(section["title"], CARE_TITLE_MAX)
+    return nil if title.blank?
+
+    raw_items = section["items"]
+    raw_items = [] unless raw_items.is_a?(Array)
+
+    items = raw_items.filter_map do |item|
+      next unless item.is_a?(Hash)
+
+      label = care_text(item["label"], CARE_ITEM_LABEL_MAX)
+      value = care_text(item["value"], CARE_ITEM_VALUE_MAX)
+      next if label.blank? && value.blank?
+
+      { "label" => label.to_s, "value" => value.to_s }
+    end.first(MAX_CARE_CUSTOM_ITEMS)
+
+    return nil if items.empty?
+
+    {
+      "enabled" => care_enabled?(section["enabled"]),
+      "custom" => true,
+      "title" => title,
+      "items" => items,
+    }
+  end
+
+  # Care values render as text on an unauthenticated page, so markup is stripped
+  # rather than escaped — there is no field here where a tag is meaningful.
+  def care_text(value, limit)
+    text = ActionController::Base.helpers.strip_tags(value.to_s).squish
+    return nil if text.blank?
+
+    text[0, limit]
+  end
+
+  # Enabled unless the owner explicitly turned the section off. A section that
+  # arrives without the flag is one a parent just filled in.
+  def care_enabled?(value)
+    ![false, "false", "0", 0].include?(value)
   end
 
   public

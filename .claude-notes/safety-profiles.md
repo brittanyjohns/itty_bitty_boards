@@ -86,6 +86,45 @@ info** — medical details + emergency contacts + emergency notes
   swallow a safety alert. The per-profile hourly throttle is the only timing gate.
 
 
+## Care sections — the second gated reveal
+
+`settings["care"]` holds optional, structured "how to support this person day to
+day" sections: Communication, Personal Care, Meals, Transportation, plus up to
+`MAX_CUSTOM_CARE_SECTIONS` parent-authored custom sections. They are mostly
+multiple-choice and short-answer, deliberately unlike the free-text bio.
+
+- **They are a third privacy tier, not a variant of the other two.** Not in
+  `SAFETY_PAGE_KEYS` (never open on page-load) and not in
+  `SAFETY_SENSITIVE_KEYS` (not an emergency). `POST
+  /api/profiles/public/:slug/care_view` is the only path that serves them, and
+  `safety_view`'s `has_care_info` flag is what lets the page render the button
+  without the data — the same fail-closed shape as `has_safety_info`.
+- **The care reveal logs but never alerts.** `log_care_profile_view` enqueues
+  `RecordProfileViewJob` with `kind: "care"`; the job writes a `ProfileView` with
+  `view_kind: "care"` and returns before the throttle claim, the geolocation
+  lookup, and `Notifications::SafetyViewNotifier`. This is the whole reason for a
+  separate endpoint. A substitute teacher checking a snack rule is routine; if
+  that fired the emergency-view email, parents would learn to ignore the alert
+  that actually matters. A care reveal also does **not** consume the hourly
+  notify slot, so a real emergency reveal moments later still alerts.
+- **`Profile::CARE_SECTIONS` is the whole schema.** Each field is
+  `:multi_select`, `:single_select`, or `:short_text` with its option list.
+  `sanitize_care_settings` (a `before_save`, modelled on
+  `sanitize_theme_settings`) is the only thing between a request body and an
+  unauthenticated page, because `profile_params` permits `settings: {}`
+  wholesale. It whitelists sections/fields/options, enforces the custom-key
+  format `CARE_CUSTOM_KEY_FORMAT` and every length/count cap, strips markup, and
+  **drops rather than rejects** — a stale frontend must not be able to 422 a
+  parent out of saving. If nothing survives, the key is deleted so
+  `has_care_info?` stays honest.
+- **The frontend registry must not drift.** `src/data/careSections.ts` mirrors
+  the option keys verbatim; a renamed key is silently dropped on save, not
+  reported.
+- **Care fields are never eligible for writing suggestions** — same rule as
+  `SAFETY_SENSITIVE_KEYS`. Nothing here goes to OpenAI.
+- Care info is deliberately **not** on the Safety ID card or device tag; those
+  are emergency artifacts.
+
 ## About Me (public bio) vs emergency notes (private)
 
 The MySpeak page has two distinct free-text fields that were historically

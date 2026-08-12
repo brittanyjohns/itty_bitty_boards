@@ -302,6 +302,191 @@ RSpec.describe Profile, type: :model do
     end
   end
 
+  describe "care sections" do
+    let(:profile) { build_profile(slug: "care-page").tap(&:save!) }
+
+    # `order` is positional, not a keyword: a bare `"key" => value` at the call
+    # site binds to keyword params in Ruby 3, which would swallow the sections.
+    def care(sections, order = nil)
+      blob = { "sections" => sections }
+      blob["order"] = order if order
+      profile.update!(settings: { "care" => blob })
+      profile.reload.settings["care"]
+    end
+
+    describe "sanitize_care_settings callback" do
+      it "keeps registry-valid values on a built-in section" do
+        result = care(
+          "communication" => {
+            "enabled" => true,
+            "values" => {
+              "methods" => %w[aac_device gestures],
+              "help_level" => "needs_prompts",
+              "notes" => "Give me ten seconds to answer.",
+            },
+          },
+        )
+
+        expect(result["sections"]["communication"]).to eq(
+          "enabled" => true,
+          "values" => {
+            "methods" => %w[aac_device gestures],
+            "help_level" => "needs_prompts",
+            "notes" => "Give me ten seconds to answer.",
+          },
+        )
+      end
+
+      it "drops unknown sections, unknown fields, and out-of-registry options" do
+        result = care(
+          "communication" => {
+            "values" => {
+              "methods" => %w[aac_device not_a_method],
+              "help_level" => "wildly_invented",
+              "sneaky_field" => "nope",
+            },
+          },
+          "not_a_section" => { "values" => { "methods" => %w[aac_device] } },
+        )
+
+        expect(result["sections"].keys).to eq(%w[communication])
+        expect(result["sections"]["communication"]["values"]).to eq("methods" => %w[aac_device])
+      end
+
+      it "drops a built-in section whose every value was invalid" do
+        profile.update!(settings: { "care" => { "sections" => {
+          "meals" => { "values" => { "eating" => "invented" } },
+        } } })
+
+        expect(profile.reload.settings).not_to have_key("care")
+      end
+
+      it "strips markup from free text" do
+        result = care(
+          "communication" => { "values" => { "notes" => "<script>alert(1)</script>Use <b>signs</b>" } },
+        )
+
+        expect(result["sections"]["communication"]["values"]["notes"]).to eq("alert(1)Use signs")
+      end
+
+      it "truncates over-long free text and caps multi-select length" do
+        result = care(
+          "communication" => {
+            "values" => {
+              "notes" => "a" * 500,
+              "methods" => Profile::CARE_SECTIONS["communication"][:fields]
+                             .find { |f| f[:key] == "methods" }[:options],
+            },
+          },
+        )
+
+        values = result["sections"]["communication"]["values"]
+        expect(values["notes"].length).to eq(Profile::CARE_SHORT_TEXT_MAX)
+        expect(values["methods"].length).to be <= Profile::MAX_CARE_MULTI_SELECT
+      end
+
+      it "accepts a well-formed custom section" do
+        result = care(
+          "c_7f3a91" => {
+            "custom" => true,
+            "title" => "Sensory",
+            "items" => [{ "label" => "Loud noises", "value" => "Headphones help" }],
+          },
+        )
+
+        expect(result["sections"]["c_7f3a91"]).to eq(
+          "enabled" => true,
+          "custom" => true,
+          "title" => "Sensory",
+          "items" => [{ "label" => "Loud noises", "value" => "Headphones help" }],
+        )
+      end
+
+      it "rejects a custom section key that doesn't match the generated format" do
+        profile.update!(settings: { "care" => { "sections" => {
+          "c_NOTHEX" => { "title" => "Nope", "items" => [{ "label" => "a", "value" => "b" }] },
+          "../../etc" => { "title" => "Nope", "items" => [{ "label" => "a", "value" => "b" }] },
+        } } })
+
+        expect(profile.reload.settings).not_to have_key("care")
+      end
+
+      it "caps the number of custom sections, keeping the parent's ordering" do
+        keys = (1..Profile::MAX_CUSTOM_CARE_SECTIONS + 2).map { |i| format("c_%06x", i) }
+        sections = keys.index_with do |key|
+          { "title" => key, "items" => [{ "label" => "l", "value" => "v" }] }
+        end
+
+        result = care(sections, keys)
+
+        expect(result["sections"].keys).to eq(keys.first(Profile::MAX_CUSTOM_CARE_SECTIONS))
+      end
+
+      it "caps the number of items in a custom section" do
+        items = (1..Profile::MAX_CARE_CUSTOM_ITEMS + 3).map { |i| { "label" => "l#{i}", "value" => "v" } }
+        result = care("c_7f3a91" => { "title" => "Sensory", "items" => items })
+
+        expect(result["sections"]["c_7f3a91"]["items"].length).to eq(Profile::MAX_CARE_CUSTOM_ITEMS)
+      end
+
+      it "drops a custom section with no title or no usable items" do
+        profile.update!(settings: { "care" => { "sections" => {
+          "c_000001" => { "title" => "", "items" => [{ "label" => "l", "value" => "v" }] },
+          "c_000002" => { "title" => "Empty", "items" => [{ "label" => "", "value" => "" }] },
+        } } })
+
+        expect(profile.reload.settings).not_to have_key("care")
+      end
+
+      it "prunes order to surviving sections and appends any that were missing" do
+        result = care(
+          {
+            "communication" => { "values" => { "help_level" => "independent" } },
+            "meals" => { "values" => { "eating" => "some_help" } },
+          },
+          %w[meals gone_section],
+        )
+
+        expect(result["order"]).to eq(%w[meals communication])
+      end
+
+      it "clears the key entirely when care is not a hash" do
+        profile.update!(settings: { "care" => "nope" })
+        expect(profile.reload.settings).not_to have_key("care")
+      end
+    end
+
+    describe "#has_care_info?" do
+      it "is false with no care data" do
+        expect(profile.has_care_info?).to eq(false)
+      end
+
+      it "is true once a section is filled in" do
+        care("communication" => { "values" => { "help_level" => "independent" } })
+        expect(profile.has_care_info?).to eq(true)
+      end
+
+      it "is false when every section is disabled" do
+        care("communication" => { "enabled" => false, "values" => { "help_level" => "independent" } })
+        expect(profile.has_care_info?).to eq(false)
+      end
+    end
+
+    describe "#safety_view / #care_details_view" do
+      before { care("communication" => { "values" => { "help_level" => "independent" } }) }
+
+      it "advertises care on the open page without shipping the data" do
+        view = profile.safety_view
+        expect(view[:has_care_info]).to eq(true)
+        expect(view[:settings]).not_to have_key("care")
+      end
+
+      it "returns the care blob only from the gated view" do
+        expect(profile.care_details_view[:settings]["care"]["sections"]).to have_key("communication")
+      end
+    end
+  end
+
   describe "sanitize_theme_settings callback" do
     let(:profile) { build_profile(slug: "theme-page").tap(&:save!) }
 

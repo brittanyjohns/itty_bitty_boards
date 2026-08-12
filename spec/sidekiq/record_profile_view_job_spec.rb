@@ -104,5 +104,49 @@ RSpec.describe RecordProfileViewJob, type: :sidekiq do
       # Both views are logged; only the first is marked notified.
       expect(ProfileView.where(profile: profile, notified: true).count).to eq(1)
     end
+
+    it "defaults to a safety-kind view when no kind is given" do
+      job.perform(profile.id, "8.8.8.8", "UA")
+
+      expect(ProfileView.last.view_kind).to eq("safety")
+    end
+  end
+
+  # The care-sections reveal shares this job but must never alert the parent —
+  # it is day-to-day support info, not an emergency.
+  describe "#perform with kind: care" do
+    it "logs a care-kind view and sends no email" do
+      expect {
+        job.perform(profile.id, "8.8.8.8", "Mozilla/5.0", "care")
+      }.to change { ProfileView.count }.by(1).and change { deliveries }.by(0)
+
+      view = ProfileView.last
+      expect(view.view_kind).to eq("care")
+      expect(view.ip_address).to eq("8.8.8.8")
+      expect(view.notified).to eq(false)
+    end
+
+    it "skips geolocation entirely" do
+      job.perform(profile.id, "8.8.8.8", "UA", "care")
+
+      expect(IpGeolocation).not_to have_received(:coarse)
+      expect(ProfileView.last.approx_location).to be_nil
+      expect(ProfileView.last.geo).to eq({})
+    end
+
+    it "does not consume the hourly notify slot, so a later emergency reveal still alerts" do
+      expect {
+        job.perform(profile.id, "8.8.8.8", "UA", "care")
+        described_class.new.perform(profile.id, "8.8.8.8", "UA")
+      }.to change { ProfileView.count }.by(2).and change { deliveries }.by(1)
+    end
+
+    it "treats an unrecognized kind as safety rather than silently skipping the alert" do
+      expect {
+        job.perform(profile.id, "8.8.8.8", "UA", "nonsense")
+      }.to change { deliveries }.by(1)
+
+      expect(ProfileView.last.view_kind).to eq("safety")
+    end
   end
 end
