@@ -621,6 +621,51 @@ class Profile < ApplicationRecord
   CARE_ITEM_VALUE_MAX = 200
   CARE_SHORT_TEXT_MAX = 300
 
+  # Options a parent may still HAVE but is no longer OFFERED.
+  #
+  # sanitize_care_settings is a before_save, so it re-cleans the whole care blob
+  # every time a profile is saved for ANY reason — an avatar upload is enough.
+  # That means deleting an option from CARE_SECTIONS doesn't just stop offering
+  # it: it silently erases that answer from every profile still holding it, the
+  # next time anything touches them. No error, no 422, and nothing left to
+  # restore from.
+  #
+  # So retiring an option is two steps, not one:
+  #
+  #   1. Move the key here. The sanitizer keeps ACCEPTING it, so stored answers
+  #      survive, and the editor stops OFFERING it (care_registry_view omits
+  #      deprecated keys). Nobody new can pick it; nobody loses what they wrote.
+  #   2. Once `rake care:remap_options` has moved the stored answers onto their
+  #      replacements — and the reports say zero remain — delete the entry here.
+  #
+  # A rename is a remove plus an add: deprecate the old key, add the new one,
+  # and map old => new below.
+  #
+  # Shape: { "section" => { "field" => { "old_option" => "new_option_or_nil" } } }
+  # A nil replacement means "no equivalent — drop it on remap", which still only
+  # happens when someone deliberately runs the task.
+  DEPRECATED_CARE_OPTIONS = {}.freeze
+
+  def self.retired_care_options(section_key, field)
+    DEPRECATED_CARE_OPTIONS.dig(section_key, field[:key])&.keys || []
+  end
+
+  # Every option the SANITIZER will accept: everything in the registry, plus
+  # anything already lifted out of it but not yet migrated. A union rather than
+  # a sum, so it holds whether the key is still listed in CARE_SECTIONS or not.
+  def self.accepted_care_options(section_key, field)
+    (field[:options] || []) | retired_care_options(section_key, field)
+  end
+
+  # What the editor should OFFER — the registry minus anything retired. Doing
+  # the subtraction here is what makes retirement a ONE-line edit: add the key
+  # to DEPRECATED_CARE_OPTIONS and it stops being offered while staying
+  # acceptable. Deleting it from CARE_SECTIONS in the same breath is exactly the
+  # move that destroys stored answers, so don't make that the required step.
+  def self.offered_care_options(section_key, field)
+    (field[:options] || []) - retired_care_options(section_key, field)
+  end
+
   # The care schema as the editor needs it — the whole registry, its caps, and
   # the custom-key format, in one payload.
   #
@@ -640,7 +685,9 @@ class Profile < ApplicationRecord
           key: key,
           fields: spec[:fields].map do |field|
             out = { key: field[:key], type: field[:type] }
-            out[:options] = field[:options] if field[:options]
+            # Offered, not accepted: a retired option stays valid on save but is
+            # never presented as a fresh choice.
+            out[:options] = offered_care_options(key, field) if field[:options]
             out
           end,
         }
@@ -1151,16 +1198,21 @@ class Profile < ApplicationRecord
     CARE_SECTIONS.fetch(key)[:fields].each do |field|
       raw_value = raw_values[field[:key]]
 
+      # Validated against ACCEPTED options — what's offered now plus anything
+      # retired but not yet migrated — so retiring an option can't delete a
+      # parent's stored answer behind their back. See DEPRECATED_CARE_OPTIONS.
+      accepted = self.class.accepted_care_options(key, field)
+
       cleaned =
         case field[:type]
         when :multi_select
           next unless raw_value.is_a?(Array)
           raw_value.map(&:to_s).uniq
-                   .select { |v| field[:options].include?(v) }
+                   .select { |v| accepted.include?(v) }
                    .first(MAX_CARE_MULTI_SELECT)
         when :single_select
           value = raw_value.to_s
-          value if field[:options].include?(value)
+          value if accepted.include?(value)
         when :short_text
           care_text(raw_value, CARE_SHORT_TEXT_MAX)
         end
