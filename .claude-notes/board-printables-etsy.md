@@ -177,6 +177,25 @@ search thumbnail:
 is authoritative for the ones its own steps 11/13/14 originate. Same rule, and
 the same drift hazard, as `Etsy::CopyRules` above.
 
+### The horizontal safe zone — square is not what every view shows
+
+Etsy does **not** letterbox a square photo. The listing page frames it 4:5 and
+cover-crops, taking **10% off each side**, and the seller-side "Adjust
+thumbnail" dialog crops again for the search grid. So the canvas stays square —
+that is the search grid's shape and the one all six slides share — and the
+layout keeps everything that carries meaning inside `--safe-x` (160px of the
+1280px canvas, 12.5%, against the 10% Etsy takes).
+
+Only **content** moves in: the title banner, the headline, the audio badge, the
+footer bullets, the QR, the site mark, the logo corner. Backgrounds and band
+fills still bleed to the edge — a cropped colour band reads as intentional; a
+beheaded board name does not. Any new side inset written as a literal px value
+reintroduces the bug, which is why `render_listing_images_spec.rb` asserts each
+of those rules reads the token rather than a number.
+
+At the old flat 56px inset this cost every live listing the first letter of its
+board name and better than half its QR code.
+
 ### The tablet mockup
 
 `on_a_device` is a narrow port of that repo's step 14. Rails does **not** have
