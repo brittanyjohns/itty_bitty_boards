@@ -488,9 +488,15 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     if settings
-      @child_account.settings = settings
+      # MERGE, don't replace. Each frontend tab saves its own slice of this
+      # blob as a fresh literal, so a wholesale assignment silently dropped
+      # every key that tab doesn't know about — the dashboard layout columns,
+      # primary_team_id, archive/reclaim/fallback state, demo_board_limit.
+      @child_account.settings = merged_settings(settings)
     end
 
+    # `details` is deliberately NOT merged: the frontend clears an AAC profile
+    # field by DELETING its key, so a merge would make "Not set" a no-op.
     details = params[:details]
     if details
       @child_account.details = details
@@ -498,6 +504,14 @@ class API::ChildAccountsController < API::ApplicationController
 
     if params[:layout]
       @child_account.layout = params[:layout]
+    end
+
+    # The sandbox board cap is meaningless once promoted, and the wholesale
+    # settings replace used to drop it as a side effect. Match
+    # ChildAccount#promote_to_active! and clear it deliberately.
+    if was_sandbox && requested_status != ChildAccount::SANDBOX
+      @child_account.settings ||= {}
+      @child_account.settings.delete("demo_board_limit")
     end
 
     if @child_account.save
@@ -575,6 +589,18 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   private
+
+  # Merge an incoming settings blob over what's stored, so a caller that only
+  # knows about its own slice can't wipe the rest. Shallow on purpose: a
+  # nested hash the caller does send (`voice`) is replaced whole, which is how
+  # clearing a voice to `{"name" => ""}` stays possible.
+  #
+  # Clearing a top-level key still works by sending an explicit blank/nil —
+  # what no longer works is clearing by omission, which nothing does.
+  def merged_settings(incoming)
+    incoming = incoming.to_unsafe_h if incoming.respond_to?(:to_unsafe_h)
+    (@child_account.settings || {}).merge(incoming.to_h.deep_stringify_keys)
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   # `with_archived` so unarchive (and admin maintenance) can target a

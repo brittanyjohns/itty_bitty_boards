@@ -95,6 +95,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Saving one part of a communicator's settings no longer wipes the rest.**
+  The communicator screen saves settings from several different places, and
+  each one sent only the handful of values it knew about — so saving from one
+  tab quietly erased what another tab had set, including the dashboard column
+  layout and which team a communicator belongs to. Saving now updates only
+  what you actually changed. Clearing a setting still works exactly as before.
+  A related crash is fixed too: updating a communicator that had never had any
+  settings saved could fail outright.
+
 - **Deleting a page in a board set no longer offers to delete the set's home
   board.** A page's "go back" tile is stored the same way as a tile that opens a
   sub-page, so deleting a page counted everything its back tile reached as one
