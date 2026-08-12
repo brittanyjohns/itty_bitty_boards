@@ -82,6 +82,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards no longer end up with a permanently blank cover.** An imported board
+  never had a preview picture made for it at all, so it showed an empty frame
+  on the import screen and in your board list until you happened to edit it.
+  Separately, and on every kind of board, a cover could fail to appear whenever
+  a tile's artwork wasn't finished yet — the picture generator waited forever
+  for art that hadn't arrived and gave up with nothing. Covers are now drawn
+  even when some artwork is still coming, using the word itself in place of any
+  picture that isn't ready, and the cover is redrawn once the real artwork
+  lands. Printable PDFs are unaffected — they still wait for the real artwork.
+  The pages inside an imported set now show a picture too: each one uses the
+  folder tile you tap to open it, the same way a built board set already did.
 - **Etsy was cropping the edges off every printable's listing photos.** The
   gallery slides are square, on the assumption that Etsy letterboxes anything
   that isn't — but the listing page frames a photo 4:5 and crops 10% off each

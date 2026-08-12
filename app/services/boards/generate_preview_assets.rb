@@ -26,6 +26,24 @@ module Boards
 
     attr_reader :board, :screen_size, :hide_colors, :hide_header, :routes
 
+    # A preview must exist even when the board's art doesn't yet. Tiles whose
+    # picture hasn't been written to S3 (a fresh .obz import, art still coming
+    # back from GenerateImagesJob) issue requests that can hang rather than
+    # 404, and Grover's networkidle0 wait never settles — the render never
+    # returns and the board is left with no snapshot at all. The template
+    # swaps any tile still unloaded at this deadline for its label placeholder,
+    # which cancels the request and lets the page settle. Later art gets a
+    # fresh preview: every path that finishes writing tile images re-enqueues
+    # GenerateBoardPreviewJob.
+    IMAGE_LOAD_DEADLINE_MS = 8_000
+
+    # Backstop for a render that stalls for some reason the deadline above
+    # doesn't cover. The global Grover timeout is effectively infinite
+    # (config/initializers/grover.rb), which turns one bad render into a
+    # permanently pinned Sidekiq thread; a bounded timeout raises instead, and
+    # GenerateBoardPreviewJob's retries pick it up.
+    RENDER_TIMEOUT_MS = 90_000
+
     def render_data
       @render_data ||= Boards::RenderAssetData.new(
         board: board,
@@ -33,6 +51,7 @@ module Boards
         hide_colors: hide_colors,
         hide_header: hide_header,
         routes: routes,
+        image_load_deadline_ms: IMAGE_LOAD_DEADLINE_MS,
       ).call
     end
 
@@ -58,6 +77,7 @@ module Boards
         full_page: false,
         prefer_css_page_size: true,
         print_background: true,
+        timeout: RENDER_TIMEOUT_MS,
       }
     end
 

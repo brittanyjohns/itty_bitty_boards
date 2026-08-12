@@ -19,7 +19,13 @@ module Boards
     # `hide_header:` is kept for the callers that only ever wanted all-or-
     # nothing (board previews, the print endpoints, grid thumbnails). Pass
     # `header_mode:` to reach the third state; it wins when both are given.
-    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, header_mode: nil, routes:, qr_target_url: :default, include_qr: true)
+    #
+    # `image_load_deadline_ms:` bounds how long the rendered page waits on tile
+    # art before falling back to the label placeholder. nil (the default) waits
+    # forever, which is what a printable PDF wants — it is a paid artifact and
+    # a slow S3 read must not cost it the real symbol. Only the auto preview
+    # passes a value: see Boards::GeneratePreviewAssets.
+    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, header_mode: nil, routes:, qr_target_url: :default, include_qr: true, image_load_deadline_ms: nil)
       @board = board
       @screen_size = screen_size
       @hide_colors = hide_colors
@@ -27,6 +33,7 @@ module Boards
       @routes = routes
       @qr_target_url_override = qr_target_url
       @include_qr = include_qr
+      @image_load_deadline_ms = image_load_deadline_ms
     end
 
     def call
@@ -58,12 +65,13 @@ module Boards
         board_render_width_mm: board_render_width_mm,
         board_render_height_mm: board_render_height_mm,
         board_expires_at: board.generated_token_expires_at,
+        image_load_deadline_ms: image_load_deadline_ms,
       }
     end
 
     private
 
-    attr_reader :board, :screen_size, :hide_colors, :header_mode, :routes
+    attr_reader :board, :screen_size, :hide_colors, :header_mode, :routes, :image_load_deadline_ms
 
     def resolve_header_mode(mode, hide_header)
       return hide_header ? HEADER_NONE : HEADER_FULL if mode.blank?
