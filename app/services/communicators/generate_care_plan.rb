@@ -127,6 +127,7 @@ module Communicators
         # Resolved to a data: URI here, BEFORE the render, so the render itself
         # stays hermetic — the layout's no-network rule holds.
         avatar_data_url: avatar_data_url,
+        logo: logo_base64,
         public_url: public_url,
         qr_data_url: qr_data_url_for(public_url),
         emergency: config[:emergency],

@@ -73,6 +73,10 @@
         background: #fff;
         font-size: 9.5pt;
         line-height: 1.4;
+        /* Clearance inside .page-frame — see the note there. The frame sits on
+           the page content box and cannot be pushed outward, so the content is
+           pulled inward instead. */
+        padding: 9pt 11pt;
       }
 
       @page { size: letter; }
@@ -87,6 +91,27 @@
          acceptable failure. Do not add `column-fill: auto`. */
       .care-section, .row, .item, .contact { break-inside: avoid; }
       p { orphans: 3; widows: 3; }
+
+      /* ---- Page frame ----
+         Repeats on EVERY page: Chrome paints a position:fixed element once per
+         sheet in the print path, and its insets resolve against the page's
+         content box — inside the @page margins Grover supplies. A bordered
+         wrapper div cannot do this. It fragments, so the top edge would draw
+         only on page 1 and the bottom edge only on the last, leaving the middle
+         sheets framed on two sides.
+
+         inset MUST be 0. Negative insets look like the way to buy breathing
+         room between the frame and the text, but Chrome clips the fixed layer
+         to the page content box and the frame then paints on NO page at all —
+         a silent no-op that looks like the CSS was ignored. The clearance comes
+         from body padding instead, which is why that padding is not decorative
+         and must not be tuned away. */
+      .page-frame {
+        position: fixed;
+        inset: 0;
+        border: 0.75pt solid var(--rule);
+        border-radius: 10pt;
+      }
 
       /* ---- Header band ----
          One gradient band carrying the masthead and the identity block that
@@ -112,12 +137,25 @@
         border: 2pt solid rgba(255, 255, 255, 0.7);
       }
       .band .who { flex: 1 1 auto; min-width: 0; }
+      /* Logo on a white pad, not straight onto the gradient: the mark is bright
+         cyan-to-magenta itself and disappears into a band of the same hues. */
       .band .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 4pt;
         font-size: 6.5pt;
         font-weight: 800;
         letter-spacing: 0.16em;
         text-transform: uppercase;
         opacity: 0.9;
+      }
+      .band .eyebrow img {
+        width: 11pt;
+        height: 11pt;
+        display: block;
+        background: #fff;
+        border-radius: 999pt;
+        padding: 1pt;
       }
       .band h1 { font-size: 16pt; font-weight: 900; line-height: 1.1; margin: 1pt 0 2pt; }
       .band .meta { font-size: 7.5pt; font-weight: 600; opacity: 0.92; }

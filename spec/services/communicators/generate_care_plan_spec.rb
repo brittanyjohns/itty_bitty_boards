@@ -204,6 +204,22 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to include("column-count: 2")
     end
 
+    # The frame is a position:fixed layer so Chrome repeats it per sheet. Its
+    # inset must stay 0 — a negative one is clipped to the page content box and
+    # the frame then paints on no page at all, which looks like the CSS was
+    # ignored rather than like a bug.
+    it "carries a page frame pinned to the page content box" do
+      html = render_html
+
+      expect(html).to include(%(class="page-frame"))
+      expect(html).to match(/\.page-frame\s*\{[^}]*position:\s*fixed/m)
+      expect(html).to match(/\.page-frame\s*\{[^}]*inset:\s*0/m)
+    end
+
+    it "shows the logo in the header band" do
+      expect(render_html).to include(%(<img src="data:image/png;base64,))
+    end
+
     # .section-keep and its heading-welding are gone; a whole section is atomic
     # now. A stray wrapper left behind would silently defeat break-inside.
     it "keeps no section-keep wrapper" do

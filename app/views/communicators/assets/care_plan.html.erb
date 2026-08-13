@@ -14,6 +14,9 @@
 <%# One band, not a masthead plus an identity row. The public URL rides in the
     meta line as plain text, which is what lets the QR come down to 44pt — the
     sheet still works for someone without a phone camera out. %>
+<%# Painted once per sheet by Chrome, not part of the flow — see .page-frame. %>
+<div class="page-frame"></div>
+
 <div class="band">
   <% if @avatar_data_url.present? %>
     <img class="avatar" src="<%= @avatar_data_url %>" alt="" />
@@ -22,7 +25,11 @@
   <% end %>
 
   <div class="who">
-    <div class="eyebrow">SpeakAnyWay</div>
+    <div class="eyebrow">
+      <% if @logo.present? %>
+        <img src="data:image/png;base64,<%= @logo %>" alt="" />
+      <% end %>SpeakAnyWay
+    </div>
     <h1><%= @display_name %></h1>
     <div class="meta">
       <%= @title %> · <%= @prepared_on %><% if @pronouns.present? %> · <%= @pronouns %><% end %> · <%= @public_url %>
