@@ -216,8 +216,13 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to match(/\.page-frame\s*\{[^}]*inset:\s*0/m)
     end
 
-    it "shows the logo in the header band" do
-      expect(render_html).to include(%(<img src="data:image/png;base64,))
+    it "signs the document with the logo in the footnote" do
+      html = render_html
+
+      expect(html).to include(%(<img class="mark" src="data:image/png;base64,))
+      # Below the care sections, not up in the band — on the gradient the mark
+      # shares its own hues and needs a white pad to survive.
+      expect(html.index(%(class="mark"))).to be > html.index(%(class="band"))
     end
 
     # .section-keep and its heading-welding are gone; a whole section is atomic

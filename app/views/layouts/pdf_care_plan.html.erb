@@ -103,9 +103,23 @@
          inset MUST be 0. Negative insets look like the way to buy breathing
          room between the frame and the text, but Chrome clips the fixed layer
          to the page content box and the frame then paints on NO page at all —
-         a silent no-op that looks like the CSS was ignored. The clearance comes
-         from body padding instead, which is why that padding is not decorative
-         and must not be tuned away. */
+         a silent no-op that looks like the CSS was ignored. Verified at -4pt,
+         not just at the larger values that might plausibly overflow the paper.
+
+         So the frame cannot move outward, and clearance has to come from the
+         content. Two different mechanisms are needed, because they cover
+         different pages:
+
+           page 1     body padding, below
+           every page .care-section padding-top, below
+
+         Body padding is laid out once, at the start of the flow, so it does
+         nothing for a page the document merely spills onto. A continuation
+         page begins at the page content box — flush against the frame — and
+         what lands there is always the top of a .care-section, since sections
+         are atomic. Padding on that box is what holds the text off the frame,
+         and it survives the fragmentation break where a margin would be
+         truncated. */
       .page-frame {
         position: fixed;
         inset: 0;
@@ -137,25 +151,12 @@
         border: 2pt solid rgba(255, 255, 255, 0.7);
       }
       .band .who { flex: 1 1 auto; min-width: 0; }
-      /* Logo on a white pad, not straight onto the gradient: the mark is bright
-         cyan-to-magenta itself and disappears into a band of the same hues. */
       .band .eyebrow {
-        display: flex;
-        align-items: center;
-        gap: 4pt;
         font-size: 6.5pt;
         font-weight: 800;
         letter-spacing: 0.16em;
         text-transform: uppercase;
         opacity: 0.9;
-      }
-      .band .eyebrow img {
-        width: 11pt;
-        height: 11pt;
-        display: block;
-        background: #fff;
-        border-radius: 999pt;
-        padding: 1pt;
       }
       .band h1 { font-size: 16pt; font-weight: 900; line-height: 1.1; margin: 1pt 0 2pt; }
       .band .meta { font-size: 7.5pt; font-weight: 600; opacity: 0.92; }
@@ -240,7 +241,12 @@
       .care-heading::after { content: ""; flex: 1; height: 1.5pt; background: var(--cyan); }
 
       .cols { column-count: 2; column-gap: 20pt; }
-      .care-section { margin-bottom: 8pt; }
+      /* padding-top, not margin-top: this is the clearance a section carries
+         onto a continuation page, where it starts flush against .page-frame.
+         A margin there would be truncated at the fragmentation break. It also
+         does duty as ordinary spacing between sections in a column, so the
+         margin below is trimmed to keep the rhythm even. */
+      .care-section { padding-top: 7pt; margin-bottom: 3pt; }
       .care-section h3 {
         font-size: 9.5pt;
         font-weight: 900;
@@ -289,12 +295,25 @@
 
       .muted { color: var(--muted); }
 
+      /* The logo sits here rather than in the band: on the gradient it needed a
+         white pad to stay legible against hues it shares, and down here on
+         white it needs nothing. Aligned to the first line of the note, not
+         centred on the block, so it doesn't drift when the note wraps. */
       .footnote {
         margin-top: 12pt;
         padding-top: 5pt;
         border-top: 0.75pt solid var(--rule);
         font-size: 7pt;
         color: var(--muted);
+        display: flex;
+        align-items: flex-start;
+        gap: 5pt;
+      }
+      .footnote .mark {
+        width: 13pt;
+        height: 13pt;
+        display: block;
+        flex: none;
       }
     </style>
   </head>

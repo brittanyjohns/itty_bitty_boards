@@ -25,11 +25,7 @@
   <% end %>
 
   <div class="who">
-    <div class="eyebrow">
-      <% if @logo.present? %>
-        <img src="data:image/png;base64,<%= @logo %>" alt="" />
-      <% end %>SpeakAnyWay
-    </div>
+    <div class="eyebrow">SpeakAnyWay</div>
     <h1><%= @display_name %></h1>
     <div class="meta">
       <%= @title %> · <%= @prepared_on %><% if @pronouns.present? %> · <%= @pronouns %><% end %> · <%= @public_url %>
@@ -108,8 +104,13 @@
 <% end %>
 
 <div class="footnote">
-  <%= t("care.document.live_page") %>
-  <% if @emergency %>
-    <%= t("care.document.confidential") %>
+  <% if @logo.present? %>
+    <img class="mark" src="data:image/png;base64,<%= @logo %>" alt="" />
   <% end %>
+  <span>
+    <%= t("care.document.live_page") %>
+    <% if @emergency %>
+      <%= t("care.document.confidential") %>
+    <% end %>
+  </span>
 </div>
