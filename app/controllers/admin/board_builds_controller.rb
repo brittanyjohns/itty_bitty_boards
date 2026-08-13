@@ -271,6 +271,7 @@ module Admin
         pages: pages_for(@form),
         commercial_safe_only: @form[:commercial_safe_only],
       ).call
+      @marked = marked_labels(@form)
       @name_matches = duplicate_name_matches(@form[:name])
 
       render :preview
@@ -306,6 +307,10 @@ module Admin
               "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(child[:tiles]),
             }.compact
           end,
+          # Marks made on the review screen. Re-filtered against the plan here
+          # rather than trusted from the resubmit, and stored normalized so
+          # Boards::AdminBuilder::Build can look each one up in `resolved`.
+          "regenerate" => marked_labels(@form),
         },
       )
       BuildAdminBoardJob.perform_async(build.id)
@@ -694,6 +699,7 @@ module Admin
         commercial_safe_only: true,
         allow_partial_row: false,
         allow_mixed_grids: false,
+        regenerate: [],
       }
     end
 
@@ -750,7 +756,28 @@ module Admin
         commercial_safe_only: checked?(params[:commercial_safe_only]),
         allow_partial_row: checked?(params[:allow_partial_row]),
         allow_mixed_grids: checked?(params[:allow_mixed_grids]),
+        regenerate: submitted_regenerate,
       }.then { |form| with_folder_tiles(form) }
+    end
+
+    # Labels the admin ticked "regenerate with AI" on the review screen.
+    # Normalized through the resolver's own key so a mark survives whatever
+    # casing the word was authored in, and matches what Build looks up.
+    def submitted_regenerate
+      Array(params[:regenerate])
+        .map { |label| Boards::ImageResolver.normalize(label) }
+        .reject(&:blank?)
+        .uniq
+        .first(MAX_TILES)
+    end
+
+    # The round trip is not trusted. A mark only means anything if the word is
+    # still in the plan — the admin may have edited the list after ticking it,
+    # and a hand-edited field must not be able to name an arbitrary label.
+    def marked_labels(form)
+      planned = Boards::AdminBuilder::Plan.labels(pages_for(form))
+                                          .map { |label| Boards::ImageResolver.normalize(label) }
+      form[:regenerate] & planned
     end
 
     # Writes a folder tile onto the main board for any page nothing opens, and

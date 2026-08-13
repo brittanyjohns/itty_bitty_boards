@@ -2,7 +2,16 @@ class GenerateImagesJob
   include Sidekiq::Job
   sidekiq_options queue: :ai_images, retry: 1, backtrace: true
 
-  def perform(image_ids, board_id = nil)
+  # `options` is a trailing optional arg so jobs already enqueued with two
+  # arguments keep running after a deploy.
+  #
+  # options["replace_current"] — the image ALREADY has art and this run is
+  # replacing it (the admin builder's "regenerate with AI" mark). Image#create_image_doc
+  # sets `current: true` on the new doc but does NOT clear its siblings, so
+  # without this the old library doc stays current alongside the new one.
+  def perform(image_ids, board_id = nil, options = {})
+    options = (options || {}).with_indifferent_access
+    replace_current = options[:replace_current].present?
     images = Image.where(id: image_ids)
     return if images.empty?
 
@@ -61,6 +70,11 @@ class GenerateImagesJob
           end
 
           new_doc.update(source_type: "OpenAI")
+
+          # Only AFTER a successful generation. Clearing up front would leave
+          # the image with no current doc at all when the call fails, which is
+          # worse than the stale art we're replacing.
+          image.docs.where.not(id: new_doc.id).update_all(current: false) if replace_current
 
           # if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
           #   image.update!(

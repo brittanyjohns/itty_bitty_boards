@@ -243,6 +243,50 @@ plus aggregate `coverage_pct`, `missing[]`, `inexact[]`.
   labels. Coverage numbers don't show that a symbol is technically correct and
   visually wrong.
 
+##### "Regenerate with AI" marks
+
+Each cell carries a checkbox that marks its label for AI art. **The mark does
+not generate anything** — that is what keeps the review screen write-free, and
+the rail above holds unchanged: no Image, no Doc, no Board is written by
+`preview`. The mark is state only, and generation happens at build.
+
+- The checkboxes live in the grid but belong to the Build form below via the
+  HTML5 `form="build-form"` attribute. Change that id and every mark is
+  silently dropped on Build — the request spec asserts the pairing.
+- Marks are stored **normalized** (`Boards::ImageResolver.normalize`) in
+  `plan["regenerate"]`, which is the same key `Build#resolved` is indexed by.
+  They are re-filtered against the plan's labels in `create`, not trusted from
+  the resubmit.
+- A label repeated across pages is **one Image and one generation**, so the
+  boxes sharing a value move together (inline script in `preview.html.erb`),
+  which also mirrors them into the authoring form so re-previewing keeps them.
+- Marks are deliberately not carried by `duplicate` — art quality is a judgment
+  about one run.
+- Tiles with no library art render the box ticked and **disabled**: they are
+  generated either way, and a disabled input submits nothing.
+
+At build (`Boards::AdminBuilder::Build`):
+
+1. Marked labels resolve to their Images, **minus the blanks** — a label with
+   no art is already queued by the missing-art pass, and generating it twice is
+   two API calls for one picture.
+2. `display_image_url` on every tile in the set for those images is released to
+   **`nil`** (never `""` — that is the "this tile has no picture" marker).
+   `BoardImage#set_defaults` seeded it from the image's `src_url`, pinning the
+   tile to the art we're replacing. This covers child pages, which
+   `GenerateImagesJob` never touches — it only re-points board_images on the
+   single `board_id` it is handed.
+3. Queued through `ArtQueue.call(..., replace_current: true)`, which is a
+   separate call from the blanks purely because of that flag.
+
+`replace_current` exists because `Image#create_image_doc` sets `current: true`
+on the new doc but does **not** clear its siblings, so the rejected symbol would
+stay current alongside the new art. The job demotes the siblings only **after**
+a successful generation — clearing up front would leave the image with no
+current doc at all when the call fails, which is worse than stale art. Note
+`image.src_url` is left alone on purpose: the mark changes what this build
+shows, not the library-wide default.
+
 #### 4. `Boards::AdminBuilder::Build` + `BuildAdminBoardJob`
 
 Inside one transaction:

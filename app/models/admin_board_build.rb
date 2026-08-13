@@ -44,6 +44,14 @@ class AdminBoardBuild < ApplicationRecord
 
   def multi_page? = children.any?
 
+  # Labels the admin ticked "regenerate with AI" on the art review screen,
+  # already normalized by Boards::ImageResolver.normalize when they were
+  # stored. The library still supplies each of these tiles its symbol at build
+  # time; the mark only says "generate over it afterwards".
+  def regenerate_labels
+    Array((plan || {})["regenerate"])
+  end
+
   def labels
     Boards::AdminBuilder::Plan.labels(pages)
   end

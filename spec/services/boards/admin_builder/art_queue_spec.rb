@@ -16,7 +16,25 @@ RSpec.describe Boards::AdminBuilder::ArtQueue do
     expect(described_class.call(board: board, image_ids: ids)).to eq(7)
     expect(GenerateImagesJob.jobs.size).to eq(3)
     expect(GenerateImagesJob.jobs.map { |job| job["args"].first.size }).to eq([3, 3, 1])
-    expect(GenerateImagesJob.jobs.first["args"].last).to eq(board.id)
+    expect(GenerateImagesJob.jobs.first["args"][1]).to eq(board.id)
+  end
+
+  # These images already carry a library doc, so the generated one has to be
+  # promoted over it or the build shows the symbol the admin just rejected.
+  it "tells the job to replace the current doc when regenerating over existing art" do
+    id = image("swing").id
+
+    described_class.call(board: board, image_ids: [id], replace_current: true)
+
+    expect(GenerateImagesJob.jobs.first["args"][2]).to eq("replace_current" => true)
+  end
+
+  it "sends no replace option for ordinary missing-art generation" do
+    id = image("swing").id
+
+    described_class.call(board: board, image_ids: [id])
+
+    expect(GenerateImagesJob.jobs.first["args"][2]).to eq({})
   end
 
   it "does nothing when there is nothing to queue" do

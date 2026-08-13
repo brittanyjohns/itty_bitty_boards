@@ -140,4 +140,57 @@ RSpec.describe GenerateImagesJob, type: :job do
       }.not_to change { GenerateBoardPreviewJob.jobs.size }
     end
   end
+
+  # The admin builder's "regenerate with AI" mark: the image already HAS art,
+  # and Image#create_image_doc sets current on the new doc without clearing its
+  # siblings, so the rejected symbol would stay current alongside it.
+  describe "replacing the current doc" do
+    let(:plain_board) { FactoryBot.create(:board, user: user, board_type: "dynamic") }
+    let!(:old_doc) { image.docs.create!(user_id: user.id, source_type: "OpenAI", raw: "old", current: true) }
+
+    # `current: true` mirrors what Image#create_image_doc does to the doc it
+    # returns — the gap this job closes is the SIBLINGS it leaves behind.
+    def stub_generated_doc
+      new_doc = image.docs.create!(user_id: user.id, source_type: "OpenAI", raw: "new", current: true)
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(new_doc)
+      allow(new_doc).to receive(:tile_url).and_return("https://cdn.example/generated.png")
+      new_doc
+    end
+
+    before { plain_board.add_image(image.id) }
+
+    it "demotes the old doc and leaves the generated one current" do
+      new_doc = stub_generated_doc
+
+      described_class.new.perform([image.id], plain_board.id, "replace_current" => true)
+
+      expect(new_doc.reload.current).to be(true)
+      expect(old_doc.reload.current).to be(false)
+    end
+
+    # Clearing up front would leave the image with no current doc at all when
+    # the call fails — worse than the stale art we're replacing.
+    it "leaves the existing current doc alone when generation fails" do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)
+
+      described_class.new.perform([image.id], plain_board.id, "replace_current" => true)
+
+      expect(old_doc.reload.current).to be(true)
+    end
+
+    it "does not demote anything for an ordinary missing-art run" do
+      stub_generated_doc
+
+      described_class.new.perform([image.id], plain_board.id)
+
+      expect(old_doc.reload.current).to be(true)
+    end
+
+    # Jobs enqueued before this argument existed are still in the queue.
+    it "still runs when called with the old two-argument signature" do
+      stub_generated_doc
+
+      expect { described_class.new.perform([image.id], plain_board.id) }.not_to raise_error
+    end
+  end
 end

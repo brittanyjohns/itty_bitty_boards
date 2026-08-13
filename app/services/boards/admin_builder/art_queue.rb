@@ -13,12 +13,18 @@ module Boards
       module_function
 
       # Returns how many images were queued.
-      def call(board:, image_ids:, topic: nil)
+      #
+      # `replace_current` is for images that already HAVE art and are being
+      # regenerated on purpose — it tells the job to demote the old docs once
+      # the new one lands, so the generated art is the image's current doc.
+      def call(board:, image_ids:, topic: nil, replace_current: false)
         ids = Array(image_ids).compact.uniq
         return 0 if ids.empty?
 
+        options = replace_current ? { "replace_current" => true } : {}
+
         seed_prompts!(ids, topic)
-        ids.each_slice(BATCH_SIZE) { |batch| GenerateImagesJob.perform_async(batch, board.id) }
+        ids.each_slice(BATCH_SIZE) { |batch| GenerateImagesJob.perform_async(batch, board.id, options) }
         ids.size
       end
 
