@@ -172,7 +172,7 @@ module Etsy
     end
 
     def included_section
-      items = Printables::IncludedItems.all(board_count: board_count, page_count: printable.page_count)
+      items = Printables::IncludedItems.all(board_count: board_count, page_count: printable.board_page_count)
 
       ["WHAT'S INCLUDED", "", *items.map { |i| "- #{i}" }].join("\n")
     end

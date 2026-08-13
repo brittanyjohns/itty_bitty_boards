@@ -181,7 +181,7 @@ module Boards
       # Root-scoped: this class is itself inside `Boards::Printables`, so a bare
       # `Printables::` resolves to that and never reaches the top-level module.
       def included_items
-        ::Printables::IncludedItems.all(board_count: board_count, page_count: printable.page_count)
+        ::Printables::IncludedItems.all(board_count: board_count, page_count: printable.board_page_count)
       end
 
       def render(template, assigns:)

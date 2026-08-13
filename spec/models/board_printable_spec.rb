@@ -93,6 +93,31 @@ RSpec.describe BoardPrintable do
     end
   end
 
+  describe "#board_page_count" do
+    let(:board) { FactoryBot.create(:board) }
+
+    # A one-board printable merges to seven pages — cover, how-to-use, the
+    # three board pages, license, credits — and only the three are the product.
+    it "counts each board once per download variant, ignoring the wrappers" do
+      printable = described_class.create!(board: board, board_ids: [board.id], page_count: 7)
+
+      expect(printable.board_page_count).to eq(3)
+    end
+
+    it "scales with the boards in a bundle" do
+      other = FactoryBot.create(:board)
+      printable = described_class.create!(board: board, board_ids: [board.id, other.id], page_count: 18)
+
+      expect(printable.board_page_count).to eq(6)
+    end
+
+    # Nothing has been walked yet, so the copy has to fall back to a headline
+    # with no number rather than claiming zero pages.
+    it "is zero before the printable has been generated" do
+      expect(described_class.create!(board: board).board_page_count).to eq(0)
+    end
+  end
+
   describe "#etsy_published?" do
     let(:board) { FactoryBot.create(:board) }
     let(:printable) { described_class.create!(board: board, board_ids: [board.id]) }
