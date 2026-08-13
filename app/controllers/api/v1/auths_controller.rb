@@ -16,7 +16,17 @@ module API
         return if reject_disposable_email(email)
 
         user = User.new(email: email, password: password, password_confirmation: password_confirmation, name: name)
-        if user.save
+        # A soft-deleted account keeps its row (User has a `deleted_at: nil`
+        # default scope) but still holds the unique index on `email`, so
+        # `validatable` sees no conflict and the INSERT is what fails. Same
+        # rescue as `email_signup` — without it this path 500s.
+        begin
+          saved = user.save
+        rescue ActiveRecord::RecordNotUnique
+          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_content
+          return
+        end
+        if saved
           Rails.logger.info "New user signed up: #{user.email} at #{Time.now}"
           # result = Stripe::Customer.create({ email: user.email })
           if platform != "ios" && platform != "android"
@@ -75,7 +85,14 @@ module API
           })
           render json: { token: user.authentication_token, user: user.api_view }
         else
-          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_content
+          # `error_code` is additive — the message keeps carrying every
+          # validation failure verbatim, so an older client is unaffected. It
+          # lets the signup form pivot a returning user to sign-in instead of
+          # printing a raw validation string. Matches `email_signup`'s contract.
+          email_taken = user.errors.details[:email].any? { |detail| detail[:error] == :taken }
+          body = { error: user.errors.full_messages.join(", ") }
+          body[:error_code] = "email_taken" if email_taken
+          render json: body, status: :unprocessable_content
         end
       end
 
