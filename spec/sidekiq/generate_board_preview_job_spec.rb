@@ -72,6 +72,19 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
       expect(board.reload.preview_status).to eq("skipped")
     end
 
+    # The skip is about queue volume — one render per page across a 50-200 page
+    # import — not about these pages being unrenderable. An explicit,
+    # single-board request passes force and renders like any other board.
+    it "renders anyway when the request is forced" do
+      board.update_column(:settings, board.settings.merge("builder_child" => true))
+
+      described_class.new.perform(board.id, "generate_png" => true, "force" => true)
+
+      board.reload
+      expect(board.preview_image).to be_attached
+      expect(board.preview_status).to eq("ok")
+    end
+
     it "still generates for the builder_root board" do
       board.update_column(:settings, board.settings.merge("builder_root" => true))
 

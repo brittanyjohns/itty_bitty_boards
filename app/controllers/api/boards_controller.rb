@@ -1332,7 +1332,6 @@ class API::BoardsController < API::ApplicationController
   # button. 422 rather than 403/402: nothing here is a permission or credit
   # gate, it's a request that this board can't satisfy.
   PREVIEW_BLOCKER_MESSAGES = {
-    "preview_not_supported" => "This page's cover comes from the folder tile that opens it.",
     "board_has_no_tiles" => "Add a tile to this board first, then build a cover from it.",
   }.freeze
 
@@ -1351,7 +1350,9 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
-    @board.run_generate_preview_job
+    # force: this request names one board, so it renders even for a page the
+    # bulk enqueue paths deliberately skip.
+    @board.run_generate_preview_job(force: true)
     render json: {
       status: "queued",
       preview_status: @board.preview_status,

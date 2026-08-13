@@ -290,11 +290,18 @@ class Board < ApplicationRecord
     schedule_translations_for(language)
   end
 
-  def run_generate_preview_job
+  # `force:` bypasses the job's builder_child skip. Pass it ONLY for a request
+  # that names one board — a person clicking "Regenerate from tiles". The skip
+  # exists to protect the shared :default queue from the automatic callers: an
+  # .obz import or a Board Builder run enqueues per page, and a real vocabulary
+  # set is 50-200 pages, each one a headless-Chrome render. One deliberate click
+  # is not that, and refusing it left those pages with no way to ever earn a
+  # snapshot.
+  def run_generate_preview_job(force: false)
     # Clear any previous outcome up front, so a run that follows a failure isn't
     # aborted by the stale "failed" its predecessor left behind.
     mark_preview_queued!
-    GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true }) # Generate PNG preview without header
+    GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true, "force" => force }) # Generate PNG preview without header
     # GenerateBoardPreviewJob.perform_async(id, { "generate_pdf" => true }) # PDF with header for sharing
   end
 
@@ -423,10 +430,13 @@ class Board < ApplicationRecord
   # Why a regeneration request cannot produce a cover, or nil when it can.
   # Answered synchronously in the controller so the request is refused outright
   # rather than enqueuing a job whose only possible outcome is a poll that times
-  # out. Mirrors GenerateBoardPreviewJob's own skip condition — keep the two
-  # together.
+  # out.
+  #
+  # A board with no tiles is the only thing that qualifies: there is nothing to
+  # take a picture of. A builder_child page is NOT blocked — it renders like any
+  # other board when the request is explicit (see #run_generate_preview_job's
+  # `force:`); it is only skipped when something enqueues it in bulk.
   def preview_generation_blocker
-    return "preview_not_supported" if settings.is_a?(Hash) && settings["builder_child"]
     return "board_has_no_tiles" if board_images.empty?
     nil
   end

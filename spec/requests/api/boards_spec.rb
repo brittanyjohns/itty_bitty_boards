@@ -494,17 +494,20 @@ RSpec.describe "API::Boards", type: :request do
       expect(cover_board.reload.preview_status).to eq("queued")
     end
 
-    it "refuses a builder_child page with 422 rather than enqueuing" do
+    # The job skips builder_child pages when something enqueues them in bulk —
+    # an .obz import is 50-200 headless-Chrome renders on the shared queue. One
+    # deliberate click is not that, and refusing it left those pages unable to
+    # ever earn a snapshot.
+    it "renders a builder_child page anyway when the request is explicit" do
       cover_board.update_column(:settings, cover_board.settings.to_h.merge("builder_child" => true))
 
-      expect(GenerateBoardPreviewJob).not_to receive(:perform_async)
+      expect(GenerateBoardPreviewJob).to receive(:perform_async)
+        .with(cover_board.id, hash_including("force" => true))
 
       post "/api/boards/#{cover_board.id}/generate_preview_image", headers: auth_headers(user)
 
-      expect(response).to have_http_status(:unprocessable_content)
-      body = JSON.parse(response.body)
-      expect(body["code"]).to eq("preview_not_supported")
-      expect(body["error"]).to be_present
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["status"]).to eq("queued")
     end
 
     it "refuses a board with no tiles with 422 rather than enqueuing" do

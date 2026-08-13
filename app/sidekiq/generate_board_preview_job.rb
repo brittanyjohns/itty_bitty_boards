@@ -32,10 +32,16 @@ class GenerateBoardPreviewJob
     # time this async job runs, the builder_child flag is committed. The root
     # (builder_root) and all non-builder boards still render normally.
     #
+    # `force` opts out: it marks a request that names ONE board — someone
+    # clicking "Regenerate from tiles". The skip is about queue volume, not
+    # about these pages being unrenderable, so a single deliberate render is
+    # allowed through. Without that they could never earn a snapshot at all.
+    #
     # Record the skip rather than returning silently: an unrecorded no-op is
     # indistinguishable from a slow success to anything watching, which is how
     # this button could appear to work while never doing anything.
-    if board.settings.is_a?(Hash) && board.settings["builder_child"]
+    force = options["force"] || options["forceRender"] || false
+    if !force && board.settings.is_a?(Hash) && board.settings["builder_child"]
       Rails.logger.info(
         "GenerateBoardPreviewJob skipped board #{board_id}: builder_child page — " \
         "its cover comes from the folder tile that opens it"
