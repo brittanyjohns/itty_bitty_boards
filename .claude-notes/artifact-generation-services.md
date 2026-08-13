@@ -43,6 +43,28 @@ Already ships the kit's safety + device tags as PNG **and** PDF with an embedded
 - Base class: `app/services/communicators/base_asset_generator.rb` — **the reusable pattern for any new printable.** Provides: `rendered_html(template:, locals:)` under the `asset_export` layout, `qr_data_url_for(url, size:)` (RQRCode), `logo_base64`, `avatar_data_url`, `generate_png_from_html` / `generate_pdf_from_html` (Grover), `attach_binary`, and signature-based caching (`attached_and_fresh?`).
 - Triggered by: `app/jobs/regenerate_safety_cards_job.rb`, `Profile#generate_attachments!`. Served by `app/controllers/api/profiles/assets_controller.rb` and `api/internal/profiles_controller.rb` (`safety_id_png_url`, `safety_id_pdf_url`, `device_tag_png_url`, `device_tag_pdf_url`).
 
+### 4b. Communicator care plan — the per-communicator *document*
+
+Same family as the cards, different page model. `Communicators::GenerateCarePlan`
+renders `settings["care"]` (and, in the `:full` variant, the emergency info) to
+a flowing multi-page Letter PDF: `CarePlanDocument` (presenter) →
+`communicators/assets/care_plan` + `layouts/pdf_care_plan` → Grover. Owner-only
+via `POST /api/profiles/:id/care_plan?variant=full|care_only`.
+
+**The distinction to keep straight — and the reason this isn't a fifth card:**
+
+| | `generate_pdf_from_html` | `generate_letter_pdf` |
+|---|---|---|
+| page | fixed pixel (`width:`/`height:`) | Letter, CSS-paginated |
+| for | card art (safety ID, device tag) | documents of unknown length |
+| failure if misused | a Letter format clips 1200px art and spills to page 2 (why the fixed size exists — see `asset_pdf_page_size_spec.rb`) | a fixed height **silently discards** everything past page one |
+
+Two more things that only show up in a real render: `@page { margin: 0 }` kills
+Chrome's header/footer (it renders in a separate document clipped to the page
+margin), and a `break-inside: avoid` around a whole section pushes any section
+taller than a page onto the next sheet and leaves a dead half-page. Details:
+`.claude-notes/safety-profiles.md`.
+
 ## How this maps to the AAC Classroom Kit
 
 | Kit item | Reuse | New work |

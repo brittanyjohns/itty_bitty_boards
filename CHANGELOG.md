@@ -32,6 +32,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **You can print a care plan for your communicator.** Everything you've
+  filled in — how they communicate, personal care, meals, sensory, moving
+  around, getting around, and any sections you wrote yourself — comes out as a
+  clean PDF you can hand to a school office, a new babysitter, or a respite
+  worker. Two versions: **Care & Emergency Plan** puts allergies, medical
+  conditions, medications and your emergency contacts on the front page, for
+  the school nurse or the hospital bag; **Care Plan** is the same routine
+  information with none of the medical detail, for a substitute teacher or a
+  bus driver who needs to know about the ear defenders and not about the
+  seizure medication. Both carry a QR code back to the live page, because
+  paper goes out of date and the page doesn't.
+
+  Downloads live under **Print & share** on the communicator's page, and only
+  the owner can generate them — they're never offered on the public MySpeak
+  page. If you haven't filled in any care sections yet there's nothing to
+  print, and we'll say so rather than handing you a sheet of empty headings.
+
 - **Two new care sections: Sensory and Moving around.** Noise on the bus and
   lights in a classroom cut across every other section and had nowhere to live,
   and a wheelchair or a pair of AFOs is true all day rather than being a fact

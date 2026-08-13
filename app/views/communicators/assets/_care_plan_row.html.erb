@@ -1,0 +1,14 @@
+<%# One resolved care field. Select values render as chips (they're a picked
+    set); short_text renders as the parent's own sentence, verbatim. %>
+<div class="row">
+  <div class="label"><%= field.label %></div>
+  <% if field.type == :short_text %>
+    <div class="value"><%= field.values.first %></div>
+  <% else %>
+    <div class="chips">
+      <% field.values.each do |value| %>
+        <span class="chip"><%= value %></span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

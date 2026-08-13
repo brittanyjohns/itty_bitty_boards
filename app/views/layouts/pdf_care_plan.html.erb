@@ -1,0 +1,264 @@
+<%# Layout for the communicator care plan PDF (Communicators::GenerateCarePlan).
+
+    A separate layout+template pair rather than a branch inside
+    layouts/pdf_printable.html.erb — the same rule that keeps pdf_marketing and
+    pdf_printable apart. Two reasons here, and the second is load-bearing:
+
+    1. render_wrappers_spec.rb asserts against pdf_printable's rendered HTML, so
+       editing it to serve a second document changes bytes that spec reads.
+    2. pdf_printable is architecturally a FIXED-PAGE layout — `@page { margin: 0 }`
+       plus `.sheet { height: 11in; overflow: hidden }`. A care plan is however
+       many pages the parent's answers come to. Rendered through that layout it
+       would be silently clipped at 11 inches with the rest discarded.
+
+    The brand tokens below are deliberately DUPLICATED from pdf_printable rather
+    than extracted into a shared partial: extracting would change the byte
+    content of that layout's <style> block, which is the thing its spec reads.
+    If you edit a token here, edit it there.
+
+    Two rails carry over unchanged from pdf_printable:
+
+    1. Nothing is fetched over the network at render time. Nunito is inlined by
+       Boards::Printables::Fonts; anything fetched mid-render fails silently
+       into a fallback and nobody notices until it ships. (The avatar is a
+       data: URI resolved BEFORE the render, so it doesn't break this.)
+    2. Every colour is print-exact — print-color-adjust on html and body.
+
+    NOTE ON @page: there is deliberately no `margin` here. Grover supplies the
+    page margin, because Chrome renders the header/footer in a SEPARATE document
+    that is clipped to nothing unless the page reserves margin for it. Adding
+    `@page { margin: 0 }` — the obvious thing to copy from pdf_printable — makes
+    the page numbers vanish with no error. %>
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>">
+  <head>
+    <meta charset="utf-8" />
+    <title>Care plan</title>
+
+    <style>
+      <%= Boards::Printables::Fonts.face_css %>
+
+      :root {
+        --navy: #13496f;
+        --blue-mid: #0163aa;
+        --cyan: #4ECDE6;
+        --magenta: #C857E8;
+        --cream: #FBF7F1;
+        --ink: #1A1A1A;
+
+        --cream-deep: #F3EADC;
+        --cyan-tint: #E4F7FB;
+        --magenta-tint: #F8EAFD;
+        --brand-gradient: linear-gradient(135deg, #4ECDE6 0%, #0163AA 55%, #C857E8 100%);
+
+        --rule: #E2E1DD;
+        --muted: #5A5A5A;
+        --alert: #B3261E;
+        --alert-tint: #FDECEA;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* White, not cream: this runs to three sheets on a school printer and a
+         full-bleed tint on every one of them is a lot of toner for no gain.
+         The cream is kept for the banded surfaces that earn it. */
+      body {
+        font-family: Nunito, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink);
+        background: #fff;
+        font-size: 10.5pt;
+        line-height: 1.45;
+      }
+
+      @page { size: letter; }
+
+      /* ---- Page-break behaviour ----
+
+         Deliberately NOT `break-inside: avoid` on .care-section as a whole. A
+         built-in section can carry four fields plus eight detail lines of up to
+         200 characters, which comfortably exceeds a page — and an unbreakable
+         box taller than a page makes Chrome push the whole thing to the next
+         sheet and leave a dead half-page behind it.
+
+         Instead: keep the heading welded to its first row (.section-keep), and
+         let everything after that flow. break-after: avoid on a heading alone
+         has never been reliable in Chrome's print path; a wrapper with
+         break-inside: avoid is. The wrapper is the mechanism, the break-after
+         is only a hint. */
+      .section-keep { break-inside: avoid; }
+      .section-keep h2 { break-after: avoid; }
+      .row, .item, .contact { break-inside: avoid; }
+      p { orphans: 3; widows: 3; }
+
+      /* ---- Masthead ---- */
+      .masthead {
+        background: var(--brand-gradient);
+        color: #fff;
+        padding: 14pt 18pt;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-radius: 10pt;
+      }
+      .masthead .eyebrow {
+        font-size: 8pt;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        opacity: 0.92;
+      }
+      .masthead h1 { font-size: 19pt; font-weight: 900; line-height: 1.15; }
+      .masthead img.logo { height: 30pt; width: auto; display: block; }
+
+      /* ---- Identity ---- */
+      .identity {
+        display: flex;
+        gap: 14pt;
+        align-items: center;
+        padding: 14pt 0 12pt;
+        border-bottom: 1.5pt solid var(--rule);
+      }
+      .identity .avatar {
+        width: 74pt; height: 74pt;
+        border-radius: 999pt;
+        object-fit: cover;
+        border: 2.5pt solid var(--cyan);
+        background: var(--cyan-tint);
+        flex: none;
+      }
+      .identity .avatar-placeholder {
+        width: 74pt; height: 74pt;
+        border-radius: 999pt;
+        background: var(--cyan-tint);
+        border: 2.5pt solid var(--cyan);
+        flex: none;
+      }
+      .identity .who { flex: 1 1 auto; min-width: 0; }
+      .identity h2 { font-size: 17pt; font-weight: 900; line-height: 1.15; }
+      .identity .sub { color: var(--muted); font-size: 9.5pt; margin-top: 2pt; }
+      .identity .meta { color: var(--muted); font-size: 8.5pt; margin-top: 5pt; }
+
+      .qr { text-align: center; flex: none; width: 96pt; }
+      .qr img { width: 76pt; height: 76pt; display: block; margin: 0 auto; }
+      /* The URL is printed as text under the QR on purpose: these get
+         photocopied and handed to people who don't have a phone camera out. */
+      .qr .url {
+        font-size: 6.5pt;
+        color: var(--muted);
+        word-break: break-all;
+        line-height: 1.25;
+        margin-top: 3pt;
+      }
+
+      /* ---- Emergency block ---- */
+      .emergency {
+        border: 2pt solid var(--alert);
+        border-radius: 8pt;
+        padding: 11pt 13pt 12pt;
+        margin-top: 14pt;
+        background: var(--alert-tint);
+      }
+      .emergency h2 {
+        font-size: 12.5pt;
+        font-weight: 900;
+        color: var(--alert);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 7pt;
+      }
+      .emergency .row { margin-bottom: 5pt; }
+      .emergency .row:last-child { margin-bottom: 0; }
+
+      .contacts { margin-top: 9pt; }
+      .contacts h3 {
+        font-size: 9pt;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--alert);
+        margin-bottom: 5pt;
+      }
+      .contact {
+        display: flex;
+        justify-content: space-between;
+        gap: 10pt;
+        padding: 4pt 0;
+        border-top: 0.75pt solid rgba(179, 38, 30, 0.25);
+      }
+      .contact .name { font-weight: 800; }
+      .contact .rel { color: var(--muted); font-size: 9pt; }
+      .contact .phone { font-weight: 800; white-space: nowrap; }
+
+      /* ---- Care sections ---- */
+      /* Sits inside the first section's .section-keep, not above the loop, so
+         it can't strand at the foot of a page with the first section overleaf.
+         The margin collapses against the section's own top margin, hence the
+         .first override below. */
+      .care-heading {
+        font-size: 12.5pt;
+        font-weight: 900;
+        color: var(--navy);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 6pt;
+      }
+
+      .care-section { margin-top: 12pt; }
+      .care-section.first { margin-top: 18pt; }
+      .care-section h2 {
+        font-size: 12pt;
+        font-weight: 900;
+        color: var(--navy);
+        padding-bottom: 3pt;
+        border-bottom: 1.5pt solid var(--cyan);
+        margin-bottom: 6pt;
+      }
+
+      .row { margin-bottom: 5pt; }
+      .row .label {
+        font-size: 8.5pt;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+      }
+      .row .value { font-size: 10.5pt; }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 4pt; margin-top: 2pt; }
+      .chip {
+        background: var(--cyan-tint);
+        border: 0.75pt solid var(--cyan);
+        border-radius: 999pt;
+        padding: 1.5pt 7pt;
+        font-size: 9.5pt;
+        font-weight: 700;
+      }
+
+      .items { margin-top: 6pt; }
+      .item {
+        padding: 3pt 0;
+        border-top: 0.75pt solid var(--rule);
+        font-size: 10pt;
+      }
+      .item .k { font-weight: 800; }
+
+      .muted { color: var(--muted); }
+
+      .footnote {
+        margin-top: 20pt;
+        padding-top: 8pt;
+        border-top: 0.75pt solid var(--rule);
+        font-size: 8pt;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <%= yield %>
+  </body>
+</html>

@@ -1086,6 +1086,8 @@ class ChildAccount < ApplicationRecord
       loan_expires_at: loan_expires_at,
       device_tag_url: device_tag_url,
       safety_id_url: safety_id_url,
+      care_plan_url: care_plan_url,
+      care_emergency_plan_url: care_emergency_plan_url,
       voice: voice,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
@@ -1278,5 +1280,20 @@ class ChildAccount < ApplicationRecord
   def device_tag_url
     return nil unless profile&.device_tag_png&.attached?
     profile.url_for_attachment(profile.device_tag_png)
+  end
+
+  # Care plan documents. Nil until the owner generates one — unlike the tags,
+  # these are built on demand rather than on every profile save. Exposed on
+  # #api_view only, never on #index_api_view: that serializer backs list
+  # payloads and two more attachment lookups per communicator multiply across
+  # a dashboard.
+  def care_plan_url
+    return nil unless profile&.care_plan_pdf&.attached?
+    profile.url_for_attachment(profile.care_plan_pdf)
+  end
+
+  def care_emergency_plan_url
+    return nil unless profile&.care_emergency_plan_pdf&.attached?
+    profile.url_for_attachment(profile.care_emergency_plan_pdf)
   end
 end

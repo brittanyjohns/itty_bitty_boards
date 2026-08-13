@@ -31,7 +31,51 @@ class API::Profiles::AssetsController < API::ApplicationController
     end
   end
 
+  # The care plan documents. Unlike the tags these are generated on demand
+  # rather than on every profile save, so this action is the only thing that
+  # builds them.
+  def care_plan
+    variant = params[:variant].presence || "full"
+
+    unless Communicators::GenerateCarePlan::VARIANTS.key?(variant.to_sym)
+      render json: { error: "unknown_variant" }, status: :unprocessable_content
+      return
+    end
+
+    # There is no care plan for a communicator with no care plan. Answering 422
+    # rather than emitting a near-blank document is deliberate: a printed sheet
+    # with headings and nothing under them looks like a finished plan that says
+    # this child needs nothing.
+    unless Communicators::GenerateCarePlan.printable?(@profile, variant: variant)
+      render json: { error: empty_reason_for(variant) }, status: :unprocessable_content
+      return
+    end
+
+    Communicators::GenerateCarePlan.call(
+      @profile,
+      variant: variant,
+      regenerate: truthy?(params[:regenerate]),
+    )
+
+    attachment = @profile.public_send(
+      Communicators::GenerateCarePlan::VARIANTS.fetch(variant.to_sym)[:attachment],
+    )
+
+    if attachment.attached?
+      render json: { url: @profile.url_for_attachment(attachment) }
+    else
+      render json: { error: "Unable to generate care plan." }, status: :unprocessable_content
+    end
+  end
+
   private
+
+  # `full` can print on emergency info alone, so the two variants run out of
+  # things to say for different reasons and the frontend should be able to say
+  # which.
+  def empty_reason_for(variant)
+    variant.to_s == "care_only" ? "no_care_info" : "nothing_to_print"
+  end
 
   def set_profile
     if params[:id]

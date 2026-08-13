@@ -227,7 +227,75 @@ the free-text bio.
 - **Care fields are never eligible for writing suggestions** — same rule as
   `SAFETY_SENSITIVE_KEYS`. Nothing here goes to OpenAI.
 - Care info is deliberately **not** on the Safety ID card or device tag; those
-  are emergency artifacts.
+  are emergency artifacts. The **care plan PDF** is the artifact that carries
+  it — see below.
+
+## The care plan PDFs
+
+`Communicators::GenerateCarePlan` builds two owner-downloadable documents from
+the same data the two gated reveals serve:
+
+| variant | attachment | contents |
+|---|---|---|
+| `:full` | `care_emergency_plan_pdf` | care sections **+** emergency info |
+| `:care_only` | `care_plan_pdf` | care sections only |
+
+`POST /api/profiles/:id/care_plan?variant=` — one route, variant as a param,
+behind the controller-wide owner gate. **Nothing is added to the public MySpeak
+page**: the page keeps its two gated reveals and gains no download button, so
+this introduces no new path to emergency data.
+
+Things that will bite a future change:
+
+- **A flowing document is not a card, and the two render paths are different
+  on purpose.** `BaseAssetGenerator#generate_pdf_from_html` pins Grover to a
+  fixed pixel page — right for the 1200×1800 safety card, and silently
+  destructive here, because a care plan is however many pages the parent's
+  answers come to and everything past the fixed height is discarded.
+  `GenerateCarePlan#generate_letter_pdf` is the flowing counterpart
+  (`Marketing::SheetRendering::LETTER_GROVER_OPTIONS`). Reaching for the wrong
+  one is the failure this pair exists to make obvious.
+- **`@page { margin: 0 }` would silently delete the page numbers.** Chrome
+  renders header and footer in a SEPARATE document that inherits none of the
+  page's CSS and is clipped to nothing unless the page reserves margin for it.
+  `layouts/pdf_printable.html.erb` has exactly that rule, so copying its
+  `@page` block is the obvious wrong move; `layouts/pdf_care_plan.html.erb`
+  deliberately declares only `size`. An explicit (empty) `header_template` is
+  equally required or Chrome prints its own title-and-date header. Pinned in
+  `generate_care_plan_spec.rb` rather than left to a visual check.
+- **PDF only, no PNG.** A PNG of a multi-page document is either one
+  impossibly tall image or a silently cropped first page, and nothing displays
+  it.
+- **Not in `Profile#generate_attachments!`.** That runs synchronously on every
+  safety-profile save — an avatar upload, a theme tweak — and is already four
+  Grover renders. These generate on demand from the endpoint; the freshness
+  signature makes a repeat download free.
+- **The freshness signature carries the variant AND a `LAYOUT_VERSION`.**
+  `safety_info_signature` only moves when the PROFILE changes, so without the
+  version constant a template redesign leaves every cached PDF stale forever —
+  a gap the card generators still have. Bump `LAYOUT_VERSION` when the template
+  or layout changes in a way existing documents should pick up.
+- **Section-level `break-inside: avoid` is the wrong instinct.** A built-in
+  section can carry four fields plus eight detail lines, which exceeds a page,
+  and an unbreakable box taller than a page makes Chrome push the whole thing
+  over and leave a dead half-page. The mechanism is a `.section-keep` wrapper
+  holding the heading plus its first row; everything after that flows. The
+  "Day-to-day support" divider lives INSIDE the first section's keep block for
+  the same reason — rendered above the loop it stranded at the foot of page 1
+  with the first section overleaf, which only a real render showed.
+- **An empty plan is refused, not printed.** `GenerateCarePlan.printable?` is
+  checked in the controller (a service that raises can't answer 422):
+  `care_only` with no care info → `no_care_info`; `full` with neither → 
+  `nothing_to_print`. `full` on emergency info alone still prints — that's the
+  hospital-bag case. Blank emergency FIELDS are printed as "None listed"
+  rather than omitted, matching the safety ID card: a missing Medications
+  heading and "Medications — none listed" read very differently to a nurse.
+- **`Communicators::CarePlanDocument` is a port of `resolveCareSections`**
+  (frontend `src/data/careSections.ts`). The labels are not duplicated —
+  `CareLabels` serves those — but the walk over stored settings genuinely
+  exists twice, because one renders server-side and one client-side. Change
+  both.
+
 
 ## Generating the printables is owner-only
 
