@@ -20,12 +20,12 @@ RSpec.describe "MySpeak care sections", type: :request do
         "sections" => {
           "communication" => {
             "enabled" => true,
-            "values" => { "methods" => %w[aac_device gestures], "help_level" => "needs_prompts" },
+            "values" => { "methods" => %w[aac_device gestures], "what_helps" => %w[wait_and_pause] },
           },
           "c_7f3a91" => {
             "custom" => true,
-            "title" => "Sensory",
-            "items" => [{ "label" => "Loud noises", "value" => "Headphones help" }],
+            "title" => "Bedtime",
+            "items" => [{ "label" => "Lights out", "value" => "7:30, door left open" }],
           },
         },
       },
@@ -48,8 +48,8 @@ RSpec.describe "MySpeak care sections", type: :request do
       expect(body["has_care_info"]).to be(true)
       expect(body["settings"]).not_to have_key("care")
       # The values themselves appear nowhere in the open response.
-      expect(response.body).not_to include("Headphones help")
-      expect(response.body).not_to include("needs_prompts")
+      expect(response.body).not_to include("7:30, door left open")
+      expect(response.body).not_to include("wait_and_pause")
     end
 
     it "reports has_care_info=false when no care section is filled in" do
@@ -81,8 +81,8 @@ RSpec.describe "MySpeak care sections", type: :request do
       expect(RecordProfileViewJob.jobs.last["args"]).to eq([profile.id, "127.0.0.1", nil, "care"])
 
       sections = JSON.parse(response.body).dig("settings", "care", "sections")
-      expect(sections["communication"]["values"]).to include("help_level" => "needs_prompts")
-      expect(sections["c_7f3a91"]["title"]).to eq("Sensory")
+      expect(sections["communication"]["values"]).to include("what_helps" => %w[wait_and_pause])
+      expect(sections["c_7f3a91"]["title"]).to eq("Bedtime")
     end
 
     it "never leaks emergency info through the care endpoint" do

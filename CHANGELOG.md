@@ -5,7 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Care & routine notes: better questions, and you can pick more than one
+  answer.** Every care choice is now multi-select — support is layered, and
+  being forced to pick the single truest option meant a card that was only
+  half right. The "how much help do you need" and "how long to respond" ratings
+  are gone, replaced by things a helper can act on ("wait and pause", "keep my
+  device close", "food cut up"); `echolalia` is no longer offered as a
+  communication method; and the per-section "Good to know" box is gone, since
+  the detail lines added last release sat right beside it asking the same
+  question.
+
 ### Added
+
+- **Two new care sections: Sensory and Moving around.** Noise on the bus and
+  lights in a classroom cut across every other section and had nowhere to live,
+  and a wheelchair or a pair of AFOs is true all day rather than being a fact
+  about the trip to school. Sensory covers sound, touch, light, and what helps
+  when it's too much; Moving around covers equipment and the kind of support
+  someone needs.
 
 - **A failed renewal now has an end date.** `past_due` was designed as a grace
   state — Stripe keeps retrying the charge and access continues — but nothing

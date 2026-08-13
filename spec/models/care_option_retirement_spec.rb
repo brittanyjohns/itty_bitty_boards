@@ -15,10 +15,10 @@ RSpec.describe "retiring a care option" do
     Profile.create!(profileable: child, username: "retire-spec", slug: "retire-spec")
   end
 
-  # "some_speech" retired in favour of "gestures"; "echolalia" retired with no
+  # "some_speech" retired in favour of "gestures"; "eye_gaze" retired with no
   # replacement. Both are real keys, so the fixture stays valid.
   let(:deprecations) do
-    { "communication" => { "methods" => { "some_speech" => "gestures", "echolalia" => nil } } }
+    { "communication" => { "methods" => { "some_speech" => "gestures", "eye_gaze" => nil } } }
   end
 
   before do
@@ -44,7 +44,7 @@ RSpec.describe "retiring a care option" do
     end
 
     it "keeps one that has no replacement" do
-      expect(store_methods(%w[echolalia])).to eq(%w[echolalia])
+      expect(store_methods(%w[eye_gaze])).to eq(%w[eye_gaze])
     end
 
     it "still rejects an option that was never in the registry" do
@@ -66,22 +66,22 @@ RSpec.describe "retiring a care option" do
                        .find { |s| s[:key] == "communication" }[:fields]
                        .find { |f| f[:key] == "methods" }[:options]
 
-      expect(offered).not_to include("some_speech", "echolalia")
+      expect(offered).not_to include("some_speech", "eye_gaze")
       expect(offered).to include("sign", "gestures")
 
       field = Profile::CARE_SECTIONS.dig("communication", :fields)
                                     .find { |f| f[:key] == "methods" }
       expect(Profile.accepted_care_options("communication", field))
-        .to include("some_speech", "echolalia")
+        .to include("some_speech", "eye_gaze")
     end
   end
 
   describe "CareOptionRemap" do
     it "reports what a profile still holds" do
-      store_methods(%w[some_speech sign echolalia])
+      store_methods(%w[some_speech sign eye_gaze])
       expect(CareOptionRemap.hits_for(profile.reload)).to contain_exactly(
         "communication.methods.some_speech",
-        "communication.methods.echolalia",
+        "communication.methods.eye_gaze",
       )
     end
 
@@ -104,13 +104,13 @@ RSpec.describe "retiring a care option" do
     end
 
     it "drops a retired option that has no replacement" do
-      store_methods(%w[echolalia sign])
+      store_methods(%w[eye_gaze sign])
       result = CareOptionRemap.apply(profile.reload.settings["care"])
       expect(result.dig("sections", "communication", "values", "methods")).to eq(%w[sign])
     end
 
     it "removes the field entirely when nothing survives" do
-      store_methods(%w[echolalia])
+      store_methods(%w[eye_gaze])
       result = CareOptionRemap.apply(profile.reload.settings["care"])
       expect(result.dig("sections", "communication", "values")).not_to have_key("methods")
     end
@@ -131,7 +131,7 @@ RSpec.describe "retiring a care option" do
     it "leaves a remapped blob acceptable to the sanitizer" do
       # The remap output has to survive the very callback that made this
       # mechanism necessary.
-      store_methods(%w[some_speech echolalia])
+      store_methods(%w[some_speech eye_gaze])
       remapped = CareOptionRemap.apply(profile.reload.settings["care"])
 
       profile.update!(settings: profile.settings.merge("care" => remapped))

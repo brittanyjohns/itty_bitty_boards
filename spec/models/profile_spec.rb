@@ -321,8 +321,7 @@ RSpec.describe Profile, type: :model do
             "enabled" => true,
             "values" => {
               "methods" => %w[aac_device gestures],
-              "help_level" => "needs_prompts",
-              "notes" => "Give me ten seconds to answer.",
+              "what_helps" => %w[wait_and_pause offer_choices],
             },
           },
         )
@@ -331,32 +330,32 @@ RSpec.describe Profile, type: :model do
           "enabled" => true,
           "values" => {
             "methods" => %w[aac_device gestures],
-            "help_level" => "needs_prompts",
-            "notes" => "Give me ten seconds to answer.",
+            "what_helps" => %w[wait_and_pause offer_choices],
           },
         )
       end
 
       # Detail lines on a BUILT-IN section. The chips answer "which of these
       # applies"; the specific, provisional thing a parent needs to pass on
-      # ("Drinks: watered-down apple juice, trying others") fits neither a chip
-      # nor a shared `notes` blob.
+      # ("Bus: back left seat, by the window") doesn't compress into a chip.
+      # They are the only free-text surface a built-in section has, which is
+      # what lets the option lists stay short.
       describe "detail lines on a built-in section" do
         it "keeps label/value rows alongside the preset values" do
           result = care(
             "meals" => {
-              "values" => { "eating" => "some_help" },
+              "values" => { "eating" => %w[food_cut_up] },
               "items" => [
-                { "label" => "Drinks", "value" => "Watered-down apple juice, trying others" },
+                { "label" => "Drinks", "value" => "Green straw cup only" },
                 { "label" => "Pieces", "value" => "Cut big pieces up" },
               ],
             },
           )
 
-          expect(result["sections"]["meals"]["values"]).to eq("eating" => "some_help")
+          expect(result["sections"]["meals"]["values"]).to eq("eating" => %w[food_cut_up])
           expect(result["sections"]["meals"]["items"]).to eq(
             [
-              { "label" => "Drinks", "value" => "Watered-down apple juice, trying others" },
+              { "label" => "Drinks", "value" => "Green straw cup only" },
               { "label" => "Pieces", "value" => "Cut big pieces up" },
             ],
           )
@@ -377,7 +376,7 @@ RSpec.describe Profile, type: :model do
         end
 
         it "omits the key entirely rather than storing an empty list" do
-          result = care("meals" => { "values" => { "eating" => "some_help" } })
+          result = care("meals" => { "values" => { "eating" => %w[food_cut_up] } })
           expect(result["sections"]["meals"]).not_to have_key("items")
         end
 
@@ -401,7 +400,7 @@ RSpec.describe Profile, type: :model do
         it "drops rows that are neither labelled nor filled, keeping the rest" do
           result = care(
             "meals" => {
-              "values" => { "eating" => "some_help" },
+              "values" => { "eating" => %w[food_cut_up] },
               "items" => [
                 { "label" => "", "value" => "" },
                 { "label" => "Pieces", "value" => "" },
@@ -422,9 +421,9 @@ RSpec.describe Profile, type: :model do
         it "leaves a section stored before lines existed untouched" do
           # Backwards compatibility: rows written by the previous release have
           # no "items" key at all and must round-trip unchanged.
-          result = care("meals" => { "enabled" => true, "values" => { "eating" => "tube_fed" } })
+          result = care("meals" => { "enabled" => true, "values" => { "eating" => %w[tube_fed] } })
           expect(result["sections"]["meals"]).to eq(
-            "enabled" => true, "values" => { "eating" => "tube_fed" },
+            "enabled" => true, "values" => { "eating" => %w[tube_fed] },
           )
         end
       end
@@ -434,7 +433,7 @@ RSpec.describe Profile, type: :model do
           "communication" => {
             "values" => {
               "methods" => %w[aac_device not_a_method],
-              "help_level" => "wildly_invented",
+              "what_helps" => %w[wildly_invented],
               "sneaky_field" => "nope",
             },
           },
@@ -447,7 +446,7 @@ RSpec.describe Profile, type: :model do
 
       it "drops a built-in section whose every value was invalid" do
         profile.update!(settings: { "care" => { "sections" => {
-          "meals" => { "values" => { "eating" => "invented" } },
+          "meals" => { "values" => { "eating" => %w[invented] } },
         } } })
 
         expect(profile.reload.settings).not_to have_key("care")
@@ -455,42 +454,42 @@ RSpec.describe Profile, type: :model do
 
       it "strips markup from free text" do
         result = care(
-          "communication" => { "values" => { "notes" => "<script>alert(1)</script>Use <b>signs</b>" } },
+          "meals" => { "values" => { "preferences" => "<script>alert(1)</script>Likes <b>crunchy</b> food" } },
         )
 
-        expect(result["sections"]["communication"]["values"]["notes"]).to eq("alert(1)Use signs")
+        expect(result["sections"]["meals"]["values"]["preferences"]).to eq("alert(1)Likes crunchy food")
       end
 
       it "truncates over-long free text and caps multi-select length" do
         result = care(
-          "communication" => {
+          "meals" => {
             "values" => {
-              "notes" => "a" * 500,
-              "methods" => Profile::CARE_SECTIONS["communication"][:fields]
-                             .find { |f| f[:key] == "methods" }[:options],
+              "preferences" => "a" * 500,
+              "equipment" => Profile::CARE_SECTIONS["meals"][:fields]
+                               .find { |f| f[:key] == "equipment" }[:options],
             },
           },
         )
 
-        values = result["sections"]["communication"]["values"]
-        expect(values["notes"].length).to eq(Profile::CARE_SHORT_TEXT_MAX)
-        expect(values["methods"].length).to be <= Profile::MAX_CARE_MULTI_SELECT
+        values = result["sections"]["meals"]["values"]
+        expect(values["preferences"].length).to eq(Profile::CARE_SHORT_TEXT_MAX)
+        expect(values["equipment"].length).to be <= Profile::MAX_CARE_MULTI_SELECT
       end
 
       it "accepts a well-formed custom section" do
         result = care(
           "c_7f3a91" => {
             "custom" => true,
-            "title" => "Sensory",
-            "items" => [{ "label" => "Loud noises", "value" => "Headphones help" }],
+            "title" => "Bedtime",
+            "items" => [{ "label" => "Lights out", "value" => "7:30, door left open" }],
           },
         )
 
         expect(result["sections"]["c_7f3a91"]).to eq(
           "enabled" => true,
           "custom" => true,
-          "title" => "Sensory",
-          "items" => [{ "label" => "Loud noises", "value" => "Headphones help" }],
+          "title" => "Bedtime",
+          "items" => [{ "label" => "Lights out", "value" => "7:30, door left open" }],
         )
       end
 
@@ -516,7 +515,7 @@ RSpec.describe Profile, type: :model do
 
       it "caps the number of items in a custom section" do
         items = (1..Profile::MAX_CARE_CUSTOM_ITEMS + 3).map { |i| { "label" => "l#{i}", "value" => "v" } }
-        result = care("c_7f3a91" => { "title" => "Sensory", "items" => items })
+        result = care("c_7f3a91" => { "title" => "Bedtime", "items" => items })
 
         expect(result["sections"]["c_7f3a91"]["items"].length).to eq(Profile::MAX_CARE_CUSTOM_ITEMS)
       end
@@ -533,8 +532,8 @@ RSpec.describe Profile, type: :model do
       it "prunes order to surviving sections and appends any that were missing" do
         result = care(
           {
-            "communication" => { "values" => { "help_level" => "independent" } },
-            "meals" => { "values" => { "eating" => "some_help" } },
+            "communication" => { "values" => { "what_helps" => %w[wait_and_pause] } },
+            "meals" => { "values" => { "eating" => %w[food_cut_up] } },
           },
           %w[meals gone_section],
         )
@@ -554,18 +553,18 @@ RSpec.describe Profile, type: :model do
       end
 
       it "is true once a section is filled in" do
-        care("communication" => { "values" => { "help_level" => "independent" } })
+        care("communication" => { "values" => { "what_helps" => %w[wait_and_pause] } })
         expect(profile.has_care_info?).to eq(true)
       end
 
       it "is false when every section is disabled" do
-        care("communication" => { "enabled" => false, "values" => { "help_level" => "independent" } })
+        care("communication" => { "enabled" => false, "values" => { "what_helps" => %w[wait_and_pause] } })
         expect(profile.has_care_info?).to eq(false)
       end
     end
 
     describe "#safety_view / #care_details_view" do
-      before { care("communication" => { "values" => { "help_level" => "independent" } }) }
+      before { care("communication" => { "values" => { "what_helps" => %w[wait_and_pause] } }) }
 
       it "advertises care on the open page without shipping the data" do
         view = profile.safety_view

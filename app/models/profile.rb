@@ -553,56 +553,102 @@ class Profile < ApplicationRecord
   #
   # NOTE: no care field may ever appear in a Suggestions::Registry context
   # allow-list. These are private care details, not copy to hand to OpenAI.
+  # Two rules shape every field below, and a new one should follow them:
+  #
+  #   1. Presets are MULTI-SELECT. A single-select forces a parent to pick the
+  #      one truest thing about a person whose support is layered — independent
+  #      at home, hand-over-hand at school — and a half-true chip on a card a
+  #      substitute reads is worse than no chip. It also collapses the
+  #      "independent / some help / full help" scales, which said little on
+  #      their own, into concrete supports someone can actually act on.
+  #   2. Presets stay SHORT (3-4 options) and answer "which of these applies".
+  #      Anything specific or provisional belongs in the section's detail lines
+  #      ("Bus: back left seat, by the window"), which every section carries.
+  #      That is what makes a short option list lossless rather than lossy.
+  #
+  # There is deliberately no per-section `notes` field: the detail lines are the
+  # free-text surface, and two of them side by side just split the same answer.
   CARE_SECTIONS = {
     "communication" => {
       fields: [
         { key: "methods", type: :multi_select,
-          options: %w[aac_device aac_book sign gestures some_speech echolalia
-                      writing eye_gaze partner_assisted facial_expressions] },
-        { key: "help_level", type: :single_select,
-          options: %w[independent needs_setup needs_prompts hand_over_hand
-                      partner_required] },
-        { key: "response_time", type: :single_select,
-          options: %w[right_away needs_time needs_lots_of_time] },
-        { key: "notes", type: :short_text },
+          options: %w[aac_device aac_book sign gestures some_speech eye_gaze
+                      partner_assisted] },
+        # Replaces a "how much help do you need" scale. What a helper needs is
+        # the thing to DO, not a rating — and "wait and pause" carries the only
+        # part of the old response_time field that changed anyone's behavior.
+        { key: "what_helps", type: :multi_select,
+          options: %w[keep_my_device_close model_on_my_device wait_and_pause
+                      offer_choices] },
       ],
     },
     "personal_care" => {
       fields: [
-        { key: "toileting", type: :single_select,
+        { key: "toileting", type: :multi_select,
           options: %w[independent needs_reminders needs_help toilet_training
                       pull_ups diapers] },
-        { key: "schedule", type: :single_select,
-          options: %w[on_request scheduled_times both] },
-        { key: "help_level", type: :single_select,
+        { key: "schedule", type: :multi_select,
+          options: %w[on_request scheduled_times] },
+        { key: "hygiene", type: :multi_select,
+          options: %w[handwashing toothbrushing face_and_hands hair_brushing] },
+        { key: "dressing", type: :multi_select,
           options: %w[independent some_help full_help] },
-        { key: "dressing", type: :single_select,
-          options: %w[independent some_help full_help] },
-        { key: "notes", type: :short_text },
       ],
     },
     "meals" => {
       fields: [
-        { key: "eating", type: :single_select,
-          options: %w[independent some_help full_help tube_fed] },
+        { key: "eating", type: :multi_select,
+          options: %w[food_cut_up needs_supervision fed_by_an_adult tube_fed] },
         { key: "textures", type: :multi_select,
           options: %w[regular soft chopped pureed thickened_liquids] },
+        # Utensils and vessels. Straw preferences used to be two chips here;
+        # they are a detail line now, where "no straw — he bites through them"
+        # can say why, which is the part a substitute actually needs.
         { key: "equipment", type: :multi_select,
-          options: %w[fork_and_spoon fingers specific_cup straw_only no_straw
-                      adapted_utensils] },
+          options: %w[fork_and_spoon fingers adapted_utensils specific_cup] },
         { key: "preferences", type: :short_text },
-        { key: "notes", type: :short_text },
+      ],
+    },
+    # Sensory is its own section rather than a sub-topic of Meals, deliberately:
+    # "won't eat anything cold" is a meals fact, but noise on the bus and lights
+    # in a classroom cut across every other section and had nowhere to live.
+    "sensory" => {
+      fields: [
+        { key: "sound", type: :multi_select,
+          options: %w[loud_noises_hurt uses_ear_defenders warn_before_alarms
+                      likes_music] },
+        { key: "touch", type: :multi_select,
+          options: %w[ask_before_touching dislikes_light_touch
+                      likes_deep_pressure] },
+        { key: "light", type: :multi_select,
+          options: %w[bright_light_hurts flickering_bothers prefers_dim] },
+        # The single most useful line on this section for someone with a
+        # distressed person in front of them.
+        { key: "calming", type: :short_text },
+      ],
+    },
+    # Split from Getting around on purpose. A wheelchair or a pair of AFOs is
+    # true all day, in every room — it is not a fact about the trip to school,
+    # and burying it under transportation meant nobody filled it in.
+    "mobility" => {
+      fields: [
+        { key: "equipment", type: :multi_select,
+          options: %w[wheelchair walker_or_gait_trainer braces_or_afos
+                      cane_or_crutches] },
+        { key: "support", type: :multi_select,
+          options: %w[independent standby_supervision hands_on_help
+                      help_with_transfers] },
       ],
     },
     "transportation" => {
       fields: [
-        { key: "mode", type: :multi_select,
-          options: %w[bus car_rider walker wheelchair_van parent_pickup] },
+        # "walks", not "walker" — with a Mobility section next door, `walker`
+        # reads as the device rather than "gets there on foot".
+        { key: "school_travel", type: :multi_select,
+          options: %w[bus car_rider walks wheelchair_van parent_pickup] },
         { key: "seating", type: :multi_select,
-          options: %w[harness car_seat booster wheelchair_securement
-                      specific_seat front_seat_only] },
+          options: %w[harness car_seat booster wheelchair_securement] },
         { key: "bus_info", type: :short_text },
-        { key: "notes", type: :short_text },
       ],
     },
   }.freeze
@@ -644,6 +690,13 @@ class Profile < ApplicationRecord
   # Shape: { "section" => { "field" => { "old_option" => "new_option_or_nil" } } }
   # A nil replacement means "no equivalent — drop it on remap", which still only
   # happens when someone deliberately runs the task.
+  #
+  # Empty on purpose, and NOT because nothing has ever been cut. The reshape
+  # that dropped echolalia, the help-level scales, and the per-section notes
+  # fields landed BEFORE the feature was announced, when no profile held a
+  # single care answer, so there was nothing to protect and the options were
+  # deleted outright. That is a one-time licence which has now expired: every
+  # later change has to go back through the two steps above.
   DEPRECATED_CARE_OPTIONS = {}.freeze
 
   def self.retired_care_options(section_key, field)
@@ -1222,9 +1275,10 @@ class Profile < ApplicationRecord
 
     # Detail lines. The preset chips answer "which of these applies"; the real
     # thing a parent needs to hand a substitute is usually specific and
-    # provisional — "Drinks: watered-down apple juice, trying others". That
-    # doesn't compress into a chip and doesn't belong buried in `notes`, so a
-    # built-in section carries the same label/value rows a custom one does.
+    # provisional — "Bus: back left seat, by the window". That doesn't compress
+    # into a chip, so a built-in section carries the same label/value rows a
+    # custom one does. These are the ONLY free-text surface on a built-in
+    # section, which is why the option lists above can stay short.
     items = clean_care_items(section["items"])
 
     return nil if clean_values.empty? && items.empty?

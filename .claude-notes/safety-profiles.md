@@ -103,9 +103,10 @@ info** — medical details + emergency contacts + emergency notes
 ## Care sections — the second gated reveal
 
 `settings["care"]` holds optional, structured "how to support this person day to
-day" sections: Communication, Personal Care, Meals, Transportation, plus up to
-`MAX_CUSTOM_CARE_SECTIONS` parent-authored custom sections. They are mostly
-multiple-choice and short-answer, deliberately unlike the free-text bio.
+day" sections: Communication, Personal Care, Meals, Sensory, Mobility,
+Transportation, plus up to `MAX_CUSTOM_CARE_SECTIONS` parent-authored custom
+sections. They are mostly multiple-choice and short-answer, deliberately unlike
+the free-text bio.
 
 - **They are a third privacy tier, not a variant of the other two.** Not in
   `SAFETY_PAGE_KEYS` (never open on page-load) and not in
@@ -122,8 +123,9 @@ multiple-choice and short-answer, deliberately unlike the free-text bio.
   that actually matters. A care reveal also does **not** consume the hourly
   notify slot, so a real emergency reveal moments later still alerts.
 - **`Profile::CARE_SECTIONS` is the whole schema.** Each field is
-  `:multi_select`, `:single_select`, or `:short_text` with its option list.
-  `sanitize_care_settings` (a `before_save`, modelled on
+  `:multi_select` or `:short_text` with its option list. `:single_select` is
+  still supported by the sanitizer and the editor but **no field uses it** —
+  see the two shape rules below. `sanitize_care_settings` (a `before_save`, modelled on
   `sanitize_theme_settings`) is the only thing between a request body and an
   unauthenticated page, because `profile_params` permits `settings: {}`
   wholesale. It whitelists sections/fields/options, enforces the custom-key
@@ -162,14 +164,35 @@ multiple-choice and short-answer, deliberately unlike the free-text bio.
   deprecation window where the key stays in the constant (accepted by the
   sanitizer, hidden from the editor) until the data is migrated. Tracked in
   itty-bitty-frontend#679.
-- **Built-in sections carry `items` too** — the same label/value rows as a
-  custom section, same caps, same `clean_care_items`. The presets answer "which
-  of these applies"; the specific, provisional detail a parent needs to hand on
-  ("Drinks: watered-down apple juice, trying others") fits neither a chip nor the
-  shared `notes` field. A built-in section now survives on lines alone, so
-  `clean_builtin_care_section` returns nil only when values AND items are empty.
-  The key is omitted rather than stored as `[]`, and a row written before this
-  shipped round-trips unchanged.
+- **`DEPRECATED_CARE_OPTIONS` is empty, and that is not evidence nothing was
+  ever cut.** The reshape that dropped `echolalia`, the help-level scales, the
+  response-time field, and the per-section `notes` fields deleted them outright
+  from `CARE_SECTIONS`, because it landed **before the feature was announced**,
+  when no profile held a single care answer and there was nothing to protect.
+  That was a one-time licence and it has expired — every later change goes back
+  through the two steps above. Check before assuming otherwise: a care-data
+  count on the production console is the whole verification.
+- **Two shape rules govern every field, and `care_preset_reshape_spec.rb`
+  enforces them.** (1) Presets are **multi-select** — a single-select makes a
+  parent pick the one truest thing about someone whose support is layered
+  (independent at home, hand-over-hand at school), and a half-true chip on a
+  card a substitute reads is worse than no chip. This is also why the
+  "independent / some help / full help" scales are gone: they rated a person
+  where a helper needed something to *do*. (2) Option lists stay **short** —
+  six is the ceiling, and the one deliberate exception
+  (`communication.methods`) is named in the spec with its reason, so an
+  exception stays visible instead of becoming the norm.
+- **Built-in sections carry `items`, and they are the ONLY free-text surface.**
+  The same label/value rows as a custom section, same caps, same
+  `clean_care_items`. The presets answer "which of these applies"; the specific,
+  provisional detail a parent needs to hand on ("Bus: back left seat, by the
+  window") doesn't compress into a chip. There is deliberately **no
+  per-section `notes` field** — it sat next to the detail lines asking the same
+  question, so parents split one answer across two boxes. Short option lists are
+  only lossless *because* the lines are there. A built-in section survives on
+  lines alone, so `clean_builtin_care_section` returns nil only when values AND
+  items are empty. The key is omitted rather than stored as `[]`, and a row
+  written before this shipped round-trips unchanged.
 - **Care fields are never eligible for writing suggestions** — same rule as
   `SAFETY_SENSITIVE_KEYS`. Nothing here goes to OpenAI.
 - Care info is deliberately **not** on the Safety ID card or device tag; those
