@@ -7,6 +7,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A printable's listing copy now counts the board pages a buyer prints, not
+  the front matter around them.** Every printable PDF is wrapped in a cover, a
+  how-to-use page, a license and a credits page, and the page count quoted in
+  the Etsy description and on the "In your download" panel of the gallery images
+  counted all of them — so a one-board printable, whose three board pages are
+  the whole product, was sold as a "7-page board PDF". It now reads "3-page
+  board PDF", and a set counts each board once per colour/low-ink/trim-ready
+  file. Existing printables report the corrected count without being
+  regenerated; the admin listing and TPT's "Number of pages" field still show
+  the real merged page total.
+
 - **A page's back tile now really does land where the tile that opens it sits.**
   On admin-built boards the alignment quietly did nothing whenever the parent's
   folder tile sat at the far right of its own last row — the most common place

@@ -15,6 +15,10 @@ module Printables
     # times (color, low-ink, trim-ready) and arrives as THREE files, so quoting
     # a single page count badly understates it.
     #
+    # `page_count` is BOARD pages — `BoardPrintable#board_page_count`, never the
+    # record's `page_count`, which counts the cover, how-to-use, license and
+    # credits pages wrapping every file and so oversells what a buyer prints.
+    #
     # "Trim-ready" rather than "header-less": the buyer-facing name has to say
     # what it's FOR. The band is what gets cut off before laminating, and this
     # is the copy that survives the cut.

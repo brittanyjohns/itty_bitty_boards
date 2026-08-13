@@ -5,8 +5,10 @@ RSpec.describe Boards::Printables::RenderListingImages do
   let(:board) { create(:board, user: owner, name: "Core Words") }
   let(:other) { create(:board, user: owner, name: "Feelings") }
 
+  # 7 is what one board really merges to — cover, how-to-use, the three board
+  # pages, license, credits — so a slide quoting `page_count` is visibly wrong.
   let(:printable) do
-    BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], page_count: 6)
+    BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], page_count: 7)
   end
 
   # Grover shells out to headless Chrome; the specs care about what gets
@@ -163,6 +165,27 @@ RSpec.describe Boards::Printables::RenderListingImages do
     described_class.new(printable: printable).call
 
     expect(slide_html[2]).to include("Core Words", "Feelings")
+  end
+
+  # The "In your download" panel is read against the listing description, so it
+  # counts what the description counts: board pages, never the cover,
+  # how-to-use, license and credits pages wrapped around them.
+  describe "the in-your-download panel" do
+    it "quotes a single board's three board pages, not the merged seven" do
+      described_class.new(printable: printable).call
+
+      expect(slide_html[2]).to include("3-page board PDF")
+      expect(slide_html[2]).not_to include("7-page")
+    end
+
+    it "counts every board in a set once per variant across the three files" do
+      printable.update!(board_ids: [board.id, other.id], include_subboards: true, page_count: 26)
+
+      described_class.new(printable: printable).call
+
+      expect(slide_html[2]).to include("2 boards, 6 pages")
+      expect(slide_html[2]).not_to include("26 pages")
+    end
   end
 
   # The one claim a buyer is least likely to believe from text alone.

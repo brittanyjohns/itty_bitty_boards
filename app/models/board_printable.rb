@@ -191,6 +191,19 @@ class BoardPrintable < ApplicationRecord
     reload_files_association
   end
 
+  # The BOARD pages a buyer gets, which is what listing copy quotes.
+  #
+  # `page_count` is the true length of the merged PDFs and every file is
+  # wrapped in a cover, a how-to-use page, a license and a credits page — so it
+  # sold a one-board printable, whose three board pages are the whole product,
+  # as a "7-page board PDF". A buyer counts the boards they can print, not the
+  # front matter.
+  #
+  # Derived rather than stamped at generation time because CollectPages renders
+  # each board exactly once per download variant: the count is exact for
+  # printables generated before this existed, with no re-render.
+  def board_page_count = board_ids.to_a.size * DOWNLOAD_VARIANTS.size
+
   def etsy_published? = etsy_listing_id.present?
 
   # The copy an admin has saved, or the generated default when nothing has been

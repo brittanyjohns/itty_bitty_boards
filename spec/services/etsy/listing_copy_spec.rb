@@ -4,9 +4,12 @@ RSpec.describe Etsy::ListingCopy do
   let(:owner) { create(:user) }
   let(:board) { create(:board, user: owner, name: "core words") }
 
+  # page_count 7 is what a one-board printable really merges to: cover,
+  # how-to-use, the three board pages, license, credits. The copy must quote
+  # the three, so a fixture that agreed with it would prove nothing.
   def printable(**attrs)
     BoardPrintable.create!(
-      { board: board, status: "complete", board_ids: [board.id], page_count: 6 }.merge(attrs),
+      { board: board, status: "complete", board_ids: [board.id], page_count: 7 }.merge(attrs),
     )
   end
 
@@ -78,8 +81,11 @@ RSpec.describe Etsy::ListingCopy do
       expect(description).to include("2 boards, 6 pages — 3 PDFs (full color + low-ink + trim-ready)")
     end
 
-    it "describes a single board as an n-page PDF" do
-      expect(build["description"]).to include("6-page board PDF — color, low-ink + trim-ready")
+    # The cover, how-to-use, license and credits pages are not what a buyer is
+    # counting — three board pages is the product.
+    it "counts board pages, not the wrapper pages around them" do
+      expect(build["description"]).to include("3-page board PDF — color, low-ink + trim-ready")
+      expect(build["description"]).not_to include("7-page")
     end
 
     it "omits the boards section for a single-board printable" do

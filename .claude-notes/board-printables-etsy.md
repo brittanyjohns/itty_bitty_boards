@@ -157,6 +157,19 @@ Generated copy is only a default. It is written into
 `BoardPrintable#listing_copy_or_default` is what previews it before anything is
 saved.
 
+**Copy quotes `board_page_count`, never `page_count`.** The record's
+`page_count` is the true length of the merged PDFs, and every file is wrapped in
+a cover, a how-to-use page, a license and a credits page — so it sold a
+one-board printable, whose three board pages *are* the product, as a "7-page
+board PDF". `BoardPrintable#board_page_count` derives the honest number
+(`boards × DOWNLOAD_VARIANTS`) rather than storing it, so printables generated
+before it existed report correctly with no re-render. Both readers of
+`Printables::IncludedItems` — the Etsy description and the what's-included
+slide's "In your download" panel — must pass the same one, or the text and the
+gallery image quote different numbers to the same buyer. `page_count` stays the
+merged total: it is what the admin lists and what TPT's "Number of pages" field
+asks for.
+
 ## Gallery images
 
 `Boards::Printables::RenderListingImages` renders **six** square 2560px slides
