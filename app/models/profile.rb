@@ -914,9 +914,26 @@ class Profile < ApplicationRecord
     name.presence || username.presence || "My Device"
   end
 
+  # Freshness key for the generated communicator documents (safety ID card,
+  # device tag, care plan). It must describe the CONTENT they render and
+  # nothing else.
+  #
+  # Deliberately excludes `updated_at`: ActiveStorage's attachment
+  # `belongs_to :record, touch: true`, so ATTACHING a generated document moves
+  # it. The signature is stamped into the blob's metadata *before* the attach,
+  # which meant it was stale the instant it was written — the next call
+  # recomputed a different key, missed, and re-rendered through headless
+  # Chrome. It only ever appeared to work because the value is truncated to
+  # whole seconds (`to_i`), so a generate that finished inside the same
+  # wall-clock second as the previous save happened to match. That is also why
+  # it read as a flaky spec rather than a broken cache.
+  #
+  # Nothing meaningful is lost. These documents render the avatar (covered by
+  # the blob id + checksum) and the care/emergency answers (covered by
+  # `settings`). The communicator's name comes from `profileable`, whose
+  # changes never touched this timestamp anyway.
   def safety_info_signature
     [
-      updated_at&.to_i,
       avatar_attachment&.blob_id,
       avatar_attachment&.blob&.checksum,
       settings.to_json

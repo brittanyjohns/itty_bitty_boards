@@ -237,6 +237,26 @@ RSpec.describe Communicators::GenerateCarePlan do
       described_class.call(profile.reload, variant: :full)
     end
 
+    # Regression: the signature used to include profile.updated_at, and
+    # ActiveStorage's attachment `belongs_to :record, touch: true` — so the
+    # attach that STORED the signature also moved the value the signature was
+    # built from. The cached document was stale the instant it was written and
+    # every later call re-rendered through headless Chrome. It read as a flaky
+    # spec rather than a dead cache only because the value was truncated to
+    # whole seconds: a generate finishing inside the same second as the
+    # previous save happened to match, and a slower machine didn't.
+    #
+    # The touch is simulated in a later second so the assertion doesn't depend
+    # on how long a render takes.
+    it "survives the touch that attaching the document performs" do
+      render_html
+
+      travel_to(3.seconds.from_now) { profile.touch }
+
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload, variant: :full)
+    end
+
     it "re-renders when regenerate is asked for" do
       render_html
 

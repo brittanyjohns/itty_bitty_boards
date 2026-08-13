@@ -60,6 +60,17 @@ Already ships the kit's safety + device tags as PNG **and** PDF with an embedded
 
 - `app/services/communicators/generate_device_tag.rb` — 1200×700, QR → `profile.public_url`, template `communicators/assets/device_tag.html.erb`. Default copy: "This device is my voice…".
 - `app/services/communicators/generate_safety_id_card.rb` — 1200×1800, QR + emergency notes, template `communicators/assets/safety_id_card.html.erb`.
+- **A freshness key must never include the record's `updated_at`.** ActiveStorage's
+  attachment is `belongs_to :record, touch: true`, so *attaching* a generated
+  document moves `updated_at` — a signature stamped into blob metadata before the
+  attach is stale the instant it is written, and every later call re-renders
+  through headless Chrome. `Profile#safety_info_signature` (shared by all three
+  generators) carried it and therefore had no working cache at all. This hides
+  well: the value was truncated with `to_i`, so a generate that finished inside
+  the same wall-clock second as the previous save happened to match, and it
+  surfaced as an intermittently failing spec on slower CI rather than as a dead
+  cache. Sign the CONTENT the document renders (avatar blob id + checksum,
+  `settings`), never a timestamp the write itself moves.
 - Base class: `app/services/communicators/base_asset_generator.rb` — **the reusable pattern for any new printable.** Provides: `rendered_html(template:, locals:)` under the `asset_export` layout, `qr_data_url_for(url, size:)` (RQRCode), `logo_base64`, `avatar_data_url`, `generate_png_from_html` / `generate_pdf_from_html` (Grover), `attach_binary`, and signature-based caching (`attached_and_fresh?`).
 - Triggered by: `app/jobs/regenerate_safety_cards_job.rb`, `Profile#generate_attachments!`. Served by `app/controllers/api/profiles/assets_controller.rb` and `api/internal/profiles_controller.rb` (`safety_id_png_url`, `safety_id_pdf_url`, `device_tag_png_url`, `device_tag_pdf_url`).
 

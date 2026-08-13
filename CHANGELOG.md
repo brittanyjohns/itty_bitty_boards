@@ -207,6 +207,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the same renderer. Covers already generated are refreshed by
   `rake board_covers:refresh_blanked_tile_covers`.
 
+- **Printed care plans, safety cards, and device tags stop rebuilding
+  themselves.** Each one is meant to be built once and reused until something
+  it shows actually changes. Saving the finished document quietly counted as a
+  change to the communicator, so the saved copy was already considered
+  out-of-date the moment it was written — and every later download rebuilt it
+  from scratch. Downloads that used to take seconds now return the copy
+  already made, and a real edit still rebuilds it.
+
 - **"Regenerate from tiles" works on every board, and tells you what actually
   happened.** Pages inside a built or imported board set were skipped outright —
   they take their cover from the folder tile that opens them, and asking for a
