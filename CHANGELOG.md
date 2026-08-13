@@ -170,6 +170,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Printed boards now match what's on screen.** A tile you've cleared the
+  picture off — the colour swatches on Core Safety, for instance, which show
+  the word on a coloured square — was printing a symbol anyway: an apple on
+  "red", a crayon on "blue". The sheet borrowed the stock picture for the word
+  instead of honouring that the tile has none. This affected the downloadable
+  PDF, the board's cover image, and the printables, since all three come off
+  the same renderer. Covers already generated are refreshed by
+  `rake board_covers:refresh_blanked_tile_covers`.
+
 - **Saving one part of a communicator's settings no longer wipes the rest.**
   The communicator screen saves settings from several different places, and
   each one sent only the handful of values it knew about — so saving from one

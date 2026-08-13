@@ -38,5 +38,30 @@ RSpec.describe Boards::BoardPdfLayoutNormalizer, type: :service do
       # other callers (Board Builder folder covers, OBF export) rely on that.
       expect(board_image.tile_image_url).to eq("https://cdn.example/tired-face.png")
     end
+
+    it "honours a blanked display_image_url even when the image HAS art" do
+      # The Core Safety colour-tile case: 'red' is stored with an empty-string
+      # display_image_url, which the app treats as "no picture" ("" is truthy in
+      # Ruby, so api_view's `||` chain stops there) and draws as the word on a
+      # red square. The underlying library image for "red" does have art — an
+      # apple — and the PDF used to fall through and print it.
+      image = create(:image, label: "red", src_url: "https://cdn.example/apple.png")
+      # BoardImage#set_defaults seeds display_image_url from image.src_url on
+      # create, so the blank has to be written afterwards — which is also how
+      # real tiles get it (a later save from the editor).
+      add_tile(image).update_column(:display_image_url, "")
+
+      expect(tile_for("red")["image_url"]).to be_blank
+    end
+
+    it "still falls through to the image's art when display_image_url is nil" do
+      # The boundary on the other side of the fix: nil is NOT the "no picture"
+      # marker — it just means the tile never got its own override — so the
+      # underlying image's art must still resolve.
+      image = create(:image, label: "cat", src_url: "https://cdn.example/cat.png")
+      add_tile(image).update_column(:display_image_url, nil)
+
+      expect(tile_for("cat")["image_url"]).to eq("https://cdn.example/cat.png")
+    end
   end
 end
