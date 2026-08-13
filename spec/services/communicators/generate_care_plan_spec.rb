@@ -121,16 +121,30 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to include("AAC device")
     end
 
-    # "Medications: none listed" and a missing Medications heading say different
-    # things to a school nurse, and only one of them is honest about having been
-    # asked. Matches what the safety ID card already does.
-    it "prints an empty emergency field as 'None listed' rather than omitting it" do
+    # Under OMIT_BLANK_EMERGENCY_FIELDS a blank field costs no row. The honest
+    # signal — nobody answered — survives as one muted line naming them, which
+    # is the whole reason that line exists.
+    it "omits an empty emergency field and names it in the not-provided line" do
       profile.update!(settings: { "care" => care }.merge(emergency.except("medications")))
 
       html = render_html(variant: :full)
 
-      expect(html).to include("Medications")
-      expect(html).to include("None listed")
+      # The rendered cell, not the bare word — "Medications" also appears in a
+      # layout comment, and the label is what costs a row.
+      expect(html).to include(%(<span class="k">Allergies</span>))
+      expect(html).not_to include(%(<span class="k">Medications</span>))
+      expect(html).to include("No medications or other conditions were provided.")
+    end
+
+    it "drops the not-provided line entirely when every field is answered" do
+      profile.update!(settings: { "care" => care }.merge(
+        emergency.merge("other_conditions" => "zzglasseszz"),
+      ))
+
+      html = render_html(variant: :full)
+
+      expect(html).to include("zzglasseszz")
+      expect(html).not_to include("were provided")
     end
 
     it "attaches to care_emergency_plan_pdf" do
@@ -171,8 +185,36 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to include("off by seven")
     end
 
-    it "prints the public URL as text beside the QR, for a photocopied sheet" do
+    # The URL moved out from under the QR into the band's meta line when the
+    # header was condensed. It still has to be readable text: these get
+    # photocopied and handed to people without a phone camera out.
+    it "prints the public URL as text in the header band" do
       expect(render_html).to include(profile.public_url)
+    end
+
+    # The density change, pinned: one gradient band instead of masthead +
+    # identity, and the care sections in two newspaper columns.
+    it "renders one header band and flows the care sections into columns" do
+      html = render_html
+
+      expect(html).to include(%(class="band"))
+      expect(html).not_to include(%(class="masthead"))
+      expect(html).not_to include(%(class="identity"))
+      expect(html).to include(%(class="cols"))
+      expect(html).to include("column-count: 2")
+    end
+
+    # .section-keep and its heading-welding are gone; a whole section is atomic
+    # now. A stray wrapper left behind would silently defeat break-inside.
+    it "keeps no section-keep wrapper" do
+      expect(render_html).not_to include("section-keep")
+    end
+
+    it "joins multi-select values as text rather than chips" do
+      html = render_html
+
+      expect(html).to include("AAC device, Eye gaze")
+      expect(html).not_to include(%(class="chip"))
     end
 
     # The layout's no-network rule. A font or image fetched mid-render fails

@@ -1,14 +1,9 @@
-<%# One resolved care field. Select values render as chips (they're a picked
-    set); short_text renders as the parent's own sentence, verbatim. %>
+<%# One resolved care field, on one line: an uppercase label inline with its
+    value. Picked sets join with commas rather than "and" — this is a list of
+    what applies, not a sentence — and CareLabels already sentence-cases each
+    option. short_text is the parent's own words and prints verbatim.
+
+    The chip treatment is the commented-out alternative in the layout. %>
 <div class="row">
-  <div class="label"><%= field.label %></div>
-  <% if field.type == :short_text %>
-    <div class="value"><%= field.values.first %></div>
-  <% else %>
-    <div class="chips">
-      <% field.values.each do |value| %>
-        <span class="chip"><%= value %></span>
-      <% end %>
-    </div>
-  <% end %>
+  <span class="label"><%= field.label %></span><span class="value"><%= field.type == :short_text ? field.values.first : field.values.join(", ") %></span>
 </div>
