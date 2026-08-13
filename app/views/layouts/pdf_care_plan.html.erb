@@ -71,190 +71,254 @@
         font-family: Nunito, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
         color: var(--ink);
         background: #fff;
-        font-size: 10.5pt;
-        line-height: 1.45;
+        font-size: 9.5pt;
+        line-height: 1.4;
+        /* Clearance inside .page-frame — see the note there. The frame sits on
+           the page content box and cannot be pushed outward, so the content is
+           pulled inward instead. */
+        padding: 9pt 11pt;
       }
 
       @page { size: letter; }
 
       /* ---- Page-break behaviour ----
 
-         Deliberately NOT `break-inside: avoid` on .care-section as a whole. A
-         built-in section can carry four fields plus eight detail lines of up to
-         200 characters, which comfortably exceeds a page — and an unbreakable
-         box taller than a page makes Chrome push the whole thing to the next
-         sheet and leave a dead half-page behind it.
-
-         Instead: keep the heading welded to its first row (.section-keep), and
-         let everything after that flow. break-after: avoid on a heading alone
-         has never been reliable in Chrome's print path; a wrapper with
-         break-inside: avoid is. The wrapper is the mechanism, the break-after
-         is only a hint. */
-      .section-keep { break-inside: avoid; }
-      .section-keep h2 { break-after: avoid; }
-      .row, .item, .contact { break-inside: avoid; }
+         A whole care section is atomic: `break-inside: avoid` on .care-section.
+         That is safe because a section is now half-width and its fields print
+         one line each — the tallest realistic one (Meals, four fields, one a
+         300-character short_text) is around 1.1in in a column. If one ever does
+         outgrow a column Chrome splits it rather than clipping it, which is the
+         acceptable failure. Do not add `column-fill: auto`. */
+      .care-section, .row, .item, .contact { break-inside: avoid; }
       p { orphans: 3; widows: 3; }
 
-      /* ---- Masthead ---- */
-      .masthead {
-        background: var(--brand-gradient);
-        color: #fff;
-        padding: 14pt 18pt;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+      /* ---- Page frame ----
+         Repeats on EVERY page: Chrome paints a position:fixed element once per
+         sheet in the print path, and its insets resolve against the page's
+         content box — inside the @page margins Grover supplies. A bordered
+         wrapper div cannot do this. It fragments, so the top edge would draw
+         only on page 1 and the bottom edge only on the last, leaving the middle
+         sheets framed on two sides.
+
+         inset MUST be 0. Negative insets look like the way to buy breathing
+         room between the frame and the text, but Chrome clips the fixed layer
+         to the page content box and the frame then paints on NO page at all —
+         a silent no-op that looks like the CSS was ignored. Verified at -4pt,
+         not just at the larger values that might plausibly overflow the paper.
+
+         So the frame cannot move outward, and clearance has to come from the
+         content. Two different mechanisms are needed, because they cover
+         different pages:
+
+           page 1     body padding, below
+           every page .care-section padding-top, below
+
+         Body padding is laid out once, at the start of the flow, so it does
+         nothing for a page the document merely spills onto. A continuation
+         page begins at the page content box — flush against the frame — and
+         what lands there is always the top of a .care-section, since sections
+         are atomic. Padding on that box is what holds the text off the frame,
+         and it survives the fragmentation break where a margin would be
+         truncated. */
+      .page-frame {
+        position: fixed;
+        inset: 0;
+        border: 0.75pt solid var(--rule);
         border-radius: 10pt;
       }
-      .masthead .eyebrow {
-        font-size: 8pt;
-        font-weight: 800;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        opacity: 0.92;
-      }
-      .masthead h1 { font-size: 19pt; font-weight: 900; line-height: 1.15; }
-      .masthead img.logo { height: 30pt; width: auto; display: block; }
 
-      /* ---- Identity ---- */
-      .identity {
+      /* ---- Header band ----
+         One gradient band carrying the masthead and the identity block that
+         used to sit under it. The URL rides in .meta as plain text — these get
+         photocopied and handed to people who don't have a phone camera out —
+         which is what lets the QR shrink to a glanceable 44pt. */
+      .band {
+        background: var(--brand-gradient);
+        color: #fff;
+        border-radius: 9pt;
+        padding: 9pt 12pt;
         display: flex;
-        gap: 14pt;
         align-items: center;
-        padding: 14pt 0 12pt;
-        border-bottom: 1.5pt solid var(--rule);
+        gap: 11pt;
       }
-      .identity .avatar {
-        width: 74pt; height: 74pt;
+      .band .avatar,
+      .band .avatar-placeholder {
+        width: 46pt; height: 46pt;
         border-radius: 999pt;
+        flex: none;
         object-fit: cover;
-        border: 2.5pt solid var(--cyan);
         background: var(--cyan-tint);
-        flex: none;
+        border: 2pt solid rgba(255, 255, 255, 0.7);
       }
-      .identity .avatar-placeholder {
-        width: 74pt; height: 74pt;
-        border-radius: 999pt;
-        background: var(--cyan-tint);
-        border: 2.5pt solid var(--cyan);
-        flex: none;
-      }
-      .identity .who { flex: 1 1 auto; min-width: 0; }
-      .identity h2 { font-size: 17pt; font-weight: 900; line-height: 1.15; }
-      .identity .sub { color: var(--muted); font-size: 9.5pt; margin-top: 2pt; }
-      .identity .meta { color: var(--muted); font-size: 8.5pt; margin-top: 5pt; }
-
-      .qr { text-align: center; flex: none; width: 96pt; }
-      .qr img { width: 76pt; height: 76pt; display: block; margin: 0 auto; }
-      /* The URL is printed as text under the QR on purpose: these get
-         photocopied and handed to people who don't have a phone camera out. */
-      .qr .url {
+      .band .who { flex: 1 1 auto; min-width: 0; }
+      .band .eyebrow {
         font-size: 6.5pt;
-        color: var(--muted);
-        word-break: break-all;
-        line-height: 1.25;
-        margin-top: 3pt;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        opacity: 0.9;
       }
+      .band h1 { font-size: 16pt; font-weight: 900; line-height: 1.1; margin: 1pt 0 2pt; }
+      .band .meta { font-size: 7.5pt; font-weight: 600; opacity: 0.92; }
+      .band .qr {
+        flex: none;
+        background: #fff;
+        border-radius: 5pt;
+        padding: 3pt;
+        line-height: 0;
+      }
+      .band .qr img { width: 44pt; height: 44pt; display: block; }
 
-      /* ---- Emergency block ---- */
+      /* ---- Emergency block ----
+         Two columns, each cell one line: label inline with its value. Long
+         free text (notes) spans both. */
       .emergency {
-        border: 2pt solid var(--alert);
-        border-radius: 8pt;
-        padding: 11pt 13pt 12pt;
-        margin-top: 14pt;
+        border: 1.5pt solid var(--alert);
+        border-radius: 7pt;
+        padding: 8pt 10pt;
+        margin-top: 10pt;
         background: var(--alert-tint);
       }
       .emergency h2 {
-        font-size: 12.5pt;
+        font-size: 10pt;
         font-weight: 900;
         color: var(--alert);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 7pt;
-      }
-      .emergency .row { margin-bottom: 5pt; }
-      .emergency .row:last-child { margin-bottom: 0; }
-
-      .contacts { margin-top: 9pt; }
-      .contacts h3 {
-        font-size: 9pt;
-        font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: var(--alert);
         margin-bottom: 5pt;
-      }
-      .contact {
         display: flex;
-        justify-content: space-between;
-        gap: 10pt;
-        padding: 4pt 0;
-        border-top: 0.75pt solid rgba(179, 38, 30, 0.25);
+        align-items: center;
+        gap: 5pt;
       }
+      .emergency h2::after { content: ""; flex: 1; height: 1pt; background: rgba(179, 38, 30, 0.28); }
+
+      .egrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2pt 16pt; }
+      .egrid .f { font-size: 9.5pt; line-height: 1.35; }
+      .egrid .f .k {
+        font-size: 7.5pt;
+        font-weight: 900;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--alert);
+        margin-right: 4pt;
+      }
+      .egrid .f.wide { grid-column: 1 / -1; }
+      /* One muted line naming the fields nobody answered — the honest signal
+         that the old "None listed" rows carried, at a tenth of the height. */
+      .not-provided {
+        grid-column: 1 / -1;
+        font-size: 7.5pt;
+        font-style: italic;
+        color: var(--muted);
+        margin-top: 3pt;
+      }
+
+      .contacts {
+        margin-top: 6pt;
+        padding-top: 5pt;
+        border-top: 1pt solid rgba(179, 38, 30, 0.28);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2pt 16pt;
+      }
+      .contact { font-size: 9.5pt; }
       .contact .name { font-weight: 800; }
-      .contact .rel { color: var(--muted); font-size: 9pt; }
-      .contact .phone { font-weight: 800; white-space: nowrap; }
+      .contact .rel { color: var(--muted); font-weight: 600; }
+      .contact .phone { font-weight: 900; white-space: nowrap; }
 
       /* ---- Care sections ---- */
-      /* Sits inside the first section's .section-keep, not above the loop, so
-         it can't strand at the foot of a page with the first section overleaf.
-         The margin collapses against the section's own top margin, hence the
-         .first override below. */
       .care-heading {
-        font-size: 12.5pt;
+        font-size: 9.5pt;
         font-weight: 900;
         color: var(--navy);
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 6pt;
+        letter-spacing: 0.09em;
+        margin: 12pt 0 6pt;
+        display: flex;
+        align-items: center;
+        gap: 6pt;
       }
+      .care-heading::after { content: ""; flex: 1; height: 1.5pt; background: var(--cyan); }
 
-      .care-section { margin-top: 12pt; }
-      .care-section.first { margin-top: 18pt; }
-      .care-section h2 {
-        font-size: 12pt;
+      .cols { column-count: 2; column-gap: 20pt; }
+      /* padding-top, not margin-top: this is the clearance a section carries
+         onto a continuation page, where it starts flush against .page-frame.
+         A margin there would be truncated at the fragmentation break. It also
+         does duty as ordinary spacing between sections in a column, so the
+         margin below is trimmed to keep the rhythm even. */
+      .care-section { padding-top: 7pt; margin-bottom: 3pt; }
+      .care-section h3 {
+        font-size: 9.5pt;
         font-weight: 900;
         color: var(--navy);
-        padding-bottom: 3pt;
-        border-bottom: 1.5pt solid var(--cyan);
-        margin-bottom: 6pt;
+        padding-bottom: 1.5pt;
+        border-bottom: 1pt solid var(--cyan);
+        margin-bottom: 3pt;
       }
 
-      .row { margin-bottom: 5pt; }
+      .row { margin-bottom: 2.5pt; line-height: 1.35; }
       .row .label {
-        font-size: 8.5pt;
-        font-weight: 800;
+        font-size: 7.5pt;
+        font-weight: 900;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        letter-spacing: 0.07em;
         color: var(--muted);
+        margin-right: 4pt;
       }
-      .row .value { font-size: 10.5pt; }
+      .row .value { font-size: 9.5pt; }
 
-      .chips { display: flex; flex-wrap: wrap; gap: 4pt; margin-top: 2pt; }
+      /* The alternative treatment: multi_select values as chips rather than a
+         comma-joined sentence. Text won — it is calmer and roughly half the
+         height — but the mockup showed both, so the styles stay. Switching is
+         the :multi_select branch in _care_plan_row.html.erb plus these rules. */
+      /*
+      .row.chips { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2.5pt; }
+      .row.chips .label { flex: none; margin-right: 1pt; }
       .chip {
         background: var(--cyan-tint);
-        border: 0.75pt solid var(--cyan);
+        border: 0.6pt solid var(--cyan);
         border-radius: 999pt;
-        padding: 1.5pt 7pt;
-        font-size: 9.5pt;
+        padding: 0.5pt 5pt;
+        font-size: 8pt;
         font-weight: 700;
+        color: var(--navy);
       }
+      */
 
-      .items { margin-top: 6pt; }
       .item {
-        padding: 3pt 0;
-        border-top: 0.75pt solid var(--rule);
-        font-size: 10pt;
+        padding: 1.5pt 0;
+        border-top: 0.6pt solid var(--rule);
+        font-size: 9pt;
+        line-height: 1.35;
       }
       .item .k { font-weight: 800; }
 
       .muted { color: var(--muted); }
 
+      /* The logo sits here rather than in the band: on the gradient it needed a
+         white pad to stay legible against hues it shares, and down here on
+         white it needs nothing.
+
+         Opposite corner from the note, and centred rather than top-aligned. A
+         14pt mark next to a 7pt line has no top edge worth sharing — aligning
+         their tops hangs the mark most of a line below the text and reads as
+         a mistake. In the corner it answers to nothing but the frame. */
       .footnote {
-        margin-top: 20pt;
-        padding-top: 8pt;
+        margin-top: 12pt;
+        padding-top: 5pt;
         border-top: 0.75pt solid var(--rule);
-        font-size: 8pt;
+        font-size: 7pt;
         color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10pt;
+      }
+      .footnote .mark {
+        width: 14pt;
+        height: 14pt;
+        display: block;
+        flex: none;
       }
     </style>
   </head>

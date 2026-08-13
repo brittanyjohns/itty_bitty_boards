@@ -213,15 +213,41 @@ RSpec.describe Communicators::CarePlanDocument do
       }
     end
 
-    it "exposes every emergency field, blanks included" do
+    # Blank fields cost a row each and print nothing but "None listed", which is
+    # what pushed a near-empty profile onto two pages.
+    it "exposes only the emergency fields that were answered" do
       doc = with_care({ "sections" => {} }, emergency)
 
       fields = doc.emergency_fields.index_by(&:key)
-      expect(fields.keys).to eq(described_class::EMERGENCY_FIELDS)
+      expect(fields.keys).to eq(%w[allergies medications])
       expect(fields["allergies"].values).to eq(["peanuts"])
-      # Blank rather than omitted: a missing "Medical conditions" heading and
-      # "Medical conditions — none listed" read very differently to a responder.
-      expect(fields["medical_conditions"].values).to be_empty
+    end
+
+    # The omitted fields are still accounted for — one muted line naming them
+    # keeps "nobody answered this" distinguishable from "there is nothing here".
+    it "names the blank emergency fields, in reading order" do
+      doc = with_care({ "sections" => {} }, emergency)
+
+      expect(doc.blank_emergency_field_names)
+        .to eq(["conditions", "other conditions", "notes"])
+    end
+
+    it "names nothing when every field is answered" do
+      answered = described_class::EMERGENCY_FIELDS.index_with { "something" }
+      doc = with_care({ "sections" => {} }, answered)
+
+      expect(doc.emergency_fields.length).to eq(described_class::EMERGENCY_FIELDS.length)
+      expect(doc.blank_emergency_field_names).to be_empty
+    end
+
+    # The flag is the documented one-line revert. If it is ever flipped back,
+    # every field returns and nothing is summarised.
+    it "keeps every field and names none when OMIT_BLANK_EMERGENCY_FIELDS is off" do
+      stub_const("#{described_class}::OMIT_BLANK_EMERGENCY_FIELDS", false)
+      doc = with_care({ "sections" => {} }, emergency)
+
+      expect(doc.emergency_fields.map(&:key)).to eq(described_class::EMERGENCY_FIELDS)
+      expect(doc.blank_emergency_field_names).to be_empty
     end
 
     it "exposes contacts through Profile#safety_contacts" do

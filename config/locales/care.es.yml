@@ -168,3 +168,14 @@ es:
         contacts: A quién llamar
         no_contacts: No hay contactos de emergencia.
         relationship_unknown: Contacto
+        not_provided: No se indicaron %{fields}.
+        blank_names:
+          allergies: alergias
+          medical_conditions: afecciones médicas
+          medications: medicamentos
+          other_conditions: otras afecciones
+          emergency_notes: notas
+        blank_names_connectors:
+          words_connector: ", "
+          two_words_connector: " ni "
+          last_word_connector: " ni "

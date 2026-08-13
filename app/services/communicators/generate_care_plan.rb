@@ -23,7 +23,9 @@ module Communicators
     # documents already generated. safety_info_signature only moves when the
     # PROFILE changes, so without this a redesign leaves every cached PDF stale
     # forever — a gap the existing card generators still have.
-    LAYOUT_VERSION = 1
+    # 2: condensed layout — merged header band, two-column emergency grid,
+    #    omitted blank emergency fields, two-column care sections.
+    LAYOUT_VERSION = 2
 
     VARIANTS = {
       full: { attachment: :care_emergency_plan_pdf, filename: "care-and-emergency-plan", emergency: true },
@@ -110,12 +112,11 @@ module Communicators
 
     def template_assigns
       {
+        # No subtitle: the condensed band carries title · prepared-on · URL on
+        # one 7.5pt meta line, and "How to support Rosa day to day" is the one
+        # line on the old sheet a reader already knows. care.document.subtitle
+        # is left in the locale files for whoever brings it back.
         title: I18n.t("care.document.title.#{variant}", locale: locale),
-        subtitle: I18n.t(
-          "care.document.subtitle.#{variant}",
-          name: profile.safety_display_name,
-          locale: locale,
-        ),
         prepared_on: I18n.t(
           "care.document.prepared_on",
           date: I18n.l(Date.current, format: :long, locale: locale),
@@ -131,6 +132,7 @@ module Communicators
         qr_data_url: qr_data_url_for(public_url),
         emergency: config[:emergency],
         emergency_fields: config[:emergency] ? document.emergency_fields : [],
+        blank_emergency_field_names: config[:emergency] ? document.blank_emergency_field_names : [],
         emergency_contacts: config[:emergency] ? document.emergency_contacts : [],
         care_sections: document.care_sections,
       }

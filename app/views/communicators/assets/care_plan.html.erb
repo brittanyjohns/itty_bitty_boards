@@ -11,17 +11,13 @@
     sections — it is what someone reaches for in a hurry, and it should not be
     on page 2. %>
 
-<div class="masthead">
-  <div>
-    <div class="eyebrow">SpeakAnyWay</div>
-    <h1><%= @title %></h1>
-  </div>
-  <% if @logo.present? %>
-    <img class="logo" src="data:image/png;base64,<%= @logo %>" alt="" />
-  <% end %>
-</div>
+<%# One band, not a masthead plus an identity row. The public URL rides in the
+    meta line as plain text, which is what lets the QR come down to 44pt — the
+    sheet still works for someone without a phone camera out. %>
+<%# Painted once per sheet by Chrome, not part of the flow — see .page-frame. %>
+<div class="page-frame"></div>
 
-<div class="identity">
+<div class="band">
   <% if @avatar_data_url.present? %>
     <img class="avatar" src="<%= @avatar_data_url %>" alt="" />
   <% else %>
@@ -29,120 +25,92 @@
   <% end %>
 
   <div class="who">
-    <h2><%= @display_name %></h2>
-    <div class="sub"><%= @subtitle %></div>
+    <div class="eyebrow">SpeakAnyWay</div>
+    <h1><%= @display_name %></h1>
     <div class="meta">
-      <%= @prepared_on %><% if @pronouns.present? %> · <%= @pronouns %><% end %>
+      <%= @title %> · <%= @prepared_on %><% if @pronouns.present? %> · <%= @pronouns %><% end %> · <%= @public_url %>
     </div>
   </div>
 
   <% if @qr_data_url.present? %>
-    <div class="qr">
-      <img src="<%= @qr_data_url %>" alt="" />
-      <div class="url"><%= @public_url %></div>
-    </div>
+    <div class="qr"><img src="<%= @qr_data_url %>" alt="" /></div>
   <% end %>
 </div>
 
 <% if @emergency %>
-  <%# The emergency block always prints every field, blanks included. A missing
-      "Medications" heading and "Medications — none listed" read very
-      differently to someone holding a distressed child, and only one of them is
-      honest about having been asked. This is the same choice the safety ID card
-      already makes. %>
+  <%# Blank emergency fields are OMITTED and named collectively in the muted
+      line below — see CarePlanDocument::OMIT_BLANK_EMERGENCY_FIELDS, which is
+      the one line to flip to get the per-field "None listed" rows back. %>
   <section class="emergency">
-    <div class="section-keep">
-      <h2><%= t("care.document.emergency.heading") %></h2>
+    <h2><%= t("care.document.emergency.heading") %></h2>
 
-      <% first, *rest = @emergency_fields %>
-      <% if first %>
-        <div class="row">
-          <div class="label"><%= first.label %></div>
-          <div class="value">
-            <%= first.values.first.presence || content_tag(:span, t("care.document.none_listed"), class: "muted") %>
-          </div>
+    <div class="egrid">
+      <% @emergency_fields.each do |field| %>
+        <%# Free-text notes run long enough to want the full width. %>
+        <div class="f<%= " wide" if field.key == "emergency_notes" %>">
+          <span class="k"><%= field.label %></span><%= field.values.first %>
+        </div>
+      <% end %>
+
+      <% if @blank_emergency_field_names.any? %>
+        <div class="not-provided">
+          <%= t(
+                "care.document.emergency.not_provided",
+                fields: @blank_emergency_field_names.to_sentence(
+                  words_connector: t("care.document.emergency.blank_names_connectors.words_connector"),
+                  two_words_connector: t("care.document.emergency.blank_names_connectors.two_words_connector"),
+                  last_word_connector: t("care.document.emergency.blank_names_connectors.last_word_connector"),
+                ),
+              ) %>
         </div>
       <% end %>
     </div>
 
-    <% rest.each do |field| %>
-      <div class="row">
-        <div class="label"><%= field.label %></div>
-        <div class="value">
-          <%= field.values.first.presence || content_tag(:span, t("care.document.none_listed"), class: "muted") %>
-        </div>
-      </div>
-    <% end %>
-
     <div class="contacts">
-      <h3><%= t("care.document.emergency.contacts") %></h3>
       <% if @emergency_contacts.any? %>
         <% @emergency_contacts.each do |contact| %>
           <div class="contact">
-            <div>
-              <div class="name"><%= contact["name"].presence || t("care.document.emergency.relationship_unknown") %></div>
-              <% if contact["relationship"].present? %>
-                <div class="rel"><%= contact["relationship"] %></div>
-              <% end %>
-            </div>
-            <div class="phone"><%= contact["phone"] %></div>
+            <span class="name"><%= contact["name"].presence || t("care.document.emergency.relationship_unknown") %></span><% if contact["relationship"].present? %> <span class="rel">· <%= contact["relationship"] %></span><% end %> — <span class="phone"><%= contact["phone"] %></span>
           </div>
         <% end %>
       <% else %>
-        <div class="muted"><%= t("care.document.emergency.no_contacts") %></div>
+        <div class="contact muted"><%= t("care.document.emergency.no_contacts") %></div>
       <% end %>
     </div>
   </section>
 <% end %>
 
 <% if @care_sections.any? %>
-  <% @care_sections.each_with_index do |section, index| %>
-    <section class="care-section<%= " first" if index.zero? %>">
-      <%# Heading welded to its first row so a section can never open with its
-          title stranded alone at the foot of a page. Everything after this
-          flows — see the layout comment on why the whole section is not
-          break-inside: avoid.
+  <%# The heading sits above the loop, outside .cols. It can no longer strand at
+      the foot of a page: what follows it is a two-column flow, not one tall
+      element. %>
+  <div class="care-heading"><%= t("care.document.care_heading") %></div>
 
-          The "Day-to-day support" divider lives INSIDE the first section's
-          keep block rather than above the loop. Rendered as its own element it
-          was landing alone at the foot of page 1 with the first section
-          starting overleaf — verified in a real render, which is the only
-          place a break like that is visible. %>
-      <% first_row = section.fields.first %>
-      <div class="section-keep">
-        <% if index.zero? %>
-          <div class="care-heading"><%= t("care.document.care_heading") %></div>
+  <div class="cols">
+    <% @care_sections.each do |section| %>
+      <section class="care-section">
+        <h3><%= section.label %></h3>
+
+        <% section.fields.each do |field| %>
+          <%= render "communicators/assets/care_plan_row", field: field %>
         <% end %>
-        <h2><%= section.label %></h2>
 
-        <% if first_row %>
-          <%= render "communicators/assets/care_plan_row", field: first_row %>
-        <% elsif section.items.first %>
-          <div class="items">
-            <%= render "communicators/assets/care_plan_item", item: section.items.first %>
-          </div>
+        <% section.items.each do |item| %>
+          <%= render "communicators/assets/care_plan_item", item: item %>
         <% end %>
-      </div>
-
-      <% section.fields.drop(1).each do |field| %>
-        <%= render "communicators/assets/care_plan_row", field: field %>
-      <% end %>
-
-      <% remaining_items = first_row ? section.items : section.items.drop(1) %>
-      <% if remaining_items.any? %>
-        <div class="items">
-          <% remaining_items.each do |item| %>
-            <%= render "communicators/assets/care_plan_item", item: item %>
-          <% end %>
-        </div>
-      <% end %>
-    </section>
-  <% end %>
+      </section>
+    <% end %>
+  </div>
 <% end %>
 
 <div class="footnote">
-  <%= t("care.document.live_page") %>
-  <% if @emergency %>
-    <%= t("care.document.confidential") %>
+  <span>
+    <%= t("care.document.live_page") %>
+    <% if @emergency %>
+      <%= t("care.document.confidential") %>
+    <% end %>
+  </span>
+  <% if @logo.present? %>
+    <img class="mark" src="data:image/png;base64,<%= @logo %>" alt="" />
   <% end %>
 </div>

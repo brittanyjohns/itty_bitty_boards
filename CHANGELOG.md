@@ -52,6 +52,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   medical detail. Both carry a QR code back to the live page, because paper
   goes out of date and the page doesn't.
 
+  It's built to stay short. A typical profile comes out at about half a page,
+  so it can go on a fridge or in a substitute teacher's folder without being a
+  stack — the emergency details sit in two columns, the day-to-day sections
+  flow in two more, and emergency questions you left blank are summed up in a
+  single line ("No allergies, conditions, medications, or notes were
+  provided") instead of taking a row each. Longer plans keep flowing onto as
+  many pages as they need; nothing is ever cut off to make it fit.
+
   Downloads live under **Print & share** on the communicator's page, and only
   the owner can generate them — they're never offered on the public MySpeak
   page. If you haven't filled in any care sections yet there's nothing to

@@ -34,6 +34,17 @@ module Communicators
       emergency_notes
     ].freeze
 
+    # When false, blank emergency fields print as "None listed" on their own row
+    # — see the note in .claude-notes/care-plan-pdf-density-handoff.md before
+    # flipping this.
+    #
+    # The trade it makes: a reader in an emergency cannot distinguish "this child
+    # has no allergies" from "nobody filled in the allergies field" once the
+    # field is absent. #blank_emergency_field_names exists so the template can
+    # print one muted line naming what went unanswered, which keeps the honest
+    # signal at the cost of a line instead of ten.
+    OMIT_BLANK_EMERGENCY_FIELDS = true
+
     def initialize(profile, locale: I18n.locale)
       @profile = profile
       @locale = locale
@@ -49,18 +60,25 @@ module Communicators
       care_sections.any?
     end
 
-    # Emergency values, blanks included. Unlike the care sections, a blank
-    # emergency field is NOT omitted: "Allergies — none listed" and a missing
-    # Allergies heading read very differently to someone holding a distressed
-    # child, and only one of them is honest about having been asked.
+    # The emergency fields worth printing. Blank ones are dropped under
+    # OMIT_BLANK_EMERGENCY_FIELDS and named collectively by
+    # #blank_emergency_field_names instead.
     def emergency_fields
-      EMERGENCY_FIELDS.map do |key|
-        Field.new(
-          key: key,
-          label: I18n.t("care.document.emergency.#{key}", locale: locale),
-          type: :short_text,
-          values: [settings[key].to_s.strip.presence].compact,
-        )
+      fields = all_emergency_fields
+      return fields unless OMIT_BLANK_EMERGENCY_FIELDS
+
+      fields.select { |field| field.values.any? }
+    end
+
+    # Short, lowercase names for the emergency fields nobody answered, in
+    # EMERGENCY_FIELDS order — the template joins them into the one muted line
+    # that replaces ten "None listed" rows. Empty when nothing is being omitted,
+    # so the template needs no second condition.
+    def blank_emergency_field_names
+      return [] unless OMIT_BLANK_EMERGENCY_FIELDS
+
+      all_emergency_fields.reject { |field| field.values.any? }.map do |field|
+        I18n.t("care.document.emergency.blank_names.#{field.key}", locale: locale)
       end
     end
 
@@ -73,6 +91,17 @@ module Communicators
     end
 
     private
+
+    def all_emergency_fields
+      @all_emergency_fields ||= EMERGENCY_FIELDS.map do |key|
+        Field.new(
+          key: key,
+          label: I18n.t("care.document.emergency.#{key}", locale: locale),
+          type: :short_text,
+          values: [settings[key].to_s.strip.presence].compact,
+        )
+      end
+    end
 
     def settings
       @settings ||= profile.settings.is_a?(Hash) ? profile.settings : {}

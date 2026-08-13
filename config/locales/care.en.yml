@@ -168,3 +168,19 @@ en:
         contacts: Who to call
         no_contacts: No emergency contacts listed.
         relationship_unknown: Contact
+        # Printed once, muted, under the emergency grid when blank fields are
+        # omitted. %{fields} is the joined blank_names list below.
+        not_provided: No %{fields} were provided.
+        # Short lowercase forms, for that one line only — the grid uses the
+        # full labels above.
+        blank_names:
+          allergies: allergies
+          medical_conditions: conditions
+          medications: medications
+          other_conditions: other conditions
+          emergency_notes: notes
+        # "or", not "and": the sentence says none of these were answered.
+        blank_names_connectors:
+          words_connector: ", "
+          two_words_connector: " or "
+          last_word_connector: ", or "
