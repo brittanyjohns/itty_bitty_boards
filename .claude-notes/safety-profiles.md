@@ -144,6 +144,37 @@ the free-text bio.
   frontend previously carried a hand-copied duplicate, and since
   `sanitize_care_settings` DROPS an unrecognized key rather than rejecting it, a
   rename deleted that answer from every profile with no error and no 422.
+- **The LABELS are served too, and the backend owns them.** `CareLabels`
+  (`app/services/care_labels.rb`) resolves a section / field / option key
+  against `config/locales/care.{en,es}.yml`; `care_registry_view` emits them as
+  `label` on each section and field plus an `option_labels` hash on each select
+  field. Ported verbatim from the frontend locale files, which were the only
+  place they existed — meaning nothing server-side could render care data for a
+  human, and a printed sheet can't say "Braces or afos".
+  - **Labels are ADDITIVE and must stay that way.** `options` stays an array of
+    plain strings because the deployed frontend parses it with `asStringList`,
+    which returns `[]` for objects — promoting options to `{key, label}` would
+    empty every section in the live editor. New information goes in sibling
+    keys, never by changing the shape of an existing one.
+  - **`option_labels` is deliberately wider than `options`:** offered ∪ retired
+    (`accepted_care_options`). A retired option is still stored on real profiles
+    and still has to render; it just must never be offered.
+  - The fallback is a hand-written `CareLabels.humanize`, not `String#humanize`
+    — the latter strips a trailing `_id` and consults inflections, so Ruby and
+    TypeScript could disagree on exactly the unlabeled keys where the fallback
+    is the only thing running.
+  - `spec/services/care_labels_spec.rb` fails the build if any section, field,
+    or accepted option lacks a label. It reads the raw `I18n.backend`
+    translation store rather than `I18n.exists?`/`I18n.t`, both of which follow
+    `config.i18n.fallbacks` — `I18n.exists?("care.sections.mobility", :fr)` is
+    **true** purely because `:fr` falls back to `:en`, which would make the
+    whole sweep a test that English exists. An anti-vacuity example asserts a
+    care-label-less locale still reports missing.
+  - The payload is locale-dependent, so `GET /api/care_sections` is
+    `expires_in 1.hour, public: false` — a shared cache keyed on the path alone
+    would hand a Spanish registry to an English client. `?locale=` is
+    whitelisted against `I18n.available_locales`, never symbolized from raw
+    params.
 - **Retiring an option is a TWO-STEP process, and step one is one line.**
   `Profile::DEPRECATED_CARE_OPTIONS` maps
   `section => field => { retired_key => replacement_or_nil }`. Adding a key

@@ -1,0 +1,145 @@
+# Human-readable labels for Profile::CARE_SECTIONS.
+#
+# The backend owns the care SCHEMA (Profile::CARE_SECTIONS, #673 "serve the
+# care schema instead of duplicating it") but stored only keys — `what_helps`,
+# `thickened_liquids`. The display strings lived solely in the frontend, at
+# src/locales/{en,es}.json under marketing.publicProfile.care.*, so nothing
+# server-side could render care data for a human. Humanizing a key is not good
+# enough for a printed sheet a parent hands to a school office: `aac_device`
+# humanizes to "Aac device" and `braces_or_afos` to "Braces or afos".
+#
+# So labels follow the schema. These were ported verbatim from the frontend
+# locale files and are now served on GET /api/care_sections, which makes this
+# side the source of truth for both.
+#
+# Every section, field, and ACCEPTED option (offered, plus anything retired
+# into Profile::DEPRECATED_CARE_OPTIONS) needs an entry here —
+# spec/services/care_labels_spec.rb fails the build otherwise. A retired
+# option is still stored on real profiles and still has to render.
+#
+# Resolve through CareLabels, never I18n.t directly, so the humanize fallback
+# stays identical to the frontend's.
+en:
+  care:
+    sections:
+      communication: Communication
+      personal_care: Personal care
+      meals: Meals & snacks
+      sensory: Sensory
+      mobility: Moving around
+      transportation: Getting around
+    fields:
+      communication:
+        methods: How I communicate
+        what_helps: What helps me
+      personal_care:
+        toileting: Toileting
+        schedule: Schedule
+        hygiene: Help with hygiene
+        dressing: Dressing
+      meals:
+        eating: What helps at meals
+        textures: Textures
+        equipment: Utensils & cups
+        preferences: Preferences
+      sensory:
+        sound: Sound
+        touch: Touch
+        light: Light
+        calming: What helps when it's too much
+      mobility:
+        equipment: Equipment I use
+        support: Help I need moving around
+      transportation:
+        school_travel: To & from school
+        seating: Seating
+        bus_info: Bus info
+    options:
+      communication:
+        methods:
+          aac_device: AAC device
+          aac_book: AAC book
+          sign: Sign
+          gestures: Gestures
+          some_speech: Some speech
+          eye_gaze: Eye gaze
+          partner_assisted: Partner assisted
+        what_helps:
+          keep_my_device_close: Keep my device close
+          model_on_my_device: Model on my device
+          wait_and_pause: Wait and pause
+          offer_choices: Offer choices
+      personal_care:
+        toileting:
+          independent: Independent
+          needs_reminders: Needs reminders
+          needs_help: Needs help
+          toilet_training: Toilet training
+          pull_ups: Pull-ups
+          diapers: Diapers
+        schedule:
+          on_request: On request
+          scheduled_times: Scheduled times
+        hygiene:
+          handwashing: Handwashing
+          toothbrushing: Toothbrushing
+          face_and_hands: Face and hands
+          hair_brushing: Hair brushing
+        dressing:
+          independent: Independent
+          some_help: Some help
+          full_help: Full help
+      meals:
+        eating:
+          food_cut_up: Food cut up
+          needs_supervision: Needs supervision
+          fed_by_an_adult: Fed by an adult
+          tube_fed: Tube fed
+        textures:
+          regular: Regular
+          soft: Soft
+          chopped: Chopped
+          pureed: Pureed
+          thickened_liquids: Thickened liquids
+        equipment:
+          fork_and_spoon: Fork and spoon
+          fingers: Fingers
+          adapted_utensils: Adapted utensils
+          specific_cup: Specific cup
+      sensory:
+        sound:
+          loud_noises_hurt: Loud noises hurt
+          uses_ear_defenders: Uses ear defenders
+          warn_before_alarms: Warn me before alarms
+          likes_music: Likes music
+        touch:
+          ask_before_touching: Ask before touching
+          dislikes_light_touch: Dislikes light touch
+          likes_deep_pressure: Likes deep pressure
+        light:
+          bright_light_hurts: Bright light hurts
+          flickering_bothers: Flickering bothers me
+          prefers_dim: Prefers dim light
+      mobility:
+        equipment:
+          wheelchair: Wheelchair
+          walker_or_gait_trainer: Walker or gait trainer
+          braces_or_afos: Braces or AFOs
+          cane_or_crutches: Cane or crutches
+        support:
+          independent: Independent
+          standby_supervision: Standby supervision
+          hands_on_help: Hands-on help
+          help_with_transfers: Help with transfers
+      transportation:
+        school_travel:
+          bus: Bus
+          car_rider: Car rider
+          walks: Walks
+          wheelchair_van: Wheelchair van
+          parent_pickup: Parent pickup
+        seating:
+          harness: Harness
+          car_seat: Car seat
+          booster: Booster
+          wheelchair_securement: Wheelchair securement

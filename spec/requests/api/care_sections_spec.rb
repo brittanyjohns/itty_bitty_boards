@@ -95,6 +95,93 @@ RSpec.describe "API::CareSections", type: :request do
       end
     end
 
+    describe "labels" do
+      it "labels every section and field" do
+        get "/api/care_sections"
+        body = JSON.parse(response.body)
+
+        body["sections"].each do |section|
+          expect(section["label"]).to eq(CareLabels.section(section["key"]))
+
+          section["fields"].each do |field|
+            expect(field["label"]).to eq(CareLabels.field(section["key"], field["key"]))
+          end
+        end
+      end
+
+      # THE non-breaking assertion. The deployed frontend reads `options` with
+      # asStringList(), which returns [] for anything that isn't an array of
+      # strings — so promoting options to {key:, label:} objects would empty
+      # every section in the live editor. Labels must stay a sibling key.
+      it "keeps options as a flat array of strings" do
+        get "/api/care_sections"
+        body = JSON.parse(response.body)
+
+        options = body["sections"].flat_map { |s| s["fields"] }.filter_map { |f| f["options"] }
+
+        expect(options).to be_present
+        expect(options.flatten).to all(be_a(String))
+      end
+
+      it "omits option_labels for a short_text field, like options" do
+        get "/api/care_sections"
+        body = JSON.parse(response.body)
+
+        preferences = body["sections"]
+                      .find { |s| s["key"] == "meals" }["fields"]
+                      .find { |f| f["key"] == "preferences" }
+
+        expect(preferences).not_to have_key("option_labels")
+      end
+
+      # option_labels is deliberately WIDER than options: a retired option is
+      # no longer offered but is still stored on real profiles, so it still has
+      # to render. Stubbed because DEPRECATED_CARE_OPTIONS is empty today —
+      # the first real retirement must not be the first exercise of this path.
+      it "labels a retired option that options no longer offers" do
+        stub_const("Profile::DEPRECATED_CARE_OPTIONS",
+                   { "meals" => { "textures" => { "minced" => nil } } })
+
+        get "/api/care_sections"
+        textures = JSON.parse(response.body)["sections"]
+                       .find { |s| s["key"] == "meals" }["fields"]
+                       .find { |f| f["key"] == "textures" }
+
+        expect(textures["options"]).not_to include("minced")
+        expect(textures["option_labels"]).to include("minced" => "Minced")
+      end
+
+      it "serves Spanish labels when asked, and echoes the locale" do
+        get "/api/care_sections", params: { locale: "es" }
+        body = JSON.parse(response.body)
+
+        sound = body["sections"]
+                .find { |s| s["key"] == "sensory" }["fields"]
+                .find { |f| f["key"] == "sound" }
+
+        expect(body["locale"]).to eq("es")
+        expect(sound["option_labels"]["likes_music"]).to eq("Le gusta la música")
+      end
+
+      it "falls back to the default locale for an unknown or malformed one" do
+        ["kl", "", "../../etc/passwd"].each do |bogus|
+          get "/api/care_sections", params: { locale: bogus }
+
+          expect(response).to have_http_status(:ok)
+          expect(JSON.parse(response.body)["locale"]).to eq(I18n.default_locale.to_s)
+        end
+      end
+
+      # The payload varies by locale now, so a shared/proxy cache keyed on the
+      # path alone would serve a Spanish registry to an English client.
+      it "is not publicly cacheable" do
+        get "/api/care_sections"
+
+        expect(response.headers["Cache-Control"]).to include("private")
+        expect(response.headers["Cache-Control"]).not_to include("public")
+      end
+    end
+
     # The payload's whole job is to be the thing the sanitizer will accept. If
     # these two ever disagree, the editor offers a choice that vanishes on save.
     it "offers only options sanitize_care_settings will keep" do

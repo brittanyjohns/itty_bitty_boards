@@ -6,9 +6,22 @@ class API::CareSectionsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[index]
 
   def index
-    # Static for the life of a deploy — safe to let clients and any proxy hold
-    # on to it. Changing CARE_SECTIONS ships a new deploy, which busts this.
-    expires_in 1.hour, public: true
-    render json: Profile.care_registry_view
+    # `private`, not `public`, since labels made this payload locale-dependent:
+    # a shared cache keyed on the path alone would hand a Spanish registry to
+    # an English client. Costs little — the client memoizes it per session.
+    expires_in 1.hour, public: false
+    render json: Profile.care_registry_view(locale: requested_locale)
+  end
+
+  private
+
+  # Whitelisted against available_locales rather than symbolized straight from
+  # the params — an unbounded `to_sym` on user input both grows the symbol
+  # table and lets an arbitrary string reach I18n.
+  def requested_locale
+    requested = params[:locale].to_s
+    return I18n.default_locale if requested.blank?
+
+    I18n.available_locales.find { |l| l.to_s == requested } || I18n.default_locale
   end
 end
