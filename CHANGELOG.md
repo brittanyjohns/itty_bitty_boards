@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A page's back tile now really does land where the tile that opens it sits.**
+  On admin-built boards the alignment quietly did nothing whenever the parent's
+  folder tile sat at the far right of its own last row — the most common place
+  for it — because the page it opens usually has a shorter last row, and the
+  mirrored cell was slid along that row to the final tile: exactly the
+  bottom-right corner the back tile was already written into. It now backs up a
+  row and keeps the column, so the way home sits directly under the column you
+  tapped to get there.
+
 - **Only a communicator's owner can generate their Safety ID card or device
   tag.** The endpoints that build those printables checked that you were signed
   in but never checked *whose* communicator you were asking about — so any

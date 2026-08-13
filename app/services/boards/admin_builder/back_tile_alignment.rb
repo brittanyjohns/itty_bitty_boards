@@ -94,19 +94,25 @@ module Boards
 
       # The parent's cell, clamped into this page's grid. A page can carry its
       # own `columns` (mixed grids are allowed) and is usually shorter than the
-      # root, so both axes have to be brought back in range — and the final
-      # clamp handles a ragged last row, where the mirrored column doesn't
-      # exist yet.
+      # root, so both axes have to be brought back in range.
+      #
+      # The COLUMN is what muscle memory is anchored to, so a ragged last row is
+      # resolved by backing UP a row in the same column — never by sliding along
+      # the row to the last tile, which is how a bottom-right folder tile used
+      # to mirror straight back into the bottom-right corner it was supposed to
+      # move away from.
       def mirrored_index(page, link)
         parent_columns = link[:page][:columns].to_i
         columns = page[:columns].to_i
         count = page[:tiles].size
         return nil if parent_columns < 1 || columns < 1 || count.zero?
 
-        x = [link[:index] % parent_columns, columns - 1].min
-        y = [link[:index] / parent_columns, (count - 1) / columns].min
+        # `count - 1` too: a page with fewer tiles than columns has no such
+        # column at all, and a negative row is not a cell.
+        x = [link[:index] % parent_columns, columns - 1, count - 1].min
+        y = [link[:index] / parent_columns, (count - 1 - x) / columns].min
 
-        [(y * columns) + x, count - 1].min
+        (y * columns) + x
       end
     end
   end

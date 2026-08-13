@@ -1141,8 +1141,12 @@ Its own invariants:
   `ArtPreview` render the same permutation — otherwise the admin approves a grid
   the build won't produce. Parentage is BFS from `ROOT_KEY`, so the *shallowest*
   parent wins when two pages open the same child; x and y are clamped into the
-  child's own grid (pages may carry their own `columns`) and the final clamp
-  handles a ragged last row. A **swap, not an insert** — both tiles are 1×1, so
+  child's own grid (pages may carry their own `columns`). A ragged last row is
+  resolved **by backing up a row in the same column, never by sliding along the
+  row** — the column is what muscle memory is anchored to, and clamping to the
+  last occupied cell made the alignment a no-op for the common case where the
+  parent's folder tile sits at the far right of its own last row (the back tile
+  was already written last, i.e. in that corner). A **swap, not an insert** — both tiles are 1×1, so
   the grid stays packed and the displaced word takes the corner.
   `Board#apply_layout!` sorts by `[y, x]` and renumbers `position`, so reading
   order downstream follows the aligned layout for free.
