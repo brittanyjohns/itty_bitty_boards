@@ -7,6 +7,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A failed renewal now has an end date.** `past_due` was designed as a grace
+  state — Stripe keeps retrying the charge and access continues — but nothing
+  ever ended the grace, so when the terminal cancel event never arrived (dunning
+  set to leave the subscription past_due, or a missed webhook) an account kept
+  paid limits indefinitely. Accounts past_due longer than `PAST_DUE_GRACE_DAYS`
+  (default 30) now drop to Free with a subscription-ended email. Nothing is
+  deleted: over-limit boards go read-only with one still editable, and
+  over-limit communicators enter fallback. If Stripe says the subscription is
+  paying again, the account is restored to active instead — and if Stripe can't
+  be reached, nothing changes.
+
 - **Care options can now be retired without destroying answers people already
   gave.** Removing a choice from the care registry used to erase it from every
   profile still holding it, the next time that profile was saved for any reason

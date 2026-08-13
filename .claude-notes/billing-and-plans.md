@@ -116,6 +116,33 @@ also routes terminal statuses (`unpaid`, `incomplete_expired` —
 that's a real payer's failed renewal, left in Stripe dunning
 (`handle_invoice_payment_failed`).
 
+### past_due is a grace state with an age, not an open-ended one
+
+`past_due` sits outside every other downgrade path on purpose: it is not in
+`User::UNPAID_STATUSES` (so `paid_plan?` stays true and
+`reconcile_stranded_plan!` no-ops on sign-in) and not in
+`TRIAL_LAPSED_STATUSES`. Nothing about signing in re-checks it — downgrades
+here are entirely webhook-driven — so when the terminal event never lands
+(dunning configured to leave the subscription `past_due`, or a missed
+webhook), a lapsed payer keeps paid limits indefinitely.
+
+`DowngradePastDueJob` (daily, 6:30am UTC) bounds that window:
+
+- **Entry is stamped in the model**, not the webhook —
+  `User#track_past_due_transition` (a `before_save` on `plan_status_changed?`)
+  writes `settings["past_due_since"]` on entry and deletes it on exit, so both
+  Stripe `invoice.payment_failed` and RevenueCat `BILLING_ISSUE` are covered by
+  one rule and a recovered payer re-enters with a fresh window.
+- Past `PAST_DUE_GRACE_DAYS` (default 30) → `apply_free_plan` + the
+  subscription-canceled email. Data is retained per the downgrade invariant.
+- **Stripe is consulted before any downgrade.** `active`/`trialing` means our
+  recovery webhook was missed, so the job heals the user back to `active`
+  instead; a Stripe error skips the user. An unreachable API is not evidence
+  that someone stopped paying.
+- Rows that predate the stamp are stamped on first sweep and age out one window
+  later — `updated_at` moves on every sign-in, so there is no honest historical
+  date to downgrade off of.
+
 Trial→paid is measured via `AnalyticsEvent`: `trial_started` (checkout),
 `trial_will_end` (Stripe pre-end webhook), `subscription_started` (fired on
 the non-active→active transition in the upsert; guarded so renewals don't
