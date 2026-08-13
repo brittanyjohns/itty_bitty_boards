@@ -139,6 +139,14 @@
         Generated: <%= Array(@build.art_report["missing_labels"]).join(", ") %>
       </p>
     <% end %>
+    <% regenerated = Array(@build.art_report["regenerated_labels"]) %>
+    <% if regenerated.any? %>
+      <%# These tiles DID have library art — the admin rejected it on the review
+          screen, so AI art was generated over it and made the current doc. %>
+      <p class="text-[11px] text-t3 mt-2">
+        Marked for AI regeneration: <%= regenerated.join(", ") %>
+      </p>
+    <% end %>
     <% if @missing_art_count.positive? %>
       <%= button_to "Generate the missing art", regenerate_art_admin_dashboard_board_build_path(@build), method: :post,
             class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 mt-3",

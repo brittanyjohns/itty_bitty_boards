@@ -51,6 +51,10 @@
         <p class="text-[11px] text-t3">not commercially safe</p>
       </div>
     <% end %>
+    <div>
+      <p class="text-2xl font-semibold text-t1" data-marked-count><%= @marked.size %></p>
+      <p class="text-[11px] text-t3">marked for AI regeneration</p>
+    </div>
   </div>
 
   <% if @preview[:inexact].any? %>
@@ -104,6 +108,28 @@
           <% if row.found? && row.commercial_safe == false %>
             <p class="text-[10px] text-t3 truncate" title="<%= row.license %>">not commercial-safe</p>
           <% end %>
+
+          <%# The mark rides the build form below via the HTML5 `form`
+              attribute, so the cell needs no form of its own. Nothing is
+              generated here — preview still writes nothing. A word repeated
+              across pages is one Image and one generation, so the boxes
+              sharing a value are kept in step by the script at the bottom. %>
+          <% key = Boards::ImageResolver.normalize(row.label) %>
+          <% if row.found? %>
+            <label class="flex items-center gap-1.5 mt-1.5 cursor-pointer" title="Build with the library symbol, then generate new AI art over it">
+              <%= check_box_tag "regenerate[]", key, @marked.include?(key),
+                    form: "build-form", id: nil, class: "cursor-pointer",
+                    data: { regenerate_mark: key } %>
+              <span class="text-[10px] text-t2">regenerate with AI</span>
+            </label>
+          <% else %>
+            <%# Already queued by the build — shown ticked so the grid reads
+                consistently, disabled so it can't be un-asked for. %>
+            <label class="flex items-center gap-1.5 mt-1.5" title="No library art, so this is generated either way">
+              <%= check_box_tag "regenerate[]", key, true, form: "build-form", id: nil, disabled: true %>
+              <span class="text-[10px] text-t3">always generated</span>
+            </label>
+          <% end %>
         </div>
       </div>
     <% end %>
@@ -120,7 +146,10 @@
 
   <%# Hidden-field resubmit of exactly what was previewed. `create` re-parses
       and re-validates it from scratch — the round trip is not trusted. %>
-  <%= form_tag admin_dashboard_board_builds_path, method: :post do %>
+  <%# `id` is load-bearing: every per-tile "regenerate with AI" checkbox in the
+      grid above points at this form with the HTML5 `form` attribute, which is
+      what lets the marks submit with Build without wrapping the whole page. %>
+  <%= form_tag admin_dashboard_board_builds_path, method: :post, id: "build-form" do %>
     <%= hidden_field_tag :name, @form[:name] %>
     <%= hidden_field_tag :topic, @form[:topic] %>
     <%= hidden_field_tag :audience, @form[:audience] %>
@@ -147,3 +176,50 @@
 <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Or change something and look again</h2>
 
 <%= render "form" %>
+
+<script>
+  (function () {
+    var boxes = Array.prototype.slice.call(
+      document.querySelectorAll("input[data-regenerate-mark]")
+    );
+    if (!boxes.length) return;
+
+    var count = document.querySelector("[data-marked-count]");
+    // Mirror into the authoring form below, so pressing "Preview the art"
+    // again keeps the marks instead of starting from nothing.
+    var mirror = document.querySelector("[data-regenerate-marks]");
+
+    function sync(label, checked) {
+      // The same word on two pages is ONE image and one generation, so the
+      // boxes that share a label have to move together.
+      boxes.forEach(function (box) {
+        if (box.dataset.regenerateMark === label) box.checked = checked;
+      });
+
+      var marked = [];
+      boxes.forEach(function (box) {
+        if (box.checked && marked.indexOf(box.dataset.regenerateMark) === -1) {
+          marked.push(box.dataset.regenerateMark);
+        }
+      });
+
+      if (count) count.textContent = marked.length;
+      if (mirror) {
+        mirror.innerHTML = "";
+        marked.forEach(function (value) {
+          var input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "regenerate[]";
+          input.value = value;
+          mirror.appendChild(input);
+        });
+      }
+    }
+
+    boxes.forEach(function (box) {
+      box.addEventListener("change", function () {
+        sync(box.dataset.regenerateMark, box.checked);
+      });
+    });
+  })();
+</script>

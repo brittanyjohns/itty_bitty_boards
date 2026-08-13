@@ -163,6 +163,96 @@ RSpec.describe Boards::AdminBuilder::Build do
     end
   end
 
+  # The review screen is where a wrong symbol gets caught. A marked tile is
+  # still built with the library's art — the mark only says "generate over it".
+  describe "tiles marked for AI regeneration" do
+    def marked_build(labels, tiles: four_tiles, **overrides)
+      build_record(tiles: tiles, **overrides).tap do |build|
+        build.update!(plan: build.plan.merge("regenerate" => labels))
+      end
+    end
+
+    it "queues generation for a marked label that already has library art" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      build = marked_build(["swing"])
+
+      described_class.new(admin_board_build: build).call
+
+      queued = GenerateImagesJob.jobs.flat_map { |job| job["args"].first }
+      expect(queued).to eq([Image.find_by(label: "swing").id])
+      expect(build.reload.art_report["regenerated_labels"]).to eq(["swing"])
+    end
+
+    # `Image#create_image_doc` sets current on the new doc but doesn't clear the
+    # old one, so the job has to be told this is a replacement.
+    it "tells the job to make the generated doc current" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+
+      described_class.new(admin_board_build: marked_build(["swing"])).call
+
+      expect(GenerateImagesJob.jobs.first["args"][2]).to eq("replace_current" => true)
+    end
+
+    # A label with no art is already queued by the missing-art pass; generating
+    # it twice is two API calls for one picture.
+    it "does not queue a marked label twice when it had no art to begin with" do
+      build = marked_build(%w[i want more swing])
+
+      described_class.new(admin_board_build: build).call
+
+      queued = GenerateImagesJob.jobs.flat_map { |job| job["args"].first }
+      expect(queued.size).to eq(4)
+      expect(queued.uniq.size).to eq(4)
+      expect(build.reload.art_report["regenerated_labels"]).to be_empty
+    end
+
+    # BoardImage#set_defaults seeds display_image_url from the image's src_url,
+    # pinning the tile to the art we are about to replace. It must be released
+    # to NIL — a blank "" is the marker for "this tile has no picture" and would
+    # print the label with no art at all.
+    it "releases the marked tiles from the art they were built with" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      board = described_class.new(admin_board_build: marked_build(["swing"])).call
+
+      swing = board.board_images.find_by(image_id: Image.find_by(label: "swing").id)
+      expect(swing.display_image_url).to be_nil
+      expect(swing.display_image_url).not_to eq("")
+    end
+
+    it "releases the marked tile on a child page too, not just the root" do
+      %w[i want more swing apple].each { |label| image_with_art(label: label) }
+      root = [
+        { "label" => "i", "part_of_speech" => "pronoun" },
+        { "label" => "want", "part_of_speech" => "verb" },
+        { "label" => "swing", "part_of_speech" => "noun" },
+        { "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" },
+      ]
+      children = [{
+        "key" => "food", "name" => "Food",
+        "tiles" => [
+          { "label" => "apple", "part_of_speech" => "noun" },
+          { "label" => "swing", "part_of_speech" => "noun" },
+        ],
+      }]
+      build = marked_build(["swing"], tiles: root, children: children)
+
+      described_class.new(admin_board_build: build).call
+
+      swing_id = Image.find_by(label: "swing").id
+      tiles = BoardImage.where(board_id: build.reload.set_boards.map(&:id), image_id: swing_id)
+      expect(tiles.count).to eq(2)
+      expect(tiles.map(&:display_image_url).uniq).to eq([nil])
+    end
+
+    it "leaves unmarked tiles pinned to their library art" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      board = described_class.new(admin_board_build: marked_build(["swing"])).call
+
+      want = board.board_images.find_by(image_id: Image.find_by(label: "want").id)
+      expect(want.display_image_url).to eq(Image.find_by(label: "want").src_url)
+    end
+  end
+
   describe "a linked set" do
     def root_with_folder
       [

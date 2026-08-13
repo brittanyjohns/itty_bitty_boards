@@ -283,6 +283,16 @@
     </div>
   </template>
 
+  <%# "Regenerate with AI" marks made on the review screen, carried so that
+      changing a word and looking again doesn't silently drop them. The script
+      in preview.html.erb rewrites these as the boxes are ticked; `create`
+      re-filters whatever arrives against the plan either way. %>
+  <div data-regenerate-marks hidden>
+    <% Array(@form[:regenerate]).each do |label| %>
+      <%= hidden_field_tag "regenerate[]", label, id: nil %>
+    <% end %>
+  </div>
+
   <div class="flex items-center gap-3">
     <%= submit_tag "Preview the art",
           class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>

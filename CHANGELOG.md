@@ -42,6 +42,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Admin board builder: mark a tile for AI art before you build it.** The art
+  review screen exists to catch a symbol the library got wrong — a word that
+  resolves to a picture of something else entirely — but until now the only fix
+  was to build the board and repair it afterwards. Each tile now carries a
+  "regenerate with AI" checkbox. Ticking it changes nothing on the review screen
+  (that screen still writes nothing at all); the board is still built with the
+  library's symbol, and AI art is generated over it right after, becoming that
+  image's current picture. Tiles with no library art are shown ticked and
+  greyed — they were always going to be generated.
+
 - **You can print a care plan for your communicator.** Everything you've
   filled in — how they communicate, personal care, meals, sensory, moving
   around, getting around, and any sections you wrote yourself — comes out as a

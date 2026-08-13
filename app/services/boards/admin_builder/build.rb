@@ -32,8 +32,11 @@ module Boards
         root = ActiveRecord::Base.transaction { create_set! }
 
         blank_image_ids = art_less_image_ids
-        build.update!(board: root, status: "complete", art_report: art_report(root, blank_image_ids))
+        regenerate_ids = regenerate_image_ids(blank_image_ids)
+        build.update!(board: root, status: "complete", art_report: art_report(root, blank_image_ids, regenerate_ids))
+        unpin_regenerated_tiles!(regenerate_ids)
         queue_missing_art!(root, blank_image_ids)
+        queue_regenerated_art!(root, regenerate_ids)
 
         root
       rescue StandardError => e
@@ -244,7 +247,38 @@ module Boards
         Image.where(id: resolved.values.map(&:id).uniq).where.missing(:docs).pluck(:id)
       end
 
-      def art_report(root, blank_image_ids)
+      # Images behind the tiles the admin marked "regenerate with AI" on the
+      # review screen. `resolved` is keyed by the resolver's normalized label,
+      # which is exactly the form the marks were stored in.
+      #
+      # Minus the blanks: a label with no art is already queued by
+      # queue_missing_art!, and generating it twice is two API calls for one
+      # picture.
+      def regenerate_image_ids(blank_image_ids)
+        build.regenerate_labels
+             .filter_map { |label| resolved[label]&.id }
+             .uniq - blank_image_ids
+      end
+
+      # A marked tile was built with the library's art, so BoardImage#set_defaults
+      # seeded `display_image_url` from the image's src_url — pinning the tile to
+      # the picture we are about to replace. Release the pin so the tile falls
+      # through to the image's own current doc once generation lands.
+      #
+      # It must be NIL, never "": a blank display_image_url is the marker for
+      # "this tile has no picture" and would print the label with no art at all.
+      #
+      # Covers the whole set, not just the root. GenerateImagesJob only re-points
+      # board_images on the single board_id it is handed, so a repeated word on a
+      # child page would otherwise keep the old art forever.
+      def unpin_regenerated_tiles!(image_ids)
+        return if image_ids.empty?
+
+        BoardImage.where(board_id: @built_boards.values.map(&:id), image_id: image_ids)
+                  .update_all(display_image_url: nil)
+      end
+
+      def art_report(root, blank_image_ids, regenerate_ids = [])
         total = Plan.labels(pages).size
         missing = resolved.select { |_, image| blank_image_ids.include?(image.id) }.keys
 
@@ -254,6 +288,10 @@ module Boards
           "coverage_pct" => total.zero? ? 0 : (((total - missing.size) / total.to_f) * 100).round,
           "missing_labels" => missing,
           "queued_image_ids" => blank_image_ids,
+          # Tiles the admin marked for AI art despite the library having a
+          # picture for them — `show` reports these separately from the blanks.
+          "regenerated_labels" => resolved.select { |_, image| regenerate_ids.include?(image.id) }.keys,
+          "regenerated_image_ids" => regenerate_ids,
           "slug" => root.slug,
           # key => board id, so `show` can list every page of the set and
           # publish can cascade over it without re-walking the link graph.
@@ -265,6 +303,13 @@ module Boards
       # rows it references exist.
       def queue_missing_art!(root, image_ids)
         ArtQueue.call(board: root, image_ids: image_ids, topic: build.topic)
+      end
+
+      # Separate call from the blanks because of `replace_current`: these images
+      # already carry a library doc, and the generated one has to become the
+      # current doc or the build would show the symbol the admin just rejected.
+      def queue_regenerated_art!(root, image_ids)
+        ArtQueue.call(board: root, image_ids: image_ids, topic: build.topic, replace_current: true)
       end
     end
   end

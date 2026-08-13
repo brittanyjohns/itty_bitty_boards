@@ -107,6 +107,59 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "marking a tile for AI regeneration" do
+    before { sign_in admin }
+
+    it "offers a mark on every tile without generating anything on preview" do
+      expect { post preview_admin_dashboard_board_builds_path, params: form_params(regenerate: ["swing"]) }
+        .to not_change(Board, :count)
+        .and not_change(Image, :count)
+        .and not_change(Doc, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("regenerate[]")
+      expect(response.body).to include("marked for AI regeneration")
+    end
+
+    # The checkboxes sit in the grid, well above the Build form. The HTML5
+    # `form` attribute is what makes them submit with it — without the matching
+    # id every mark is silently dropped on Build.
+    it "points every mark at the build form" do
+      post preview_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response.body).to include('id="build-form"')
+      expect(response.body.scan(/<input[^>]*name="regenerate\[\]"[^>]*>/).size).to eq(4)
+      response.body.scan(/<input[^>]*name="regenerate\[\]"[^>]*>/).each do |input|
+        expect(input).to include('form="build-form"')
+      end
+    end
+
+    it "keeps the mark ticked when the same form is previewed again" do
+      post preview_admin_dashboard_board_builds_path, params: form_params(regenerate: ["swing"])
+
+      # The mark rides the build form via the HTML5 `form` attribute.
+      expect(response.body).to match(/name="regenerate\[\]"[^>]*value="swing"[^>]*checked/)
+    end
+
+    it "stores the marks on the build, normalized" do
+      post admin_dashboard_board_builds_path, params: form_params(regenerate: ["Swing"])
+
+      expect(AdminBoardBuild.last.regenerate_labels).to eq(["swing"])
+    end
+
+    it "drops a mark for a label that isn't in the plan" do
+      post admin_dashboard_board_builds_path, params: form_params(regenerate: %w[swing slide])
+
+      expect(AdminBoardBuild.last.regenerate_labels).to eq(["swing"])
+    end
+
+    it "stores no marks when nothing was ticked" do
+      post admin_dashboard_board_builds_path, params: form_params
+
+      expect(AdminBoardBuild.last.regenerate_labels).to eq([])
+    end
+  end
+
   describe "child pages" do
     before { sign_in admin }
 
