@@ -1120,6 +1120,27 @@ Its own invariants:
   them. `resolve_all` runs only inside `Boards::AdminBuilder::Build`'s
   transaction, where creating blanks is the intended outcome. Asserted by spec
   on both `Board.count` and `Image.count`.
+- **The review screen's two per-tile controls are decided at BUILD time, not on
+  the screen.** "Regenerate with AI" (`plan["regenerate"]`, a list of labels)
+  and the picture picker (`plan["display_docs"]`, label => `docs.id`) both ride
+  the hidden-field resubmit through the HTML5 `form="build-form"` attribute, and
+  both are re-filtered against the plan in `create` rather than trusted — a
+  hand-edited field must not be able to name an arbitrary label, and a picked
+  doc is additionally checked to be library-owned (`user_id` nil or the default
+  admin) so a real user's upload can't be published onto a public board. Labels
+  are normalized through `Boards::ImageResolver.normalize` on the way in, which
+  is the form `Build#resolved` looks them up by.
+  **A pick beats a mark**: they are the same decision made two ways, and keeping
+  both would pin the chosen picture and then generate over it —
+  `Build#regenerate_image_ids` subtracts the picks, because
+  `unpin_regenerated_tiles!` would otherwise clear the very
+  `display_image_url` that carries the choice.
+  A pick moves the PICTURE only: the tile still resolves to its own `Image`, so
+  the word it speaks, its audio, and every other board using that word are
+  untouched. `ArtPreview` offers the alternatives by raising its
+  `Images::LabelSearch` limit to `CANDIDATE_LIMIT` — the `resolve` tier still
+  comes first, so result 1 is what gets attached and the rest are the offer.
+  Doc ids, not image ids: which doc an image resolves to moves as art is added.
 - **A board is authored as columns + a tile count, never rows.** Rows aren't
   stored anywhere — `Board#rows_for_screen_size` derives them from the tiles —
   so `admin_board_builds.tile_count` (and a child page's `tile_count` override

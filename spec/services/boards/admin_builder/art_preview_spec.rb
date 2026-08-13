@@ -187,4 +187,38 @@ RSpec.describe Boards::AdminBuilder::ArtPreview do
     expect(result[:total]).to eq(2)
     expect(result[:pages].first[:rows].size).to eq(3)
   end
+  # The review screen lets an admin pin a different picture without asking the
+  # AI for a new one, so the row has to carry the other library candidates —
+  # and its own doc, so "the library's pick" is nameable.
+  describe "alternatives" do
+    it "offers every library candidate for the label, its own pick first" do
+      first = image_with_doc(label: "apple")
+      second = image_with_doc(label: "apple")
+
+      row = described_class.new(pages: pages_for(["apple"]), commercial_safe_only: false).call[:pages].first[:rows].first
+
+      expect(row.alternatives.map(&:image_id)).to contain_exactly(first.id, second.id)
+      expect(row.alternatives.first.image_id).to eq(row.image_id)
+      expect(row.alternatives.first.doc_id).to eq(row.doc_id)
+      expect(row.alternatives.map(&:url)).to all(be_present)
+    end
+
+    it "is empty for a label with no art at all" do
+      row = described_class.new(pages: pages_for(["nonexistentwordxyz"]), commercial_safe_only: false).call[:pages].first[:rows].first
+
+      expect(row).not_to be_found
+      expect(row.alternatives).to be_empty
+    end
+
+    # Same rule as everything else on this screen: reading the alternatives
+    # must not create anything.
+    it "writes nothing while collecting them" do
+      image_with_doc(label: "apple")
+      image_with_doc(label: "apple")
+
+      expect {
+        described_class.new(pages: pages_for(%w[apple]), commercial_safe_only: false).call
+      }.to not_change(Image, :count).and not_change(Doc, :count)
+    end
+  end
 end

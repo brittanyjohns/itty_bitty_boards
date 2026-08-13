@@ -293,6 +293,14 @@
     <% end %>
   </div>
 
+  <%# Same deal for per-tile picture picks: label => doc id. Re-validated by
+      `preview`/`create` against the plan and against the library. %>
+  <div data-doc-picks hidden>
+    <% (@form[:display_docs] || {}).each do |label, doc_id| %>
+      <%= hidden_field_tag "display_docs[#{label}]", doc_id, id: nil, data: { mirror_for: label } %>
+    <% end %>
+  </div>
+
   <div class="flex items-center gap-3">
     <%= submit_tag "Preview the art",
           class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>

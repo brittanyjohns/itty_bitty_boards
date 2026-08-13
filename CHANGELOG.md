@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Pick a different picture for any tile on the board builder's review
+  screen.** The library often has more than one symbol for a word, and until now
+  the only way to reject the one it picked was to ask the AI for a brand new
+  one. Every tile with alternatives now carries a small picture chooser next to
+  its "regenerate with AI" box — choose one and the preview updates on the spot;
+  the board is built with exactly that picture. The choice applies to that board
+  only: nothing changes for anyone else using the same word, and nothing is
+  written until you press Build. (Admin only.)
+
 ### Fixed
 
 - **A printable's listing copy now counts the board pages a buyer prints, not

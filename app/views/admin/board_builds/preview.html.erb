@@ -55,6 +55,10 @@
       <p class="text-2xl font-semibold text-t1" data-marked-count><%= @marked.size %></p>
       <p class="text-[11px] text-t3">marked for AI regeneration</p>
     </div>
+    <div>
+      <p class="text-2xl font-semibold text-t1" data-picked-count><%= @picked_docs.size %></p>
+      <p class="text-[11px] text-t3">pinned to a different library picture</p>
+    </div>
   </div>
 
   <% if @preview[:inexact].any? %>
@@ -85,10 +89,15 @@
 
   <div class="builder-grid mb-8" style="--cols: <%= page[:columns] %>;">
     <% page[:rows].each do |row| %>
+      <% key = Boards::ImageResolver.normalize(row.label) %>
+      <% picked_doc = @picked_docs[key] %>
+      <% picked_url = row.alternatives.find { |candidate| candidate.doc_id == picked_doc }&.url %>
       <div class="admin-card border rounded-xl overflow-hidden <%= "border-amber-500" if row.found? && !row.exact %><%= "border-red-500" unless row.found? %>">
         <div class="aspect-square admin-card-alt flex items-center justify-center overflow-hidden">
           <% if row.display_url.present? %>
-            <img src="<%= row.display_url %>" alt="<%= row.label %>" loading="lazy" class="w-full h-full object-contain">
+            <img src="<%= picked_url.presence || row.display_url %>" alt="<%= row.label %>" loading="lazy"
+                 class="w-full h-full object-contain" data-tile-art="<%= key %>"
+                 data-default-art="<%= row.display_url %>">
           <% else %>
             <span class="text-[11px] text-t3 px-2 text-center">no art</span>
           <% end %>
@@ -114,7 +123,6 @@
               generated here — preview still writes nothing. A word repeated
               across pages is one Image and one generation, so the boxes
               sharing a value are kept in step by the script at the bottom. %>
-          <% key = Boards::ImageResolver.normalize(row.label) %>
           <% if row.found? %>
             <label class="flex items-center gap-1.5 mt-1.5 cursor-pointer" title="Build with the library symbol, then generate new AI art over it">
               <%= check_box_tag "regenerate[]", key, @marked.include?(key),
@@ -122,6 +130,32 @@
                     data: { regenerate_mark: key } %>
               <span class="text-[10px] text-t2">regenerate with AI</span>
             </label>
+
+            <%# Swap the picture without generating anything: the library often
+                has several pictures for a word, and picking one is cheaper and
+                surer than asking the AI for a new one. Rides the build form
+                through the same `form` attribute the mark does. Only the
+                PICTURE moves — the tile still resolves to its own Image, so
+                nothing here changes what the word says or what any other board
+                sees. %>
+            <% if row.alternatives.size > 1 %>
+              <%= select_tag "display_docs[#{key}]",
+                    options_for_select(
+                      [["library pick", ""]] +
+                        row.alternatives.drop(1).map.with_index(2) do |candidate, position|
+                          [candidate.exact ? "art #{position} · #{candidate.label}" : "art #{position} · “#{candidate.label}”",
+                           candidate.doc_id]
+                        end,
+                      picked_doc,
+                    ),
+                    form: "build-form", id: nil,
+                    class: "w-full mt-1.5 text-[10px] rounded admin-card-alt border px-1 py-0.5 cursor-pointer",
+                    title: "Use a different picture from the library for this tile",
+                    data: {
+                      doc_pick: key,
+                      urls: row.alternatives.to_h { |candidate| [candidate.doc_id, candidate.url] }.to_json,
+                    } %>
+            <% end %>
           <% else %>
             <%# Already queued by the build — shown ticked so the grid reads
                 consistently, disabled so it can't be un-asked for. %>
@@ -182,8 +216,6 @@
     var boxes = Array.prototype.slice.call(
       document.querySelectorAll("input[data-regenerate-mark]")
     );
-    if (!boxes.length) return;
-
     var count = document.querySelector("[data-marked-count]");
     // Mirror into the authoring form below, so pressing "Preview the art"
     // again keeps the marks instead of starting from nothing.
@@ -219,6 +251,69 @@
     boxes.forEach(function (box) {
       box.addEventListener("change", function () {
         sync(box.dataset.regenerateMark, box.checked);
+      });
+    });
+
+    // Doc picks. Same two jobs as the marks: keep every cell showing the same
+    // word in step, and mirror the choice into the authoring form below so
+    // pressing "Preview the art" again doesn't throw the picks away.
+    var picks = Array.prototype.slice.call(document.querySelectorAll("[data-doc-pick]"));
+    var pickMirror = document.querySelector("[data-doc-picks]");
+
+    function art(label, docId) {
+      document.querySelectorAll('[data-tile-art="' + label + '"]').forEach(function (img) {
+        var urls = {};
+        var select = document.querySelector('[data-doc-pick="' + label + '"]');
+        if (select) urls = JSON.parse(select.dataset.urls || "{}");
+        img.src = urls[docId] || img.dataset.defaultArt;
+      });
+    }
+
+    function syncPicks(label, value) {
+      picks.forEach(function (select) {
+        if (select.dataset.docPick === label) select.value = value;
+      });
+      art(label, value);
+
+      // A picked picture and an AI regeneration are the same decision made two
+      // ways; the build drops the mark, so don't leave it ticked here either.
+      if (value) {
+        boxes.forEach(function (box) {
+          if (box.dataset.regenerateMark === label && box.checked && !box.disabled) {
+            box.checked = false;
+            sync(label, false);
+          }
+        });
+      }
+
+      var pickedCount = document.querySelector("[data-picked-count]");
+      if (pickedCount) {
+        var chosen = [];
+        picks.forEach(function (select) {
+          if (select.value && chosen.indexOf(select.dataset.docPick) === -1) {
+            chosen.push(select.dataset.docPick);
+          }
+        });
+        pickedCount.textContent = chosen.length;
+      }
+
+      if (!pickMirror) return;
+      pickMirror.innerHTML = "";
+      picks.forEach(function (select) {
+        if (!select.value) return;
+        if (pickMirror.querySelector('[data-mirror-for="' + select.dataset.docPick + '"]')) return;
+        var input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "display_docs[" + select.dataset.docPick + "]";
+        input.value = select.value;
+        input.setAttribute("data-mirror-for", select.dataset.docPick);
+        pickMirror.appendChild(input);
+      });
+    }
+
+    picks.forEach(function (select) {
+      select.addEventListener("change", function () {
+        syncPicks(select.dataset.docPick, select.value);
       });
     });
   })();

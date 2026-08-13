@@ -146,6 +146,11 @@ module Images
         id: image.id,
         label: image.label,
         match: kind,
+        # The Doc the URLs below describe. Callers that let a human PICK one of
+        # several results (the board builder's review screen) need to name the
+        # exact picture afterwards, and an image id can't do that — which doc
+        # an image resolves to changes as art is added.
+        doc_id: doc.id,
         # doc.tile_url materializes the ActiveStorage variant synchronously
         # (download original + libvips transform + upload) on first access.
         # This endpoint can return up to MAX_LIMIT results in one response,

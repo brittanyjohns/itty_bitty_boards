@@ -567,4 +567,75 @@ RSpec.describe Boards::AdminBuilder::Build do
       expect(child.tags).not_to include(*build.tags)
     end
   end
+  # A doc the admin picked on the review screen instead of the library's own.
+  # Only the PICTURE moves: the tile still resolves to its own Image, so the
+  # word it speaks and every other board using it are untouched.
+  describe "tiles pinned to a picked doc" do
+    # No attachment, for the same reason image_with_art has none: attaching
+    # defers the upload to after_commit, and this service opens its own
+    # transaction, so the deferred upload fires mid-build against a consumed
+    # stream. Doc#display_url falls back to original_image_url when nothing is
+    # attached, which is a real shape in the library (imported docs).
+    def alternate_doc(image)
+      image.docs.create!(
+        user_id: admin.id, source_type: "OpenAI", raw: image.label,
+        original_image_url: "https://example.com/#{image.label}-alt.png",
+      )
+    end
+
+    def picked_build(picks)
+      build_record(tiles: four_tiles).tap do |build|
+        build.update!(plan: build.plan.merge("display_docs" => picks))
+      end
+    end
+
+    it "pins the picked doc onto the tile and leaves the resolved image alone" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      swing = Image.find_by(label: "swing")
+      doc = alternate_doc(swing)
+      build = picked_build("swing" => doc.id)
+
+      board = described_class.new(admin_board_build: build).call
+      tile = board.board_images.joins(:image).find_by(images: { label: "swing" })
+
+      expect(tile.image_id).to eq(swing.id)
+      expect(tile.display_image_url).to eq("https://example.com/swing-alt.png")
+      expect(build.reload.art_report["picked_labels"]).to eq(["swing"])
+    end
+
+    it "leaves every other tile on the library's own art" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      doc = alternate_doc(Image.find_by(label: "swing"))
+
+      board = described_class.new(admin_board_build: picked_build("swing" => doc.id)).call
+      other = board.board_images.joins(:image).find_by(images: { label: "want" })
+
+      expect(other.display_image_url).not_to eq("https://example.com/swing-alt.png")
+    end
+
+    # A pick and a regeneration are the same decision made two ways. Generating
+    # over a picked tile would throw the choice away — and unpinning it would
+    # delete the pin that carries it.
+    it "does not regenerate a label that was also marked" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      doc = alternate_doc(Image.find_by(label: "swing"))
+      build = picked_build("swing" => doc.id)
+      build.update!(plan: build.plan.merge("regenerate" => ["swing"]))
+
+      board = described_class.new(admin_board_build: build).call
+      tile = board.board_images.joins(:image).find_by(images: { label: "swing" })
+
+      expect(build.reload.art_report["regenerated_labels"]).to be_empty
+      expect(tile.display_image_url).to eq("https://example.com/swing-alt.png")
+    end
+
+    # A picture is not worth failing a build over.
+    it "falls back to the library art when the picked doc is gone" do
+      four_tiles.each { |tile| image_with_art(label: tile["label"]) }
+      build = picked_build("swing" => 0)
+
+      expect { described_class.new(admin_board_build: build).call }.not_to raise_error
+      expect(build.reload.art_report["picked_labels"]).to be_empty
+    end
+  end
 end

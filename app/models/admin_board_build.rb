@@ -52,6 +52,14 @@ class AdminBoardBuild < ApplicationRecord
     Array((plan || {})["regenerate"])
   end
 
+  # Label => Doc id for tiles where the admin picked a different picture than
+  # the one the library would attach. Normalized on the way in, like
+  # regenerate_labels. The tile still resolves to its own Image — only the
+  # picture is pinned, through board_images.display_image_url.
+  def display_doc_ids
+    ((plan || {})["display_docs"] || {}).transform_values(&:to_i)
+  end
+
   def labels
     Boards::AdminBuilder::Plan.labels(pages)
   end
