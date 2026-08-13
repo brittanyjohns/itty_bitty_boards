@@ -300,6 +300,30 @@ class BoardImage < ApplicationRecord
     data && data["hide_label"] == true
   end
 
+  # Does this tile deliberately have no picture? A BLANK (not nil)
+  # display_image_url is the marker: every resolver chains with a bare `||`,
+  # and "" is truthy in Ruby, so the chain stops there instead of falling
+  # through to the shared Image's art. Honoured by the app, the PDF/print
+  # renderer, board covers, and printables alike — see
+  # Boards::BoardPdfLayoutNormalizer.
+  def picture_hidden?
+    !display_image_url.nil? && display_image_url.empty?
+  end
+
+  # Put the picture back on a tile whose picture was switched off. nil is the
+  # exact inverse of the blank marker: it lets the `||` chain fall through to
+  # the shared Image's art, which is the normal state for most tiles and works
+  # even for an image whose own doc hasn't been generated yet (where
+  # default_doc_url is itself blank, and would re-hide the tile).
+  #
+  # No-op unless the picture is actually off, so this can never overwrite a
+  # custom per-tile picture. Note the custom url is not recoverable once
+  # hidden — hiding overwrites it, and this restores the default art.
+  def unhide_picture!
+    return unless picture_hidden?
+    self.display_image_url = nil
+  end
+
   def is_dynamic?
     predictive_board_id.present? && predictive_board_id != board_id
   end

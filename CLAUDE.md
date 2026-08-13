@@ -222,6 +222,27 @@ an explicit decision, not a drive-by edit.
   Client-called endpoints may reflect plan state but never grant credits. All
   credit movement goes through `CreditService` and the immutable
   `credit_transactions` ledger; grants are idempotent on event id.
+- **"Hide tiles" and "Hide pictures" are different questions, and neither is a
+  data flag you should invent.** `board_images.hidden` ("Hide tiles") drops the
+  tile from the board entirely — `visible_board_images` excludes it, so it
+  never reaches the Speak view. A **blank** `display_image_url` ("Hide
+  pictures") keeps the tile speaking and only stops its picture being drawn.
+  Conflating them is easy because the bulk param for `hidden` is still called
+  `hide_images` — read the param names carefully: `hide_images` → `hidden`,
+  `hide_pictures` → blank `display_image_url`.
+- **`display_image_url` has three states — `nil`, `""`, and a url — and `""` is
+  load-bearing.** Every resolver chains with a bare `||`
+  (`board_image.display_image_url || image.display_image_url(user) ||
+  image.src_url`), and `""` is truthy in Ruby, so a blank stops the chain and
+  means "this tile has no picture", while `nil` falls through to the shared
+  Image's art. Never "tidy" a blank to nil, and never wrap the chain in
+  `.presence` — that erased the marker and printed an apple on a Core Safety
+  colour tile (#683). `BoardImage#picture_hidden?` and `#unhide_picture!` are
+  where that distinction is written down; use them rather than comparing to
+  `""` by hand. Because it is the *same* marker the renderers already honour,
+  "Hide pictures" works in PDF exports, board covers, and printables without
+  any of them knowing the feature exists — which is exactly why it must not
+  become a second `data[...]` flag.
 - **`images.label` is a lowercase matching key; `display_label` is the text.**
   `Image#set_label` downcases and strips `label` on every write and captures
   the authored casing into `display_label`. Never look an image up with

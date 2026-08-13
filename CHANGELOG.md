@@ -25,6 +25,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   about the trip to school. Sensory covers sound, touch, light, and what helps
   when it's too much; Moving around covers equipment and the kind of support
   someone needs.
+- **Tiles can now be shown without their picture.** The board editor's bulk
+  "Hide pictures" toggle sends `payload[:hide_pictures]` to
+  `PUT /api/board_images/update`, which blanks `display_image_url` on each
+  selected tile. The tile keeps its word, colors, and audio and still speaks —
+  only the picture stops being drawn, which is what a letter or keyboard board
+  wants. Switching the toggle back off restores the tile's default art. A blank
+  url is the "no picture" marker the app, the PDF/print renderer, board covers,
+  and printables already share (#683), so this works everywhere on day one
+  rather than only on screen. This is a different thing from `hidden` ("Hide
+  tiles"), which drops the tile from the board entirely. Omitting the param
+  leaves the tile's picture untouched, so layout- and color-only saves can't
+  disturb it.
 
 - **A failed renewal now has an end date.** `past_due` was designed as a grace
   state — Stripe keeps retrying the charge and access continues — but nothing

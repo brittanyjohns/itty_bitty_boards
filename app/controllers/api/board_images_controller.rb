@@ -114,6 +114,13 @@ class API::BoardImagesController < API::ApplicationController
     text_color = payload[:text_color] if payload[:text_color]
     hide_images = payload[:hide_images] if payload[:hide_images]
     hide_labels = payload[:hide_labels] if payload[:hide_labels]
+    # Read presence-first rather than truthiness-first like its neighbours: a
+    # caller that omits hide_pictures entirely must leave the flag alone, not
+    # silently clear it. (hide_images/hide_labels get away with the looser form
+    # only because the bulk drawer is their sole caller and always sends both.)
+    hide_pictures = if payload.key?(:hide_pictures)
+        ActiveModel::Type::Boolean.new.cast(payload[:hide_pictures])
+      end
     make_static = payload[:make_static] if payload[:make_static]
     new_board_name = payload[:new_board_name] if payload[:new_board_name]
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
@@ -163,6 +170,20 @@ class API::BoardImagesController < API::ApplicationController
       else
         if board_image.data && board_image.data["hide_label"] == true
           board_image.data["hide_label"] = false
+        end
+      end
+      # "Hide pictures". A BLANK display_image_url is the app-wide marker for
+      # "this tile has no picture" — every resolver chains with a bare `||` and
+      # "" is truthy in Ruby, so the chain stops there rather than falling
+      # through to the shared Image's art. Using the same marker rather than a
+      # new flag is what makes this work in PDF exports, board covers, and
+      # printables (Boards::BoardPdfLayoutNormalizer) on day one.
+      # Must be "" and never nil, which would fall through and show the picture.
+      unless hide_pictures.nil?
+        if hide_pictures
+          board_image.display_image_url = ""
+        else
+          board_image.unhide_picture!
         end
       end
       if hide_images
