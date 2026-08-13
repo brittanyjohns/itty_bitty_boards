@@ -196,6 +196,40 @@ RSpec.describe "API::V1::Auth", type: :request do
 
       expect(response).to have_http_status(:ok)
     end
+
+    describe "duplicate email" do
+      it "returns email_taken so the form can offer sign-in instead" do
+        create(:user, email: "taken@example.com")
+
+        post "/api/v1/users", params: valid_params.merge(email: "taken@example.com")
+
+        expect(response).to have_http_status(:unprocessable_content)
+        body = JSON.parse(response.body)
+        expect(body["error_code"]).to eq("email_taken")
+        expect(body["error"]).to include("Email has already been taken")
+      end
+
+      # A soft-deleted account is invisible to the uniqueness validation (the
+      # default scope hides it) but still owns the unique index, so the failure
+      # surfaces at INSERT. Without the rescue this 500s.
+      it "returns email_taken when the unique index rejects the insert" do
+        allow_any_instance_of(User).to receive(:save).and_raise(ActiveRecord::RecordNotUnique.new("duplicate key"))
+
+        post "/api/v1/users", params: valid_params
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error_code"]).to eq("email_taken")
+      end
+
+      it "omits error_code for validation failures that are not a taken email" do
+        post "/api/v1/users", params: valid_params.merge(password: "abc", password_confirmation: "abc")
+
+        expect(response).to have_http_status(:unprocessable_content)
+        body = JSON.parse(response.body)
+        expect(body).not_to have_key("error_code")
+        expect(body["error"]).to be_present
+      end
+    end
   end
 
   describe "GET /api/v1/users/current" do

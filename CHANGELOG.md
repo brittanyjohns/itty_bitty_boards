@@ -30,6 +30,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the detail lines added last release sat right beside it asking the same
   question.
 
+### Fixed
+
+- **Signing up with an email that already has an account no longer dead-ends.**
+  The signup endpoint now tells the app *why* it refused (`error_code:
+  "email_taken"`) instead of only handing back a validation sentence, so the
+  form can offer to sign the person in rather than printing "Email has already
+  been taken" at them. Same contract the email-only checkout signup already
+  used. A soft-deleted account's email also returned a server error instead of
+  this message — it now takes the same path.
+
 ### Added
 
 - **You can print a care plan for your communicator.** Everything you've
