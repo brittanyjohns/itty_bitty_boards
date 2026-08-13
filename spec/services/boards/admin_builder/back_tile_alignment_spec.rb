@@ -57,7 +57,7 @@ RSpec.describe Boards::AdminBuilder::BackTileAlignment do
       expect(cells["food"][2]).to eq(5)
     end
 
-    it "clamps y into a ragged last row when the child is shorter than the parent" do
+    it "backs up a row, keeping the column, when the mirrored cell is past a ragged last row" do
       root = page(key: root_key, columns: 3, tiles: [
         tile("a"), tile("b"), tile("c"),
         tile("d"), tile("e"), tile("f"),
@@ -73,10 +73,27 @@ RSpec.describe Boards::AdminBuilder::BackTileAlignment do
 
       cells = described_class.cell_indexes([root, food])
 
-      # y clamps to the last row (2); x=1 there would be cell 7, which doesn't
-      # exist either, so it clamps again to the last occupied cell.
-      expect(cells["food"][6]).to eq(6)
-      expect(cells["food"]).to eq((0..6).to_a)
+      # Column 1 is what the eye is anchored to, so y drops from 3 to the last
+      # row that HAS a column 1 (row 1, cell 4) rather than sliding along the
+      # ragged row to the final tile.
+      expect(cells["food"][6]).to eq(4)
+      expect(cells["food"][4]).to eq(6)
+    end
+
+    it "keeps the back tile out of the bottom-right corner it was written in" do
+      # The Bedtime Routine shape: a wide root whose folder tile sits at the far
+      # right of the last row, and a child whose own last row stops short of
+      # that column. Clamping to the last cell used to leave the back tile in
+      # the corner the drafter wrote it into — a no-op alignment.
+      root = page(key: root_key, columns: 8, tiles: Array.new(38) { |i| tile("w#{i}") } + [tile("bedtime", links_to: "bedtime")])
+      bedtime = page(key: "bedtime", columns: 8, tiles: Array.new(34) { |i| tile("b#{i}") } + [tile("back", links_to: root_key)])
+
+      cells = described_class.cell_indexes([root, bedtime])
+
+      # Folder tile is x=6, y=4; the child's last row holds only 3 tiles, so the
+      # way home lands at x=6 on the row above (cell 30) — directly over it.
+      expect(cells["bedtime"][34]).to eq(30)
+      expect(cells["bedtime"][30]).to eq(34)
     end
 
     it "mirrors a second-level page against its own parent, not the root" do
