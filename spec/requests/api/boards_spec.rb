@@ -462,6 +462,72 @@ RSpec.describe "API::Boards", type: :request do
     end
   end
 
+  describe "POST /api/boards/:id/generate_preview_image" do
+    # The endpoint only enqueues, so its whole job is to be honest about
+    # whether a cover is actually coming. Answering "ok" for a board that can
+    # never render one leaves the client polling for a minute and then telling
+    # the user to reload for something that will never arrive.
+    let(:cover_board) { create(:board, user: user, name: "Cover Board") }
+
+    before { create(:board_image, board: cover_board) }
+
+    it "queues a render and returns the pre-render stamp as a baseline" do
+      cover_board.update!(settings: cover_board.settings.to_h.merge("preview_generated_at" => "2026-08-01T00:00:00Z"))
+
+      expect(GenerateBoardPreviewJob).to receive(:perform_async).with(cover_board.id, anything)
+
+      post "/api/boards/#{cover_board.id}/generate_preview_image", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["status"]).to eq("queued")
+      expect(body["preview_generated_at"]).to eq("2026-08-01T00:00:00Z")
+      expect(body["preview_status"]).to eq("queued")
+    end
+
+    it "clears a previous failure so the next run isn't judged by it" do
+      cover_board.mark_preview_failed!
+      allow(GenerateBoardPreviewJob).to receive(:perform_async)
+
+      post "/api/boards/#{cover_board.id}/generate_preview_image", headers: auth_headers(user)
+
+      expect(cover_board.reload.preview_status).to eq("queued")
+    end
+
+    # The job skips builder_child pages when something enqueues them in bulk —
+    # an .obz import is 50-200 headless-Chrome renders on the shared queue. One
+    # deliberate click is not that, and refusing it left those pages unable to
+    # ever earn a snapshot.
+    it "renders a builder_child page anyway when the request is explicit" do
+      cover_board.update_column(:settings, cover_board.settings.to_h.merge("builder_child" => true))
+
+      expect(GenerateBoardPreviewJob).to receive(:perform_async)
+        .with(cover_board.id, hash_including("force" => true))
+
+      post "/api/boards/#{cover_board.id}/generate_preview_image", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["status"]).to eq("queued")
+    end
+
+    it "refuses a board with no tiles with 422 rather than enqueuing" do
+      empty_board = create(:board, user: user, name: "Empty Board")
+
+      expect(GenerateBoardPreviewJob).not_to receive(:perform_async)
+
+      post "/api/boards/#{empty_board.id}/generate_preview_image", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["code"]).to eq("board_has_no_tiles")
+    end
+
+    it "returns 404 for a board that doesn't exist" do
+      post "/api/boards/0/generate_preview_image", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "DELETE /api/boards/:id" do
     context "when unauthenticated" do
       it "returns 401" do

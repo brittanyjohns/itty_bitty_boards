@@ -1328,10 +1328,36 @@ class API::BoardsController < API::ApplicationController
     render json: @board.api_view_with_images(current_user)
   end
 
+  # Reasons a cover can't be built, phrased for the person who clicked the
+  # button. 422 rather than 403/402: nothing here is a permission or credit
+  # gate, it's a request that this board can't satisfy.
+  PREVIEW_BLOCKER_MESSAGES = {
+    "board_has_no_tiles" => "Add a tile to this board first, then build a cover from it.",
+  }.freeze
+
   def generate_preview_image
     set_board
-    @board.run_generate_preview_job
-    render json: { status: "ok", message: "Preview image generation job started" }
+    return if @board.nil? # set_board already rendered 404
+
+    # Refuse synchronously what the job would only skip. Enqueuing here would
+    # answer "ok" and leave the client polling for a snapshot that is never
+    # coming.
+    if (blocker = @board.preview_generation_blocker)
+      render json: {
+        error: PREVIEW_BLOCKER_MESSAGES.fetch(blocker, "This board can't build a cover from its tiles."),
+        code: blocker,
+      }, status: :unprocessable_content
+      return
+    end
+
+    # force: this request names one board, so it renders even for a page the
+    # bulk enqueue paths deliberately skip.
+    @board.run_generate_preview_job(force: true)
+    render json: {
+      status: "queued",
+      preview_status: @board.preview_status,
+      preview_generated_at: @board.preview_generated_at,
+    }
   end
 
   # Designate this board as the user's editable board. On a downgraded (free)

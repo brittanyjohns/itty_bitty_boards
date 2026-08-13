@@ -32,6 +32,26 @@ Renders any board to a print-ready PDF or PNG. **This is the poster generator.**
 - Attachments on Board: `preview_image` (PNG), `pdf_file` (PDF); URLs via `Board#preview_image_url` / `#pdf_url` (CDN-stable keys).
 - **A preview render must be bounded; a printable render must not be.** Grover waits on `networkidle0` with an effectively infinite global timeout (`config/initializers/grover.rb`), so a tile picture that *hangs* — an S3 key not written yet, art still coming back from `GenerateImagesJob` — never settles the page and the board ends up with no snapshot at all. `RenderAssetData` takes `image_load_deadline_ms:` (nil by default); the template swaps any tile still unloaded at that deadline for its label placeholder, which cancels the request. Only `GeneratePreviewAssets` passes a value (`IMAGE_LOAD_DEADLINE_MS`), plus a bounded `RENDER_TIMEOUT_MS` so a stalled render fails and retries instead of pinning a Sidekiq thread. Printable PDFs deliberately keep the nil default — they're a paid artifact, and a slow S3 read must not cost them the real symbol. A `<img>` that 404s is a different case and always falls back via `onerror`.
 - **A set renders ONE preview — the root. Every other page is thumbnailed from the folder tile that opens it** (`Boards::SubBoardThumbnails`, shared by `BuildBoardSetJob` and `ImportObzJob`). Rendering per page means one headless-Chrome run per sub-board on the shared `:default` queue (concurrency 10), and a real vocabulary set runs to 50-200 pages — one import would stall every other job behind it. The resolved tile image goes to the child's denormalized `display_image_url` COLUMN via `update_column`, so it never re-enqueues a preview. `purge_previews:` is true only for the Board Builder, whose sub-boards are deliberately never rendered; imports leave any later-earned preview in place, since an imported page is an ordinary board.
+- **That skip is about queue VOLUME, not about the page being unrenderable.** It guards the shared queue from the *bulk* enqueue paths. A request that names ONE board — someone clicking "Regenerate from tiles" — passes `run_generate_preview_job(force: true)` and renders like any other board. Without that opt-out a builder page could never earn a snapshot at all, and the button silently did nothing on it. Only the explicit endpoint may pass `force`; every automatic caller keeps the default.
+- **A render records its outcome, and the client polls that — not the URL.**
+  `settings["preview_status"]` is one of `queued` / `ok` / `skipped` / `failed`,
+  and `settings["preview_generated_at"]` advances on every successful render
+  (`Board#record_preview_generated!`, written in the same save as the
+  denormalized `preset_display_image_url` so a reader can't see one without the
+  other). Both ride on `api_view` and `api_view_with_predictive_images`.
+  `POST generate_preview_image` refuses **422** `board_has_no_tiles` for an
+  empty board (`Board#preview_generation_blocker`) — there is nothing to
+  photograph. `GenerateBoardPreviewJob` stamps `skipped` on the builder-child
+  return and `failed` from `sidekiq_retries_exhausted`. The point of all of it:
+  the endpoint only
+  *enqueues*, so without a recorded outcome a silent skip, an exhausted render,
+  and a worker that isn't draining are all indistinguishable from a slow
+  success — which is how "Regenerate from tiles" could report success while
+  never changing anything, across three separate rounds of fixes to the read
+  path. **Do not poll `preview_image_url` for this.** It changes only
+  incidentally (it happens to carry the versioned key), and it isn't the field
+  the thumbnail renders — `display_image_url` is, and the two agree only while
+  `display_image_source == "preview"`.
 - **Every path that finishes writing tile art re-enqueues the preview.** The snapshot is taken while art may still be in flight (`GenerateBoardJob` renders right after the tiles exist), so `GenerateImagesJob` re-enqueues `GenerateBoardPreviewJob` on completion — otherwise the all-placeholder snapshot becomes the board's cover permanently. The `.obf`/`.obz` import jobs enqueue it too: nothing else in the import path renders one, and `BoardGroup#preview_image_url` reads through to the root board's attachment.
 
 ## 4. Communicator card/tag generators — makes *per-communicator printables*
@@ -40,6 +60,17 @@ Already ships the kit's safety + device tags as PNG **and** PDF with an embedded
 
 - `app/services/communicators/generate_device_tag.rb` — 1200×700, QR → `profile.public_url`, template `communicators/assets/device_tag.html.erb`. Default copy: "This device is my voice…".
 - `app/services/communicators/generate_safety_id_card.rb` — 1200×1800, QR + emergency notes, template `communicators/assets/safety_id_card.html.erb`.
+- **A freshness key must never include the record's `updated_at`.** ActiveStorage's
+  attachment is `belongs_to :record, touch: true`, so *attaching* a generated
+  document moves `updated_at` — a signature stamped into blob metadata before the
+  attach is stale the instant it is written, and every later call re-renders
+  through headless Chrome. `Profile#safety_info_signature` (shared by all three
+  generators) carried it and therefore had no working cache at all. This hides
+  well: the value was truncated with `to_i`, so a generate that finished inside
+  the same wall-clock second as the previous save happened to match, and it
+  surfaced as an intermittently failing spec on slower CI rather than as a dead
+  cache. Sign the CONTENT the document renders (avatar blob id + checksum,
+  `settings`), never a timestamp the write itself moves.
 - Base class: `app/services/communicators/base_asset_generator.rb` — **the reusable pattern for any new printable.** Provides: `rendered_html(template:, locals:)` under the `asset_export` layout, `qr_data_url_for(url, size:)` (RQRCode), `logo_base64`, `avatar_data_url`, `generate_png_from_html` / `generate_pdf_from_html` (Grover), `attach_binary`, and signature-based caching (`attached_and_fresh?`).
 - Triggered by: `app/jobs/regenerate_safety_cards_job.rb`, `Profile#generate_attachments!`. Served by `app/controllers/api/profiles/assets_controller.rb` and `api/internal/profiles_controller.rb` (`safety_id_png_url`, `safety_id_pdf_url`, `device_tag_png_url`, `device_tag_pdf_url`).
 

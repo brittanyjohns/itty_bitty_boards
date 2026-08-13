@@ -64,6 +64,27 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
       expect(board.settings).not_to have_key("preset_display_image_url")
     end
 
+    it "records the skip so it isn't mistaken for a slow success" do
+      board.update_column(:settings, board.settings.merge("builder_child" => true))
+
+      described_class.new.perform(board.id, "generate_png" => true)
+
+      expect(board.reload.preview_status).to eq("skipped")
+    end
+
+    # The skip is about queue volume — one render per page across a 50-200 page
+    # import — not about these pages being unrenderable. An explicit,
+    # single-board request passes force and renders like any other board.
+    it "renders anyway when the request is forced" do
+      board.update_column(:settings, board.settings.merge("builder_child" => true))
+
+      described_class.new.perform(board.id, "generate_png" => true, "force" => true)
+
+      board.reload
+      expect(board.preview_image).to be_attached
+      expect(board.preview_status).to eq("ok")
+    end
+
     it "still generates for the builder_root board" do
       board.update_column(:settings, board.settings.merge("builder_root" => true))
 
@@ -76,6 +97,49 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
   describe "sidekiq options" do
     it "retries on failure" do
       expect(described_class.sidekiq_options["retry"]).to eq(3)
+    end
+  end
+
+  describe "when retries are exhausted" do
+    # Without this the render dies into the dead set while the client keeps
+    # polling and is eventually told the cover "will appear shortly" — advice
+    # that never comes true.
+    it "marks the board's preview as failed" do
+      described_class.sidekiq_retries_exhausted_block.call(
+        { "args" => [board.id] },
+        RuntimeError.new("grover exploded"),
+      )
+
+      expect(board.reload.preview_status).to eq("failed")
+    end
+
+    it "does not raise when the board has since been deleted" do
+      missing_id = board.id
+      board.destroy
+
+      expect {
+        described_class.sidekiq_retries_exhausted_block.call(
+          { "args" => [missing_id] }, RuntimeError.new("grover exploded")
+        )
+      }.not_to raise_error
+    end
+  end
+
+  describe "recording a successful render" do
+    it "advances preview_generated_at and marks the status ok" do
+      described_class.new.perform(board.id, "generate_png" => true)
+      first_stamp = board.reload.preview_generated_at
+
+      expect(first_stamp).to be_present
+      expect(board.preview_status).to eq("ok")
+
+      travel_to(2.minutes.from_now) do
+        described_class.new.perform(board.id, "generate_png" => true)
+      end
+
+      # The stamp must advance even when the rendered PNG is byte-identical —
+      # it is what the client polls on.
+      expect(board.reload.preview_generated_at).to be > first_stamp
     end
   end
 end

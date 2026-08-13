@@ -229,6 +229,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the same renderer. Covers already generated are refreshed by
   `rake board_covers:refresh_blanked_tile_covers`.
 
+- **Printed care plans, safety cards, and device tags stop rebuilding
+  themselves.** Each one is meant to be built once and reused until something
+  it shows actually changes. Saving the finished document quietly counted as a
+  change to the communicator, so the saved copy was already considered
+  out-of-date the moment it was written — and every later download rebuilt it
+  from scratch. Downloads that used to take seconds now return the copy
+  already made, and a real edit still rebuilds it.
+
+- **"Regenerate from tiles" works on every board, and tells you what actually
+  happened.** Pages inside a built or imported board set were skipped outright —
+  they take their cover from the folder tile that opens them, and asking for a
+  fresh snapshot quietly did nothing. Asking for one page at a time now renders
+  it like any other board. (Building or importing a whole set still doesn't
+  render every page: a large set is hundreds of pages, and doing them all would
+  hold up everything else in the queue.) The button also only ever queued the
+  work and answered "started", so every way it could fail looked identical to a
+  slow success — a snapshot that failed to render gave up out of sight, and you
+  were told the cover would "appear shortly" when it never would. A failed
+  render now reports itself, a board with no tiles yet says so immediately, and
+  the app watches the render's own result rather than guessing from the
+  picture's address — so a regenerated cover that happens to look the same still
+  counts as done.
+
 - **Saving one part of a communicator's settings no longer wipes the rest.**
   The communicator screen saves settings from several different places, and
   each one sent only the handful of values it knew about — so saving from one

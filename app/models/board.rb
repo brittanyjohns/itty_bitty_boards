@@ -290,8 +290,18 @@ class Board < ApplicationRecord
     schedule_translations_for(language)
   end
 
-  def run_generate_preview_job
-    GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true }) # Generate PNG preview without header
+  # `force:` bypasses the job's builder_child skip. Pass it ONLY for a request
+  # that names one board — a person clicking "Regenerate from tiles". The skip
+  # exists to protect the shared :default queue from the automatic callers: an
+  # .obz import or a Board Builder run enqueues per page, and a real vocabulary
+  # set is 50-200 pages, each one a headless-Chrome render. One deliberate click
+  # is not that, and refusing it left those pages with no way to ever earn a
+  # snapshot.
+  def run_generate_preview_job(force: false)
+    # Clear any previous outcome up front, so a run that follows a failure isn't
+    # aborted by the stale "failed" its predecessor left behind.
+    mark_preview_queued!
+    GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true, "force" => force }) # Generate PNG preview without header
     # GenerateBoardPreviewJob.perform_async(id, { "generate_pdf" => true }) # PDF with header for sharing
   end
 
@@ -393,6 +403,87 @@ class Board < ApplicationRecord
     # break the caller — fall back to the seed column via #display_image_url.
     Rails.logger.warn("Board#preview_image_url failed for board #{id}: #{e.class}: #{e.message}")
     nil
+  end
+
+  # ── Preview render lifecycle ──────────────────────────────────────────────
+  #
+  # "Regenerate from tiles" enqueues a job, so the endpoint can only ever report
+  # that it *queued* something. Without a recorded outcome every failure mode —
+  # a builder_child page that is never rendered, a Grover render that exhausts
+  # its retries, a worker that isn't draining — is indistinguishable from a slow
+  # success, and the client can only time out and guess. These three states are
+  # what let it say which happened.
+  PREVIEW_STATUSES = %w[queued ok skipped failed].freeze
+
+  def preview_status
+    settings.is_a?(Hash) ? settings["preview_status"] : nil
+  end
+
+  # The stamp a client polls on. Deliberately NOT `preview_image_url`: that
+  # string only changes incidentally (it happens to carry a versioned S3 key),
+  # and it is not the field the thumbnail renders — `display_image_url` is, and
+  # the two agree only while `display_image_source == "preview"`.
+  def preview_generated_at
+    settings.is_a?(Hash) ? settings["preview_generated_at"] : nil
+  end
+
+  # Why a regeneration request cannot produce a cover, or nil when it can.
+  # Answered synchronously in the controller so the request is refused outright
+  # rather than enqueuing a job whose only possible outcome is a poll that times
+  # out.
+  #
+  # A board with no tiles is the only thing that qualifies: there is nothing to
+  # take a picture of. A builder_child page is NOT blocked — it renders like any
+  # other board when the request is explicit (see #run_generate_preview_job's
+  # `force:`); it is only skipped when something enqueues it in bulk.
+  def preview_generation_blocker
+    return "board_has_no_tiles" if board_images.empty?
+    nil
+  end
+
+  def mark_preview_queued!
+    return false unless persisted?
+    merged = (settings.is_a?(Hash) ? settings : {}).merge("preview_status" => "queued")
+    self.settings = merged
+    # update_column: a status flag must not fire callbacks or bump updated_at —
+    # that timestamp keys the boards#index cache, and enqueuing a render is not
+    # itself a change to the board.
+    update_column(:settings, merged)
+    true
+  end
+
+  # One write for the whole outcome: the denormalized snapshot URL plus the
+  # status and stamp. Split across two saves, a reader could observe a refreshed
+  # URL with a stale stamp (or the reverse) — which is the ambiguity this whole
+  # lifecycle exists to remove.
+  def record_preview_generated!
+    self.settings ||= {}
+    # Only overwrite the snapshot with a URL that actually resolved.
+    # #preview_image_url returns nil rather than raising when Active Storage
+    # can't build a URL (the Disk service outside a request, e.g. inside a
+    # Sidekiq job in dev/test) — assigning that would clobber a good URL with
+    # nothing.
+    resolved_url = preview_image.attached? ? preview_image_url : nil
+    settings["preset_display_image_url"] = resolved_url if resolved_url.present?
+    settings["preview_generated_at"] = Time.current.iso8601
+    settings["preview_status"] = "ok"
+    save
+  end
+
+  def mark_preview_failed!
+    return false unless persisted?
+    merged = (settings.is_a?(Hash) ? settings : {}).merge("preview_status" => "failed")
+    self.settings = merged
+    update_column(:settings, merged)
+    true
+  end
+
+  def mark_preview_skipped!
+    return false unless persisted?
+    merged = (settings.is_a?(Hash) ? settings : {}).merge("preview_status" => "skipped")
+    self.settings = merged
+    update_column(:settings, merged)
+    true
   end
 
   def pdf_url
@@ -2135,6 +2226,8 @@ class Board < ApplicationRecord
       audio_url: audio_url,
       display_image_url: display_image_url || preview_image_url,
       display_image_source: display_image_source,
+      preview_status: preview_status,
+      preview_generated_at: preview_generated_at,
       # floating_words: words,
       common_words: Board.common_words,
       user_id: user_id,
@@ -2559,6 +2652,8 @@ class Board < ApplicationRecord
       display_image_url: @display_image_url || @preview_image_url,
       preview_image_url: @preview_image_url,
       display_image_source: display_image_source,
+      preview_status: preview_status,
+      preview_generated_at: preview_generated_at,
       board_type: board_type,
       user_id: user_id,
       voice: voice,

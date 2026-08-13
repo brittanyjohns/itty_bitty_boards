@@ -12,12 +12,15 @@ module Boards
     def call(generate_png: true, generate_pdf: false)
       if generate_png
         attach_png
-        # Refresh the denormalized snapshot to the *current* preview URL in the
-        # same operation that produced the PNG. Doing it here (rather than in a
-        # post-job reload step) closes the window where a fetch between attach
-        # and write saw the old snapshot, and makes the synchronous callers
-        # (Board#generate_previews) keep the snapshot fresh too.
-        board.update_preset_display_image_url(board.preview_image_url) if board.preview_image.attached?
+        # Refresh the denormalized snapshot to the *current* preview URL, and
+        # record the outcome, in the same operation that produced the PNG. Doing
+        # it here (rather than in a post-job reload step) closes the window where
+        # a fetch between attach and write saw the old snapshot, and makes the
+        # synchronous callers (Board#generate_previews) keep the snapshot fresh
+        # too. `preview_generated_at` is what the client polls on — it advances
+        # on every successful render, including one that produces a
+        # byte-identical picture.
+        board.record_preview_generated!
       end
       attach_pdf if generate_pdf
     end
