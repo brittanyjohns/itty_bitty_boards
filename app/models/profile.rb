@@ -731,16 +731,41 @@ class Profile < ApplicationRecord
   #
   # Sections are an ARRAY, not a hash: CARE_SECTIONS is insertion-ordered and
   # that order is the order the editor renders in.
-  def self.care_registry_view
+  #
+  # Labels ride along too, resolved through CareLabels — the backend owns the
+  # display strings as well as the schema now, so a server-rendered care sheet
+  # and the on-screen card read identically and there is no second copy to
+  # drift. See config/locales/care.en.yml.
+  #
+  # LABELS ARE ADDITIVE, AND MUST STAY THAT WAY. `options` is an array of plain
+  # STRINGS and has to remain one: the deployed frontend parses it with
+  # `asStringList(field?.options)` (src/data/careSections.ts), which yields []
+  # for an array of objects — every section would silently lose its choices and
+  # fall back to the bundled copy. So labels arrive as SIBLING keys (`label`,
+  # `option_labels`) that an older client simply ignores.
+  def self.care_registry_view(locale: I18n.locale)
     {
+      locale: locale.to_s,
       sections: CARE_SECTIONS.map do |key, spec|
         {
           key: key,
+          label: CareLabels.section(key, locale: locale),
           fields: spec[:fields].map do |field|
-            out = { key: field[:key], type: field[:type] }
-            # Offered, not accepted: a retired option stays valid on save but is
-            # never presented as a fresh choice.
-            out[:options] = offered_care_options(key, field) if field[:options]
+            out = {
+              key: field[:key],
+              type: field[:type],
+              label: CareLabels.field(key, field[:key], locale: locale),
+            }
+            if field[:options]
+              # Offered, not accepted: a retired option stays valid on save but is
+              # never presented as a fresh choice.
+              out[:options] = offered_care_options(key, field)
+              # Labels, though, cover ACCEPTED — offered plus retired. A retired
+              # option is still stored on real profiles and still has to render;
+              # it just must never be offered. So this map is deliberately the
+              # wider of the two.
+              out[:option_labels] = CareLabels.options_map(key, field, locale: locale)
+            end
             out
           end,
         }
