@@ -715,13 +715,13 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     before { sign_in admin }
 
     it "rejects a word list that doesn't match the tile count and preserves what was typed" do
-      params = form_params(tile_count: "8")
+      params = form_params(tile_count: "40")
 
       expect { post preview_admin_dashboard_board_builds_path, params: params }
         .to not_change(Board, :count).and not_change(Image, :count)
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("needs to be within 2 of 8")
+      expect(response.body).to include("needs to be within 20 of 40")
       expect(response.body).to include("Playground")
       expect(response.body).to include("swing | noun")
     end
@@ -817,7 +817,7 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     # The preview round trip is a hidden-field resubmit — create must re-derive
     # the plan rather than trusting it.
     it "re-validates the resubmitted plan instead of trusting the preview" do
-      expect { post admin_dashboard_board_builds_path, params: form_params(words: "i | pronoun") }
+      expect { post admin_dashboard_board_builds_path, params: form_params(tile_count: "40", words: "i | pronoun") }
         .not_to change(AdminBoardBuild, :count)
       expect(response).to have_http_status(:unprocessable_entity)
       expect(BuildAdminBoardJob.jobs).to be_empty

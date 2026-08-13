@@ -5,6 +5,12 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     labels.map { |label| { label: label, part_of_speech: "noun" } }
   end
 
+  # A word list of n throwaway labels, for the cases that need to be well past
+  # the (deliberately generous) tile-count tolerance.
+  def word_list(count)
+    tiles(*Array.new(count) { |i| "word#{i}" })
+  end
+
   def pages(root_tiles:, columns: 2, tile_count: 4, children: [])
     Boards::AdminBuilder::Plan.pages(
       root: { name: "Playground", columns: columns, tile_count: tile_count, tiles: root_tiles },
@@ -24,24 +30,24 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     end
 
     it "rejects a short plan and says how many to add" do
-      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more"), tile_count: 8))
-      expect(problems.first).to include("3 words for a 8-tile board (needs to be within 2 of 8)")
-      expect(problems.first).to include("Add 5")
+      problems = validate(pages: pages(root_tiles: tiles("i", "want", "more"), tile_count: 40))
+      expect(problems.first).to include("3 words for a 40-tile board (needs to be within 20 of 40)")
+      expect(problems.first).to include("Add 37")
     end
 
     it "accepts a plan within tolerance of the tile count" do
-      expect(validate(pages: pages(root_tiles: tiles("i", "want"), tile_count: 4))).to eq([])
+      expect(validate(pages: pages(root_tiles: word_list(30), tile_count: 40))).to eq([])
     end
 
     it "rejects a plan just past the tolerance" do
-      problems = validate(pages: pages(root_tiles: tiles("i"), tile_count: 4))
-      expect(problems.first).to include("1 words for a 4-tile board")
-      expect(problems.first).to include("Add 3")
+      problems = validate(pages: pages(root_tiles: word_list(10), tile_count: 40))
+      expect(problems.first).to include("10 words for a 40-tile board")
+      expect(problems.first).to include("Add 30")
     end
 
     # A one-board build must read exactly as it did before pages existed.
     it "does not prefix messages with a page name" do
-      problems = validate(pages: pages(root_tiles: tiles("i"), tile_count: 4))
+      problems = validate(pages: pages(root_tiles: word_list(10), tile_count: 40))
       expect(problems.first).not_to include("Playground:")
     end
 
@@ -49,8 +55,8 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     # columns × rows, so "allow a partial row" no longer excuses a short list —
     # it excuses a tile count that doesn't fill whole rows.
     it "rejects a short plan even with the partial-row escape hatch ticked" do
-      problems = validate(pages: pages(root_tiles: tiles("i"), tile_count: 4), allow_partial_row: true)
-      expect(problems.first).to include("needs to be within 2 of 4")
+      problems = validate(pages: pages(root_tiles: word_list(10), tile_count: 40), allow_partial_row: true)
+      expect(problems.first).to include("needs to be within 20 of 40")
     end
 
     it "accepts a short list once the tile count is lowered to match" do
@@ -61,11 +67,9 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     end
 
     it "rejects an over-full plan and says how many to remove" do
-      problems = validate(pages: pages(
-        root_tiles: tiles("i", "want", "more", "help", "stop", "go", "yes", "no"), tile_count: 4,
-      ))
-      expect(problems.first).to include("8 words for a 4-tile board")
-      expect(problems.first).to include("Remove 4")
+      problems = validate(pages: pages(root_tiles: word_list(30), tile_count: 4))
+      expect(problems.first).to include("30 words for a 4-tile board")
+      expect(problems.first).to include("Remove 26")
     end
 
     # The dead-cell rail, now stated on the size rather than on the word list.
@@ -132,8 +136,10 @@ RSpec.describe Boards::AdminBuilder::PlanValidator do
     end
 
     it "names the page in its own problems" do
-      problems = validate(pages: pages(root_tiles: root_with_folder, children: [child(tiles_list: tiles("apple"))]))
-      expect(problems).to include(a_string_including("Food: 1 words for a 4-tile board"))
+      problems = validate(pages: pages(
+        root_tiles: root_with_folder, children: [child(tiles_list: word_list(30))],
+      ))
+      expect(problems).to include(a_string_including("Food: 30 words for a 4-tile board"))
     end
 
     it "rejects a tile pointing at a page that doesn't exist" do

@@ -127,7 +127,7 @@
       </p>
       <p class="text-[11px] text-t3 mt-1">
         You need about <span id="cell-count" class="text-t1 font-medium">—</span> words
-        (within <%= Boards::AdminBuilder::PlanValidator::TILE_COUNT_TOLERANCE %>) —
+        (anything within <%= Boards::AdminBuilder::PlanValidator::TILE_COUNT_TOLERANCE %> is accepted) —
         <span id="word-count" class="text-t1 font-medium">0</span> so far.
         A tile count that isn’t a whole number of rows leaves dead cells at the end of the last row,
         so Tiles steps a whole row at a time unless you allow a partial row.
