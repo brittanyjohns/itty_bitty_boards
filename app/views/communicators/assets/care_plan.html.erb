@@ -1,0 +1,148 @@
+<%# The communicator care plan — a flowing, multi-page Letter document.
+    Rendered by Communicators::GenerateCarePlan under layouts/pdf_care_plan.
+
+    Locals arrive as @-ivars via ApplicationController.render(assigns:), the
+    same convention as the safety ID card and device tag.
+
+    No cover page, deliberately: this is a 2-3 sheet document that lives in a
+    backpack or a school office folder, and a cover would burn one of them.
+
+    In the :full variant the emergency block comes FIRST, before the care
+    sections — it is what someone reaches for in a hurry, and it should not be
+    on page 2. %>
+
+<div class="masthead">
+  <div>
+    <div class="eyebrow">SpeakAnyWay</div>
+    <h1><%= @title %></h1>
+  </div>
+  <% if @logo.present? %>
+    <img class="logo" src="data:image/png;base64,<%= @logo %>" alt="" />
+  <% end %>
+</div>
+
+<div class="identity">
+  <% if @avatar_data_url.present? %>
+    <img class="avatar" src="<%= @avatar_data_url %>" alt="" />
+  <% else %>
+    <div class="avatar-placeholder"></div>
+  <% end %>
+
+  <div class="who">
+    <h2><%= @display_name %></h2>
+    <div class="sub"><%= @subtitle %></div>
+    <div class="meta">
+      <%= @prepared_on %><% if @pronouns.present? %> · <%= @pronouns %><% end %>
+    </div>
+  </div>
+
+  <% if @qr_data_url.present? %>
+    <div class="qr">
+      <img src="<%= @qr_data_url %>" alt="" />
+      <div class="url"><%= @public_url %></div>
+    </div>
+  <% end %>
+</div>
+
+<% if @emergency %>
+  <%# The emergency block always prints every field, blanks included. A missing
+      "Medications" heading and "Medications — none listed" read very
+      differently to someone holding a distressed child, and only one of them is
+      honest about having been asked. This is the same choice the safety ID card
+      already makes. %>
+  <section class="emergency">
+    <div class="section-keep">
+      <h2><%= t("care.document.emergency.heading") %></h2>
+
+      <% first, *rest = @emergency_fields %>
+      <% if first %>
+        <div class="row">
+          <div class="label"><%= first.label %></div>
+          <div class="value">
+            <%= first.values.first.presence || content_tag(:span, t("care.document.none_listed"), class: "muted") %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% rest.each do |field| %>
+      <div class="row">
+        <div class="label"><%= field.label %></div>
+        <div class="value">
+          <%= field.values.first.presence || content_tag(:span, t("care.document.none_listed"), class: "muted") %>
+        </div>
+      </div>
+    <% end %>
+
+    <div class="contacts">
+      <h3><%= t("care.document.emergency.contacts") %></h3>
+      <% if @emergency_contacts.any? %>
+        <% @emergency_contacts.each do |contact| %>
+          <div class="contact">
+            <div>
+              <div class="name"><%= contact["name"].presence || t("care.document.emergency.relationship_unknown") %></div>
+              <% if contact["relationship"].present? %>
+                <div class="rel"><%= contact["relationship"] %></div>
+              <% end %>
+            </div>
+            <div class="phone"><%= contact["phone"] %></div>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="muted"><%= t("care.document.emergency.no_contacts") %></div>
+      <% end %>
+    </div>
+  </section>
+<% end %>
+
+<% if @care_sections.any? %>
+  <% @care_sections.each_with_index do |section, index| %>
+    <section class="care-section<%= " first" if index.zero? %>">
+      <%# Heading welded to its first row so a section can never open with its
+          title stranded alone at the foot of a page. Everything after this
+          flows — see the layout comment on why the whole section is not
+          break-inside: avoid.
+
+          The "Day-to-day support" divider lives INSIDE the first section's
+          keep block rather than above the loop. Rendered as its own element it
+          was landing alone at the foot of page 1 with the first section
+          starting overleaf — verified in a real render, which is the only
+          place a break like that is visible. %>
+      <% first_row = section.fields.first %>
+      <div class="section-keep">
+        <% if index.zero? %>
+          <div class="care-heading"><%= t("care.document.care_heading") %></div>
+        <% end %>
+        <h2><%= section.label %></h2>
+
+        <% if first_row %>
+          <%= render "communicators/assets/care_plan_row", field: first_row %>
+        <% elsif section.items.first %>
+          <div class="items">
+            <%= render "communicators/assets/care_plan_item", item: section.items.first %>
+          </div>
+        <% end %>
+      </div>
+
+      <% section.fields.drop(1).each do |field| %>
+        <%= render "communicators/assets/care_plan_row", field: field %>
+      <% end %>
+
+      <% remaining_items = first_row ? section.items : section.items.drop(1) %>
+      <% if remaining_items.any? %>
+        <div class="items">
+          <% remaining_items.each do |item| %>
+            <%= render "communicators/assets/care_plan_item", item: item %>
+          <% end %>
+        </div>
+      <% end %>
+    </section>
+  <% end %>
+<% end %>
+
+<div class="footnote">
+  <%= t("care.document.live_page") %>
+  <% if @emergency %>
+    <%= t("care.document.confidential") %>
+  <% end %>
+</div>

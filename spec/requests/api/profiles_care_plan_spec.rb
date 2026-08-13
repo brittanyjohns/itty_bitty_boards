@@ -1,0 +1,165 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+# POST /api/profiles/:id/care_plan — the owner-only download for the care plan
+# documents. Grover is stubbed throughout; there is no Chrome in CI.
+RSpec.describe "API::Profiles care plan", type: :request do
+  let(:parent) { create(:user, created_at: 2.months.ago, stripe_customer_id: "cus_parent_stub") }
+  let(:slp) { create(:user, plan_type: "pro", created_at: 2.months.ago, stripe_customer_id: "cus_slp_stub") }
+  let(:admin) { create(:user, role: "admin", created_at: 2.months.ago) }
+
+  let!(:account) do
+    create(:child_account, user: parent, owner: parent, status: ChildAccount::ACTIVE, passcode: "ownerpw1")
+  end
+  let!(:team) do
+    t = account.ensure_team!(creator: slp)
+    t.upsert_member!(parent, "admin")
+    t.upsert_member!(slp, "supervisor")
+    t
+  end
+  let!(:profile) do
+    Profile.create!(profileable: account,
+                    username: "cp-#{SecureRandom.hex(2)}",
+                    slug: "cp-#{SecureRandom.hex(2)}")
+  end
+
+  let(:care) do
+    { "care" => { "sections" => { "meals" => { "values" => { "textures" => ["soft"] } } } } }
+  end
+  let(:emergency) { { "allergies" => "peanuts" } }
+
+  before do
+    allow(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+    allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    allow_any_instance_of(Profile).to receive(:enqueue_audio_job_if_needed).and_return(true)
+    allow_any_instance_of(Profile).to receive(:url_for_attachment)
+      .and_return("https://cdn.example.test/care-plan.pdf")
+  end
+
+  def post_care_plan(user, params = {})
+    post "/api/profiles/#{profile.id}/care_plan", params: params, headers: auth_headers(user)
+  end
+
+  context "with care and emergency info" do
+    before { profile.update!(settings: care.merge(emergency)) }
+
+    it "returns a URL to the combined plan for the owner" do
+      post_care_plan(parent)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["url"]).to be_present
+      expect(profile.reload.care_emergency_plan_pdf).to be_attached
+    end
+
+    it "defaults to the combined variant" do
+      post_care_plan(parent)
+
+      expect(profile.reload.care_emergency_plan_pdf).to be_attached
+      expect(profile.care_plan_pdf).not_to be_attached
+    end
+
+    it "builds the care-only variant when asked" do
+      post_care_plan(parent, variant: "care_only")
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_plan_pdf).to be_attached
+      expect(profile.care_emergency_plan_pdf).not_to be_attached
+    end
+
+    it "allows an admin" do
+      post_care_plan(admin)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    # The care plan carries medications; the controller-wide owner guard is
+    # what keeps it off a team member's screen.
+    it "refuses the SLP supervisor with 403 not_owner" do
+      post_care_plan(slp)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+    end
+
+    it "generates nothing for a non-owner" do
+      expect(Communicators::GenerateCarePlan).not_to receive(:call)
+
+      post_care_plan(slp)
+    end
+
+    it "refuses an unauthenticated request" do
+      post "/api/profiles/#{profile.id}/care_plan"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "rejects an unknown variant rather than falling back to the combined plan" do
+      post_care_plan(parent, variant: "everything")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("unknown_variant")
+      expect(profile.reload.care_emergency_plan_pdf).not_to be_attached
+    end
+  end
+
+  # Refusing beats emitting a sheet of empty headings, which reads as a finished
+  # plan asserting this child needs nothing.
+  describe "empty states" do
+    it "refuses care_only when there is no care info" do
+      profile.update!(settings: emergency)
+
+      post_care_plan(parent, variant: "care_only")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("no_care_info")
+    end
+
+    it "refuses the combined plan when there is neither care nor emergency info" do
+      profile.update!(settings: {})
+
+      post_care_plan(parent)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("nothing_to_print")
+    end
+
+    # The combined plan is still worth printing on emergency info alone — that
+    # is the hospital-bag case.
+    it "builds the combined plan from emergency info alone" do
+      profile.update!(settings: emergency)
+
+      post_care_plan(parent)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "builds the combined plan from care info alone" do
+      profile.update!(settings: care)
+
+      post_care_plan(parent)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "the communicator payload" do
+    before { profile.update!(settings: care.merge(emergency)) }
+
+    it "carries no care plan URLs until one is generated" do
+      view = account.reload.api_view(parent)
+
+      expect(view).to have_key(:care_plan_url)
+      expect(view[:care_plan_url]).to be_nil
+      expect(view[:care_emergency_plan_url]).to be_nil
+    end
+
+    it "carries the URL once generated" do
+      post_care_plan(parent, variant: "care_only")
+
+      view = account.reload.api_view(parent)
+      expect(view[:care_plan_url]).to eq("https://cdn.example.test/care-plan.pdf")
+      expect(view[:care_emergency_plan_url]).to be_nil
+    end
+  end
+end

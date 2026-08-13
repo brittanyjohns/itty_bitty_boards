@@ -1,0 +1,6 @@
+<%# A detail line — the parent's own "Bathroom: needs a five-minute warning".
+    Either half can be blank; the resolver has already dropped rows where both
+    are. %>
+<div class="item">
+  <% if item.label.present? %><span class="k"><%= item.label %>:</span> <% end %><%= item.value %>
+</div>

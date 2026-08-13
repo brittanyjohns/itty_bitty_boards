@@ -143,3 +143,28 @@ en:
           car_seat: Car seat
           booster: Booster
           wheelchair_securement: Wheelchair securement
+    # under care.document so it travels with the labels it sits beside.
+    document:
+      title:
+        full: Care & Emergency Plan
+        care_only: Care Plan
+      subtitle:
+        full: How to support %{name} day to day, and what to do in an emergency.
+        care_only: How to support %{name} day to day.
+      prepared_on: Prepared %{date}
+      live_page: This plan can change. The live page is always current.
+      custom_section: More about me
+      none_listed: None listed
+      confidential: Contains medical information — please keep it somewhere safe.
+      care_heading: Day-to-day support
+      page_of: Page
+      emergency:
+        heading: Emergency information
+        allergies: Allergies
+        medical_conditions: Medical conditions
+        medications: Medications
+        other_conditions: Other conditions
+        emergency_notes: Notes
+        contacts: Who to call
+        no_contacts: No emergency contacts listed.
+        relationship_unknown: Contact
