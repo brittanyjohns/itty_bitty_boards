@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Only a communicator's owner can generate their Safety ID card or device
+  tag.** The endpoints that build those printables checked that you were signed
+  in but never checked *whose* communicator you were asking about — so any
+  signed-in account could request another family's Safety ID card and be handed
+  a working link to it, allergies, medications, emergency contacts and all. They
+  now answer the same way the rest of the emergency info does: owner (or a
+  SpeakAnyWay admin) only, and everyone else is refused before anything is
+  generated. Note for SLPs and other team members: generating these two
+  printables was never meant to be yours to do, and now isn't — ask the family
+  to download and share them.
+
 ### Changed
 
 - **Care & routine notes: better questions, and you can pick more than one

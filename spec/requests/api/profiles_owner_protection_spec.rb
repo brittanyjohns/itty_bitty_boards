@@ -71,6 +71,110 @@ RSpec.describe "API::Profiles owner protection", type: :request do
     end
   end
 
+  # The asset endpoints hand back an UNSIGNED CloudFront URL for an artifact
+  # that prints allergies, medications and emergency contacts. Authentication
+  # was never enough here — the id is the only thing standing between a signed-in
+  # stranger and another family's emergency info, and ids are sequential.
+  describe "communicator asset endpoints" do
+    let(:fake_attachment) { instance_double(ActiveStorage::Attached::One, attached?: true) }
+
+    before do
+      allow(Communicators::GenerateSafetyIdCard).to receive(:call).and_return(true)
+      allow(Communicators::GenerateDeviceTag).to receive(:call).and_return(true)
+      allow_any_instance_of(Profile).to receive(:safety_id_png).and_return(fake_attachment)
+      allow_any_instance_of(Profile).to receive(:device_tag_png).and_return(fake_attachment)
+      allow_any_instance_of(Profile).to receive(:url_for_attachment)
+        .and_return("https://cdn.example.test/asset.png")
+    end
+
+    describe "POST /api/profiles/:id/safety_id" do
+      it "allows the parent owner" do
+        post "/api/profiles/#{child_profile.id}/safety_id", headers: auth_headers(parent)
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)["url"]).to be_present
+      end
+
+      it "blocks the SLP supervisor with 403 not_owner" do
+        post "/api/profiles/#{child_profile.id}/safety_id", headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:forbidden)
+        expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      end
+
+      # The guard is a before_action for this reason: a non-owner must not be
+      # able to trigger a render (or a regenerate) on someone else's profile,
+      # even if the URL were withheld from the response.
+      it "does not generate anything for a non-owner" do
+        post "/api/profiles/#{child_profile.id}/safety_id",
+             params: { regenerate: true },
+             headers: auth_headers(slp)
+
+        expect(Communicators::GenerateSafetyIdCard).not_to have_received(:call)
+      end
+
+      it "never leaks the asset URL to a non-owner" do
+        post "/api/profiles/#{child_profile.id}/safety_id", headers: auth_headers(slp)
+
+        expect(response.body).not_to include("cdn.example.test")
+      end
+
+      it "allows a system admin" do
+        post "/api/profiles/#{child_profile.id}/safety_id", headers: auth_headers(admin)
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    describe "POST /api/profiles/:id/device_tag" do
+      it "allows the parent owner" do
+        post "/api/profiles/#{child_profile.id}/device_tag", headers: auth_headers(parent)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "blocks the SLP supervisor with 403 not_owner" do
+        post "/api/profiles/#{child_profile.id}/device_tag", headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:forbidden)
+        expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      end
+    end
+
+    # `profileable` is optional: true, so a profile can outlive its
+    # communicator. Fail closed with a 403 rather than raising on nil.
+    it "refuses an orphaned profile instead of raising" do
+      child_profile.update_columns(profileable_id: nil)
+
+      post "/api/profiles/#{child_profile.id}/safety_id", headers: auth_headers(parent)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    describe "a User-owned profile" do
+      let(:slp_profile) do
+        Profile.create!(
+          profileable: slp,
+          username: "slp-#{SecureRandom.hex(2)}",
+          slug: "slp-#{SecureRandom.hex(2)}",
+        )
+      end
+
+      it "allows the user to generate their own device tag" do
+        post "/api/profiles/#{slp_profile.id}/device_tag", headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "blocks another user from generating it" do
+        post "/api/profiles/#{slp_profile.id}/device_tag", headers: auth_headers(parent)
+
+        expect(response).to have_http_status(:forbidden)
+        expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      end
+    end
+  end
+
   describe "PATCH /api/profiles/:id (User-owned profile)" do
     let(:user_profile) do
       Profile.create!(

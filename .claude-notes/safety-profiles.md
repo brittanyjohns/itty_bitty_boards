@@ -198,6 +198,25 @@ the free-text bio.
 - Care info is deliberately **not** on the Safety ID card or device tag; those
   are emergency artifacts.
 
+## Generating the printables is owner-only
+
+`API::Profiles::AssetsController` (`POST /api/profiles/:id/safety_id`,
+`/device_tag`) gates on `ChildAccount#editable_by?` — owner or admin, the same
+rule as `API::ProfilesController#update`. Deliberately **not** team-wide: an
+SLP supervisor can be on the team and still not mint these.
+
+The gate is load-bearing because the actions return
+`Profile#url_for_attachment`, which is an **unsigned `CDN_HOST + key` URL**, not
+a signed or expiring one. Serving one for a profile the caller doesn't own
+publishes that communicator's allergies, medications and ICE contacts
+permanently, to anyone the link reaches. Sequential ids are not a defense. The
+controller authenticated but never authorized until this was fixed; the guard
+is a `before_action` so a non-owner can't even trigger a `regenerate`.
+
+Fail-closed in two places worth keeping: an unrecognized `profileable_type`
+is refused rather than allowed, and `profileable` is `optional: true`, so an
+orphaned profile safe-navigates to nil and 403s instead of raising.
+
 ## About Me (public bio) vs emergency notes (private)
 
 The MySpeak page has two distinct free-text fields that were historically
