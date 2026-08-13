@@ -207,6 +207,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the same renderer. Covers already generated are refreshed by
   `rake board_covers:refresh_blanked_tile_covers`.
 
+- **"Regenerate from tiles" now tells you what actually happened.** The button
+  only ever queued the work and answered "started", so every way it could fail
+  looked identical to a slow success: a page whose cover comes from the folder
+  tile that opens it was skipped in silence, a snapshot that failed to render
+  gave up out of sight, and either way you were told the cover would "appear
+  shortly" when it never would. A board that can't build a cover from its tiles
+  now says so immediately and explains why, a failed render reports itself
+  instead of disappearing, and the app watches the render's own result rather
+  than guessing from the picture's address — so a regenerated cover that
+  happens to look the same still counts as done.
+
 - **Saving one part of a communicator's settings no longer wipes the rest.**
   The communicator screen saves settings from several different places, and
   each one sent only the handful of values it knew about — so saving from one

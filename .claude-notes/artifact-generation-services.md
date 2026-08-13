@@ -32,6 +32,26 @@ Renders any board to a print-ready PDF or PNG. **This is the poster generator.**
 - Attachments on Board: `preview_image` (PNG), `pdf_file` (PDF); URLs via `Board#preview_image_url` / `#pdf_url` (CDN-stable keys).
 - **A preview render must be bounded; a printable render must not be.** Grover waits on `networkidle0` with an effectively infinite global timeout (`config/initializers/grover.rb`), so a tile picture that *hangs* — an S3 key not written yet, art still coming back from `GenerateImagesJob` — never settles the page and the board ends up with no snapshot at all. `RenderAssetData` takes `image_load_deadline_ms:` (nil by default); the template swaps any tile still unloaded at that deadline for its label placeholder, which cancels the request. Only `GeneratePreviewAssets` passes a value (`IMAGE_LOAD_DEADLINE_MS`), plus a bounded `RENDER_TIMEOUT_MS` so a stalled render fails and retries instead of pinning a Sidekiq thread. Printable PDFs deliberately keep the nil default — they're a paid artifact, and a slow S3 read must not cost them the real symbol. A `<img>` that 404s is a different case and always falls back via `onerror`.
 - **A set renders ONE preview — the root. Every other page is thumbnailed from the folder tile that opens it** (`Boards::SubBoardThumbnails`, shared by `BuildBoardSetJob` and `ImportObzJob`). Rendering per page means one headless-Chrome run per sub-board on the shared `:default` queue (concurrency 10), and a real vocabulary set runs to 50-200 pages — one import would stall every other job behind it. The resolved tile image goes to the child's denormalized `display_image_url` COLUMN via `update_column`, so it never re-enqueues a preview. `purge_previews:` is true only for the Board Builder, whose sub-boards are deliberately never rendered; imports leave any later-earned preview in place, since an imported page is an ordinary board.
+- **A render records its outcome, and the client polls that — not the URL.**
+  `settings["preview_status"]` is one of `queued` / `ok` / `skipped` / `failed`,
+  and `settings["preview_generated_at"]` advances on every successful render
+  (`Board#record_preview_generated!`, written in the same save as the
+  denormalized `preset_display_image_url` so a reader can't see one without the
+  other). Both ride on `api_view` and `api_view_with_predictive_images`.
+  `POST generate_preview_image` refuses **422** — `preview_not_supported` for a
+  `builder_child` page, `board_has_no_tiles` for an empty board — instead of
+  enqueuing a job it knows will skip; `Board#preview_generation_blocker` mirrors
+  the job's own skip condition, so keep the two in step. `GenerateBoardPreviewJob`
+  stamps `skipped` on the builder-child return and `failed` from
+  `sidekiq_retries_exhausted`. The point of all of it: the endpoint only
+  *enqueues*, so without a recorded outcome a silent skip, an exhausted render,
+  and a worker that isn't draining are all indistinguishable from a slow
+  success — which is how "Regenerate from tiles" could report success while
+  never changing anything, across three separate rounds of fixes to the read
+  path. **Do not poll `preview_image_url` for this.** It changes only
+  incidentally (it happens to carry the versioned key), and it isn't the field
+  the thumbnail renders — `display_image_url` is, and the two agree only while
+  `display_image_source == "preview"`.
 - **Every path that finishes writing tile art re-enqueues the preview.** The snapshot is taken while art may still be in flight (`GenerateBoardJob` renders right after the tiles exist), so `GenerateImagesJob` re-enqueues `GenerateBoardPreviewJob` on completion — otherwise the all-placeholder snapshot becomes the board's cover permanently. The `.obf`/`.obz` import jobs enqueue it too: nothing else in the import path renders one, and `BoardGroup#preview_image_url` reads through to the root board's attachment.
 
 ## 4. Communicator card/tag generators — makes *per-communicator printables*
