@@ -20,10 +20,12 @@ module Boards
     #
     # Both have an explicit, unticked escape hatch rather than being advisory.
     class PlanValidator
-      # A word list within this many tiles of the target is accepted as-is —
-      # close enough to not fuss over, without opening the door to a board
-      # that's meaningfully sparse or overflowing.
-      TILE_COUNT_TOLERANCE = 2
+      # A word list within this many tiles of the target is accepted as-is.
+      # Deliberately generous: the board is built from the words actually
+      # written, so a near-miss is a cosmetic gap at the end of the last row —
+      # not a reason to block a build. A tight tolerance turned every draft into
+      # a counting exercise.
+      TILE_COUNT_TOLERANCE = 20
 
       def initialize(pages:, allow_partial_row: false, allow_mixed_grids: false)
         @pages = Array(pages)
