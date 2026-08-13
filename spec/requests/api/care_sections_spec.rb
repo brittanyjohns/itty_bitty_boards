@@ -31,7 +31,10 @@ RSpec.describe "API::CareSections", type: :request do
         section["fields"].each_with_index do |field, idx|
           source = spec[:fields][idx]
           expect(field["type"]).to eq(source[:type].to_s)
-          expect(field["options"]).to eq(source[:options])
+          # OFFERED, not the raw constant: a retired option stays acceptable on
+          # save but must never be presented as a fresh choice.
+          expected = source[:options] && Profile.offered_care_options(section["key"], source)
+          expect(field["options"]).to eq(expected)
         end
       end
     end
@@ -40,12 +43,12 @@ RSpec.describe "API::CareSections", type: :request do
       get "/api/care_sections"
       body = JSON.parse(response.body)
 
-      notes = body["sections"]
-              .find { |s| s["key"] == "communication" }["fields"]
-              .find { |f| f["key"] == "notes" }
+      preferences = body["sections"]
+                    .find { |s| s["key"] == "meals" }["fields"]
+                    .find { |f| f["key"] == "preferences" }
 
-      expect(notes["type"]).to eq("short_text")
-      expect(notes).not_to have_key("options")
+      expect(preferences["type"]).to eq("short_text")
+      expect(preferences).not_to have_key("options")
     end
 
     it "serves every cap the sanitizer enforces" do
