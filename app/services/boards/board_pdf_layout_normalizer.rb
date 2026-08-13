@@ -65,10 +65,23 @@ module Boards
     # fabricated a picture on label-only tiles (e.g. an "I feel" header) that
     # the app renders as text. A blank result lets the print template draw the
     # label via generate_placeholder_image, matching what the user sees on screen.
+    #
+    # Note the BARE `||` on every link — never `.presence`. A blank
+    # board_image.display_image_url is a deliberate "this tile has no picture"
+    # marker, and the app stops on it because "" is truthy in Ruby. Wrapping
+    # these in `.presence` treated the marker as absent and fell through to the
+    # underlying image's library art: the Core Safety colour tiles, which the
+    # app draws as the word "red" on a red square, printed an apple instead.
+    # Matching api_view's operator exactly is what keeps print and screen in
+    # agreement — anything cleverer here diverges from what the user sees.
+    #
+    # No viewing user: the PDF endpoint is unauthenticated, so there is nobody
+    # whose doc preference we could resolve. Image#display_doc already falls
+    # back to the image owner's doc when handed nil.
     def tile_display_src(board_image)
-      board_image.display_image_url.presence ||
-        board_image.image&.display_image_url(@current_user).presence ||
-        board_image.image&.src_url.presence
+      board_image.display_image_url ||
+        board_image.image&.display_image_url(nil) ||
+        board_image.image&.src_url
     end
 
     attr_reader :board, :screen_size

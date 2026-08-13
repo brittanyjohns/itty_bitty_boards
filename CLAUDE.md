@@ -387,6 +387,23 @@ an explicit decision, not a drive-by edit.
   Unverified accounts hold zero welcome tokens and zero AI credits and are
   refused image generation (403 `email_verification_required`); they can still
   sign in and use the app — **verification never gates authentication**.
+- **A blank `board_images.display_image_url` means "this tile has no picture"
+  — resolve tile art with a bare `||`, never `.presence`.** The app stops on
+  the blank because `""` is truthy in Ruby
+  (`Board#api_view_with_predictive_images`), and every Grover render must agree
+  with it: `Boards::BoardPdfLayoutNormalizer` feeds `Boards::RenderAssetData`,
+  which is the sole input to the downloadable PDF, the board cover PNG
+  (`Boards::GeneratePreviewAssets`), and the whole printables pipeline. Wrapping
+  the chain in `.presence` treated the marker as absent and fell through to the
+  underlying `Image`'s library art, so a Core Safety colour tile the app draws
+  as the word "red" on a red square printed an apple. Note the print template
+  needs no help here — a blank `image_url` already renders the label via the
+  **transparent** `generate_placeholder_image` SVG, so the tile's `bg_color`
+  shows through and the swatch matches the screen. Two related traps: covers are
+  cached artifacts, so a renderer fix leaves them stale until reprocessed
+  (`rake board_covers:refresh_blanked_tile_covers`); and `BoardImage#set_defaults`
+  seeds `display_image_url` from `image.src_url` on create, so a spec must write
+  the blank *after* creating the tile.
 
 ## Subsystem map (read the spoke before working in the area)
 
