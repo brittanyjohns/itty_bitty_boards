@@ -297,8 +297,12 @@
 
       /* The logo sits here rather than in the band: on the gradient it needed a
          white pad to stay legible against hues it shares, and down here on
-         white it needs nothing. Aligned to the first line of the note, not
-         centred on the block, so it doesn't drift when the note wraps. */
+         white it needs nothing.
+
+         Opposite corner from the note, and centred rather than top-aligned. A
+         14pt mark next to a 7pt line has no top edge worth sharing — aligning
+         their tops hangs the mark most of a line below the text and reads as
+         a mistake. In the corner it answers to nothing but the frame. */
       .footnote {
         margin-top: 12pt;
         padding-top: 5pt;
@@ -306,12 +310,13 @@
         font-size: 7pt;
         color: var(--muted);
         display: flex;
-        align-items: flex-start;
-        gap: 5pt;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10pt;
       }
       .footnote .mark {
-        width: 13pt;
-        height: 13pt;
+        width: 14pt;
+        height: 14pt;
         display: block;
         flex: none;
       }
