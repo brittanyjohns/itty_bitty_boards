@@ -78,5 +78,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily (6am UTC) enforcer for time-boxed entitlements keyed on plan_expires_at. Scoped to 5-Year licenses (basic_5yr/pro_5yr): sends a renewal offer ~LICENSE_RENEWAL_NOTICE_LEAD_DAYS (default 60) before expiry (flags settings[\"renewal_notice_sent_at\"]), and past expiry drops the user to Free via Billing::PlanTransitions.apply_free_plan (data retained, over-limit boards read-only, over-limit communicators in fallback) + a license-ended email. partner_pro/clinician are intentionally excluded.",
     },
+    "downgrade_past_due" => {
+      "cron" => "30 6 * * *",
+      "class" => "DowngradePastDueJob",
+      "queue" => "default",
+      "description" => "Daily (6:30am UTC) grace-window enforcer for plan_status=past_due. Accounts past_due longer than PAST_DUE_GRACE_DAYS (default 30, stamped in settings[\"past_due_since\"]) drop to Free via Billing::PlanTransitions.apply_free_plan (data retained) plus a subscription-canceled email. Checks Stripe first: a subscription that's active/trialing again is healed back to active instead, and a Stripe error skips the user rather than downgrading blind. Rows that went past_due before the stamp existed are stamped on first sweep and age out one window later.",
+    },
   })
 end

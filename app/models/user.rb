@@ -241,6 +241,15 @@ class User < ApplicationRecord
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
+  # `past_due` is a grace state, not a downgrade — Stripe keeps retrying the
+  # charge and access continues — so it needs an age, not a status check.
+  # Stamping the entry moment here (rather than in each webhook) covers every
+  # source that writes the status: Stripe invoice.payment_failed and
+  # RevenueCat BILLING_ISSUE. DowngradePastDueJob times the grace window off
+  # this stamp; leaving past_due drops it, so a recovered payer re-enters the
+  # state with a fresh window.
+  before_save :track_past_due_transition, if: :plan_status_changed?
+
   # Reconcile communicator fallback mode whenever the plan changes (issue #255).
   # Runs after save (so the new slot limits in `settings` are persisted) and in
   # both directions: a downgrade flags over-limit communicators, a re-upgrade
@@ -1540,6 +1549,46 @@ class User < ApplicationRecord
   rescue => e
     Rails.logger.error "[User#reconcile_stranded_plan!] user=#{id} failed: #{e.class} #{e.message}"
     false
+  end
+
+  # Settings key holding the ISO8601 moment the account entered `past_due`.
+  # Written/cleared only by track_past_due_transition (and stamp_past_due!,
+  # which backfills rows that went past_due before the stamp existed).
+  PAST_DUE_SINCE_KEY = "past_due_since".freeze
+
+  def past_due?
+    plan_status.to_s == "past_due"
+  end
+
+  # When this account entered past_due, or nil if it isn't past_due or predates
+  # the stamp. Unparseable values read as nil so a junk stamp can never be
+  # treated as "long expired" — the job re-stamps instead.
+  def past_due_since
+    raw = settings.is_a?(Hash) ? settings[PAST_DUE_SINCE_KEY] : nil
+    return nil if raw.blank?
+
+    Time.zone.parse(raw.to_s)
+  rescue ArgumentError, TypeError
+    nil
+  end
+
+  # Backfill the stamp for an account that was already past_due before the
+  # stamp existed. Grace deliberately starts now, not at some guessed date —
+  # `updated_at` moves on every sign-in, so there is no honest historical
+  # timestamp to recover.
+  def stamp_past_due!(at = Time.current)
+    self.settings ||= {}
+    settings[PAST_DUE_SINCE_KEY] = at.utc.iso8601
+    save!
+  end
+
+  def track_past_due_transition
+    self.settings ||= {}
+    if past_due?
+      settings[PAST_DUE_SINCE_KEY] ||= Time.current.utc.iso8601
+    else
+      settings.delete(PAST_DUE_SINCE_KEY)
+    end
   end
 
   def professional?
