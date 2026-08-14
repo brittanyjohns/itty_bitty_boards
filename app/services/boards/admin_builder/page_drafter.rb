@@ -22,6 +22,21 @@ module Boards
       # 12x12, matching the controller's grid ceiling.
       MAX_TILES = 144
 
+      # Links are in the schema because a page owes the set exactly one: the way
+      # home. `link_for` drops anything else the model puts there.
+      SCHEMA = {
+        name: "aac_page_word_list",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["tiles"],
+          properties: {
+            tiles: { type: "array", items: Drafting.tile_schema },
+          },
+        },
+      }.freeze
+
       # `topic` is the whole board's subject and is optional context — the page
       # title is the actual input, and a page can be drafted before the board
       # has a topic at all.
@@ -50,7 +65,7 @@ module Boards
       end
 
       def generate_via_openai
-        content = Drafting.chat(prompt: subject, content: build_prompt)
+        content = Drafting.chat(prompt: subject, content: build_prompt, schema: SCHEMA)
         raise GenerationError, "OpenAI returned no content" if content.blank?
 
         content
@@ -74,33 +89,27 @@ module Boards
           - No other tile has "links_to" — this page opens nothing further.
 
           Word rules:
-          - A board for talking, not a vocabulary list. Favour words that finish a
-            sentence over words that name a thing.
           - This is a page, not the main board: the main board already carries the core
             words the whole set leans on, so spend these cells on #{subject} rather than
             repeating "I", "want", "more" and "help".
-          - No near-duplicates ("happy" and "glad", "big" and "large"). Each tile costs a
-            cell.
-          - Keep each label short — 1-2 words.
-          - Concrete and age-appropriate.
+          - A page still has to be sayable on its own terms. Carry the verbs and the
+            describing words that belong to #{subject} — what you DO there and what it
+            is LIKE — not only the things you would find there.
           - Aim for roughly this balance: 30-40% verbs and core function words,
             15-20% pronouns and determiners, 15-20% describing words, 25-35% topic
             nouns. A page that is mostly nouns is a picture dictionary, not an AAC
             page.
-          - A label is display text, not an identifier: separate words with a plain
-            space, never an underscore.
+          #{Drafting::WORD_RULES.rstrip}
           #{LabelCasing::PROMPT_RULE.rstrip}
-          - Give every tile a part_of_speech from exactly this list:
-            #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
-          - Classify by communicative function, not strict grammar: "more", "yes" and
-            "please" are social; "no", "not" and "stop" are important_function.
+          #{Drafting.part_of_speech_rules.rstrip}
 
-          Respond in JSON format:
+          Respond in JSON format — every tile carries "proper_noun" and "links_to",
+          with null where there is no link:
           {
             "tiles": [
-              { "label": "apple", "part_of_speech": "noun" },
-              { "label": "hungry", "part_of_speech": "adjective" },
-              { "label": "back", "part_of_speech": "social", "links_to": "#{Plan::ROOT_KEY}" }
+              { "label": "hungry", "part_of_speech": "adjective", "proper_noun": false, "links_to": null },
+              { "label": "apple", "part_of_speech": "noun", "proper_noun": false, "links_to": null },
+              { "label": "back", "part_of_speech": "social", "proper_noun": false, "links_to": "#{Plan::ROOT_KEY}" }
             ]
           }
 
@@ -108,9 +117,14 @@ module Boards
         PROMPT
       end
 
+      # Arranged for the same reason as every other drafter: the order here is
+      # the grid layout. The back tile carries `links_to`, so it sorts into the
+      # bottom band — which keeps `BackTileAlignment`'s mirror-swap a move
+      # between navigation cells rather than one that pulls a word out of its
+      # colour block.
       def parse_response(raw)
         data = JSON.parse(raw)
-        tiles = dedupe(Array(data["tiles"])).first(tile_count)
+        tiles = TileArrangement.arrange(dedupe(Array(data["tiles"])).first(tile_count))
 
         # Only a response with nothing usable in it is an error — this fills a
         # textarea, so a short draft is survivable and the form's counter shows

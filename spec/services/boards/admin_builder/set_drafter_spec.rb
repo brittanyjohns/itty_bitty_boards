@@ -38,10 +38,12 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     it "returns the root tiles and one child page" do
       result = draft
 
+      # Band order, not the model's — the drafted order is the grid layout, and
+      # the folder tile sorts into the navigation band at the end.
       expect(result[:root_tiles]).to eq([
         { label: "I", part_of_speech: "pronoun" },
-        { label: "want", part_of_speech: "verb" },
         { label: "more", part_of_speech: "social" },
+        { label: "want", part_of_speech: "verb" },
         { label: "Food", part_of_speech: "noun", links_to: "food" },
       ])
       expect(result[:children].size).to eq(1)
@@ -91,7 +93,8 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
                      pages: [{ "key" => "food", "name" => "Food",
                                "tiles" => [tile("back", "social", "__root__")] }]))
 
-      expect(labels(columns: 3, tile_count: 3)).to eq(["apple", "all done", "Food"])
+      # "all done" leads: it is social, and apple is a noun.
+      expect(labels(columns: 3, tile_count: 3)).to eq(["all done", "apple", "Food"])
     end
 
     it "keeps a folder tile's authored capital" do
@@ -191,7 +194,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
       stub_ai(ai_set(root: [tile("go", "verb"), tile("Go", "verb"), tile("stop", "important_function")], pages: []))
 
       expect(draft(columns: 3, tile_count: 3, page_count: 1)[:root_tiles].map { |t| t[:label] })
-        .to eq(%w[go stop])
+        .to eq(%w[stop go])
     end
 
     it "falls back to default for a part of speech outside the Fitzgerald key" do
@@ -331,18 +334,42 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
   end
 
   describe "the prompt" do
-    def prompt_for(**args)
+    def opts_for(**args)
       captured = nil
       allow(OpenAiClient).to receive(:new) do |opts|
         # The FIRST call only. `valid_set` is a 4-tile fixture and these
         # examples ask for 24, so the short-draft top-up fires a second call —
         # WordListDrafter's prompt, which is not what any of this describes.
-        captured ||= opts[:messages].first[:content]
+        captured ||= opts
         instance_double(OpenAiClient, create_chat: { role: "assistant", content: valid_set })
           .tap { |double| allow(double).to receive(:instance_variable_set) }
       end
       described_class.new(**{ topic: "the playground", columns: 6, tile_count: 24, page_count: 2 }.merge(args)).call
       captured
+    end
+
+    # This drafter's own prompt is the USER message — Drafting prepends a shared
+    # system message ahead of it.
+    def prompt_for(**args)
+      opts_for(**args)[:messages].find { |message| message[:role] == "user" }[:content]
+    end
+
+    it "is sent behind the shared system prompt, under a json schema" do
+      opts = opts_for
+
+      expect(opts[:messages].map { |message| message[:role] }).to eq(%w[system user])
+      expect(opts[:messages].first[:content]).to eq(Boards::AdminBuilder::Drafting::SYSTEM_PROMPT)
+      expect(opts.dig(:response_format, :json_schema, :name)).to eq("aac_board_set")
+      expect(opts.dig(:response_format, :json_schema, :schema, :properties, :pages, :items,
+                      :properties, :tiles, :items, :properties, :part_of_speech, :enum))
+        .to eq(ColorHelper::PARTS_OF_SPEECH)
+    end
+
+    it "carries the shared word rules and the band order" do
+      prompt = prompt_for
+
+      expect(prompt).to include(Boards::AdminBuilder::Drafting::WORD_RULES.rstrip)
+      expect(prompt).to include(Boards::AdminBuilder::TileArrangement::BAND_ORDER.join(", "))
     end
 
     it "asks for exactly the requested tile count on every page" do

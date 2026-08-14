@@ -27,6 +27,22 @@ module Boards
       # 12x12, matching the controller's grid ceiling.
       MAX_TILES = 144
 
+      # No `links_to`: this drafter replaces a whole word list and knows nothing
+      # about the pages in the set, so a link it invented would name a page that
+      # doesn't exist. `FolderTiles` writes the doors back in afterwards.
+      SCHEMA = {
+        name: "aac_word_list",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["tiles"],
+          properties: {
+            tiles: { type: "array", items: Drafting.tile_schema(links: false) },
+          },
+        },
+      }.freeze
+
       # existing_labels switches the prompt from "draft a whole board" to "add
       # N more tiles to one that already has these" — used when topping up a
       # list an admin already started rather than replacing it.
@@ -48,7 +64,7 @@ module Boards
       attr_reader :topic, :tile_count, :audience, :existing_labels
 
       def generate_via_openai
-        content = Drafting.chat(prompt: topic, content: build_prompt)
+        content = Drafting.chat(prompt: topic, content: build_prompt, schema: SCHEMA)
         raise GenerationError, "OpenAI returned no content" if content.blank?
 
         content
@@ -71,37 +87,29 @@ module Boards
           Generate EXACTLY #{tile_count} tiles — the board is a fixed grid and a partial
           last row leaves visible dead cells.
 
-          Start with these core words, in this order, before any topic words:
+          The board must include these core words — they are what makes it usable for
+          something other than labelling:
           #{spine_for_size.join(", ")}
 
-          Then fill the rest with topic words, aiming for roughly this balance across the
+          Fill the rest with topic words, aiming for roughly this balance across the
           whole list:
           - 30-40% verbs and core function words (the words that do the communicating)
           - 15-20% pronouns and determiners
           - 15-20% describing words
           - 25-35% topic nouns
+          A board that is mostly nouns is a picture dictionary, not an AAC board.
 
           Rules:
-          - A board for talking, not a vocabulary list. Favour words that finish a
-            sentence over words that name a thing.
-          - No near-duplicates ("happy" and "glad", "big" and "large"). Each tile costs a
-            cell.
-          - Keep each label short — 1-2 words.
-          - Concrete and age-appropriate.
-          - A label is display text, not an identifier: separate words with a plain
-            space, never an underscore.
+          #{Drafting::WORD_RULES.rstrip}
           #{LabelCasing::PROMPT_RULE.rstrip}
-          - Give every tile a part_of_speech from exactly this list:
-            #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
-          - Classify by communicative function, not strict grammar: "more", "yes" and
-            "please" are social; "no", "not" and "stop" are important_function.
+          #{Drafting.part_of_speech_rules.rstrip}
 
           Respond in JSON format:
           {
             "tiles": [
-              { "label": "i", "part_of_speech": "pronoun" },
-              { "label": "want", "part_of_speech": "verb" },
-              { "label": "all done", "part_of_speech": "social" }
+              { "label": "i", "part_of_speech": "pronoun", "proper_noun": false },
+              { "label": "want", "part_of_speech": "verb", "proper_noun": false },
+              { "label": "all done", "part_of_speech": "social", "proper_noun": false }
             ]
           }
 
@@ -125,25 +133,20 @@ module Boards
           topic words the board doesn't have yet.
 
           Rules:
-          - A board for talking, not a vocabulary list. Favour words that finish a
-            sentence over words that name a thing.
+          - Read the existing list before choosing: fill what it is MISSING. If it has
+            no way to refuse or redirect, that is the first gap to close; if it is all
+            nouns, add the verbs and describing words that make them sayable.
           - No near-duplicates of each other or of the existing words ("happy" next to
-            "glad", "big" next to "large"). Each tile costs a cell.
-          - Keep each label short — 1-2 words.
-          - Concrete and age-appropriate.
-          - A label is display text, not an identifier: separate words with a plain
-            space, never an underscore.
+            "glad", "big" next to "large").
+          #{Drafting::WORD_RULES.rstrip}
           #{LabelCasing::PROMPT_RULE.rstrip}
-          - Give every tile a part_of_speech from exactly this list:
-            #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
-          - Classify by communicative function, not strict grammar: "more", "yes" and
-            "please" are social; "no", "not" and "stop" are important_function.
+          #{Drafting.part_of_speech_rules.rstrip}
 
           Respond in JSON format:
           {
             "tiles": [
-              { "label": "swing", "part_of_speech": "noun" },
-              { "label": "push", "part_of_speech": "verb" }
+              { "label": "swing", "part_of_speech": "noun", "proper_noun": false },
+              { "label": "push", "part_of_speech": "verb", "proper_noun": false }
             ]
           }
 
@@ -151,9 +154,18 @@ module Boards
         PROMPT
       end
 
+      # Arranged, not just deduped: the drafted order IS the grid layout
+      # downstream (`Build#apply_reading_order!`), so grouping the list by part
+      # of speech here is what puts like words next to each other on the board.
+      # `TileArrangement.arrange` is a permutation, so the count the caller sees
+      # is unaffected.
+      #
+      # In top-up mode this arranges only the NEW tiles — the caller appends them
+      # to a list the admin may have typed by hand, and re-sorting someone's
+      # authored order because they asked for a few more words is not the deal.
       def parse_response(raw)
         data = JSON.parse(raw)
-        tiles = dedupe(Array(data["tiles"])).first(tile_count)
+        tiles = TileArrangement.arrange(dedupe(Array(data["tiles"])).first(tile_count))
 
         # Unlike Boards::AiPageGenerator — which builds from its response — this
         # only fills a textarea, so a short draft is survivable: the form's

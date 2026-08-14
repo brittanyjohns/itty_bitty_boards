@@ -28,6 +28,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **AI board drafts now come back laid out, not just filled in.** The order the
+  AI answers in is the order the tiles land on the grid, so a scrambled word list
+  was a scrambled board: a verb, a noun, a pronoun, another noun, and the
+  colour-coding that is supposed to help a communicator find a word reading as
+  confetti. Drafts are now grouped before they reach the form — the quick words
+  (I, you, yes, more, no, stop) in the opening cells, then verbs, then describing
+  words, then the topic words, with folder tiles and every "back" tile on the
+  bottom rows where the rest of the app keeps navigation. Words a model reliably
+  miscolours are corrected on the way ("stop" is a protest word, not an action
+  word), and the drafted list is still ordinary text you can edit — nothing is
+  re-sorted once you have touched it. (Admin only.)
+
+- **Better words on AI drafts.** The drafting prompts now ask for what makes a
+  board sayable rather than accurate: words that finish many sentences instead of
+  one, a way to object and a way to redirect on every board, no nouns that exist
+  only to be labelled, no days-of-the-week filler, and a register that matches
+  who the board is for. Folder pages are asked for the verbs and describing words
+  that belong to them, not just the things you would find there. (Admin only.)
+
 - **Words drafted with AI now come back lowercase, the way AAC tiles are
   written.** "Draft with AI" and "Draft the whole set with AI" were handing back
   Title Case — "Apple", "All Done" — and that casing followed the words all the
