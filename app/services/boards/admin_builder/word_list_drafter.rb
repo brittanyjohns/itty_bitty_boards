@@ -48,16 +48,10 @@ module Boards
       attr_reader :topic, :tile_count, :audience, :existing_labels
 
       def generate_via_openai
-        client = OpenAiClient.new(
-          prompt: topic,
-          messages: [{ role: "user", content: build_prompt }],
-        )
-        client.instance_variable_set(:@model, OpenAiClient::GTP_MODEL)
-        result = client.create_chat(true)
+        content = Drafting.chat(prompt: topic, content: build_prompt)
+        raise GenerationError, "OpenAI returned no content" if content.blank?
 
-        raise GenerationError, "OpenAI returned no content" if result[:content].blank?
-
-        result[:content]
+        content
       end
 
       # A small grid can't carry the whole spine, so ask for as much of it as
@@ -96,6 +90,7 @@ module Boards
           - Concrete and age-appropriate.
           - A label is display text, not an identifier: separate words with a plain
             space, never an underscore.
+          #{LabelCasing::PROMPT_RULE.rstrip}
           - Give every tile a part_of_speech from exactly this list:
             #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
           - Classify by communicative function, not strict grammar: "more", "yes" and
@@ -104,8 +99,9 @@ module Boards
           Respond in JSON format:
           {
             "tiles": [
-              { "label": "I", "part_of_speech": "pronoun" },
-              { "label": "want", "part_of_speech": "verb" }
+              { "label": "i", "part_of_speech": "pronoun" },
+              { "label": "want", "part_of_speech": "verb" },
+              { "label": "all done", "part_of_speech": "social" }
             ]
           }
 
@@ -137,6 +133,7 @@ module Boards
           - Concrete and age-appropriate.
           - A label is display text, not an identifier: separate words with a plain
             space, never an underscore.
+          #{LabelCasing::PROMPT_RULE.rstrip}
           - Give every tile a part_of_speech from exactly this list:
             #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
           - Classify by communicative function, not strict grammar: "more", "yes" and
@@ -183,20 +180,20 @@ module Boards
         raw_tiles.filter_map do |tile|
           next unless tile.is_a?(Hash)
 
-          label = sanitize_label(tile["label"] || tile["word"])
+          label = LabelCasing.sanitize(tile["label"] || tile["word"])
           next if label.blank?
           next unless seen.add?(label.downcase)
 
-          { label: label, part_of_speech: part_of_speech_for(tile) }
+          part_of_speech = part_of_speech_for(tile)
+          {
+            label: LabelCasing.apply(
+              label,
+              part_of_speech: part_of_speech,
+              proper_noun: LabelCasing.proper_noun?(tile),
+            ),
+            part_of_speech: part_of_speech,
+          }
         end
-      end
-
-      # The model occasionally answers a multi-word label snake_cased, like an
-      # identifier rather than the tile text it's meant to be — underscores
-      # have no legitimate place in display text, so they're folded to spaces
-      # rather than left for the admin to notice and retype.
-      def sanitize_label(raw)
-        raw.to_s.strip.tr("_", " ").squeeze(" ").strip
       end
 
       # An unrecognized value would be rejected by PlanValidator on preview, so

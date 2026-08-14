@@ -83,10 +83,32 @@
       Page “<%= page[:key] %>” — <%= page[:name] %>
     <% end %>
     <span class="text-t3 font-normal normal-case tracking-normal">
-      · <%= page[:columns] %> columns · <%= page[:rows].size %> of <%= page[:tile_count] %> tiles, in reading order
+      <% if page[:linked_board] %>
+        · linked, not built
+      <% else %>
+        · <%= page[:columns] %> columns · <%= page[:rows].size %> of <%= page[:tile_count] %> tiles, in reading order
+      <% end %>
     </span>
   </h2>
 
+  <%# A linked page has nothing to review: the board it opens is already built
+      and already has its art. Drawing its empty grid would read as a broken
+      page rather than a deliberate one. %>
+  <% if page[:linked_board] %>
+    <div class="admin-card border rounded-xl p-4 mb-8">
+      <p class="text-xs text-t2">
+        Opens the existing board
+        <a href="/pb/<%= page[:linked_board].slug %>" target="_blank" rel="noopener"
+           class="text-accent hover:underline"><%= page[:linked_board].name %></a>
+        (<%= page[:linked_board].large_screen_columns %> columns).
+      </p>
+      <p class="text-[11px] text-t3 mt-1">
+        Nothing about that board changes, and this build never publishes, unpublishes or
+        deletes it. It has no way back to this main board — its own back tile still goes
+        wherever it already went.
+      </p>
+    </div>
+  <% else %>
   <div class="builder-grid mb-8" style="--cols: <%= page[:columns] %>;">
     <% page[:rows].each do |row| %>
       <% key = Boards::ImageResolver.normalize(row.label) %>
@@ -168,6 +190,7 @@
       </div>
     <% end %>
   </div>
+  <% end %>
 <% end %>
 
 <div class="admin-card border rounded-xl p-5 mb-8">
@@ -197,7 +220,11 @@
     <%= hidden_field_tag :allow_partial_row, @form[:allow_partial_row] ? "1" : "0" %>
     <%= hidden_field_tag :allow_mixed_grids, @form[:allow_mixed_grids] ? "1" : "0" %>
     <% @form[:children].each_with_index do |child, index| %>
-      <% %i[key name columns tile_count words].each do |field| %>
+      <%# existing_board_id is in this list because it is the whole difference
+          between a page this build writes and a page that points at a board
+          someone already published. Leaving it out silently turned every
+          reviewed link back into a freshly-built page. %>
+      <% %i[key name columns tile_count words existing_board_id].each do |field| %>
         <%= hidden_field_tag "children[#{index}][#{field}]", child[field], id: nil %>
       <% end %>
     <% end %>
@@ -316,5 +343,27 @@
         syncPicks(select.dataset.docPick, select.value);
       });
     });
+
+    // `create` makes an AdminBoardBuild and queues a job per POST, so a double
+    // click is two builds and two complete sets of boards — with no shared id
+    // between them, nothing downstream can tell they were the same intent.
+    // Disabling the button outright would drop it from the submission, so the
+    // guard is on the submit event and the button is only greyed after.
+    var buildForm = document.getElementById("build-form");
+    if (buildForm) {
+      var submitting = false;
+      buildForm.addEventListener("submit", function (event) {
+        if (submitting) {
+          event.preventDefault();
+          return;
+        }
+        submitting = true;
+        var button = buildForm.querySelector('input[type="submit"]');
+        if (button) {
+          button.classList.add("opacity-50", "pointer-events-none");
+          button.value = "Building…";
+        }
+      });
+    }
   })();
 </script>

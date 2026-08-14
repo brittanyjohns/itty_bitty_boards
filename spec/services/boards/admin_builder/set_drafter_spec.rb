@@ -77,12 +77,74 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     end
   end
 
+  # The model answers in Title Case no matter what the prompt says, and these
+  # labels go straight into the textarea the admin reads and on into the plan —
+  # Image#set_label only folds a NEW image, and never one whose tile carries an
+  # explicit display_label, so nothing downstream was catching it.
+  describe "casing" do
+    def labels(**overrides)
+      draft(**overrides)[:root_tiles].map { |tile| tile[:label] }
+    end
+
+    it "folds a drafted word to the lowercase AAC default" do
+      stub_ai(ai_set(root: [tile("Apple", "noun"), tile("All Done", "social"), tile("Food", "noun", "food")],
+                     pages: [{ "key" => "food", "name" => "Food",
+                               "tiles" => [tile("back", "social", "__root__")] }]))
+
+      expect(labels(columns: 3, tile_count: 3)).to eq(["apple", "all done", "Food"])
+    end
+
+    it "keeps a folder tile's authored capital" do
+      stub_ai(ai_set(root: [tile("Snack Time", "noun", "snack_time")],
+                     pages: [{ "key" => "snack_time", "name" => "Snack Time",
+                               "tiles" => [tile("back", "social", "__root__")] }]))
+
+      expect(labels(columns: 1, tile_count: 1)).to eq(["Snack Time"])
+    end
+
+    it "keeps a label the model flagged as a proper noun" do
+      root = [tile("Goldfish", "noun").merge("proper_noun" => true),
+              tile("Cracker", "noun"),
+              tile("Food", "noun", "food")]
+      stub_ai(ai_set(root: root, pages: [{ "key" => "food", "name" => "Food",
+                                           "tiles" => [tile("back", "social", "__root__")] }]))
+
+      expect(labels(columns: 3, tile_count: 3)).to eq(["Goldfish", "cracker", "Food"])
+    end
+
+    it "folds page words too, not just the root's" do
+      stub_ai(ai_set(root: [tile("Food", "noun", "food")],
+                     pages: [{ "key" => "food", "name" => "Food",
+                               "tiles" => [tile("Hungry", "adjective"), tile("Back", "social", "__root__")] }]))
+
+      page = draft(columns: 2, tile_count: 2)[:children].first
+
+      expect(page[:tiles].map { |t| t[:label] }).to eq(["hungry", "Back"])
+    end
+  end
+
+  # A page repeating a core word off the main board spends a cell on something
+  # the communicator can already reach from the board every page returns to.
+  describe "cross-page duplication" do
+    it "drops a page word the main board already carries" do
+      stub_ai(ai_set(
+                root: [tile("want", "verb"), tile("Food", "noun", "food")],
+                pages: [{ "key" => "food", "name" => "Food",
+                          "tiles" => [tile("want", "verb"), tile("apple", "noun")] }],
+              ))
+
+      page = draft(columns: 2, tile_count: 2)[:children].first
+
+      expect(page[:tiles].map { |t| t[:label] }).to eq(["apple"])
+    end
+  end
+
   describe "cleanup of what the model returns" do
     it "drops a link pointing at a page that isn't in the set" do
       stub_ai(ai_set(root: [tile("Toys", "noun", "toys")], pages: []))
 
       expect(draft(columns: 1, tile_count: 1, page_count: 1)[:root_tiles])
-        .to eq([{ label: "Toys", part_of_speech: "noun" }])
+        .to eq([{ label: "toys", part_of_speech: "noun" }])
     end
 
     it "keeps a child's link back to the root" do
@@ -97,7 +159,7 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     it "drops a root tile linking to the root" do
       stub_ai(ai_set(root: [tile("Home", "social", "__root__")], pages: []))
 
-      expect(draft(columns: 1, tile_count: 1)[:root_tiles]).to eq([{ label: "Home", part_of_speech: "social" }])
+      expect(draft(columns: 1, tile_count: 1)[:root_tiles]).to eq([{ label: "home", part_of_speech: "social" }])
     end
 
     it "normalizes a page key to lowercase letters, numbers and underscores" do
@@ -272,7 +334,10 @@ RSpec.describe Boards::AdminBuilder::SetDrafter do
     def prompt_for(**args)
       captured = nil
       allow(OpenAiClient).to receive(:new) do |opts|
-        captured = opts[:messages].first[:content]
+        # The FIRST call only. `valid_set` is a 4-tile fixture and these
+        # examples ask for 24, so the short-draft top-up fires a second call —
+        # WordListDrafter's prompt, which is not what any of this describes.
+        captured ||= opts[:messages].first[:content]
         instance_double(OpenAiClient, create_chat: { role: "assistant", content: valid_set })
           .tap { |double| allow(double).to receive(:instance_variable_set) }
       end

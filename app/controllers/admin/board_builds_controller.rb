@@ -25,6 +25,8 @@ module Admin
     DEFAULT_VOICE = "polly:kevin".freeze
 
     before_action :require_seed_admin!
+
+    helper_method :existing_board_matches
     before_action :set_build, only: %i[show update destroy publish unpublish duplicate regenerate_art]
 
     def index
@@ -300,12 +302,18 @@ module Admin
         plan: {
           "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(@form[:tiles]),
           "children" => @form[:children].map do |child|
+            linked = child[:existing_board_id].presence&.to_i
             {
               "key" => child[:key],
               "name" => child[:name],
               "columns" => child[:columns].presence&.to_i,
               "tile_count" => child[:tile_count].presence&.to_i,
-              "tiles" => Boards::AdminBuilder::Plan.stringify_tiles(child[:tiles]),
+              # A linked page stores no word list. Plan.child_page blanks the
+              # tiles too, but keeping them out of the stored plan means
+              # re-opening the build through `duplicate` doesn't resurrect a
+              # word list the page never used.
+              "tiles" => linked ? [] : Boards::AdminBuilder::Plan.stringify_tiles(child[:tiles]),
+              "existing_board_id" => linked,
             }.compact
           end,
           # Marks made on the review screen. Re-filtered against the plan here
@@ -711,7 +719,7 @@ module Admin
     end
 
     def blank_child
-      { key: "", name: "", columns: "", tile_count: "", words: "", tiles: [] }
+      { key: "", name: "", columns: "", tile_count: "", words: "", tiles: [], existing_board_id: "" }
     end
 
     def form_from_build(build)
@@ -735,6 +743,7 @@ module Admin
           {
             key: page[:key], name: page[:name], columns: "", tile_count: "",
             words: tiles_to_words(page[:tiles]), tiles: page[:tiles],
+            existing_board_id: page[:existing_board_id].to_s,
           }
         end,
         commercial_safe_only: build.commercial_safe_only,
@@ -859,11 +868,29 @@ module Admin
           tile_count: child[:tile_count].to_s.strip,
           words: words,
           tiles: parse_tiles(words),
+          # "" when the picker is on "create a new page", which is the default.
+          # Validated as a real linkable board at build time, not here — this
+          # only has to survive the round trip.
+          existing_board_id: child[:existing_board_id].to_s.strip,
         }
         next if page[:key].blank? && page[:name].blank? && words.strip.blank?
 
         page
       end
+    end
+
+    # Published admin boards each page could point at instead of building a new
+    # one, keyed by the downcased page name the block carries. Recomputed on
+    # every round trip so renaming a page re-runs the lookup, in one query for
+    # the whole form.
+    #
+    # A helper rather than an ivar set per action: eleven actions render this
+    # form, and every one of them would have had to remember.
+    def existing_board_matches(form)
+      @existing_board_matches ||= Boards::AdminBuilder::ExistingBoards.matching(
+        Array(form[:children]).map { |child| child[:name] },
+        columns: form[:columns].to_i,
+      )
     end
 
     def checked?(value)

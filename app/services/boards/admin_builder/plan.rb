@@ -36,16 +36,30 @@ module Boards
       end
 
       def child_page(child, root_page)
+        existing_board_id = child[:existing_board_id].presence&.to_i
+
         {
           key: child[:key].to_s.strip,
           name: child[:name].to_s,
           columns: child[:columns].presence&.to_i || root_page[:columns],
           tile_count: child[:tile_count].presence&.to_i || root_page[:tile_count],
-          tiles: Array(child[:tiles]),
+          # A linked page has no word list of its own — the board it points at
+          # already has its tiles. Blanked HERE, at the one place every consumer
+          # reads a page from, so validation, art resolution, the preview and
+          # the build all agree without each having to remember the rule. A
+          # words textarea that a stale browser posted anyway is ignored rather
+          # than half-honoured.
+          tiles: existing_board_id ? [] : Array(child[:tiles]),
+          existing_board_id: existing_board_id,
           # Whether the grid was authored on this page or inherited — the
           # mixed-grid check only has something to say about an authored one.
           inherits_grid: child[:columns].blank? && child[:tile_count].blank?,
-        }
+        }.compact
+      end
+
+      # This page points at a board that already exists; nothing builds it.
+      def linked?(page)
+        page[:existing_board_id].present?
       end
 
       def root?(page)
@@ -73,6 +87,7 @@ module Boards
               columns: child["columns"],
               tile_count: child["tile_count"],
               tiles: symbolize_tiles(child["tiles"]),
+              existing_board_id: child["existing_board_id"],
             }
           end,
         )

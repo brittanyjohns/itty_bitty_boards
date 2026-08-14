@@ -1179,6 +1179,42 @@ Its own invariants:
   action is scoped through `AdminBoardBuild.builder_boards`, the same rail
   `Admin::VideoBoardsController` runs on. Boards are created unpublished;
   publishing is a separate confirmed POST that refuses an empty board.
+- **The set and the build's pointer at it commit together, under a row lock on
+  the build** (`Build#create_and_claim!`), and `art_report["boards"]` is written
+  in that same transaction — every page, not just the root. Both halves are
+  load-bearing. `BuildAdminBoardJob` is `retry: 2`, so a claim written *after*
+  the creating transaction left the boards committed with `board_id` still blank
+  whenever anything in between raised (the two art queries, the jsonb write) —
+  and the retry sailed past the "already built" guard and produced a second full
+  set. A stranded set stays `published: true` and appears in no build's
+  `art_report`, so `AdminBoardBuild#set_boards` can't see it: not listed on the
+  build page, skipped by publish/unpublish, left behind by destroy. The row lock
+  is the other half, because Sidekiq delivers at least once and two workers can
+  both read a blank `board_id` before either writes one.
+  `rake admin_board_builds:orphans` finds sets already stranded this way
+  (`UNPUBLISH=1` / `APPLY=1` to act). The other duplication route is two POSTs
+  to `create` — that makes two *builds*, and the preview page's submit guard is
+  what stops a double click causing it.
+- **A page can LINK an existing published admin board instead of building one.**
+  `children[i][existing_board_id]`, offered by `Boards::AdminBuilder::ExistingBoards`
+  whenever a published admin board carries the page's name (name match, ranked
+  same-grid-first; predictive and menu boards excluded because
+  `BoardImage#door_tile?` wouldn't read a tile pointing at one as a folder).
+  Creating a new page stays the default. Three rails:
+  `Plan.child_page` blanks a linked page's tiles at the single point every
+  consumer reads a page from, so validation, art resolution, preview and build
+  agree without each remembering the rule; the linked board is recorded under
+  `art_report["linked_boards"]` and **never** `["boards"]`, since that key is
+  what publish/unpublish/destroy iterate; and `Build#pin_as_main_board!` sets
+  `settings["builder_root"] = true` on it, because `check_is_sub_board` is a
+  `before_save` that would otherwise demote the board out of `main_boards` (and
+  out of `Boards::AdminSearch.base_scope`, so out of admin board search) on its
+  next unrelated save. The id is always re-resolved through
+  `ExistingBoards.find`, never `Board.find` — it arrives on a form post.
+  **Known gap:** a linked board keeps whatever back tile it already had, so it
+  has no way back to the new root. `data["back_tile"]` is not a runtime
+  behaviour — navigation is the static `predictive_board_id` — so a shared board
+  can only ever have one home until a "return to caller" nav exists.
 - **md/sm column counts are derived** via `Boards::ScreenColumns`, explicitly —
   `Board#set_screen_sizes` only fills them when nil, and
   `boards.medium/small_screen_columns` carry non-nil database defaults (8 and
@@ -1296,6 +1332,39 @@ AI drafting (Phase 2) fills the main word list only — pages are authored by ha
   never gives a child a grid of its own. Like every other AI path here it only
   fills the form. `Boards::AdminBuilder::WordList` is the single parser/renderer
   for the textarea format; `.render` is the exact inverse of `.parse`.
+  Two behaviours worth knowing before reading its output: a page's words are
+  deduped against the ROOT's as a hard filter (a word the main board carries is
+  reachable from every page, so a repeat spends a cell and buys nothing), and a
+  board more than `TOPUP_THRESHOLD` tiles short triggers ONE follow-up call
+  through `WordListDrafter`'s top-up prompt, capped at `MAX_TOPUPS` for the
+  whole draft. That means a single "Draft the whole set" click can make more
+  than one OpenAI call — specs that capture "the prompt" must take the *first*.
+
+- **Drafted labels are folded to lowercase; hand-typed ones are not.**
+  `Boards::AdminBuilder::LabelCasing` is the one place this happens, and it only
+  decides *which* labels are `Labels::CaseNormalizer`'s business — the casing
+  rules themselves stay in that single authority. The model answers in Title
+  Case no matter what the prompt says, and nothing downstream was catching it:
+  `Image#set_label` folds a plain leading capital only for a NEW image, and
+  never for a tile whose plan carries an explicit `display_label`. Two
+  carve-outs: a tile with `links_to` is a door and keeps its authored capital
+  ("Food", "Snack Time"), matching what `FolderTiles` already pins on the doors
+  it writes; and the model may set `"proper_noun": true`, honoured only when the
+  label actually carries a capital, because `CaseNormalizer` has no proper-noun
+  detection and would otherwise fold "Sarah". Words an admin types in the
+  textarea are authored input and are never folded.
+
+- **All three drafters share `Boards::AdminBuilder::Drafting`** for the OpenAI
+  call — model (`OPENAI_ADMIN_BUILDER_MODEL`, defaulting to `GTP_5_MODEL`) and
+  temperature (`OPENAI_ADMIN_BUILDER_TEMPERATURE`, `""` to send none) in one
+  place, because three copies of that call is how they drifted onto different
+  settings by accident. It retries once without the temperature if the first
+  attempt comes back empty: both knobs are ENV-tunable, not every model accepts
+  a custom temperature, and `create_chat` swallows an API error into a debug log
+  and returns nil — so a rejected temperature would look exactly like "the AI
+  had nothing to say". Note it calls `OpenAiClient.new(**opts)`, splatted: a
+  bare positional Hash moves the argument out of kwargs and breaks every spec
+  that stubs the constructor.
 
 - **`Boards::AdminBuilder::MetadataSuggester` fills the catalogue listing** —
   a plain-text description (`boards.description` renders as text on three of

@@ -647,6 +647,9 @@ class OpenAiClient
     if format_json
       opts[:response_format] = { type: "json_object" }
     end
+    # Opt-in only, same shape as create_completion: every existing caller sends
+    # nothing and keeps the provider default it has always had.
+    opts[:temperature] = @opts[:temperature] if @opts[:temperature].present?
     begin
       response = openai_client.chat(
         parameters: opts,
