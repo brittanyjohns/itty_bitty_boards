@@ -291,6 +291,14 @@ Rules that hold across the slides:
   sixth the size the header is just the slide's own title band again, so
   `hide_header: true` gives the board the whole tile; on the tablet it is the
   tell that the screen is really a photographed printout.
+- **The root board sits in the MIDDLE of the hero fan, not first.**
+  `.hero-stage.fan` draws the middle card in front and unrotated, so the middle
+  slot — not the first — is what a buyer sees in the Etsy search grid. Board ids
+  arrive in tree order, which put the root in the rotated back card and promoted
+  whichever subboard came second: a keyboard page, or a sparse fringe page.
+  `RenderListingImages#hero_tiles` moves the root into the centre slot after the
+  failed renders are dropped, so a subboard that failed to render can't shift it
+  back off centre.
 - **Thumbnails are trimmed by measurement, not calculation.** How much of a
   Letter sheet a board fills depends on its shape; a 12x3 grid leaves over half
   the page blank and reads as a broken image. The header renders ~24mm against

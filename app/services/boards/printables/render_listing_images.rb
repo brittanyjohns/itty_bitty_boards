@@ -112,6 +112,7 @@ module Boards
           next unless thumb
 
           {
+            board_id: tile.board_id,
             label: tile.label,
             data_uri: thumb.data_uri,
             landscape: thumb.landscape,
@@ -134,8 +135,27 @@ module Boards
           title: Boards::AssetRendering.board_title_for(board),
           headline: ::Printables::SlideCopy.hero_headline(board_count: board_count, topic: printable.topic),
           background: BrandAssets.scene_data_uri_for(board),
-          thumbnails: tiles_from(hero_thumbnails).first(HERO_TILES),
+          thumbnails: hero_tiles,
         )
+      end
+
+      # The ROOT board goes in the middle of the fan, because the middle card is
+      # the one drawn in front and uncropped (`.hero-stage.fan` in
+      # `layouts/listing_image.html.erb`). Board ids arrive in tree order, so
+      # the root landed in the first slot — the rotated card at the BACK — and
+      # the page a buyer actually saw in the search grid was whichever subboard
+      # happened to be second: a keyboard page, or a mostly-empty fringe page.
+      # The root is the densest, most recognisable page in the set and the one
+      # the listing is named after; it is what the thumbnail has to show.
+      def hero_tiles
+        tiles = tiles_from(hero_thumbnails).first(HERO_TILES)
+        return tiles if tiles.size < 2
+
+        root_index = tiles.index { |tile| tile[:board_id] == board.id }
+        center = tiles.size / 2
+        return tiles if root_index.nil? || root_index == center
+
+        tiles.dup.tap { |t| t.insert(center, t.delete_at(root_index)) }
       end
 
       def whats_included_assigns(low_ink:)
