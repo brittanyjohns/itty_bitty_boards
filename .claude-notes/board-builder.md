@@ -1237,6 +1237,57 @@ Its own invariants:
   admin-owned. Short drafts are returned rather than raised on, since the form
   can absorb them; only an unusable response is an error.
 
+- **The DRAFTED ORDER IS THE LAYOUT, so drafters arrange before the form sees
+  the words.** `Build#apply_reading_order!` is nothing but
+  `x = i % columns, y = i / columns` — whatever order a drafter puts in the
+  textarea is what an admin sees laid out and what a communicator scans. Left to
+  the model's own ordering, the Modified Fitzgerald colours the builder already
+  applies per tile came out as confetti: verb, noun, pronoun, noun.
+  `Boards::AdminBuilder::TileArrangement` is the single authority on that order —
+  a stable sort into `BAND_ORDER` (quick words first: pronoun, social,
+  important_function, question; then the sentence: verb, adverb, adjective,
+  preposition, determiner, conjunction, noun, default), with anything carrying
+  `links_to` sorted after every word band so doors and back tiles land on the
+  bottom rows like the rest of the app's navigation. `BAND_ORDER` must stay a
+  permutation of `ColorHelper::PARTS_OF_SPEECH` (spec'd), and the arrangement
+  itself must stay a **permutation only**: no tile added, dropped, relabelled or
+  relinked, so nothing downstream — `PlanValidator` counts, `FolderTiles` links,
+  `BackTileAlignment` mirroring — has to re-check it. Column-free on purpose:
+  bands can't be made to break on row boundaries without padding, and the grid
+  must be exactly full.
+  - Arrangement runs **inside the drafters**, never in the controller.
+    `FolderTiles.link` runs on every form round-trip, and re-sorting a
+    hand-edited list because the admin pressed a button is not the deal. For the
+    same reason `add_words` arranges only the NEW tiles it appends.
+  - `SetDrafter` arranges **after** `top_up`, or a follow-up call's words sit as
+    an ungrouped block on the end of a grouped board.
+  - Known limit: `FolderTiles.link` can *promote* an existing noun tile into a
+    door in place after drafting, and that one tile stays in the noun band.
+    Appended doors land last, which is correct.
+  - `TileArrangement` also corrects the part of speech from
+    `AacWordCategorizer::OVERRIDES` before sorting — a wrong POS is a wrong
+    colour and now a wrong band, and that table is already the app's authority
+    on the words models reliably miscall ("stop" as a verb, "more" as an
+    adjective). The OVERRIDES table **only**, never `.categorize`, which is one
+    paid call per word. Doors are exempt: a door's label is a page name, so
+    "Play" must not be recoloured because a word table knows the verb.
+
+- **Every drafter shares one system prompt, one set of word rules, and a JSON
+  schema.** `AdminBuilder::Drafting` owns all three: `SYSTEM_PROMPT` (sent as a
+  `system` message ahead of each drafter's own `user` message), `WORD_RULES` (the
+  rules that separate a board from a word list — combinatorial value, a way to
+  object and a way to redirect, no single-use nouns, no closed-set filler,
+  register follows the audience), and `tile_schema`. Each drafter defines its own
+  Structured Outputs schema from `tile_schema`, which pins `part_of_speech` to
+  a real enum instead of hoping prose holds. Strict mode requires every property
+  in `required` and forbids extras, so an optional field is **nullable**, not
+  absent. `Drafting.chat` retries down a ladder — schema+temperature → schema →
+  no schema — because `MODEL` is ENV-tunable and `create_chat` swallows an API
+  error into a debug log and returns nil, so a rejected parameter is
+  indistinguishable from "the AI had nothing to say" and would take drafting
+  down silently. `OpenAiClient#create_chat` now prefers an explicit
+  `response_format` over its `json_object` default, mirroring `create_completion`.
+
 - **A build can be a linked set, not just one board.** `plan["children"]` holds
   child pages (`key`, `name`, optional grid, tiles) and any tile may carry
   `links_to`, which becomes `predictive_board_id` — the same one-line link

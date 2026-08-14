@@ -18,13 +18,15 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
   before { stub_ai(four_tiles) }
 
   describe "#call" do
-    it "returns labels with parts of speech" do
+    # Returned in TileArrangement's band order, not the model's: the drafted
+    # order is the grid layout, so grouping happens before the form sees it.
+    it "returns labels with parts of speech, grouped by band" do
       result = described_class.new(topic: "the playground", tile_count: 4).call
 
       expect(result).to eq([
         { label: "I", part_of_speech: "pronoun" },
-        { label: "want", part_of_speech: "verb" },
         { label: "more", part_of_speech: "social" },
+        { label: "want", part_of_speech: "verb" },
         { label: "swing", part_of_speech: "noun" },
       ])
     end
@@ -63,7 +65,7 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
       stub_ai(ai_tiles(["go", "verb"], ["Go", "verb"], ["stop", "important_function"]))
 
       result = described_class.new(topic: "the playground", tile_count: 3).call
-      expect(result.map { |tile| tile[:label] }).to eq(%w[go stop])
+      expect(result.map { |tile| tile[:label] }).to eq(%w[stop go])
     end
 
     it "falls back to default for a part of speech outside the Fitzgerald key" do
@@ -90,12 +92,12 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
     # The model sometimes answers a multi-word label snake_cased, like an
     # identifier, instead of the tile text it's meant to be.
     it "folds underscores in a label to spaces" do
-      stub_ai(ai_tiles(["please_wait", "social"], ["all__done", "important_function"]))
+      stub_ai(ai_tiles(["please_wait", "social"], ["good__job", "social"]))
 
       expect(described_class.new(topic: "the playground", tile_count: 2).call)
         .to eq([
           { label: "please wait", part_of_speech: "social" },
-          { label: "all done", part_of_speech: "important_function" },
+          { label: "good job", part_of_speech: "social" },
         ])
     end
   end
@@ -140,10 +142,10 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
   end
 
   describe "the prompt" do
-    def prompt_for(**args)
+    def opts_for(**args)
       captured = nil
       allow(OpenAiClient).to receive(:new) do |opts|
-        captured = opts[:messages].first[:content]
+        captured = opts
         instance_double(OpenAiClient, create_chat: { role: "assistant", content: four_tiles })
           .tap { |double| allow(double).to receive(:instance_variable_set) }
       end
@@ -151,15 +153,40 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
       captured
     end
 
+    # The drafter's own prompt is the USER message — Drafting prepends a shared
+    # system message ahead of it.
+    def prompt_for(**args)
+      opts_for(**args)[:messages].find { |message| message[:role] == "user" }[:content]
+    end
+
     it "asks for exactly the grid's worth of tiles" do
       expect(prompt_for(topic: "the playground", tile_count: 24)).to include("EXACTLY 24 tiles")
     end
 
-    it "carries the core spine, in order, ahead of topic words" do
+    it "is sent behind the shared system prompt" do
+      messages = opts_for(topic: "the playground", tile_count: 4)[:messages]
+
+      expect(messages.first[:role]).to eq("system")
+      expect(messages.first[:content]).to eq(Boards::AdminBuilder::Drafting::SYSTEM_PROMPT)
+      expect(messages.map { |message| message[:role] }).to eq(%w[system user])
+    end
+
+    # The enum is what makes an unusable part_of_speech impossible rather than
+    # silently downgraded to grey by `part_of_speech_for`.
+    it "constrains the response with a json schema" do
+      response_format = opts_for(topic: "the playground", tile_count: 4)[:response_format]
+
+      expect(response_format[:type]).to eq("json_schema")
+      expect(response_format.dig(:json_schema, :strict)).to be(true)
+      expect(response_format.dig(:json_schema, :schema, :properties, :tiles, :items, :properties,
+                                 :part_of_speech, :enum)).to eq(ColorHelper::PARTS_OF_SPEECH)
+    end
+
+    it "carries the core spine ahead of topic words" do
       prompt = prompt_for(topic: "the playground", tile_count: 24)
 
       expect(prompt).to include(described_class::CORE_SPINE.join(", "))
-      expect(prompt).to include("before any topic words")
+      expect(prompt).to include("must include these core words")
     end
 
     # A 2x2 board can't carry sixteen core words; asking for them would
@@ -179,6 +206,16 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
       expect(prompt).to include("15-20% describing words")
       expect(prompt).to include("25-35% topic nouns")
       expect(prompt).to include("No near-duplicates")
+    end
+
+    # A board that can't refuse or redirect is the failure mode these rules
+    # exist for; the balance targets alone never caught it.
+    it "carries the shared word-selection rules and the band order" do
+      prompt = prompt_for(topic: "the playground", tile_count: 24)
+
+      expect(prompt).to include(Boards::AdminBuilder::Drafting::WORD_RULES.rstrip)
+      expect(prompt).to include("Every board needs a way to object and a way to redirect")
+      expect(prompt).to include(Boards::AdminBuilder::TileArrangement::BAND_ORDER.join(", "))
     end
 
     it "constrains the part of speech to the Fitzgerald key" do
@@ -209,7 +246,7 @@ RSpec.describe Boards::AdminBuilder::WordListDrafter do
       it "drops the mandatory core-spine recitation" do
         prompt = prompt_for(topic: "the playground", tile_count: 2, existing_labels: %w[i want])
 
-        expect(prompt).not_to include("before any topic words")
+        expect(prompt).not_to include("must include these core words")
       end
     end
   end

@@ -1189,6 +1189,36 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       }.to not_change(Board, :count).and not_change(Image, :count).and not_change(AdminBoardBuild, :count)
     end
 
+    # End to end through the real drafter, because the textarea order IS the
+    # grid layout: whatever lands here is what Build#apply_reading_order! lays
+    # out, so a scrambled draft is a scrambled board.
+    it "fills the textarea in band order, with the folder tile last" do
+      allow_any_instance_of(OpenAiClient).to receive(:create_chat).and_return(
+        role: "assistant",
+        content: {
+          "root" => [
+            { "label" => "swing", "part_of_speech" => "noun" },
+            { "label" => "Food", "part_of_speech" => "noun", "links_to" => "food" },
+            { "label" => "go", "part_of_speech" => "verb" },
+            { "label" => "I", "part_of_speech" => "pronoun" },
+          ],
+          "pages" => [
+            { "key" => "food", "name" => "Food",
+              "tiles" => [{ "label" => "back", "part_of_speech" => "social", "links_to" => "__root__" },
+                          { "label" => "apple", "part_of_speech" => "noun" },
+                          { "label" => "eat", "part_of_speech" => "verb" }] },
+          ],
+        }.to_json,
+      )
+
+      post draft_set_admin_dashboard_board_builds_path,
+           params: form_params(words: "", page_count: "1", columns: "2", tile_count: "4")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("I | pronoun\ngo | verb\nswing | noun\nFood | noun | &gt;food")
+      expect(response.body).to include("eat | verb\napple | noun\nback | social | &gt;__root__")
+    end
+
     it "reports a generation failure without losing what was typed" do
       allow(Boards::AdminBuilder::SetDrafter).to receive(:new).and_raise(
         Boards::AdminBuilder::SetDrafter::GenerationError, "OpenAI returned no content",

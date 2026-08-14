@@ -118,6 +118,38 @@ RSpec.describe OpenAiClient do
     end
   end
 
+  describe "#create_chat" do
+    let(:messages) { [{ role: "user", content: "hello" }] }
+
+    def captured_parameters(opts)
+      client = described_class.new(opts)
+      chat_client = instance_double(OpenAI::Client)
+      allow(client).to receive(:openai_client).and_return(chat_client)
+
+      captured = nil
+      allow(chat_client).to receive(:chat) do |parameters:|
+        captured = parameters
+        { "choices" => [{ "message" => { "role" => "assistant", "content" => "{}" } }] }
+      end
+
+      client.create_chat
+      captured
+    end
+
+    it "asks for a json object by default" do
+      expect(captured_parameters(messages: messages)[:response_format]).to eq({ type: "json_object" })
+    end
+
+    # A caller that has a json_schema wants THAT schema — the blanket
+    # json_object would throw away the enum and the required keys it defines.
+    it "prefers an explicit response_format over the json_object default" do
+      schema = { type: "json_schema", json_schema: { name: "thing", strict: true, schema: {} } }
+
+      expect(captured_parameters(messages: messages, response_format: schema)[:response_format])
+        .to eq(schema)
+    end
+  end
+
   describe "language-aware prompts" do
     subject(:client) { described_class.new({}) }
 

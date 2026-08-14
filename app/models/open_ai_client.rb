@@ -644,7 +644,13 @@ class OpenAiClient
     # temperature: 0.7,
     # response_format: { type: "json_object" },
     }
-    if format_json
+    # An explicit response_format wins over the `format_json` flag, same shape as
+    # create_completion: a caller that has a json_schema wants THAT schema, not
+    # the blanket json_object the flag asks for. Every existing caller sends
+    # nothing and keeps the behaviour it has always had.
+    if @opts[:response_format].present?
+      opts[:response_format] = @opts[:response_format]
+    elsif format_json
       opts[:response_format] = { type: "json_object" }
     end
     # Opt-in only, same shape as create_completion: every existing caller sends

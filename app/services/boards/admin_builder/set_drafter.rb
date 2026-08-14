@@ -33,6 +33,32 @@ module Boards
       # spend six sequential API calls papering over while the admin waits.
       MAX_TOPUPS = 3
 
+      SCHEMA = {
+        name: "aac_board_set",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: %w[root pages],
+          properties: {
+            root: { type: "array", items: Drafting.tile_schema },
+            pages: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: %w[key name tiles],
+                properties: {
+                  key: { type: "string" },
+                  name: { type: "string" },
+                  tiles: { type: "array", items: Drafting.tile_schema },
+                },
+              },
+            },
+          },
+        },
+      }.freeze
+
       # `pages` are the pages the admin already named on the form, as
       # `{ key:, name: }` hashes. They are used verbatim and the model only
       # invents the rest — so a page count below the number of names would
@@ -87,7 +113,7 @@ module Boards
       end
 
       def generate_via_openai
-        content = Drafting.chat(prompt: topic, content: build_prompt)
+        content = Drafting.chat(prompt: topic, content: build_prompt, schema: SCHEMA)
         raise GenerationError, "OpenAI returned no content" if content.blank?
 
         content
@@ -134,15 +160,13 @@ module Boards
             the tile before they open it.
 
           Main board rules:
-          - Start the main board with these core words, in this order, before any topic
-            words — they are what makes the whole set usable for something other than
-            labelling, and they belong on the board every page returns to:
+          - The main board must include these core words — they are what makes the whole
+            set usable for something other than labelling, and they belong on the board
+            every page returns to:
             #{spine_for_size.join(", ")}
-          - Then the folder tiles, then whatever main-board topic words still fit.
+          - Then the folder tiles, and whatever main-board topic words still fit.
 
           Word rules:
-          - Boards for talking, not vocabulary lists. Favour words that finish a sentence
-            over words that name a thing.
           - Aim for roughly this balance across each board:
             30-40% verbs and core function words (the words that do the communicating),
             15-20% pronouns and determiners, 15-20% describing words, 25-35% topic nouns.
@@ -150,33 +174,32 @@ module Boards
           - A page must NOT repeat a word that is already on the main board. The
             communicator reaches those from the main board, so a repeat spends a cell and
             buys nothing.
-          - No near-duplicates within a board ("happy" and "glad"). Each tile costs a cell.
-          - Keep each label short — 1-2 words.
-          - A label is display text, not an identifier: separate words with a plain
-            space, never an underscore. (Page "key" values are the one exception —
-            those are underscored on purpose, per the structure rules above.)
+          - A page still has to be sayable on its own terms: carry the verbs and
+            describing words that belong to THAT page — what you do there and what it is
+            like — not only the things you would find there.
+          #{Drafting::WORD_RULES.rstrip}
+          - The underscore rule has one exception: page "key" values are underscored on
+            purpose, per the structure rules above.
           #{LabelCasing::PROMPT_RULE.rstrip}
-          - Give every tile a part_of_speech from exactly this list:
-            #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
-          - Classify by communicative function, not strict grammar: "more", "yes" and
-            "please" are social; "no", "not" and "stop" are important_function.
+          #{Drafting.part_of_speech_rules.rstrip}
 
-          Respond in JSON format:
+          Respond in JSON format — every tile carries "proper_noun" and "links_to",
+          with null where there is no link:
           {
             "root": [
-              { "label": "i", "part_of_speech": "pronoun" },
-              { "label": "want", "part_of_speech": "verb" },
-              { "label": "Snack Time", "part_of_speech": "noun", "links_to": "snack_time" }
+              { "label": "i", "part_of_speech": "pronoun", "proper_noun": false, "links_to": null },
+              { "label": "want", "part_of_speech": "verb", "proper_noun": false, "links_to": null },
+              { "label": "Snack Time", "part_of_speech": "noun", "proper_noun": false, "links_to": "snack_time" }
             ],
             "pages": [
               {
                 "key": "snack_time",
                 "name": "Snack Time",
                 "tiles": [
-                  { "label": "hungry", "part_of_speech": "adjective" },
-                  { "label": "open it", "part_of_speech": "verb" },
-                  { "label": "Goldfish", "part_of_speech": "noun", "proper_noun": true },
-                  { "label": "back", "part_of_speech": "social", "links_to": "#{Plan::ROOT_KEY}" }
+                  { "label": "open it", "part_of_speech": "verb", "proper_noun": false, "links_to": null },
+                  { "label": "hungry", "part_of_speech": "adjective", "proper_noun": false, "links_to": null },
+                  { "label": "Goldfish", "part_of_speech": "noun", "proper_noun": true, "links_to": null },
+                  { "label": "back", "part_of_speech": "social", "proper_noun": false, "links_to": "#{Plan::ROOT_KEY}" }
                 ]
               }
             ]
@@ -223,14 +246,18 @@ module Boards
         # fills the form and the counter shows the gap.
         raise GenerationError, "AI returned no usable words" if root_tiles.empty?
 
-        root_tiles = top_up(root_tiles, subject: topic)
+        # Arranged AFTER the top-up, not before: a top-up is a second OpenAI call
+        # whose words are appended to the list, so arranging first would leave
+        # them as an ungrouped block on the end of a grouped board. Arranging is
+        # a permutation, so doing it last costs nothing and fixes that.
+        root_tiles = TileArrangement.arrange(top_up(root_tiles, subject: topic))
         # What a page may not repeat. Resolved from the root AFTER its top-up so
         # a word the top-up added is covered too.
         taken = root_tiles.map { |tile| tile[:label] }
 
         children = shells.map do |page|
           tiles = clean_tiles(page[:tiles], known_keys: keys + [Plan::ROOT_KEY], taken: taken)
-          page.merge(tiles: top_up(tiles, subject: page[:name], taken: taken))
+          page.merge(tiles: TileArrangement.arrange(top_up(tiles, subject: page[:name], taken: taken)))
         end
 
         # The count is echoed back because pinned pages can raise it above what

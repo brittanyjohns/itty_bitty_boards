@@ -18,14 +18,20 @@ RSpec.describe Boards::AdminBuilder::PageDrafter do
       .and_return({ role: "assistant", content: content })
   end
 
-  def captured_prompt
-    prompt = nil
+  # The drafter's own prompt is the USER message — Drafting prepends a shared
+  # system message ahead of it.
+  def captured_prompt(&block)
+    captured_opts(&block)[:messages].find { |message| message[:role] == "user" }[:content]
+  end
+
+  def captured_opts
+    opts = nil
     allow(OpenAiClient).to receive(:new).and_wrap_original do |original, **kwargs|
-      prompt = kwargs[:messages].first[:content]
+      opts = kwargs
       original.call(**kwargs)
     end
     yield
-    prompt
+    opts
   end
 
   let(:four_tiles) do
@@ -41,13 +47,16 @@ RSpec.describe Boards::AdminBuilder::PageDrafter do
   before { stub_ai(four_tiles) }
 
   describe "#call" do
-    it "returns labels with parts of speech and the back link" do
+    # Band order, not the model's: the drafted order is the grid layout. The
+    # back tile carries a link, so it sorts into the navigation band last — which
+    # is where BackTileAlignment expects to find it.
+    it "returns labels with parts of speech, grouped, with the back link last" do
       result = described_class.new(page_name: "Food", tile_count: 4).call
 
       expect(result).to eq([
-        { label: "apple", part_of_speech: "noun" },
-        { label: "hungry", part_of_speech: "adjective" },
         { label: "eat", part_of_speech: "verb" },
+        { label: "hungry", part_of_speech: "adjective" },
+        { label: "apple", part_of_speech: "noun" },
         { label: "back", part_of_speech: "social", links_to: root },
       ])
     end
@@ -113,6 +122,23 @@ RSpec.describe Boards::AdminBuilder::PageDrafter do
       expect(prompt).not_to include("a board about:")
       expect(prompt).not_to include("It is for:")
     end
+
+    it "carries the shared word rules and the band order" do
+      prompt = captured_prompt { described_class.new(page_name: "Food", tile_count: 4).call }
+
+      expect(prompt).to include(Boards::AdminBuilder::Drafting::WORD_RULES.rstrip)
+      expect(prompt).to include(Boards::AdminBuilder::TileArrangement::BAND_ORDER.join(", "))
+      # A page of nouns is the failure this drafter is most prone to.
+      expect(prompt).to include("what you DO there and what it")
+    end
+
+    it "is sent behind the shared system prompt, under a json schema" do
+      opts = captured_opts { described_class.new(page_name: "Food", tile_count: 4).call }
+
+      expect(opts[:messages].map { |message| message[:role] }).to eq(%w[system user])
+      expect(opts[:messages].first[:content]).to eq(Boards::AdminBuilder::Drafting::SYSTEM_PROMPT)
+      expect(opts.dig(:response_format, :json_schema, :name)).to eq("aac_page_word_list")
+    end
   end
 
   describe "cleanup of what the model returns" do
@@ -122,7 +148,7 @@ RSpec.describe Boards::AdminBuilder::PageDrafter do
       stub_ai(ai_tiles(tile("apple", "noun"), tile("Apple", "noun"), tile("eat", "verb")))
 
       expect(described_class.new(page_name: "Food", tile_count: 4).call.map { |t| t[:label] })
-        .to eq(%w[apple eat])
+        .to eq(%w[eat apple])
     end
 
     it "folds a snake_cased label back to display text" do
