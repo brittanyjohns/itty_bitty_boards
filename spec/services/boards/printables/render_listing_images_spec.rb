@@ -159,6 +159,46 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(hero_boards).to eq(described_class::HERO_TILES)
   end
 
+  # The middle card of the fan is the one drawn in front and uncropped, and the
+  # hero is the search-grid thumbnail. Tree order puts the root first, which is
+  # the rotated card at the BACK — so what sold the listing was whichever
+  # subboard came second, typically the sparsest page in the set.
+  describe "the hero fan" do
+    # The stubbed thumbnails are the only data URIs whose payload is a bare
+    # slug, so a full match up to the closing quote can't collide with the
+    # logo's or the QR's real base64.
+    def hero_board_order
+      slide_html.first.scan(%r{data:image/png;base64,([a-z0-9-]+)"}).flatten
+    end
+
+    it "puts the root board in the middle, in front of its subboards" do
+      third = create(:board, user: owner, name: "Places")
+      printable.update!(board_ids: [board.id, other.id, third.id], include_subboards: true)
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      expect(hero_board_order).to eq(%w[feelings core-words places])
+    end
+
+    it "fronts the root board when a set only has two pages" do
+      printable.update!(board_ids: [board.id, other.id], include_subboards: true)
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      expect(hero_board_order).to eq(%w[feelings core-words])
+    end
+
+    it "leaves a single-board hero alone" do
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      expect(hero_board_order).to eq(%w[core-words])
+    end
+  end
+
   it "names the boards in a set on the what's-included slide" do
     printable.update!(board_ids: [board.id, other.id], include_subboards: true)
 
@@ -283,6 +323,17 @@ RSpec.describe Boards::Printables::RenderListingImages do
         expect(block).to include("var(--safe-x)"),
                          "#{selector} sets a side inset Etsy will crop through:\n#{block}"
       end
+    end
+  end
+
+  # Real thumbnails all decode to the same stubbed bytes, so the board a card is
+  # showing is only distinguishable when each render is keyed to its board.
+  def stub_thumbnail_renders!
+    allow(Boards::Printables::RenderPageThumbnails).to receive(:new) do |boards:, **_opts|
+      instance_double(
+        Boards::Printables::RenderPageThumbnails,
+        call: boards.to_h { |b| [b.id, thumbnail_for(b)] },
+      )
     end
   end
 

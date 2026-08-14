@@ -66,6 +66,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A printable's main listing photo now leads with the board itself, not one of
+  its extra pages.** The three pages in the hero image fan out with the middle
+  one in front, and that middle card is what shows in an Etsy search grid — but
+  the main board was being dealt into the back of the fan, so the page selling
+  the listing was whatever came next in the set: a keyboard page, or a
+  half-empty one. The main board now sits in the middle, in front. Existing
+  listings pick it up the next time their images are regenerated. (Admin only.)
 - **Building a board set no longer occasionally creates the whole set twice.**
   If a build hit an error in the moment after its boards were written but before
   it recorded them, the automatic retry built a complete second copy — root and
