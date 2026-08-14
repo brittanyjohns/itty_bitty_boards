@@ -504,6 +504,95 @@ RSpec.describe Boards::AdminBuilder::Build do
     end
   end
 
+  # Reusing a board someone already published, instead of drafting a worse copy
+  # of it. The rail that matters: this build never owns the linked board, so
+  # nothing it does — publish, unpublish, destroy — may reach it.
+  describe "a page linked to an existing board" do
+    let(:existing) do
+      Board.create!(
+        name: "Feelings", user: admin, parent: admin, published: true,
+        board_type: "static", large_screen_columns: 2, number_of_columns: 2, slug: "feelings-abc",
+      )
+    end
+
+    def root_with_folder
+      [
+        { "label" => "i", "part_of_speech" => "pronoun" },
+        { "label" => "want", "part_of_speech" => "verb" },
+        { "label" => "more", "part_of_speech" => "important_function" },
+        { "label" => "Feelings", "part_of_speech" => "noun", "links_to" => "feelings" },
+      ]
+    end
+
+    def linked_build(board_id: existing.id, tiles: [])
+      build_record(
+        tiles: root_with_folder,
+        children: [{ "key" => "feelings", "name" => "Feelings",
+                     "existing_board_id" => board_id, "tiles" => tiles }],
+      )
+    end
+
+    it "builds no board for the page and opens the existing one" do
+      root = described_class.new(admin_board_build: linked_build).call
+
+      # The root, and the board that was already there. Nothing new for the page.
+      expect(Board.count).to eq(2)
+      folder = root.board_images.order(:position).find { |bi| bi.label == "feelings" }
+      expect(folder.predictive_board_id).to eq(existing.id)
+      expect(folder.data["mute_name"]).to be(true)
+    end
+
+    it "keeps the linked board out of the set publish and destroy walk" do
+      build = linked_build
+      described_class.new(admin_board_build: build).call
+
+      expect(build.reload.set_boards.map(&:id)).not_to include(existing.id)
+      expect(build.art_report["boards"].values).not_to include(existing.id)
+      expect(build.art_report["linked_boards"]).to eq("feelings" => existing.id)
+    end
+
+    # check_is_sub_board is a before_save: linking gives the board a parent, so
+    # the next unrelated save would drop it out of main_boards and out of admin
+    # board search without anyone touching it.
+    it "pins the linked board as a main board so a later save can't demote it" do
+      described_class.new(admin_board_build: linked_build).call
+
+      expect(existing.reload.settings["builder_root"]).to be(true)
+
+      existing.update!(description: "unrelated edit")
+      expect(existing.reload.sub_board).to be(false)
+    end
+
+    # The whole point of reusing it is taking it as it is.
+    it "changes nothing else about the linked board" do
+      before_attrs = existing.slice(:name, :published, :large_screen_columns, :description)
+
+      expect { described_class.new(admin_board_build: linked_build).call }
+        .not_to change { existing.reload.board_images.count }
+      expect(existing.slice(:name, :published, :large_screen_columns, :description)).to eq(before_attrs)
+    end
+
+    # Plan.child_page blanks a linked page's tiles, so a stale browser posting a
+    # word list can't quietly build a second copy of the page.
+    it "ignores a word list posted for a linked page" do
+      build = linked_build(tiles: [{ "label" => "happy", "part_of_speech" => "adjective" }])
+      described_class.new(admin_board_build: build).call
+
+      expect(Board.count).to eq(2)
+      expect(Image.where(label: "happy")).to be_empty
+    end
+
+    # The id arrives on a form post. Resolving it through ExistingBoards rather
+    # than Board.find is what stops a hand-edited value pointing a published
+    # admin set at an arbitrary board.
+    it "refuses an id that isn't a linkable board" do
+      unpublished = Board.create!(name: "Private", user: create(:user), published: false)
+
+      expect { described_class.new(admin_board_build: linked_build(board_id: unpublished.id)).call }
+        .to raise_error(described_class::BuildError, /isn't a linkable board/)
+    end
+  end
+
   describe "failure" do
     it "records the error, writes no board, and re-raises so Sidekiq retries" do
       build = build_record(tiles: four_tiles)
@@ -534,6 +623,57 @@ RSpec.describe Boards::AdminBuilder::Build do
 
       expect { described_class.new(admin_board_build: build.reload).call }.not_to change(Board, :count)
       expect(build.reload.board_id).to eq(board.id)
+    end
+
+    # The bug this pins: the set used to be claimed AFTER the transaction that
+    # created it, so anything that raised in between — the two art queries, the
+    # art_report write — left the boards committed with board_id still blank.
+    # BuildAdminBoardJob is `retry: 2`, so the retry walked straight past the
+    # "already built" guard and created the whole set a second time. The first
+    # set stayed published and in no build's art_report, which made it invisible
+    # to set_boards: not listed on the build page, skipped by publish/unpublish,
+    # and left behind by destroy.
+    context "when the build dies after the set is committed" do
+      let(:build) { build_record(tiles: four_tiles, children: [child_page]) }
+
+      let(:child_page) do
+        { "key" => "food", "name" => "Food", "columns" => 2, "tile_count" => 4,
+          "tiles" => [{ "label" => "apple", "part_of_speech" => "noun" },
+                      { "label" => "back", "part_of_speech" => "social", "links_to" => "__root__" }] }
+      end
+
+      before do
+        # Fails in the window: after create_set! commits, before the art report
+        # lands. Once, so the "retry" runs for real.
+        calls = 0
+        allow_any_instance_of(described_class).to receive(:art_less_image_ids) do
+          calls += 1
+          raise ActiveRecord::StatementInvalid, "connection lost" if calls == 1
+
+          []
+        end
+      end
+
+      it "claims the set anyway, so a retry never builds a second one" do
+        expect { described_class.new(admin_board_build: build).call }
+          .to raise_error(ActiveRecord::StatementInvalid)
+
+        # The boards committed, and the build owns them.
+        expect(build.reload.board_id).to be_present
+        built = Board.where(name: %w[Playground Food]).count
+        expect(built).to eq(2)
+
+        expect { described_class.new(admin_board_build: build.reload).call }.not_to change(Board, :count)
+        expect(Board.where(name: "Playground").count).to eq(1)
+        expect(Board.where(name: "Food").count).to eq(1)
+      end
+
+      it "leaves no board that set_boards can't see" do
+        expect { described_class.new(admin_board_build: build).call }.to raise_error(StandardError)
+
+        orphans = AdminBoardBuild.builder_boards.where.not(id: build.reload.set_boards.map(&:id))
+        expect(orphans).to be_empty
+      end
     end
   end
 

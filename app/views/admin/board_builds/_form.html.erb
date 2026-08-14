@@ -220,6 +220,32 @@
               <button type="button" class="remove-page text-t3 hover:text-t1 text-sm leading-none px-1 pb-2 cursor-pointer" title="Remove page">&times;</button>
             </div>
           </div>
+          <%# Only rendered when a published admin board already carries this
+              page's name. Building a new page stays the default — a page tuned
+              to this set is often still the right answer — so this is an offer,
+              not a prompt. %>
+          <% matches = existing_board_matches(@form)[child[:name].to_s.strip.downcase] %>
+          <% if matches.present? %>
+            <div class="mb-2 page-link-picker">
+              <label class="block text-[11px] font-medium text-t2 mb-1">
+                There's already a published board called "<%= child[:name] %>"
+              </label>
+              <select name="children[<%= index %>][existing_board_id]"
+                      class="page-existing-board admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+                <option value="">Create a new page for this set</option>
+                <% matches.each do |match| %>
+                  <option value="<%= match.id %>" <%= "selected" if child[:existing_board_id].to_s == match.id.to_s %>>
+                    Link "<%= match.name %>" — <%= match.summary %><%= " · different grid" unless match.same_grid?(@form[:columns]) %>
+                  </option>
+                <% end %>
+              </select>
+              <p class="text-[11px] text-t3 mt-1 page-link-note" <%= "hidden" if child[:existing_board_id].blank? %>>
+                This page won't be built — the folder tile opens that board as it already is,
+                and nothing about it changes. Note it has no way back to this main board:
+                its own back tile still goes wherever it already went.
+              </p>
+            </div>
+          <% end %>
           <div class="flex justify-end mb-2">
             <%# formaction, not a second form: the drafter has to see this page's
                 name, tile count and the board's topic. name/value on the submit
@@ -411,7 +437,10 @@
 
     function reindexPages() {
       pages.querySelectorAll(".page-block").forEach(function (block, i) {
-        block.querySelectorAll("input, textarea").forEach(function (field) {
+        // `select` is in here for the existing-board picker. Leaving it out
+        // renumbered every field on a moved block except that one, which then
+        // linked the wrong page to the wrong board.
+        block.querySelectorAll("input, textarea, select").forEach(function (field) {
           field.name = field.name.replace(/children\[\w*\]/, "children[" + i + "]");
         });
         // The per-page draft button posts its index as a submit value rather
@@ -427,6 +456,45 @@
       reindexPages();
       syncTileFields();
     });
+
+    // A page pointing at an existing board authors nothing: its word list and
+    // grid belong to that board. The server ignores them either way
+    // (Plan.child_page blanks a linked page's tiles), so this is about not
+    // inviting the admin to type a word list that will be thrown away.
+    function syncLinkedPage(block) {
+      var picker = block.querySelector(".page-existing-board");
+      if (!picker) return;
+
+      var linked = !!picker.value;
+      var note = block.querySelector(".page-link-note");
+      if (note) note.hidden = !linked;
+
+      block
+        .querySelectorAll('textarea[name$="[words]"], input[name$="[columns]"], input[name$="[tile_count]"]')
+        .forEach(function (field) {
+          field.disabled = linked;
+          field.classList.toggle("opacity-40", linked);
+        });
+
+      var draft = block.querySelector(".draft-page");
+      if (draft) {
+        draft.disabled = linked;
+        draft.classList.toggle("opacity-40", linked);
+      }
+    }
+
+    function syncAllLinkedPages() {
+      pages.querySelectorAll(".page-block").forEach(syncLinkedPage);
+    }
+
+    // Delegated: page blocks are added after load, and the picker only appears
+    // once a name has been round-tripped to the server.
+    pages.addEventListener("change", function (event) {
+      if (!event.target.classList.contains("page-existing-board")) return;
+      syncLinkedPage(event.target.closest(".page-block"));
+    });
+
+    syncAllLinkedPages();
 
     pages.addEventListener("click", function (event) {
       if (!event.target.classList.contains("remove-page")) return;

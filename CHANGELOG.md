@@ -7,6 +7,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A board builder page can reuse a board you've already published instead of
+  drafting a new one.** Most sets want a "Feelings" page, and the AI cheerfully
+  invented a slightly worse one every time. When a page's name matches a
+  published board of yours, the page now offers to link that board instead —
+  the folder tile opens it exactly as it is, and creating a fresh page stays the
+  default. A linked board is never touched by the build that points at it:
+  publishing, unpublishing or deleting the set leaves it alone. It keeps
+  whatever "back" tile it already had, so it has no way back to the new main
+  board — the review screen says so before you build. (Admin only.)
+
 - **Pick a different picture for any tile on the board builder's review
   screen.** The library often has more than one symbol for a word, and until now
   the only way to reject the one it picked was to ask the AI for a brand new
@@ -16,8 +26,36 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   only: nothing changes for anyone else using the same word, and nothing is
   written until you press Build. (Admin only.)
 
+### Changed
+
+- **Words drafted with AI now come back lowercase, the way AAC tiles are
+  written.** "Draft with AI" and "Draft the whole set with AI" were handing back
+  Title Case — "Apple", "All Done" — and that casing followed the words all the
+  way onto the built board. Words are now lowercased, while genuine capitals are
+  kept: proper nouns and brand names, words like "iPad" and "TV", the pronoun
+  "I", and folder tiles, which stay capitalized on purpose so a page you open
+  reads differently from a word you speak. Words you type yourself are never
+  changed.
+- **Better suggestions from "Draft the whole set with AI".** The main board now
+  starts from the same core-word spine a single board gets, every board aims for
+  a balance of verbs and function words rather than a wall of nouns, and pages
+  are asked for as places and routines ("Snack Time", "Going Home") instead of
+  categories of things ("Equipment", "Colors"). A page no longer repeats a word
+  the main board already carries, and a board that comes back well short of its
+  tile count is topped up automatically instead of leaving you to type the rest.
+  Drafting also runs on a stronger model. (Admin only.)
+
 ### Fixed
 
+- **Building a board set no longer occasionally creates the whole set twice.**
+  If a build hit an error in the moment after its boards were written but before
+  it recorded them, the automatic retry built a complete second copy — root and
+  every page — and the first copy was stranded: still published, invisible to
+  the build page, skipped by publish and unpublish, and left behind when the
+  build was deleted. A build now claims its boards in the same breath it creates
+  them, so a retry can never duplicate them, and a double click on "Build this
+  board" no longer starts two builds. Sets already stranded can be found and
+  cleaned up with `rake admin_board_builds:orphans`. (Admin only.)
 - **A printable's listing copy now counts the board pages a buyer prints, not
   the front matter around them.** Every printable PDF is wrapped in a cover, a
   how-to-use page, a license and a credits page, and the page count quoted in

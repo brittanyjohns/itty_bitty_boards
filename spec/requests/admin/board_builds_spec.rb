@@ -1723,4 +1723,71 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
       expect(queued_ids).not_to include(generating_image.id)
     end
   end
+
+  describe "linking a page to an existing board" do
+    before { sign_in admin }
+
+    let!(:existing) do
+      board = Board.new(name: "Feelings", user: seed_admin, parent: seed_admin, published: true,
+                        board_type: "static", large_screen_columns: 2, number_of_columns: 2)
+      board.generate_unique_slug
+      board.save!
+      board
+    end
+
+    def page_params(overrides = {})
+      form_params(children: { "0" => { key: "feelings", name: "Feelings", words: "" }.merge(overrides) })
+    end
+
+    it "offers a published admin board with the page's name" do
+      post preview_admin_dashboard_board_builds_path, params: page_params
+
+      expect(response.body).to include("There's already a published board called")
+      expect(response.body).to include(%(name="children[0][existing_board_id]"))
+      expect(response.body).to include(%(value="#{existing.id}"))
+    end
+
+    it "offers nothing when no published admin board matches the page name" do
+      post preview_admin_dashboard_board_builds_path,
+           params: page_params(key: "nowhere", name: "Nowhere")
+
+      expect(response.body).not_to include(%(name="children[0][existing_board_id]"))
+    end
+
+    # A page with no word list would normally fail validation — a linked one has
+    # nothing to validate, because the board it points at is already built.
+    it "previews a linked page without demanding a word list for it" do
+      post preview_admin_dashboard_board_builds_path,
+           params: page_params(existing_board_id: existing.id.to_s)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("linked, not built")
+      expect(response.body).to include("Opens the existing board")
+    end
+
+    it "stores the link in the plan and builds nothing for that page" do
+      post admin_dashboard_board_builds_path,
+           params: page_params(existing_board_id: existing.id.to_s, words: "happy | adjective")
+
+      build = AdminBoardBuild.last
+      child = build.plan["children"].first
+
+      expect(child["existing_board_id"]).to eq(existing.id)
+      # The words a stale browser posted for a linked page are not stored — the
+      # page has no word list of its own.
+      expect(child["tiles"]).to eq([])
+      expect(BuildAdminBoardJob.jobs.size).to eq(1)
+    end
+
+    it "keeps the link across the preview round trip" do
+      post preview_admin_dashboard_board_builds_path,
+           params: page_params(existing_board_id: existing.id.to_s)
+
+      # The build form re-posts the reviewed plan as hidden fields; the link has
+      # to be one of them or Build would create a fresh page instead.
+      expect(response.body).to include(
+        %(<input type="hidden" name="children[0][existing_board_id]" value="#{existing.id}" autocomplete="off" />),
+      )
+    end
+  end
 end

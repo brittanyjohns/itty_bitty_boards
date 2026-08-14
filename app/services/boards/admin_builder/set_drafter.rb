@@ -24,6 +24,15 @@ module Boards
       # 12x12, matching the controller's grid ceiling.
       MAX_TILES_PER_PAGE = 144
 
+      # A board this close to its target is left alone: PlanValidator tolerates
+      # a much wider gap than this, so a follow-up call would be paying for
+      # cosmetics.
+      TOPUP_THRESHOLD = 5
+      # Ceiling on follow-up calls for one draft, root and pages together. A set
+      # whose every board comes back short is a prompt problem, not something to
+      # spend six sequential API calls papering over while the admin waits.
+      MAX_TOPUPS = 3
+
       # `pages` are the pages the admin already named on the form, as
       # `{ key:, name: }` hashes. They are used verbatim and the model only
       # invents the rest — so a page count below the number of names would
@@ -36,6 +45,7 @@ module Boards
         @pinned = clean_pinned(pages)
         @page_count = [page_count.to_i, @pinned.size].max.clamp(0, MAX_PAGES)
         @pinned = @pinned.first(@page_count)
+        @topups = 0
       end
 
       def call
@@ -77,16 +87,19 @@ module Boards
       end
 
       def generate_via_openai
-        client = OpenAiClient.new(
-          prompt: topic,
-          messages: [{ role: "user", content: build_prompt }],
-        )
-        client.instance_variable_set(:@model, OpenAiClient::GTP_MODEL)
-        result = client.create_chat(true)
+        content = Drafting.chat(prompt: topic, content: build_prompt)
+        raise GenerationError, "OpenAI returned no content" if content.blank?
 
-        raise GenerationError, "OpenAI returned no content" if result[:content].blank?
+        content
+      end
 
-        result[:content]
+      # A small grid can't carry the whole spine, so ask for as much of it as
+      # fits rather than for words that were never going to be there. The folder
+      # tiles are subtracted first — they are not optional, so a grid with fewer
+      # cells than pages has no room for core words at all.
+      def spine_for_size
+        spine = WordListDrafter::CORE_SPINE
+        spine.first((tile_count - page_count).clamp(0, spine.size))
       end
 
       def build_prompt
@@ -112,16 +125,37 @@ module Boards
             "#{Plan::ROOT_KEY}". It counts towards that page's #{tile_count} tiles.
           - No other tile has "links_to".
 
+          What a page should BE:
+          - A page is a place the communicator goes, an activity they do, or a routine they
+            move through — not a category of things. For a board about the park: good pages
+            are "Playground", "Snack Time", "Going Home"; bad pages are "Equipment",
+            "Animals", "Colors", which are lists to read rather than places to talk from.
+          - Name a page for the moment it serves, so a communicator can guess what is behind
+            the tile before they open it.
+
+          Main board rules:
+          - Start the main board with these core words, in this order, before any topic
+            words — they are what makes the whole set usable for something other than
+            labelling, and they belong on the board every page returns to:
+            #{spine_for_size.join(", ")}
+          - Then the folder tiles, then whatever main-board topic words still fit.
+
           Word rules:
           - Boards for talking, not vocabulary lists. Favour words that finish a sentence
             over words that name a thing.
-          - The main board carries the core words the whole set leans on — pronouns, verbs,
-            and words like "more", "stop", "help". Pages carry their own subject's words.
+          - Aim for roughly this balance across each board:
+            30-40% verbs and core function words (the words that do the communicating),
+            15-20% pronouns and determiners, 15-20% describing words, 25-35% topic nouns.
+            A board that is mostly nouns is a picture dictionary, not an AAC board.
+          - A page must NOT repeat a word that is already on the main board. The
+            communicator reaches those from the main board, so a repeat spends a cell and
+            buys nothing.
           - No near-duplicates within a board ("happy" and "glad"). Each tile costs a cell.
           - Keep each label short — 1-2 words.
           - A label is display text, not an identifier: separate words with a plain
             space, never an underscore. (Page "key" values are the one exception —
             those are underscored on purpose, per the structure rules above.)
+          #{LabelCasing::PROMPT_RULE.rstrip}
           - Give every tile a part_of_speech from exactly this list:
             #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
           - Classify by communicative function, not strict grammar: "more", "yes" and
@@ -130,15 +164,18 @@ module Boards
           Respond in JSON format:
           {
             "root": [
-              { "label": "I", "part_of_speech": "pronoun" },
-              { "label": "Food", "part_of_speech": "noun", "links_to": "food" }
+              { "label": "i", "part_of_speech": "pronoun" },
+              { "label": "want", "part_of_speech": "verb" },
+              { "label": "Snack Time", "part_of_speech": "noun", "links_to": "snack_time" }
             ],
             "pages": [
               {
-                "key": "food",
-                "name": "Food",
+                "key": "snack_time",
+                "name": "Snack Time",
                 "tiles": [
-                  { "label": "apple", "part_of_speech": "noun" },
+                  { "label": "hungry", "part_of_speech": "adjective" },
+                  { "label": "open it", "part_of_speech": "verb" },
+                  { "label": "Goldfish", "part_of_speech": "noun", "proper_noun": true },
                   { "label": "back", "part_of_speech": "social", "links_to": "#{Plan::ROOT_KEY}" }
                 ]
               }
@@ -175,13 +212,26 @@ module Boards
 
       def parse_response(raw)
         data = JSON.parse(raw)
-        children = clean_children(Array(data["pages"]))
-        child_keys = children.map { |child| child[:key] }
-        root_tiles = clean_tiles(Array(data["root"]), known_keys: child_keys)
+        # Keys are settled before any tile is cleaned, because a tile's link is
+        # only kept when it names a page that survived.
+        shells = page_shells(Array(data["pages"]))
+        keys = shells.map { |page| page[:key] }
+
+        root_tiles = clean_tiles(Array(data["root"]), known_keys: keys)
 
         # Only a response with nothing usable in it is an error — a short draft
         # fills the form and the counter shows the gap.
         raise GenerationError, "AI returned no usable words" if root_tiles.empty?
+
+        root_tiles = top_up(root_tiles, subject: topic)
+        # What a page may not repeat. Resolved from the root AFTER its top-up so
+        # a word the top-up added is covered too.
+        taken = root_tiles.map { |tile| tile[:label] }
+
+        children = shells.map do |page|
+          tiles = clean_tiles(page[:tiles], known_keys: keys + [Plan::ROOT_KEY], taken: taken)
+          page.merge(tiles: top_up(tiles, subject: page[:name], taken: taken))
+        end
 
         # The count is echoed back because pinned pages can raise it above what
         # the form asked for, and the notice compares against what was actually
@@ -191,9 +241,8 @@ module Boards
         raise GenerationError, "Failed to parse AI response: #{e.message}"
       end
 
-      # Keys are cleaned before any tile is, because a tile's link is only kept
-      # when it names a page that survived.
-      def clean_children(raw_pages)
+      # The pages, keyed and named but with their tiles still raw.
+      def page_shells(raw_pages)
         seen = Set.new
 
         pages = raw_pages.filter_map do |page|
@@ -206,12 +255,37 @@ module Boards
           { key: key, name: page["name"].to_s.strip.presence || key.titleize, tiles: Array(page["tiles"]) }
         end
 
-        pages = apply_pinned(pages).first(page_count)
+        apply_pinned(pages).first(page_count)
+      end
 
-        keys = pages.map { |page| page[:key] }
-        pages.map do |page|
-          page.merge(tiles: clean_tiles(page[:tiles], known_keys: keys + [Plan::ROOT_KEY]))
-        end
+      # A board that came back well short used to just sit in the form with a
+      # warning on it, leaving the admin to type the rest by hand — which is the
+      # job they pressed the button to avoid. One follow-up call fills the gap,
+      # reusing WordListDrafter's existing top-up prompt (`existing_labels:` is
+      # what switches it into that mode) so the filler words know what not to
+      # repeat.
+      #
+      # Bounded twice over: nothing under TOPUP_THRESHOLD is worth a paid call
+      # (the grid tolerates it and the notice says so), and MAX_TOPUPS caps the
+      # whole draft so a set of consistently short pages can't turn one click
+      # into six sequential API calls. A failed top-up is not an error — the
+      # short list is still a usable draft.
+      def top_up(tiles, subject:, taken: [])
+        short = tile_count - tiles.size
+        return tiles if short <= TOPUP_THRESHOLD || subject.blank? || @topups >= MAX_TOPUPS
+
+        @topups += 1
+        extra = WordListDrafter.new(
+          topic: subject,
+          tile_count: short,
+          audience: audience.presence,
+          existing_labels: (taken + tiles.map { |tile| tile[:label] }).uniq,
+        ).call
+
+        (tiles + extra).first(tile_count)
+      rescue WordListDrafter::GenerationError => e
+        Rails.logger.warn("[SetDrafter] top-up failed for #{subject.inspect}: #{e.message}")
+        tiles
       end
 
       # The admin's key and name win even when the model paraphrased them: a
@@ -238,31 +312,34 @@ module Boards
         Keys.normalize(value)
       end
 
-      def clean_tiles(raw_tiles, known_keys:)
-        seen = Set.new
+      # `taken` seeds the dedupe set with labels a page must not repeat — the
+      # root's words, when cleaning a page. Dedupe was per-board, so a core word
+      # the root already carries came back on every page and spent a cell buying
+      # nothing: the communicator can already reach it from the main board.
+      def clean_tiles(raw_tiles, known_keys:, taken: [])
+        seen = Set.new(taken.map(&:downcase))
 
         raw_tiles.filter_map do |tile|
           next unless tile.is_a?(Hash)
 
-          label = sanitize_label(tile["label"] || tile["word"])
+          label = LabelCasing.sanitize(tile["label"] || tile["word"])
           next if label.blank?
           next unless seen.add?(label.downcase)
 
+          part_of_speech = part_of_speech_for(tile)
+          links_to = link_for(tile, known_keys)
+
           {
-            label: label,
-            part_of_speech: part_of_speech_for(tile),
-            links_to: link_for(tile, known_keys),
+            label: LabelCasing.apply(
+              label,
+              part_of_speech: part_of_speech,
+              proper_noun: LabelCasing.proper_noun?(tile),
+              door: links_to.present?,
+            ),
+            part_of_speech: part_of_speech,
+            links_to: links_to,
           }.compact
         end.first(tile_count)
-      end
-
-      # The model occasionally answers a multi-word label snake_cased, like an
-      # identifier rather than the tile text it's meant to be — underscores
-      # have no legitimate place in display text, so they're folded to spaces
-      # rather than left for the admin to notice and retype. Distinct from
-      # normalize_key: a page "key" is meant to be underscored.
-      def sanitize_label(raw)
-        raw.to_s.strip.tr("_", " ").squeeze(" ").strip
       end
 
       def part_of_speech_for(tile)

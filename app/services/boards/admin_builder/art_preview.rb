@@ -70,6 +70,11 @@ module Boards
             name: page[:name],
             columns: page[:columns].to_i,
             tile_count: page[:tile_count].to_i,
+            # A linked page has no tiles of its own and nothing to review — the
+            # board it points at is already built and already has its art. Its
+            # `rows` come out empty; the flag is what lets the review screen say
+            # so instead of drawing an empty grid.
+            linked_board: Plan.linked?(page) ? ExistingBoards.find(page[:existing_board_id]) : nil,
             rows: in_grid_order(page[:tiles], cells[page[:key]]).map { |tile| row_for(tile) },
           }
         end

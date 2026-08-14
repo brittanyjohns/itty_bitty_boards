@@ -96,6 +96,14 @@ module Boards
       def page_problems(page)
         problems = []
         problems << prefixed(page, "give the page a name.") if multi_page? && page[:name].blank?
+
+        # A linked page builds nothing: the board it points at already has its
+        # tiles, its grid and its art. Every check below is about a word list
+        # this page doesn't have. It still needs a name (above) and still has to
+        # be opened by something (orphan_problems) — those are about the door on
+        # the main board, which this page does own.
+        return problems if Plan.linked?(page)
+
         problems.concat(count_problems(page))
         problems.concat(label_problems(page))
         problems.concat(part_of_speech_problems(page))
@@ -169,6 +177,9 @@ module Boards
 
         pages.drop(1).filter_map do |page|
           next if page[:inherits_grid]
+          # A linked board's grid is its own and not ours to rule on — the whole
+          # point of reusing it is taking it as it is.
+          next if Plan.linked?(page)
 
           grid = [page[:columns].to_i, page[:tile_count].to_i]
           next if grid == root_grid

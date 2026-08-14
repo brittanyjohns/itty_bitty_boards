@@ -26,18 +26,17 @@ module Boards
       end
 
       def call
+        # Already built. A build that died while finishing keeps its set and
+        # stays "failed" — the boards exist, and rebuilding them is the one
+        # thing that must not happen. The page's "Regenerate art" action is the
+        # recovery path for the art that never got queued.
         return build.board if build.board_id.present?
 
-        build.mark_building!
-        root = ActiveRecord::Base.transaction { create_set! }
+        root = create_and_claim!
+        # Another worker got there first and owns finishing this build.
+        return build.board if root.nil?
 
-        blank_image_ids = art_less_image_ids
-        regenerate_ids = regenerate_image_ids(blank_image_ids)
-        build.update!(board: root, status: "complete", art_report: art_report(root, blank_image_ids, regenerate_ids))
-        unpin_regenerated_tiles!(regenerate_ids)
-        queue_missing_art!(root, blank_image_ids)
-        queue_regenerated_art!(root, regenerate_ids)
-
+        finish!(root)
         root
       rescue StandardError => e
         build.mark_failed!(e.message)
@@ -47,6 +46,57 @@ module Boards
       private
 
       attr_reader :build
+
+      # The set and the build's pointer AT the set commit together, under a row
+      # lock on the build. Both halves are load-bearing — each one missing
+      # leaves a way to build the same set twice:
+      #
+      #   * **The claim is inside the transaction** because everything after it
+      #     can raise (two art queries and a jsonb write) and
+      #     BuildAdminBoardJob is `retry: 2`. With the claim outside, a failure
+      #     in that window left the boards committed but `board_id` still
+      #     blank, so the retry sailed straight past the guard and built a
+      #     second full set — root and every page. The orphaned first set stays
+      #     `published: true` and appears in no build's `art_report`, so
+      #     `set_boards` can't see it: it isn't listed on the build page,
+      #     publish/unpublish skip it, and destroying the build leaves it
+      #     behind. `rake admin_board_builds:orphans` finds the ones already
+      #     shipped this way.
+      #   * **The row lock** is what makes the guard mean anything with two
+      #     workers at once. Sidekiq delivers at least once, so two attempts can
+      #     both read a blank `board_id` before either writes one.
+      def create_and_claim!
+        build.with_lock do
+          next nil if build.board_id.present?
+
+          build.update!(status: "building", error_message: nil)
+          created = create_set!
+          # EVERY page, not just the root. `set_boards` reads
+          # art_report["boards"] and falls back to `[board_id]` alone, so a
+          # build that died before the full report was written owned its root
+          # and disowned its pages: destroy left them behind and
+          # publish/unpublish skipped them. `finish!` overwrites this with the
+          # complete report, which carries the same key.
+          build.update!(board: created, art_report: { "boards" => built_board_ids })
+          created
+        end
+      end
+
+      def built_board_ids
+        @built_boards.transform_values(&:id)
+      end
+
+      # Everything that is safe to redo. Deliberately outside the claim: none of
+      # it creates a board, so a failure here costs a retry rather than a
+      # duplicate set.
+      def finish!(root)
+        blank_image_ids = art_less_image_ids
+        regenerate_ids = regenerate_image_ids(blank_image_ids)
+        build.update!(status: "complete", art_report: art_report(root, blank_image_ids, regenerate_ids))
+        unpin_regenerated_tiles!(regenerate_ids)
+        queue_missing_art!(root, blank_image_ids)
+        queue_regenerated_art!(root, regenerate_ids)
+      end
 
       def admin
         @admin ||= User.find_by(id: User::DEFAULT_ADMIN_ID) ||
@@ -65,27 +115,71 @@ module Boards
         @resolved ||= Boards::ImageResolver.resolve_all(Plan.labels(pages), owner: admin)
       end
 
+      # Pages this build writes, and pages that just point at a board someone
+      # already published. A linked page is a link and nothing else — no Board
+      # row, no tiles, no layout — so it is held apart from `@built_boards`,
+      # which is what `art_report["boards"]` and therefore
+      # `AdminBoardBuild#set_boards` are built from. Publish, unpublish and
+      # destroy all iterate that list, and none of them may reach a board this
+      # build doesn't own.
+      def owned_pages = pages.reject { |page| Plan.linked?(page) }
+
       def create_set!
         # Pass 1 — every page's Board row, so pass 3 can link in any direction.
-        boards = pages.index_with { |page| new_board(page) }.transform_keys { |page| page[:key] }
+        boards = owned_pages.index_with { |page| new_board(page) }.transform_keys { |page| page[:key] }
+        @built_boards = boards
+        @linked_boards = resolve_linked_boards!
 
         # Pass 2 — tiles, in authored reading order per page.
-        tiles_by_key = pages.to_h do |page|
+        tiles_by_key = owned_pages.to_h do |page|
           [page[:key], page[:tiles].map { |tile| add_tile!(boards[page[:key]], tile) }]
         end
-        pages.each { |page| apply_reading_order!(boards[page[:key]], tiles_by_key[page[:key]], page) }
+        owned_pages.each { |page| apply_reading_order!(boards[page[:key]], tiles_by_key[page[:key]], page) }
 
         # Pass 3 — folder links. Every target already exists, cycles included.
-        link_pages!(boards, tiles_by_key)
+        link_pages!(boards.merge(@linked_boards), tiles_by_key)
 
-        pages.each do |page|
+        owned_pages.each do |page|
           board = boards[page[:key]]
           board.set_current_word_list
           board.save!
         end
 
-        @built_boards = boards
         boards[Plan::ROOT_KEY]
+      end
+
+      # Re-resolved through Boards::AdminBuilder::ExistingBoards rather than
+      # `Board.find`: the id came off a form post, and the scope is what keeps
+      # "link an existing board" from becoming "point a published admin set at
+      # any board in the database".
+      def resolve_linked_boards!
+        pages.select { |page| Plan.linked?(page) }.to_h do |page|
+          id = page[:existing_board_id]
+          board = ExistingBoards.find(id)
+          raise BuildError, "page #{page[:key].inspect} links to board #{id}, which isn't a linkable board" if board.nil?
+
+          pin_as_main_board!(board)
+          [page[:key], board]
+        end
+      end
+
+      # `Board#check_is_sub_board` is a before_save that flips `sub_board` on as
+      # soon as `parent_boards` finds anything pointing at the board. Linking
+      # gives this board a new parent, so the NEXT save for any unrelated reason
+      # would quietly demote a published board out of `main_boards` — and out of
+      # `Boards::AdminSearch.base_scope`, which is how it disappears from admin
+      # board search without anyone touching it.
+      #
+      # `builder_root` is the existing flag for exactly this ("pin it as a main
+      # board regardless of who links to it"). It keys off `builder_root`, not
+      # `admin_builder`, so setting it does NOT pull the board into any build's
+      # `set_boards`. Idempotent, and the only write this build makes to a board
+      # it does not own.
+      def pin_as_main_board!(board)
+        settings = board.settings || {}
+        return if settings["builder_root"] == true
+
+        board.update!(settings: settings.merge("builder_root" => true))
       end
 
       def new_board(page)
@@ -201,7 +295,7 @@ module Boards
       # No self-tile exception: nothing in an admin-built set is a you-are-here
       # anchor, so the "back to home" tile is a door like any other.
       def link_pages!(boards, tiles_by_key)
-        pages.each do |page|
+        owned_pages.each do |page|
           page[:tiles].each_with_index do |tile, index|
             target = tile[:links_to].presence
             next if target.nil?
@@ -327,9 +421,17 @@ module Boards
           # Tiles whose picture the admin picked by hand on the review screen.
           "picked_labels" => picked_doc_urls.keys,
           "slug" => root.slug,
+          # Boards this set POINTS AT but does not own. Kept out of "boards" on
+          # purpose: `set_boards` reads that key, and publish/unpublish/destroy
+          # iterate it. Recorded so `show` can list the whole set honestly and
+          # `rake admin_board_builds:orphans` doesn't mistake a linked board for
+          # a stranded one.
+          "linked_boards" => @linked_boards.transform_values(&:id),
           # key => board id, so `show` can list every page of the set and
           # publish can cascade over it without re-walking the link graph.
-          "boards" => @built_boards.transform_values(&:id),
+          # Also written at claim time (see #create_and_claim!) — this is the
+          # same value, re-stated as part of the complete report.
+          "boards" => built_board_ids,
         }
       end
 
