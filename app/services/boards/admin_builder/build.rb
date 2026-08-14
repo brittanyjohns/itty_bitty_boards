@@ -177,6 +177,12 @@ module Boards
         pos = tile[:part_of_speech].to_s
         attrs[:part_of_speech] = pos if pos.present? && pos != "default"
 
+        # A picture the admin picked on the review screen instead of the
+        # library's own. Pinned per TILE, not on the Image — every other board
+        # using this word keeps whatever the library resolves for it.
+        picked = picked_doc_urls[Boards::ImageResolver.normalize(tile[:label].to_s)]
+        attrs[:display_image_url] = picked if picked.present?
+
         display_label = tile[:display_label].to_s
         attrs[:display_label] = display_label if display_label.present?
 
@@ -254,10 +260,36 @@ module Boards
       # Minus the blanks: a label with no art is already queued by
       # queue_missing_art!, and generating it twice is two API calls for one
       # picture.
+      # Minus the picks too: a tile whose picture the admin chose by hand must
+      # not have AI art generated over it, and unpin_regenerated_tiles! would
+      # drop the pin that carries the choice.
       def regenerate_image_ids(blank_image_ids)
-        build.regenerate_labels
-             .filter_map { |label| resolved[label]&.id }
-             .uniq - blank_image_ids
+        (build.regenerate_labels - picked_doc_urls.keys)
+          .filter_map { |label| resolved[label]&.id }
+          .uniq - blank_image_ids
+      end
+
+      # Label => the URL of the Doc the admin pinned to that tile. Resolved in
+      # one query for the whole set, and a doc that has since been deleted just
+      # drops out — the tile falls back to the library's own art rather than
+      # failing the build over a picture.
+      #
+      # Prefers the 288px tile variant, but only when it is ALREADY processed:
+      # materializing it here would run an inline download+transform per tile
+      # inside the build transaction. The full-resolution original renders fine
+      # in the meantime.
+      def picked_doc_urls
+        @picked_doc_urls ||= begin
+          picks = build.display_doc_ids
+          docs = picks.any? ? Doc.where(id: picks.values.uniq).index_by(&:id) : {}
+          picks.filter_map do |label, doc_id|
+            doc = docs[doc_id]
+            next if doc.nil?
+
+            url = doc.tile_variant_processed? ? doc.tile_url : doc.display_url
+            [label, url] if url.present?
+          end.to_h
+        end
       end
 
       # A marked tile was built with the library's art, so BoardImage#set_defaults
@@ -292,6 +324,8 @@ module Boards
           # picture for them — `show` reports these separately from the blanks.
           "regenerated_labels" => resolved.select { |_, image| regenerate_ids.include?(image.id) }.keys,
           "regenerated_image_ids" => regenerate_ids,
+          # Tiles whose picture the admin picked by hand on the review screen.
+          "picked_labels" => picked_doc_urls.keys,
           "slug" => root.slug,
           # key => board id, so `show` can list every page of the set and
           # publish can cascade over it without re-walking the link graph.

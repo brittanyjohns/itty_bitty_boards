@@ -147,6 +147,15 @@
         Marked for AI regeneration: <%= regenerated.join(", ") %>
       </p>
     <% end %>
+    <% picked = Array(@build.art_report["picked_labels"]) %>
+    <% if picked.any? %>
+      <%# The library had more than one picture for these words and the admin
+          chose which one on the review screen. Pinned per TILE — the shared
+          Image is untouched, so no other board moves. %>
+      <p class="text-[11px] text-t3 mt-2">
+        Pinned to a picked picture: <%= picked.join(", ") %>
+      </p>
+    <% end %>
     <% if @missing_art_count.positive? %>
       <%= button_to "Generate the missing art", regenerate_art_admin_dashboard_board_build_path(@build), method: :post,
             class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 mt-3",

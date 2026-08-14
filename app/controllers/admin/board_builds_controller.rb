@@ -272,6 +272,7 @@ module Admin
         commercial_safe_only: @form[:commercial_safe_only],
       ).call
       @marked = marked_labels(@form)
+      @picked_docs = picked_docs(@form)
       @name_matches = duplicate_name_matches(@form[:name])
 
       render :preview
@@ -311,6 +312,11 @@ module Admin
           # rather than trusted from the resubmit, and stored normalized so
           # Boards::AdminBuilder::Build can look each one up in `resolved`.
           "regenerate" => marked_labels(@form),
+          # Per-label doc picks made on the review screen. A picked doc and an
+          # AI regeneration are the same decision made two ways, so a pick wins
+          # and the mark is dropped — otherwise the build would pin the chosen
+          # picture and then immediately generate over it.
+          "display_docs" => picked_docs(@form),
         },
       )
       BuildAdminBoardJob.perform_async(build.id)
@@ -700,6 +706,7 @@ module Admin
         allow_partial_row: false,
         allow_mixed_grids: false,
         regenerate: [],
+        display_docs: {},
       }
     end
 
@@ -757,7 +764,24 @@ module Admin
         allow_partial_row: checked?(params[:allow_partial_row]),
         allow_mixed_grids: checked?(params[:allow_mixed_grids]),
         regenerate: submitted_regenerate,
+        display_docs: submitted_display_docs,
       }.then { |form| with_folder_tiles(form) }
+    end
+
+    # Docs the admin pinned on the review screen, as label => doc id. Keyed the
+    # same way marks are so a pick survives whatever casing the word was
+    # authored in. A blank value is "use the library's pick" and drops out here.
+    def submitted_display_docs
+      submitted = params[:display_docs]
+      # A hand-edited `display_docs=whatever` arrives as a String, not a hash.
+      return {} unless submitted.respond_to?(:to_unsafe_h)
+
+      submitted.to_unsafe_h.filter_map do |label, doc_id|
+        key = Boards::ImageResolver.normalize(label)
+        next if key.blank? || doc_id.to_i <= 0
+
+        [key, doc_id.to_i]
+      end.first(MAX_TILES).to_h
     end
 
     # Labels the admin ticked "regenerate with AI" on the review screen.
@@ -775,9 +799,28 @@ module Admin
     # still in the plan — the admin may have edited the list after ticking it,
     # and a hand-edited field must not be able to name an arbitrary label.
     def marked_labels(form)
-      planned = Boards::AdminBuilder::Plan.labels(pages_for(form))
-                                          .map { |label| Boards::ImageResolver.normalize(label) }
-      form[:regenerate] & planned
+      (form[:regenerate] & planned_labels(form)) - picked_docs(form).keys
+    end
+
+    # Label => doc id for tiles the admin pinned a specific picture to. Filtered
+    # the same way marks are — a pick only means anything if the word is still
+    # in the plan — and the doc id is checked against the library rather than
+    # trusted, so a hand-edited field can't pin a private user upload onto a
+    # public board.
+    def picked_docs(form)
+      picks = form[:display_docs].slice(*planned_labels(form))
+      return {} if picks.empty?
+
+      allowed = Doc.image_docs
+                   .where(id: picks.values, user_id: [nil, User::DEFAULT_ADMIN_ID])
+                   .pluck(:id)
+                   .to_set
+      picks.select { |_label, doc_id| allowed.include?(doc_id) }
+    end
+
+    def planned_labels(form)
+      Boards::AdminBuilder::Plan.labels(pages_for(form))
+                                .map { |label| Boards::ImageResolver.normalize(label) }
     end
 
     # Writes a folder tile onto the main board for any page nothing opens, and

@@ -160,6 +160,107 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  describe "picking a different picture for a tile" do
+    before { sign_in admin }
+
+    # Two library images for the same word: one gets attached, the other is the
+    # alternative the picker offers.
+    def two_arted_images(label)
+      [1, 2].map do |n|
+        image = Image.create!(label: label, user: seed_admin, private: false)
+        # OpenAI art is commercial-safe, so both candidates survive the
+        # commercial_safe_only filter the form defaults to.
+        doc = image.docs.create!(user: seed_admin, source_type: "OpenAI", raw: label)
+        doc.image.attach(
+          io: StringIO.new(file_fixture("sample.png").read),
+          filename: "#{label}-#{n}.png",
+          content_type: "image/png",
+        )
+        doc
+      end
+    end
+
+    it "offers the alternatives on the review screen without writing anything" do
+      two_arted_images("swing")
+
+      expect { post preview_admin_dashboard_board_builds_path, params: form_params }
+        .to not_change(Board, :count).and not_change(Image, :count).and not_change(Doc, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('name="display_docs[swing]"')
+      expect(response.body).to include("pinned to a different library picture")
+    end
+
+    # Same rail as the regenerate marks: the picker sits in the grid, well
+    # above the Build form, and only submits with it because of the HTML5
+    # `form` attribute.
+    it "points the picker at the build form" do
+      two_arted_images("swing")
+
+      post preview_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response.body).to match(/<select[^>]*name="display_docs\[swing\]"[^>]*form="build-form"/)
+    end
+
+    it "offers no picker for a label with only one library picture" do
+      two_arted_images("swing").first
+
+      post preview_admin_dashboard_board_builds_path, params: form_params
+
+      expect(response.body).not_to include('name="display_docs[want]"')
+    end
+
+    it "stores the pick on the build, keyed by normalized label" do
+      alternative = two_arted_images("swing").last
+
+      post admin_dashboard_board_builds_path,
+           params: form_params(display_docs: { "Swing" => alternative.id.to_s })
+
+      expect(AdminBoardBuild.last.display_doc_ids).to eq("swing" => alternative.id)
+    end
+
+    it "drops a pick for a label that isn't in the plan" do
+      alternative = two_arted_images("slide").last
+
+      post admin_dashboard_board_builds_path,
+           params: form_params(display_docs: { "slide" => alternative.id.to_s })
+
+      expect(AdminBoardBuild.last.display_doc_ids).to eq({})
+    end
+
+    # The round trip is not trusted. A doc belonging to a real user can be
+    # attached to a shared library image, and this screen builds PUBLIC boards
+    # — a hand-edited field must not be able to publish someone's own upload.
+    it "refuses a doc that isn't the library's" do
+      image = Image.create!(label: "swing", user: seed_admin, private: false)
+      theirs = image.docs.create!(user: create(:user), source_type: Doc::SOURCE_TYPE_USER, raw: "swing")
+
+      post admin_dashboard_board_builds_path,
+           params: form_params(display_docs: { "swing" => theirs.id.to_s })
+
+      expect(AdminBoardBuild.last.display_doc_ids).to eq({})
+    end
+
+    # A picked picture and an AI regeneration are the same decision made two
+    # ways. Keeping both would pin the choice and then generate over it.
+    it "drops the regeneration mark for a label that was also picked" do
+      alternative = two_arted_images("swing").last
+
+      post admin_dashboard_board_builds_path,
+           params: form_params(regenerate: ["swing"], display_docs: { "swing" => alternative.id.to_s })
+
+      build = AdminBoardBuild.last
+      expect(build.regenerate_labels).to eq([])
+      expect(build.display_doc_ids).to eq("swing" => alternative.id)
+    end
+
+    it "stores no picks when nothing was chosen" do
+      post admin_dashboard_board_builds_path, params: form_params
+
+      expect(AdminBoardBuild.last.display_doc_ids).to eq({})
+    end
+  end
+
   describe "child pages" do
     before { sign_in admin }
 

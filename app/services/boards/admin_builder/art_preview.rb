@@ -17,13 +17,27 @@ module Boards
     # resolved to art labelled "too tired to speak as it uses a lot of my
     # energy…". Every one of those is surfaced for a human to look at.
     class ArtPreview
+      # How many library results to offer per label. One is what gets attached;
+      # the rest are what the admin can swap to on the review screen. Kept small
+      # on purpose — the point is "is there a better picture for this word",
+      # not a browsable library.
+      CANDIDATE_LIMIT = 6
+
+      # One alternative picture the admin may pin to a tile instead of the
+      # library's pick. `doc_id` is what gets submitted and stored: an image id
+      # would be ambiguous, since which doc an image resolves to moves as art
+      # is added to it.
+      Candidate = Struct.new(:doc_id, :image_id, :label, :url, :exact, keyword_init: true)
+
       Row = Struct.new(
-        :label, :image_id, :matched_label, :exact, :src, :original_url,
+        :label, :image_id, :doc_id, :matched_label, :exact, :src, :original_url,
         :source_type, :license, :commercial_safe, :attribution_required, :share_alike,
-        :links_to,
+        :links_to, :alternatives,
         keyword_init: true,
       ) do
         def found? = image_id.present?
+
+        def alternatives = self[:alternatives] || []
 
         def exact? = exact.present?
 
@@ -100,11 +114,13 @@ module Boards
       end
 
       def searcher
-        # limit: 1 — the review grid shows what will actually be attached, not a
-        # menu of alternatives. `resolve: true` prepends exactly that pick.
+        # `resolve: true` puts what will ACTUALLY be attached first; everything
+        # after it is an alternative the admin can pin instead. The tiers are
+        # lazy, so asking for CANDIDATE_LIMIT still costs one lookup when the
+        # first tier fills it.
         @searcher ||= Images::LabelSearch.new(
           match: "exact",
-          limit: 1,
+          limit: CANDIDATE_LIMIT,
           commercial_safe: commercial_safe_only,
           resolve: true,
         )
@@ -116,17 +132,20 @@ module Boards
         key = label.downcase
         return @lookup[key] if @lookup.key?(key)
 
-        @lookup[key] = searcher.call(label).first
+        @lookup[key] = searcher.call(label)
       end
 
       def row_for(tile)
         label = tile[:label].to_s.strip
-        result = lookup(label)
+        results = lookup(label)
+        result = results.first
         return Row.new(label: label, exact: false, links_to: tile[:links_to]) if result.nil?
 
         Row.new(
           label: label,
           image_id: result[:id],
+          doc_id: result[:doc_id],
+          alternatives: candidates_for(label, results),
           matched_label: result[:label],
           exact: exact?(label, result[:label]),
           src: result[:src],
@@ -138,6 +157,25 @@ module Boards
           share_alike: result[:share_alike],
           links_to: tile[:links_to],
         )
+      end
+
+      # Every result the admin could pin, the library's own pick included, so
+      # the picker can offer a way back to the default. Rows with no processed
+      # thumbnail AND no original are dropped — an option with nothing to show
+      # is not a choice.
+      def candidates_for(label, results)
+        results.filter_map do |result|
+          url = result[:src].presence || result[:original_url].presence
+          next if url.blank? || result[:doc_id].blank?
+
+          Candidate.new(
+            doc_id: result[:doc_id],
+            image_id: result[:id],
+            label: result[:label],
+            url: url,
+            exact: exact?(label, result[:label]),
+          )
+        end
       end
 
       # `images.label` is the lowercase matching key, so casing never makes a
