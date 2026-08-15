@@ -66,6 +66,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Tiles no longer end up silently missing their own audio.** When a board's
+  voice was set while its tiles were still being written, the job that fills in
+  each tile's audio could run before those tiles existed. It didn't fail — it
+  quietly skipped them, so the audio file was made but never attached to the
+  tile. A tile left that way stayed mute on every load and had no way to
+  recover. The audio work now waits until the tiles are actually saved. A
+  repair task (`tile_audio:backfill`) fixes tiles already affected, reusing
+  audio that was already generated wherever possible.
+
 - **The transient image-processing error that killed background jobs is fixed
   at the source.** Building a board set, importing an OBF file, or saving newly
   generated art could resize a tile picture in the middle of a database
@@ -100,6 +109,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   per page, and a set that could sit on "Still building your cover" for good if
   the retries ran out too. Renders are now queued once the whole set is safely
   written. (Admin only.)
+
 - **The board builder's AI draft buttons work again.** Every draft spun for two
   minutes and then failed. Two causes, both in the shared OpenAI call: the model
   rejects the temperature the drafters were sending, and the attempts that

@@ -604,11 +604,36 @@ class BoardImage < ApplicationRecord
   def create_voice_audio
     current_audio_url = audio_url_for_voice(voice, language)
     unless current_audio_url
-      SaveAudioJob.perform_async(image_id, voice, id)
+      enqueue_voice_audio_job
       return
     end
     self.audio_url = current_audio_url
     save
+  end
+
+  # SaveAudioJob names a tile by id, so it must never be pushed from inside the
+  # transaction that writes that tile. `Board#set_voice` is a `before_save`
+  # callback, so every caller reaches here mid-transaction — and on a board
+  # built by `Boards::AdminBuilder::Build` that is the single `build.with_lock`
+  # transaction the whole set is written in.
+  #
+  # The failure is silent, which is why it survived: the job does
+  # `image.board_images.find_by(id:)`, so a row that isn't committed yet gives
+  # nil, not RecordNotFound. It logs "BoardImage with ID ... not found" and
+  # skips writing the tile's own `audio_url`/`voice`. The audio file still lands
+  # on the Image, so playback falls back to the image's audio and the board
+  # sounds fine — the tile's columns just stay nil forever.
+  #
+  # `after_all_transactions_commit` yields immediately when no transaction is
+  # open, so the callers that were already outside one are unchanged.
+  def enqueue_voice_audio_job
+    job_image_id = image_id
+    job_voice = voice
+    job_board_image_id = id
+
+    ActiveRecord.after_all_transactions_commit do
+      SaveAudioJob.perform_async(job_image_id, job_voice, job_board_image_id)
+    end
   end
 
   def user
@@ -892,10 +917,14 @@ class BoardImage < ApplicationRecord
     self.display_label = normalized_default_label(image.display_label) if display_label.blank?
   end
 
+  # Reached as an `after_create_commit`, so the enclosing transaction has
+  # already committed and `enqueue_voice_audio_job` pushes inline. Routed
+  # through the same helper anyway: the guard then belongs to the enqueue, not
+  # to one caller's choice of callback.
   def create_voice_audio_after_create
     current_audio_url = audio_url_for_voice(voice, language)
     unless current_audio_url
-      SaveAudioJob.perform_async(image_id, voice, id)
+      enqueue_voice_audio_job
       return
     end
     self.audio_url = current_audio_url
