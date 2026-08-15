@@ -96,8 +96,27 @@ class BoardPrintable < ApplicationRecord
   # unique index over active_storage_blobs.key.
   def storage_key_for(filename) = "board_printables/#{id}/#{filename}"
 
+  # The same, with a version segment ahead of the filename — so the buyer-facing
+  # download name is untouched while the path a CDN caches on is new.
+  def versioned_storage_key_for(filename)
+    "board_printables/#{id}/#{SecureRandom.hex(4)}/#{filename}"
+  end
+
+  # A regenerated PDF must land on a NEW key. Production serves these straight
+  # off CloudFront (CDN_HOST + the blob key, see #url_for_file) and CloudFront
+  # caches by path while ignoring query strings, so re-uploading the fresh
+  # document to the deterministic key left "Regenerate" looking like a no-op:
+  # the admin, and anything else holding the URL, kept getting the previous PDF
+  # long after the board had changed. Same lesson as #attach_image! and
+  # Boards::GeneratePreviewAssets.
+  #
+  # The version lives in the key PATH rather than the filename because the
+  # filename is the product's name on a marketplace download — a buyer should
+  # not receive "core-words-9f2a.pdf". Superseded versions are cleaned up by
+  # #purge_stale_pdfs! once the new files are attached.
   def attach_pdf!(filename:, bytes:, variant:)
     attach_blob!(
+      key: versioned_storage_key_for(filename),
       filename: filename,
       bytes: bytes,
       content_type: "application/pdf",
@@ -116,6 +135,7 @@ class BoardPrintable < ApplicationRecord
 
     filename = "#{variant.dasherize}-#{SecureRandom.hex(4)}.png"
     attach_blob!(
+      key: storage_key_for(filename),
       filename: filename,
       bytes: bytes,
       content_type: "image/png",
@@ -166,12 +186,13 @@ class BoardPrintable < ApplicationRecord
     LISTING_IMAGE_ORDER.all? { |variant| variants.include?(variant) }
   end
 
-  # PDFs left over from an earlier generation of this same record. A re-run
-  # overwrites the deterministic key when the filename matches, but the filename
-  # carries the board slug and the variant set depends on how many boards the
-  # walk found — so a renamed board, or a subboard added since the first run,
-  # leaves a stale download sitting next to the fresh one. Purged AFTER the new
-  # files are attached, so a failed re-render never empties the record.
+  # PDFs left over from an earlier generation of this same record. Every re-run
+  # writes to a fresh versioned key (see #attach_pdf!), so this is what keeps a
+  # regenerated printable from accumulating one downloadable file per run — and
+  # it is the only thing that removes the superseded document, which is exactly
+  # why it must be handed THIS run's keys rather than matching on filename.
+  # Purged AFTER the new files are attached, so a failed re-render never empties
+  # the record.
   def purge_stale_pdfs!(keep_keys)
     stale = pdf_files.reject { |f| keep_keys.include?(f.key) }
     return if stale.empty?
@@ -233,10 +254,10 @@ class BoardPrintable < ApplicationRecord
     files_attachments.reset
   end
 
-  def attach_blob!(filename:, bytes:, content_type:, metadata:)
-    key = storage_key_for(filename)
-    # Purge anything already at the deterministic key first, same reason as
+  def attach_blob!(key:, filename:, bytes:, content_type:, metadata:)
+    # Purge anything already at this key first, same reason as
     # MarketingAsset#attach_pdf! — create_and_upload! would otherwise collide.
+    # Versioned keys can't collide, so this only ever fires for the images.
     files.find { |f| f.key == key }&.purge
 
     blob = ActiveStorage::Blob.create_and_upload!(

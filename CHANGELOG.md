@@ -66,6 +66,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Regenerating a board printable now actually gives you the updated PDF.**
+  Editing a board and pressing Regenerate rebuilt the document correctly, but
+  the download kept handing back the old one — the new file was uploaded to the
+  same storage path, and the CDN in front of it goes on serving whatever it
+  cached there. Each run now writes to its own path, so the download is the
+  version you just generated. The file keeps its name, and the previous copy is
+  cleaned up once the new one is safely in place. (Admin only.)
 - **The board builder's AI draft buttons work again.** Every draft spun for two
   minutes and then failed. Two causes, both in the shared OpenAI call: the model
   rejects the temperature the drafters were sending, and the attempts that

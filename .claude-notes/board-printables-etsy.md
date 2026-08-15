@@ -343,7 +343,8 @@ and the admin card shows a staleness badge. Bulk refresh:
 
 Images are written to a **versioned** blob key. CloudFront ignores query
 strings, so re-uploading to a stable key leaves the admin looking at the
-previous render (same lesson as `Boards::GeneratePreviewAssets`).
+previous render (same lesson as `Boards::GeneratePreviewAssets`). The same rule
+applies to the PDFs — see below.
 
 **Grover reads `device_scale_factor` only inside `viewport`.** A top-level one
 is accepted and silently ignored — that shipped every listing image at 816px
@@ -365,13 +366,21 @@ would be a worse surprise than stale marketing images — which the existing
 **Regenerate** button on the listing-images card re-renders. The redirect notice
 says so.
 
-A re-run can produce different filenames (the name carries the board slug) or a
-different variant set (one `full` file becomes a `color`/`low_ink` pair once the
-tree grows past one board), so `Generate` calls
-`BoardPrintable#purge_stale_pdfs!` with the keys it just wrote. That runs
-**after** the new files are attached — same rule as the listing images — so a
-failed re-render leaves the previous downloads in place rather than emptying the
-record.
+**Every re-run writes the PDFs to a fresh versioned key**
+(`board_printables/<id>/<hex>/<filename>`), for exactly the reason the listing
+images do: production serves these as `CDN_HOST + blob.key` and CloudFront
+caches by path, so re-uploading the regenerated document onto the deterministic
+key made **Regenerate a no-op from the outside** — the admin kept downloading
+the pre-edit PDF. The version sits in the key PATH, not the filename: the
+filename is the product's download name on a marketplace, and a buyer should not
+receive `core-words-9f2a.pdf`.
+
+Because the key moves every run, `BoardPrintable#purge_stale_pdfs!` — which
+`Generate` calls with the keys it just wrote — is now the only thing that
+removes the superseded document, not just the odd orphan from a renamed board or
+a grown tree. It runs **after** the new files are attached, same rule as the
+listing images, so a failed re-render leaves the previous downloads in place
+rather than emptying the record.
 
 `DELETE /admin/board_printables/:id` destroys the record; Active Storage purges
 its PDFs and images with it. It cannot touch Etsy — this app implements no
