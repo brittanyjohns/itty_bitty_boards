@@ -425,6 +425,19 @@ an explicit decision, not a drive-by edit.
   (`rake board_covers:refresh_blanked_tile_covers`); and `BoardImage#set_defaults`
   seeds `display_image_url` from `image.src_url` on create, so a spec must write
   the blank *after* creating the tile.
+- **A Sidekiq job that names a row must not be pushed from inside the
+  transaction that writes it.** `perform_async` hits Redis immediately and the
+  worker reads on its own connection, so it can dequeue before the commit and
+  die on `RecordNotFound` — and a rolled-back transaction leaves a job pointing
+  at a row that will never exist. Nothing in the app enables transactional push,
+  and these are plain `Sidekiq::Job`s, so `enqueue_after_transaction_commit`
+  doesn't apply either. Wrap the push in
+  `ActiveRecord.after_all_transactions_commit` (a no-op outside a transaction)
+  or hoist it past the `end`, as `Boards::AdminBuilder::Build` does for art
+  generation. The trap is that the enqueue is usually two or three calls deep
+  and invisible from the transaction: `Board#apply_layout!` queues a cover
+  render, and `BoardImage`'s create callback queues audio, so writing a board
+  set inside one transaction fans out a job per page.
 
 ## Subsystem map (read the spoke before working in the area)
 

@@ -66,6 +66,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards built from the admin dashboard now get their covers.** Every page of
+  a built set queued its cover render before the set had finished saving, so the
+  render went looking for a board that wasn't there yet and failed — one dead job
+  per page, and a set that could sit on "Still building your cover" for good if
+  the retries ran out too. Renders are now queued once the whole set is safely
+  written. (Admin only.)
 - **The board builder's AI draft buttons work again.** Every draft spun for two
   minutes and then failed. Two causes, both in the shared OpenAI call: the model
   rejects the temperature the drafters were sending, and the attempts that

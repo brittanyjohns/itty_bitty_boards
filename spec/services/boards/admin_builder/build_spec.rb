@@ -163,6 +163,26 @@ RSpec.describe Boards::AdminBuilder::Build do
     end
   end
 
+  # Every page's layout is applied inside the set's transaction, and
+  # Board#apply_layout! enqueues a cover render. The render worker reads on its
+  # own connection, so a push from inside the transaction raced the commit and
+  # died on RecordNotFound — one dead job per page of the set.
+  describe "the cover render it queues" do
+    before { GenerateBoardPreviewJob.jobs.clear }
+
+    it "pushes no render while the set's transaction is still open" do
+      open_transactions_at_push = []
+      allow(GenerateBoardPreviewJob).to receive(:perform_async) do |_board_id, _options|
+        open_transactions_at_push << ActiveRecord.all_open_transactions.size
+      end
+
+      described_class.new(admin_board_build: build_record(tiles: four_tiles)).call
+
+      expect(open_transactions_at_push).not_to be_empty
+      expect(open_transactions_at_push).to all(eq(0))
+    end
+  end
+
   # The review screen is where a wrong symbol gets caught. A marked tile is
   # still built with the library's art — the mark only says "generate over it".
   describe "tiles marked for AI regeneration" do
