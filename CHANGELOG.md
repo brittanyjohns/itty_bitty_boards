@@ -66,6 +66,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The board builder's AI draft buttons work again.** Every draft spun for two
+  minutes and then failed. Two causes, both in the shared OpenAI call: the model
+  rejects the temperature the drafters were sending, and the attempts that
+  didn't send one ran past the 60s timeout before they could answer. Drafting
+  now sends no temperature to a model that only accepts the default, asks for
+  minimal reasoning effort, and allows longer for the answer — a word list comes
+  back in about 9 seconds and a four-page set in under a minute. (Admin only.)
 - **A printable's main listing photo now leads with the board itself, not one of
   its extra pages.** The three pages in the hero image fan out with the middle
   one in front, and that middle card is what shows in an Etsy search grid — but

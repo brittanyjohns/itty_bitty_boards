@@ -52,11 +52,50 @@ RSpec.describe Boards::AdminBuilder::Drafting do
       expect(calls.first).not_to have_key(:response_format)
     end
 
+    # gpt-5 and the o-series 400 on any temperature but the default, so sending
+    # one is a guaranteed wasted round trip that then looks like an empty draft
+    # and costs a second call to recover from.
+    context "on a reasoning model" do
+      before { stub_const("#{described_class}::REASONING_MODEL", true) }
+
+      it "sends no temperature at all" do
+        calls = stub_client("{}")
+        described_class.chat(prompt: "the park", content: "draft")
+
+        expect(calls.first).not_to have_key(:temperature)
+      end
+
+      it "turns the reasoning effort down so the draft lands inside the timeout" do
+        calls = stub_client("{}")
+        described_class.chat(prompt: "the park", content: "draft")
+
+        expect(calls.first[:reasoning_effort]).to eq(described_class::REASONING_EFFORT)
+      end
+
+      # Nothing left to drop, so an empty first call is the end of it.
+      it "does not retry a call it never put a temperature on" do
+        calls = stub_client(nil, nil)
+
+        expect(described_class.chat(prompt: "the park", content: "draft")).to be_nil
+        expect(calls.size).to eq(1)
+      end
+    end
+
+    it "asks for more than the 60s client default, which a draft does not finish in" do
+      calls = stub_client("{}")
+      described_class.chat(prompt: "the park", content: "draft")
+
+      expect(calls.first[:request_timeout]).to eq(described_class::REQUEST_TIMEOUT)
+      expect(described_class::REQUEST_TIMEOUT).to be > OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS
+    end
+
     # MODEL and TEMPERATURE are both ENV-tunable and `create_chat` swallows an
-    # API error into a debug log, handing back nil — so a rejected parameter
+    # API error into a log line, handing back nil — so a rejected parameter
     # looks exactly like "the AI had nothing to say". Without these retries that
     # would take drafting down until someone read the logs.
     context "when the first call comes back empty" do
+      before { stub_const("#{described_class}::REASONING_MODEL", false) }
+
       it "retries without the temperature" do
         calls = stub_client(nil, "{}")
 
@@ -64,6 +103,13 @@ RSpec.describe Boards::AdminBuilder::Drafting do
         expect(calls.size).to eq(2)
         expect(calls.first).to have_key(:temperature)
         expect(calls.last).not_to have_key(:temperature)
+      end
+
+      it "sends no reasoning effort to a model that has none" do
+        calls = stub_client("{}")
+        described_class.chat(prompt: "the park", content: "draft")
+
+        expect(calls.first).not_to have_key(:reasoning_effort)
       end
 
       it "then retries without the schema, and keeps the schema off both attempts" do

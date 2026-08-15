@@ -15,8 +15,29 @@ module Boards
       # Drafting is a counting exercise as much as a creative one — "EXACTLY 24
       # tiles, no near-duplicates, this part-of-speech balance" — and the
       # provider default wanders on all three. Set to "" to send no temperature
-      # at all.
+      # at all. Ignored entirely on a reasoning model (see REASONING_MODEL).
       TEMPERATURE = ENV.fetch("OPENAI_ADMIN_BUILDER_TEMPERATURE", "0.4").freeze
+
+      # gpt-5 and the o-series accept ONLY the default temperature (1) and 400
+      # anything else, so sending one is a guaranteed wasted round trip that
+      # then looks like an empty draft. Matched on the model NAME rather than an
+      # allow-list, so an ENV override to another gpt-5 variant is covered.
+      REASONING_MODEL = MODEL.match?(/\A(gpt-5|o\d)/i)
+
+      # Those same models think for as long as the effort asks for, and at the
+      # provider default a 24-tile draft did not finish inside the 60s client
+      # timeout at all. Drafting is a tightly-specified list against a json
+      # schema, not a hard reasoning problem: measured against the same prompt,
+      # "minimal" answered in 9s where "low" took 48s and the provider default
+      # timed out — and the minimal list was the better board (more core, more
+      # negation, fewer topic nouns). Raise it here if drafts get worse.
+      REASONING_EFFORT = ENV.fetch("OPENAI_ADMIN_BUILDER_REASONING_EFFORT", "minimal").freeze
+
+      # Headroom over the 60s default, which a set draft does not fit inside:
+      # the biggest one (a root plus four pages, in a single call) measured 55s
+      # at minimal effort and 83s at low. An admin waits on this in the request
+      # cycle, so it buys headroom rather than patience.
+      REQUEST_TIMEOUT = Integer(ENV.fetch("OPENAI_ADMIN_BUILDER_TIMEOUT", 120))
 
       # Sent ahead of every drafter's own prompt. The per-drafter prompts say
       # what to build; this says who is building it and what is never negotiable
@@ -99,7 +120,7 @@ module Boards
       #
       # Two retries, both for the same reason: MODEL and TEMPERATURE are
       # ENV-tunable, not every model accepts a custom temperature or a json
-      # schema, and `create_chat` swallows an API error into a debug log and
+      # schema, and `create_chat` swallows an API error into a log line and
       # hands back nil content — so a rejected parameter looks exactly like "the
       # AI had nothing to say" and would take drafting down until someone read
       # the logs. Same reasoning as the image-model fallback in
@@ -115,18 +136,27 @@ module Boards
       end
 
       def with_temperature_retry(prompt:, content:, schema:)
-        result = call(prompt: prompt, content: content, schema: schema, temperature: TEMPERATURE.presence)
+        result = call(prompt: prompt, content: content, schema: schema, temperature: temperature)
         return result if result.present?
-        return nil if TEMPERATURE.blank?
+        return nil if temperature.blank?
 
         Rails.logger.warn("[AdminBuilder::Drafting] no content from #{MODEL} at " \
                           "temperature #{TEMPERATURE} — retrying without it")
         call(prompt: prompt, content: content, schema: schema, temperature: nil)
       end
 
+      # nil on a reasoning model: it would be rejected, and the retry that
+      # follows a rejection is a whole extra minute of an admin's afternoon.
+      def temperature
+        return nil if REASONING_MODEL
+
+        TEMPERATURE.presence
+      end
+
       def call(prompt:, content:, schema:, temperature:)
-        opts = { prompt: prompt, messages: messages_for(content) }
+        opts = { prompt: prompt, messages: messages_for(content), request_timeout: REQUEST_TIMEOUT }
         opts[:temperature] = temperature.to_f if temperature.present?
+        opts[:reasoning_effort] = REASONING_EFFORT if REASONING_MODEL && REASONING_EFFORT.present?
         opts[:response_format] = { type: "json_schema", json_schema: schema } if schema.present?
 
         # Splatted, not passed as one positional hash. `OpenAiClient#initialize`

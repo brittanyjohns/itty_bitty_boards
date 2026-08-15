@@ -1417,6 +1417,21 @@ AI drafting (Phase 2) fills the main word list only — pages are authored by ha
   bare positional Hash moves the argument out of kwargs and breaks every spec
   that stubs the constructor.
 
+- **A reasoning model gets no temperature, a low reasoning effort and a longer
+  timeout — all three or drafting does not work at all.** `Drafting` decides by
+  model NAME (`REASONING_MODEL`, matching `gpt-5`/`o<n>`), so an ENV override to
+  another variant is covered. gpt-5 and the o-series 400 on any temperature but
+  the default, which the retry ladder can only recover from by spending a whole
+  extra call; and at the provider's default effort a 24-tile draft against a
+  json schema does not finish inside `OpenAiClient`'s 60s client timeout, so
+  both surviving attempts died on the timeout and every draft returned 422 after
+  two minutes. `REASONING_EFFORT` (default `minimal`) and `REQUEST_TIMEOUT`
+  (default 120s, passed through as the ruby-openai CLIENT option it is) are what
+  make it land. Measured on the same prompt: minimal 9s, low 48s, provider
+  default timed out — and minimal's list was the better board, so effort here
+  buys latency, not quality. The biggest single call is a set draft (root plus
+  four pages): 55s at minimal, 83s at low, which is what the 120s is sized for.
+
 - **`Boards::AdminBuilder::MetadataSuggester` fills the catalogue listing** —
   a plain-text description (`boards.description` renders as text on three of
   four frontend surfaces, so HTML would show up literally) and tags steered by
