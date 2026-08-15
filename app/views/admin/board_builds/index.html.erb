@@ -32,6 +32,9 @@
             <% case build.status %>
             <% when "complete" %>
               <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">built</span>
+              <% if build.warning? %>
+                <span class="bg-amber-900/60 text-amber-300 inline-block text-xs rounded px-2 py-0.5">unfinished</span>
+              <% end %>
             <% when "failed" %>
               <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2 py-0.5">failed</span>
             <% else %>

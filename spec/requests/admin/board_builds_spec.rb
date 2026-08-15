@@ -1754,6 +1754,67 @@ RSpec.describe "Admin::BoardBuilds (dashboard)", type: :request do
     end
   end
 
+  # The recovery path for a build whose set committed but whose tail didn't
+  # run — including the rows that were marked "failed" before a post-commit
+  # failure stopped meaning "the build failed".
+  describe "POST finish" do
+    before { sign_in admin }
+
+    it "re-queues the build job for a build stuck with a warning" do
+      build = create_build(board: built_board, status: "complete", error_message: "tempfile vanished")
+
+      post finish_admin_dashboard_board_build_path(build)
+
+      expect(response).to redirect_to(admin_dashboard_board_build_path(build))
+      expect(BuildAdminBoardJob.jobs.map { |job| job["args"].first }).to eq([build.id])
+    end
+
+    it "re-queues for a historical build left marked failed over a committed set" do
+      build = create_build(board: built_board, status: "failed", error_message: "Errno::ENOENT")
+
+      post finish_admin_dashboard_board_build_path(build)
+
+      expect(BuildAdminBoardJob.jobs.size).to eq(1)
+    end
+
+    it "queues nothing for a build that already finished cleanly" do
+      build = create_build(board: built_board, status: "complete")
+
+      post finish_admin_dashboard_board_build_path(build)
+
+      expect(BuildAdminBoardJob.jobs).to be_empty
+      expect(flash[:notice]).to match(/nothing left to finish/i)
+    end
+
+    # A failed build with no set is a rebuild, not a finish — the form below
+    # still holds the word list.
+    it "offers the button on the build page, and says the boards are fine" do
+      build = create_build(board: built_board, status: "complete", error_message: "tempfile vanished")
+
+      get admin_dashboard_board_build_path(build)
+
+      expect(response.body).to include(finish_admin_dashboard_board_build_path(build))
+      expect(response.body).to include("Finish build")
+      expect(response.body).to match(/was written and is fine/i)
+    end
+
+    it "does not offer the button on a build that finished cleanly" do
+      build = create_build(board: built_board, status: "complete")
+
+      get admin_dashboard_board_build_path(build)
+
+      expect(response.body).not_to include("Finish build")
+    end
+
+    it "queues nothing for a failed build that never produced a set" do
+      build = create_build(status: "failed", error_message: "boom")
+
+      post finish_admin_dashboard_board_build_path(build)
+
+      expect(BuildAdminBoardJob.jobs).to be_empty
+    end
+  end
+
   describe "linking a page to an existing board" do
     before { sign_in admin }
 

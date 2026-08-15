@@ -694,6 +694,64 @@ RSpec.describe Boards::AdminBuilder::Build do
         orphans = AdminBoardBuild.builder_boards.where.not(id: build.reload.set_boards.map(&:id))
         expect(orphans).to be_empty
       end
+
+      # A committed set is not a failed build. The boards exist, are published
+      # and are correct; only the recoverable tail is outstanding, and marking
+      # that "failed" sent an admin to rebuild something that already existed.
+      it "records a warning on a complete build rather than marking it failed" do
+        expect { described_class.new(admin_board_build: build).call }
+          .to raise_error(ActiveRecord::StatementInvalid)
+
+        build.reload
+        expect(build.status).to eq("complete")
+        expect(build.error_message).to match(/connection lost/)
+        expect(build).to be_warning
+        expect(build).to be_needs_finishing
+      end
+
+      # The bug this pins: `call` used to return unconditionally as soon as
+      # `board_id` was set, so BuildAdminBoardJob's retry was a no-op. The badge
+      # stayed red forever, art_report stayed the claim-time stub, and — the
+      # part that actually costs something — no AI art was ever queued for the
+      # blank tiles.
+      it "finishes the tail on the retry instead of returning early" do
+        expect { described_class.new(admin_board_build: build).call }.to raise_error(StandardError)
+        expect(build.reload.art_report.keys).to eq(%w[boards])
+
+        described_class.new(admin_board_build: build.reload).call
+
+        build.reload
+        expect(build.status).to eq("complete")
+        expect(build.error_message).to be_nil
+        expect(build).not_to be_warning
+        expect(build).not_to be_needs_finishing
+        expect(build.art_report).to include("tile_count", "coverage_pct", "slug")
+      end
+
+      it "queues the art the failed attempt never got to" do
+        allow(Boards::AdminBuilder::ArtQueue).to receive(:call).and_call_original
+
+        expect { described_class.new(admin_board_build: build).call }.to raise_error(StandardError)
+        expect(Boards::AdminBuilder::ArtQueue).not_to have_received(:call)
+
+        described_class.new(admin_board_build: build.reload).call
+
+        expect(Boards::AdminBuilder::ArtQueue).to have_received(:call).at_least(:once)
+      end
+    end
+
+    # A build that finished cleanly has nothing left to redo, so the retry must
+    # still be the no-op it always was — `finish!` re-queries art and re-writes
+    # the report, which is wasted work on a build with no outstanding tail.
+    it "does not re-run the tail for a build that already completed cleanly" do
+      build = build_record(tiles: four_tiles)
+      described_class.new(admin_board_build: build).call
+      report = build.reload.art_report
+
+      expect_any_instance_of(described_class).not_to receive(:finish!)
+      described_class.new(admin_board_build: build.reload).call
+
+      expect(build.reload.art_report).to eq(report)
     end
   end
 
