@@ -438,6 +438,24 @@ an explicit decision, not a drive-by edit.
   and invisible from the transaction: `Board#apply_layout!` queues a cover
   render, and `BoardImage`'s create callback queues audio, so writing a board
   set inside one transaction fans out a job per page.
+- **An ActiveStorage variant must never be rendered inside an open
+  transaction.** Rendering writes the variant's bytes from an `after_commit`
+  callback, but image_processing's output tempfile is closed AND UNLINKED the
+  moment the transform block returns (`Transformers::Transformer#transform`
+  ends in `output.close!`). With a transaction open that callback is deferred
+  to the OUTER commit, so `S3Service#upload` reads `io.size` on a path that is
+  already gone and the job dies at commit time on `Errno::ENOENT @
+  rb_file_s_size - /tmp/image_processing*.webp`. `Doc.variant_render_safe?` is
+  the test (Rails' own `ActiveRecord.all_open_transactions`, which counts only
+  JOINABLE transactions, so transactional fixtures don't make every spec
+  defer); `Doc#ensure_tile_variant!` and `#queue_tile_variant_render!` are how
+  a caller asks for a render. Same trap as the bullet above — the render is
+  usually several frames deep and invisible from the transaction: `Image`'s
+  `before_save :update_src_url` reads `doc.tile_url`, so merely SAVING an
+  image inside a builder transaction renders a variant. When a render is
+  deferred, `Doc#tile_url` serves the full-resolution original, which is
+  correct, larger, and — the part that matters — never `""`, the marker for
+  "this tile has no picture".
 
 ## Subsystem map (read the spoke before working in the area)
 

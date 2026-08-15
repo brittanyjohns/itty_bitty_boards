@@ -841,7 +841,7 @@ class Image < ApplicationRecord
       )
       new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}")
       Rails.logger.debug "Image saved and attached to doc #{new_image_doc.id} for symbol #{new_symbol.id}"
-      PreprocessDocTileVariantJob.perform_async(new_image_doc.id)
+      new_image_doc.queue_tile_variant_render!
     end
   end
 
@@ -930,7 +930,7 @@ class Image < ApplicationRecord
               )
               new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}")
               Rails.logger.debug "Image saved and attached to doc #{new_image_doc.id} for symbol #{new_symbol.id}"
-              PreprocessDocTileVariantJob.perform_async(new_image_doc.id)
+              new_image_doc.queue_tile_variant_render!
             end
           else
             skipped_count += 1
@@ -1726,7 +1726,7 @@ class Image < ApplicationRecord
         new_doc.user_id = cloned_user_id
         new_doc.save
         new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.#{new_doc.extension || "png"}", content_type: original_file.content_type) unless original_file.nil?
-        PreprocessDocTileVariantJob.perform_async(new_doc.id)
+        new_doc.queue_tile_variant_render!
       end
     end
 

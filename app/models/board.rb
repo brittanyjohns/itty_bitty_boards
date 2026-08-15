@@ -3204,7 +3204,7 @@ class Board < ApplicationRecord
                        filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}",
                        content_type: content_type)
       image.update(status: "finished")
-      PreprocessDocTileVariantJob.perform_async(doc.id) if doc.image.attached?
+      doc.queue_tile_variant_render! if doc.image.attached?
       url
     elsif inline
       doc = image.docs.create!(raw: raw_txt, user_id: current_user.id, processed: processed,
@@ -3212,7 +3212,7 @@ class Board < ApplicationRecord
       doc.image.attach(data: inline,
                        filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}",
                        content_type: content_type)
-      PreprocessDocTileVariantJob.perform_async(doc.id) if doc.image.attached?
+      doc.queue_tile_variant_render! if doc.image.attached?
       image.update(status: "finished")
       doc.reload.tile_url
     end

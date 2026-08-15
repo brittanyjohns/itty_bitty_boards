@@ -19,7 +19,7 @@ class PreprocessDocTileVariantsJob
           next
         end
 
-        doc.tile_variant.processed
+        doc.ensure_tile_variant!
         processed_count += 1
       rescue => e
         failed_count += 1
