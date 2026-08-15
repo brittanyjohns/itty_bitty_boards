@@ -34,11 +34,14 @@ class OpenAiClient
     )
   end
 
+  # `request_timeout` is a CLIENT option in ruby-openai, not a chat parameter,
+  # so a caller that needs longer than the 60s default has to say so here.
+  # Opt-in: every existing caller sends nothing and keeps the default.
   def openai_client
     @openai_client ||= OpenAI::Client.new(
       access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"),
       log_errors: true,
-      request_timeout: OPENAI_REQUEST_TIMEOUT_SECONDS,
+      request_timeout: @opts[:request_timeout].presence || OPENAI_REQUEST_TIMEOUT_SECONDS,
     )
   end
 
@@ -656,12 +659,20 @@ class OpenAiClient
     # Opt-in only, same shape as create_completion: every existing caller sends
     # nothing and keeps the provider default it has always had.
     opts[:temperature] = @opts[:temperature] if @opts[:temperature].present?
+    # Reasoning models (gpt-5, o-series) spend as long thinking as the effort
+    # asks for; a caller on a request-cycle timeout needs to be able to turn
+    # that down. Ignored by non-reasoning models' callers, who never send it.
+    opts[:reasoning_effort] = @opts[:reasoning_effort] if @opts[:reasoning_effort].present?
     begin
       response = openai_client.chat(
         parameters: opts,
       )
     rescue => e
-      Rails.logger.debug "**** ERROR **** \n#{e.message}\n"
+      # WARN, not DEBUG: production runs at :info, and a swallowed API error
+      # here is indistinguishable from "the model had nothing to say" at every
+      # call site. That is how a rejected `temperature` looked like an empty
+      # draft for a day. The message is OpenAI's own — no user data in it.
+      Rails.logger.warn "**** ERROR - create_chat **** \n#{e.class}: #{e.message}\n"
     end
     if response
       @role = response.dig("choices", 0, "message", "role")
