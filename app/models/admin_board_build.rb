@@ -79,9 +79,30 @@ class AdminBoardBuild < ApplicationRecord
   def failed? = status == "failed"
   def in_flight? = %w[pending building].include?(status)
 
+  # A set that got written but whose recoverable tail didn't finish — the
+  # boards exist and are correct, the art report and art queueing don't.
+  # `error_message` on a COMPLETE build is a warning, not a failure: only
+  # `mark_failed!` (which is reached solely when nothing was committed) means
+  # the build produced nothing.
+  def warning? = complete? && error_message.present?
+
+  # Work `Boards::AdminBuilder::Build#finish!` still owes this build. True for
+  # a warned build and for the historical rows that were marked `failed` after
+  # their set had already committed — both are repaired by re-running the job,
+  # which never rebuilds a set it already owns.
+  def needs_finishing? = board_id.present? && !(complete? && error_message.blank?)
+
   def mark_building! = update!(status: "building", error_message: nil)
 
+  # Nothing was committed — the build produced no boards at all.
   def mark_failed!(message)
     update!(status: "failed", error_message: message.to_s.truncate(1000))
+  end
+
+  # The set IS committed; only the tail failed. Deliberately not "failed": a
+  # red badge on a built, published, correct set sends an admin to rebuild
+  # something that already exists.
+  def mark_finished_with_warning!(message)
+    update!(status: "complete", error_message: message.to_s.truncate(1000))
   end
 end

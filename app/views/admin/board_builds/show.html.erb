@@ -18,6 +18,9 @@
       <% case @build.status %>
       <% when "complete" %>
         <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">built</span>
+        <% if @build.warning? %>
+          <span class="bg-amber-900/60 text-amber-300 inline-block text-xs rounded px-2 py-0.5 ml-1">unfinished</span>
+        <% end %>
       <% when "failed" %>
         <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2 py-0.5">failed</span>
       <% else %>
@@ -36,9 +39,21 @@
         <p class="text-xs text-t2 mt-2">The build is queued — reload in a moment.</p>
       <% end %>
 
-      <% if @build.failed? %>
+      <% if @build.warning? %>
+        <p class="text-xs text-amber-400 mt-2 max-w-xl font-mono"><%= @build.error_message %></p>
+        <p class="text-xs text-t2 mt-1">
+          The set below was written and is fine — only the art report and art queueing didn't finish.
+          Use “Finish build” to run them again.
+        </p>
+      <% elsif @build.failed? %>
         <p class="text-xs text-red-400 mt-2 max-w-xl font-mono"><%= @build.error_message %></p>
-        <p class="text-xs text-t2 mt-1">The word list is saved below — nothing needs re-typing.</p>
+        <% if @build.needs_finishing? %>
+          <p class="text-xs text-t2 mt-1">
+            The set below was still written — use “Finish build” rather than rebuilding.
+          </p>
+        <% else %>
+          <p class="text-xs text-t2 mt-1">The word list is saved below — nothing needs re-typing.</p>
+        <% end %>
       <% end %>
 
       <% if @board %>
@@ -63,6 +78,11 @@
     </div>
 
     <div class="flex items-center gap-2">
+      <% if @build.needs_finishing? %>
+        <%= button_to "Finish build", finish_admin_dashboard_board_build_path(@build), method: :post,
+              class: "text-xs font-medium px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white cursor-pointer",
+              title: "Re-run the art report and art queueing. Never rebuilds the boards." %>
+      <% end %>
       <% if @board %>
         <%= link_to "Open board ↗", board_app_url(@board), target: "_blank", rel: "noopener",
               class: "text-xs font-medium px-3 py-2 rounded border admin-input text-t1 hover:text-accent transition-colors",

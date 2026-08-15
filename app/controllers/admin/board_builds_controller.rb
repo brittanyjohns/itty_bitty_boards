@@ -27,7 +27,7 @@ module Admin
     before_action :require_seed_admin!
 
     helper_method :existing_board_matches
-    before_action :set_build, only: %i[show update destroy publish unpublish duplicate regenerate_art]
+    before_action :set_build, only: %i[show update destroy publish unpublish duplicate regenerate_art finish]
 
     def index
       @builds = AdminBoardBuild.includes(:board, :created_by).recent.limit(100)
@@ -416,6 +416,22 @@ module Admin
       queued = Boards::AdminBuilder::ArtQueue.call(board: root, image_ids: image_ids, topic: @build.topic)
       redirect_to admin_dashboard_board_build_path(@build),
                   notice: "Queued art for #{queued} #{"tile".pluralize(queued)}."
+    end
+
+    # Re-run the tail of a build whose set is already written: the art report
+    # and the art queueing that a failure at or after the commit skipped.
+    # Re-queues the same job, which never rebuilds a set it already owns — so
+    # this is the recovery path for a build stuck showing "failed" (or a
+    # warning) over boards that are perfectly fine.
+    def finish
+      unless @build.needs_finishing?
+        return redirect_to admin_dashboard_board_build_path(@build),
+                           notice: "Nothing left to finish — this build is complete."
+      end
+
+      BuildAdminBoardJob.perform_async(@build.id)
+      redirect_to admin_dashboard_board_build_path(@build),
+                  notice: "Finishing the build — reload in a moment."
     end
 
     def destroy

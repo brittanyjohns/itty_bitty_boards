@@ -25,12 +25,18 @@ module Boards
         @build = admin_board_build
       end
 
+      # Rebuilding a set this build already owns is the one thing that must not
+      # happen; leaving a committed set marked "failed" is the other. Both are
+      # decided by the same fact — whether `board_id` is committed — so the
+      # guard and the rescue read it the same way.
       def call
-        # Already built. A build that died while finishing keeps its set and
-        # stays "failed" — the boards exist, and rebuilding them is the one
-        # thing that must not happen. The page's "Regenerate art" action is the
-        # recovery path for the art that never got queued.
-        return build.board if build.board_id.present?
+        # Already built. Never re-create the set; DO re-run the recoverable
+        # tail if it never finished. This used to return unconditionally, which
+        # made BuildAdminBoardJob's retry a no-op: a build that died at or
+        # after its commit kept the "failed" badge forever, with a stub
+        # art_report and — the part that actually costs something — no AI art
+        # ever queued for its blank tiles.
+        return finish_owned_set! if build.board_id.present?
 
         root = create_and_claim!
         # Another worker got there first and owns finishing this build.
@@ -39,13 +45,47 @@ module Boards
         finish!(root)
         root
       rescue StandardError => e
-        build.mark_failed!(e.message)
+        # Committed or not is what separates a FAILED build from a built set
+        # with an unfinished tail, and `create_and_claim!` can raise from the
+        # commit itself: the transaction's after_commit callbacks run inside
+        # `with_lock`, so an ActiveStorage/vips blow-up in one of them
+        # propagates out with every board already written, published and
+        # correct. Calling that "failed" hid a good set behind a red badge that
+        # no retry could clear.
+        if committed_set?
+          build.mark_finished_with_warning!(e.message)
+        else
+          build.mark_failed!(e.message)
+        end
         raise
       end
 
       private
 
       attr_reader :build
+
+      # Re-run the tail for a set this build already owns. Safe to repeat by
+      # construction — `finish!` is the half deliberately kept outside the
+      # claim precisely because none of it creates a board — and the art queue
+      # is recomputed from what actually has no picture, so a tile whose art
+      # landed in the meantime isn't generated a second time.
+      def finish_owned_set!
+        root = build.board
+        return root unless build.needs_finishing?
+
+        finish!(root)
+        root
+      end
+
+      # Read from the database, not from the in-memory record: the raise we're
+      # classifying can come from the commit, and the attribute is already
+      # written on `build` by then either way. A build whose row has gone is
+      # not a committed set.
+      def committed_set?
+        build.reload.board_id.present?
+      rescue ActiveRecord::RecordNotFound
+        false
+      end
 
       # The set and the build's pointer AT the set commit together, under a row
       # lock on the build. Both halves are load-bearing — each one missing
@@ -83,7 +123,31 @@ module Boards
       end
 
       def built_board_ids
-        @built_boards.transform_values(&:id)
+        built_boards.transform_values(&:id)
+      end
+
+      # `create_set!` fills both of these in as it goes. A repair run has no
+      # create pass — the set is already written — so they are read back from
+      # the report the claim wrote, which carries exactly these two keys for
+      # exactly this reason. Only the ids are ever used downstream.
+      #
+      # `built_boards` is scoped through `builder_boards` and `linked_boards`
+      # deliberately is not: the whole point of the split is that this build
+      # OWNS the first list and merely points at the second.
+      def built_boards
+        @built_boards ||= boards_from_report("boards", AdminBoardBuild.builder_boards)
+      end
+
+      def linked_boards
+        @linked_boards ||= boards_from_report("linked_boards", Board.all)
+      end
+
+      def boards_from_report(key, scope)
+        stored = (build.art_report || {})[key]
+        return {} unless stored.is_a?(Hash)
+
+        found = scope.where(id: stored.values).index_by(&:id)
+        stored.filter_map { |page_key, id| [page_key, found[id]] if found[id] }.to_h
       end
 
       # Everything that is safe to redo. Deliberately outside the claim: none of
@@ -92,7 +156,14 @@ module Boards
       def finish!(root)
         blank_image_ids = art_less_image_ids
         regenerate_ids = regenerate_image_ids(blank_image_ids)
-        build.update!(status: "complete", art_report: art_report(root, blank_image_ids, regenerate_ids))
+        # `error_message: nil` clears the warning a previous attempt left
+        # behind — this is the run that made good on it, and a stale warning on
+        # a finished build keeps `needs_finishing?` true forever.
+        build.update!(
+          status: "complete",
+          error_message: nil,
+          art_report: art_report(root, blank_image_ids, regenerate_ids),
+        )
         unpin_regenerated_tiles!(regenerate_ids)
         queue_missing_art!(root, blank_image_ids)
         queue_regenerated_art!(root, regenerate_ids)
@@ -117,7 +188,7 @@ module Boards
 
       # Pages this build writes, and pages that just point at a board someone
       # already published. A linked page is a link and nothing else — no Board
-      # row, no tiles, no layout — so it is held apart from `@built_boards`,
+      # row, no tiles, no layout — so it is held apart from `built_boards`,
       # which is what `art_report["boards"]` and therefore
       # `AdminBoardBuild#set_boards` are built from. Publish, unpublish and
       # destroy all iterate that list, and none of them may reach a board this
@@ -137,7 +208,7 @@ module Boards
         owned_pages.each { |page| apply_reading_order!(boards[page[:key]], tiles_by_key[page[:key]], page) }
 
         # Pass 3 — folder links. Every target already exists, cycles included.
-        link_pages!(boards.merge(@linked_boards), tiles_by_key)
+        link_pages!(boards.merge(linked_boards), tiles_by_key)
 
         owned_pages.each do |page|
           board = boards[page[:key]]
@@ -400,7 +471,7 @@ module Boards
       def unpin_regenerated_tiles!(image_ids)
         return if image_ids.empty?
 
-        BoardImage.where(board_id: @built_boards.values.map(&:id), image_id: image_ids)
+        BoardImage.where(board_id: built_boards.values.map(&:id), image_id: image_ids)
                   .update_all(display_image_url: nil)
       end
 
@@ -426,7 +497,7 @@ module Boards
           # iterate it. Recorded so `show` can list the whole set honestly and
           # `rake admin_board_builds:orphans` doesn't mistake a linked board for
           # a stranded one.
-          "linked_boards" => @linked_boards.transform_values(&:id),
+          "linked_boards" => linked_boards.transform_values(&:id),
           # key => board id, so `show` can list every page of the set and
           # publish can cascade over it without re-walking the link graph.
           # Also written at claim time (see #create_and_claim!) — this is the

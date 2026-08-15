@@ -66,6 +66,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A board build that finished writing its boards is no longer reported as
+  failed.** The builder created the whole set, published it and got it right,
+  then hit a transient image-processing error on the way out — and the build
+  page painted the lot red, which read as "this produced nothing, build it
+  again". It now says the boards are fine and only the finishing step didn't
+  run, with a "Finish build" button that completes it. That step matters
+  beyond the badge: it's what queues AI art for tiles the symbol library had no
+  picture for, so those tiles used to stay blank forever. Retries can repair a
+  build now instead of skipping it, and a build is never rebuilt on top of a
+  set it already created. (Admin only.)
+
 - **Regenerating a board printable now actually gives you the updated PDF.**
   Editing a board and pressing Regenerate rebuilt the document correctly, but
   the download kept handing back the old one — the new file was uploaded to the

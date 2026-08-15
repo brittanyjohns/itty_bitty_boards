@@ -1195,6 +1195,25 @@ Its own invariants:
   (`UNPUBLISH=1` / `APPLY=1` to act). The other duplication route is two POSTs
   to `create` — that makes two *builds*, and the preview page's submit guard is
   what stops a double click causing it.
+- **A failure once the set is committed is a WARNING, not a failed build.**
+  `Build#call` splits on whether `board_id` is committed: `mark_failed!` means
+  nothing was produced, `mark_finished_with_warning!` means the boards exist,
+  are published and are correct and only the recoverable tail
+  (`finish!` — art report, unpin, art queueing) is outstanding.
+  `AdminBoardBuild#warning?` / `#needs_finishing?` are the two predicates, and
+  `finish!` clears `error_message` on the run that makes good on it. The trap
+  this closes: **`create_and_claim!` can raise from the commit itself** —
+  after_commit callbacks run inside `with_lock`, so a transient
+  ActiveStorage/vips failure in one of them propagates out with every board
+  already written (a real ENOENT on an image_processing tempfile did exactly
+  this). Paired with `call`'s unconditional "already built" early return, that
+  made `BuildAdminBoardJob`'s `retry: 2` a no-op: the build kept a red badge
+  forever, `art_report` stayed the claim-time stub, and no AI art was ever
+  queued for its blank tiles. `call` now re-runs `finish!` for a set it already
+  owns (never `create_set!`), and `POST /admin/board_builds/:id/finish`
+  re-queues the job by hand for a row already stuck this way. `finish!` reads
+  `built_boards` / `linked_boards` back from `art_report` when there was no
+  create pass, which is what makes a repair run possible at all.
 - **A page can LINK an existing published admin board instead of building one.**
   `children[i][existing_board_id]`, offered by `Boards::AdminBuilder::ExistingBoards`
   whenever a published admin board carries the page's name (name match, ranked
