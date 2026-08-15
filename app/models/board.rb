@@ -299,9 +299,23 @@ class Board < ApplicationRecord
   # snapshot.
   def run_generate_preview_job(force: false)
     # Clear any previous outcome up front, so a run that follows a failure isn't
-    # aborted by the stale "failed" its predecessor left behind.
+    # aborted by the stale "failed" its predecessor left behind. This one stays
+    # inside any open transaction on purpose: it's a write on this board's own
+    # row, so it lands or rolls back with the board it describes.
     mark_preview_queued!
-    GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true, "force" => force }) # Generate PNG preview without header
+    # The push waits for the transaction. Sidekiq writes to Redis the instant
+    # perform_async is called, and the worker reads the board on its own
+    # database connection — so a push from inside an open transaction can be
+    # picked up before the row it names is committed, and the render dies on
+    # RecordNotFound. That's not hypothetical: the admin Board Builder writes a
+    # whole set inside one transaction (Boards::AdminBuilder::Build), and
+    # #apply_layout! enqueues from in there once per page, so a build logged one
+    # dead render per page of the set. A rolled-back transaction never pushes at
+    # all, which is also right — that board no longer exists. Outside a
+    # transaction the block runs inline, so every other caller is unchanged.
+    ActiveRecord.after_all_transactions_commit do
+      GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true, "force" => force }) # Generate PNG preview without header
+    end
     # GenerateBoardPreviewJob.perform_async(id, { "generate_pdf" => true }) # PDF with header for sharing
   end
 

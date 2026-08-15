@@ -389,6 +389,52 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "#run_generate_preview_job" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    around { |example| Sidekiq::Testing.fake! { example.run } }
+    before { GenerateBoardPreviewJob.jobs.clear }
+
+    it "pushes immediately when no transaction is open" do
+      board.run_generate_preview_job
+
+      expect(GenerateBoardPreviewJob.jobs.size).to eq(1)
+      expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(board.id)
+    end
+
+    # The render runs in a Sidekiq worker on its own connection, so it cannot
+    # see rows a still-open transaction hasn't committed. Pushing mid-transaction
+    # is what made an admin Board Builder run log RecordNotFound per page.
+    it "holds the push until the enclosing transaction commits" do
+      Board.transaction do
+        board.run_generate_preview_job
+        expect(GenerateBoardPreviewJob.jobs).to be_empty
+      end
+
+      expect(GenerateBoardPreviewJob.jobs.size).to eq(1)
+      expect(GenerateBoardPreviewJob.jobs.last["args"].first).to eq(board.id)
+    end
+
+    it "never pushes when the enclosing transaction rolls back" do
+      Board.transaction do
+        board.run_generate_preview_job
+        raise ActiveRecord::Rollback
+      end
+
+      expect(GenerateBoardPreviewJob.jobs).to be_empty
+    end
+
+    # The status flag is a write on the board's own row, so it belongs inside
+    # the transaction: it lands or rolls back with the board it describes.
+    it "still marks the board queued inside the transaction" do
+      Board.transaction do
+        board.run_generate_preview_job
+        expect(board.reload.settings["preview_status"]).to eq("queued")
+      end
+    end
+  end
+
   describe ".find_or_create_images_from_word_list" do
     let(:user) { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }
