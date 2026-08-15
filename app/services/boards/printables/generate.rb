@@ -37,9 +37,9 @@ module Boards
           printable.attach_pdf!(filename: file.filename, bytes: file.bytes, variant: file.variant)
         end
 
-        # A re-run of the same record can produce different filenames (renamed
-        # board) or a different variant set (a subboard added since last time),
-        # so anything not written by THIS run is a stale download.
+        # Every re-run writes to fresh versioned keys, so anything not written
+        # by THIS run is a superseded download — including the previous run's
+        # copy of a file with the very same name.
         printable.purge_stale_pdfs!(blobs.map(&:key))
 
         printable.update!(

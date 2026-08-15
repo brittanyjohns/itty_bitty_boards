@@ -143,7 +143,7 @@ RSpec.describe Boards::Printables::Generate do
     end
   end
 
-  # The deterministic storage key is scoped by record id, so this only has to
+  # The storage key is scoped by record id and versioned per run, so this has to
   # survive a re-run of the SAME record — which is what a Sidekiq retry does.
   it "can regenerate the same record without colliding on the blob key" do
     printable = printable_for
@@ -152,6 +152,37 @@ RSpec.describe Boards::Printables::Generate do
     expect { described_class.new(printable: printable).call }.not_to raise_error
 
     expect(printable.reload.files.count).to eq(1)
+  end
+
+  # The bug this guards: production serves these off CloudFront as CDN_HOST +
+  # the blob key, and CloudFront caches by path — so re-running onto the same
+  # key left "Regenerate" downloading the PREVIOUS document, with none of the
+  # board edits that motivated the re-run.
+  it "gives a regenerated PDF a new storage key so a CDN can't serve the old one" do
+    printable = printable_for
+
+    described_class.new(printable: printable).call
+    first_key = printable.reload.pdf_files.first.key
+
+    described_class.new(printable: printable).call
+    second = printable.reload.pdf_files.first
+
+    expect(second.key).not_to eq(first_key)
+    # Same product, same download name — only the cached path moved.
+    expect(second.filename.to_s).to eq("core-words.pdf")
+    expect(second.key).to start_with("board_printables/#{printable.id}/")
+    expect(second.key).to end_with("/core-words.pdf")
+  end
+
+  it "leaves exactly one downloadable file per variant after a regenerate" do
+    printable = printable_for(include_subboards: true)
+    link(root, create(:board, user: user, name: "Food"))
+
+    described_class.new(printable: printable).call
+    described_class.new(printable: printable).call
+
+    expect(printable.reload.files_view.map { |f| f[:variant] })
+      .to eq(BoardPrintable::DOWNLOAD_VARIANTS)
   end
 
   # The admin "Regenerate" action re-runs this on a record that already has
