@@ -73,6 +73,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   cached there. Each run now writes to its own path, so the download is the
   version you just generated. The file keeps its name, and the previous copy is
   cleaned up once the new one is safely in place. (Admin only.)
+- **Boards built from the admin dashboard now get their covers.** Every page of
+  a built set queued its cover render before the set had finished saving, so the
+  render went looking for a board that wasn't there yet and failed — one dead job
+  per page, and a set that could sit on "Still building your cover" for good if
+  the retries ran out too. Renders are now queued once the whole set is safely
+  written. (Admin only.)
 - **The board builder's AI draft buttons work again.** Every draft spun for two
   minutes and then failed. Two causes, both in the shared OpenAI call: the model
   rejects the temperature the drafters were sending, and the attempts that
