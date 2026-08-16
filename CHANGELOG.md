@@ -75,6 +75,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   repair task (`tile_audio:backfill`) fixes tiles already affected, reusing
   audio that was already generated wherever possible.
 
+- **A MySpeak page with an "About me" but no intro now gets its spoken audio.**
+  The recording step bailed out whenever the intro was empty, and it did so
+  before deciding which field it was working on — so the About me audio was
+  skipped too. The public page then had to generate speech from scratch on
+  every tap of "Read aloud", which is what made the button feel slow. Each
+  field is now recorded on its own.
+
+- **Audio and images are served with caching headers.** Files went out telling
+  browsers nothing about how long they could be kept, so the same unchanging
+  clip was downloaded again every time it played. New uploads now carry a
+  long-lived caching header; `rake audio:backfill_cache_control APPLY=1`
+  applies it to files already stored.
+
 - **The transient image-processing error that killed background jobs is fixed
   at the source.** Building a board set, importing an OBF file, or saving newly
   generated art could resize a tile picture in the middle of a database

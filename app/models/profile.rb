@@ -964,8 +964,6 @@ class Profile < ApplicationRecord
   end
 
   def update_audio(audio_type)
-    return unless intro.present?
-
     voice = profileable&.respond_to?(:voice) ? (profileable.voice || "polly:kevin") : "polly:kevin"
     language = profileable&.respond_to?(:language) ? (profileable.language || "en") : "en"
     text = ""
@@ -977,6 +975,14 @@ class Profile < ApplicationRecord
       Rails.logger.error "Invalid audio type #{audio_type} for profile #{slug}"
       return
     end
+
+    # Gate on the field being synthesized, not on `intro`. This guard used to
+    # be `return unless intro.present?` at the top of the method, so a profile
+    # with a bio and no intro never got bio audio either — and the public page
+    # falls back to synthesizing on every tap when a clip is missing, which is
+    # a multi-second wait each time. A blank field is also not worth a Polly
+    # call in its own right.
+    return if text.blank?
 
     synth_io = VoiceService.synthesize_speech(text: text, voice_value: voice, language: language)
     return unless synth_io

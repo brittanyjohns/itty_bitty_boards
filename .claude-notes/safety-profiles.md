@@ -4,6 +4,25 @@
 > This file is the authoritative doc for this subsystem — update it (not CLAUDE.md)
 > when behavior changes. CLAUDE.md keeps only the cross-cutting invariants.
 
+## Spoken intro / bio audio
+
+`SaveProfileAudioJob` → `Profile#update_audio(:intro | :bio)` pre-renders each
+field to an mp3 through Polly and attaches it (`intro_audio` / `bio_audio`),
+which is what `safety_view` publishes as `intro_audio_url` / `bio_audio_url`.
+
+**Each field is gated on its own text, never on `intro`.** The guard used to be
+`return unless intro.present?` at the top of the method — above the branch that
+picks which field it is rendering — so a profile with an About me and no intro
+got neither clip. This is a latency bug, not a missing-feature one: when a clip
+is absent the public page falls back to synthesizing on **every tap**
+(`POST /api/images/generate_audio`, measured 0.5s warm and 3.8s cold), so
+"Hear me" / "Read aloud" sit silent for seconds each time they are pressed.
+Anything that stops a clip being pre-generated has that cost.
+
+`enqueue_audio_job_if_needed` already tracks the two fields independently
+(`saved_change_to_bio? || (bio.present? && !bio_audio.attached?)`), so a
+profile that was skipped under the old guard re-enqueues on its next save.
+
 ## Safety-profile view alerts (issue #384)
 
 Public safety (MySpeak) pages have two surfaces. The **open page**
