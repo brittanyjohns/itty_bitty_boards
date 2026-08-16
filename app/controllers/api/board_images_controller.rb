@@ -458,7 +458,9 @@ class API::BoardImagesController < API::ApplicationController
       @board_image.set_voice_audio!(url, voice)
     else
       @board_image.set_voice_audio!(@board_image.audio_url, voice)
-      SaveAudioJob.perform_async(@board_image.image_id, voice, @board_image.id)
+      # set_voice_audio! has just pinned the tile to `voice`, so the enqueue
+      # reads the same value off the record.
+      @board_image.enqueue_voice_audio_job
     end
 
     @board_image.board.broadcast_board_update!

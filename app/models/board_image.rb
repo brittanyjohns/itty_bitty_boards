@@ -626,9 +626,15 @@ class BoardImage < ApplicationRecord
   #
   # `after_all_transactions_commit` yields immediately when no transaction is
   # open, so the callers that were already outside one are unchanged.
-  def enqueue_voice_audio_job
+  #
+  # `for_voice` is for the read paths, which enqueue the voice the VIEWER is
+  # about to hear rather than the one stored on the tile — that difference is
+  # the whole reason they enqueue. Everything is captured into locals: the
+  # block can run long after the caller moved on to the next tile, and
+  # `Board#api_view_with_images` reassigns `@board_image` on every iteration.
+  def enqueue_voice_audio_job(for_voice = nil)
     job_image_id = image_id
-    job_voice = voice
+    job_voice = for_voice || voice
     job_board_image_id = id
 
     ActiveRecord.after_all_transactions_commit do

@@ -335,6 +335,47 @@ RSpec.describe BoardImage, type: :model do
     end
   end
 
+  describe "#enqueue_voice_audio_job" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+    let(:image) { FactoryBot.create(:image, label: "hello", user_id: user.id) }
+    let!(:board_image) do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+    end
+
+    before { SaveAudioJob.clear }
+
+    it "enqueues the tile's own voice by default" do
+      board_image.update_columns(voice: "polly:kevin")
+
+      board_image.enqueue_voice_audio_job
+
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:kevin", board_image.id])
+    end
+
+    # The read paths enqueue the voice the VIEWER is about to hear, which by
+    # definition differs from the one stored on the tile.
+    it "enqueues an explicit voice when given one" do
+      board_image.update_columns(voice: "polly:kevin")
+
+      board_image.enqueue_voice_audio_job("polly:joanna")
+
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:joanna", board_image.id])
+    end
+
+    it "captures its arguments rather than reading them back when the block runs" do
+      # Board#api_view_with_images reassigns @board_image on every iteration,
+      # so a block that read from the record at commit time would enqueue the
+      # wrong tile.
+      ActiveRecord::Base.transaction do
+        board_image.enqueue_voice_audio_job("polly:joanna")
+        board_image.voice = "polly:matthew"
+      end
+
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:joanna", board_image.id])
+    end
+  end
+
   describe "#tile_image_url" do
     let(:user)  { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }

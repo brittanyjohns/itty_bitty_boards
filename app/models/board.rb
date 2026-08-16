@@ -2075,7 +2075,12 @@ class Board < ApplicationRecord
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
-            SaveAudioJob.perform_async(@image.id, voice_to_play, @board_image.id)
+            # Serializing is a read, but not always outside a transaction: the
+            # builder writes a set and serializes the root inside the same one,
+            # and those tiles are precisely the ones with no audio yet. Enqueue
+            # through BoardImage so the deferral is the enqueue's business
+            # rather than each call site's.
+            @board_image.enqueue_voice_audio_job(voice_to_play)
             current_audio_url = @board_image.audio_url
           end
         else
@@ -2287,7 +2292,12 @@ class Board < ApplicationRecord
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
-            SaveAudioJob.perform_async(@image.id, voice_to_play, @board_image.id)
+            # Serializing is a read, but not always outside a transaction: the
+            # builder writes a set and serializes the root inside the same one,
+            # and those tiles are precisely the ones with no audio yet. Enqueue
+            # through BoardImage so the deferral is the enqueue's business
+            # rather than each call site's.
+            @board_image.enqueue_voice_audio_job(voice_to_play)
             current_audio_url = @board_image.audio_url
           end
         else

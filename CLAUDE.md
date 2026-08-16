@@ -313,23 +313,6 @@ an explicit decision, not a drive-by edit.
 - **External-service failures fail soft.** Redis blips, PostHog, Mailchimp,
   and geolocation errors are rescued and logged — they can never 500 a
   request or a webhook.
-- **A Sidekiq job that names a row must not be pushed from inside the
-  transaction that writes it.** Sidekiq is a separate process on a separate
-  connection, so it can dequeue before the commit and not see the row. Push
-  from an `after_*_commit` callback, or wrap the `perform_async` in
-  `ActiveRecord.after_all_transactions_commit { ... }` — which yields inline
-  when no transaction is open, so non-transactional callers are unaffected.
-  This bites hardest where one transaction writes many rows:
-  `Boards::AdminBuilder::Build` writes a whole board set inside a single
-  `build.with_lock`, and `Board#set_voice` runs from a `before_save`. **The
-  failure mode is silence, not an exception** — `SaveAudioJob` resolves its
-  tile with `find_by`, so a too-early job logs "BoardImage with ID ... not
-  found" and skips writing that tile's `audio_url`/`voice`; the audio file
-  still lands on the Image and playback falls back to it, so the board sounds
-  correct while the tile's own columns stay nil. Never "fix" a not-found job by
-  making the job retry or tolerate the miss — that hides the ordering bug.
-  Enqueues live behind `BoardImage#enqueue_voice_audio_job`, not at the call
-  sites, so the guard can't be forgotten by the next caller.
 - **Every admin page is gated by inheritance, never by an inline check.** HTML
   admin controllers inherit `Admin::ApplicationController`
   (`authenticate_user!` + `require_admin!`); JSON ones inherit
@@ -454,7 +437,19 @@ an explicit decision, not a drive-by edit.
   generation. The trap is that the enqueue is usually two or three calls deep
   and invisible from the transaction: `Board#apply_layout!` queues a cover
   render, and `BoardImage`'s create callback queues audio, so writing a board
-  set inside one transaction fans out a job per page.
+  set inside one transaction fans out a job per page. **`RecordNotFound` is the
+  loud failure; silence is the other one** — a job that resolves its row with
+  `find_by` instead of `find` just skips the write. `SaveAudioJob` does exactly
+  that: it logs "BoardImage with ID ... not found" and never fills in that
+  tile's `audio_url`/`voice`, while the audio FILE still lands on the Image, so
+  the board sounds right and only the tile's own columns are empty. Those tiles
+  don't self-heal either — `Board#api_view_with_images` only re-enqueues when
+  `board_image.voice != voice_to_play`, and `set_defaults` stamps the tile with
+  the board's voice, so the serializer ships `audio_url: nil` forever
+  (`rake tile_audio:missing_report` finds them). Never "fix" a not-found job by
+  making it retry or tolerate the miss — that hides the ordering bug. Audio
+  enqueues live behind `BoardImage#enqueue_voice_audio_job`, not at the call
+  sites, so the guard can't be forgotten by the next caller.
 - **An ActiveStorage variant must never be rendered inside an open
   transaction.** Rendering writes the variant's bytes from an `after_commit`
   callback, but image_processing's output tempfile is closed AND UNLINKED the

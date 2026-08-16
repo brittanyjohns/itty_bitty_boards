@@ -1350,4 +1350,48 @@ RSpec.describe Board, type: :model do
       expect(view[:in_a_public_group]).to be(false)
     end
   end
+
+  describe "#api_view_with_predictive_images audio enqueue" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, voice: "polly:kevin") }
+    let(:image) { FactoryBot.create(:image, label: "hello", user_id: user.id) }
+    let!(:board_image) do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+    end
+
+    before do
+      # Tile is pinned to a different voice than the board, so the serializer
+      # takes the re-enqueue branch, and no file exists for the board's voice.
+      board_image.update_columns(voice: "polly:joanna", audio_url: nil)
+      allow_any_instance_of(BoardImage).to receive(:audio_url_for_voice).and_return(nil)
+      SaveAudioJob.clear
+    end
+
+    it "enqueues inline when serializing outside a transaction" do
+      board.api_view_with_predictive_images(user, false, "polly:kevin")
+
+      expect(SaveAudioJob.jobs.size).to eq(1)
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:kevin", board_image.id])
+    end
+
+    # The builder writes a set and serializes the root inside one transaction,
+    # and those tiles are exactly the ones with no audio yet.
+    it "holds the enqueue until the enclosing transaction commits" do
+      ActiveRecord::Base.transaction do
+        board.api_view_with_predictive_images(user, false, "polly:kevin")
+        expect(SaveAudioJob.jobs).to be_empty
+      end
+
+      expect(SaveAudioJob.jobs.size).to eq(1)
+    end
+
+    it "never enqueues when the transaction rolls back" do
+      ActiveRecord::Base.transaction do
+        board.api_view_with_predictive_images(user, false, "polly:kevin")
+        raise ActiveRecord::Rollback
+      end
+
+      expect(SaveAudioJob.jobs).to be_empty
+    end
+  end
 end
