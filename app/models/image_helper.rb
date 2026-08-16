@@ -32,7 +32,7 @@ module ImageHelper
         content_type: content_type,
       )
       Rails.logger.debug "Image saved and attached to doc #{doc.id} for image #{self.id}"
-      PreprocessDocTileVariantJob.perform_async(doc.id)
+      doc.queue_tile_variant_render!
 
       self.update(status: "finished")
     rescue => e
@@ -66,7 +66,7 @@ module ImageHelper
           content_type: file_format,
         )
 
-        PreprocessDocTileVariantJob.perform_async(doc.id)
+        doc.queue_tile_variant_render!
       end
 
       self.update(status: "finished", src_url: doc.tile_url)
@@ -168,8 +168,7 @@ module ImageHelper
       content_type: content_type,
     )
 
-    # PreprocessDocTileVariantJob.perform_async(doc.id)
-    doc.tile_variant.processed
+    doc.ensure_tile_variant!
 
     self.update!(status: "finished")
     update_all_boards_image_belongs_to(doc.tile_url, false, user_id)

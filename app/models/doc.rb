@@ -63,11 +63,54 @@ class Doc < ApplicationRecord
   scope :no_user, -> { where(user_id: nil) }
   scope :with_user, -> { where.not(user_id: nil) }
 
+  # Rendering a variant writes its bytes from an `after_commit` callback, but
+  # image_processing's output tempfile is closed AND UNLINKED the moment the
+  # transform block returns (`Transformer#transform` ends in `output.close!`).
+  # With an application transaction open, that callback is deferred to the
+  # OUTER commit — long after the tempfile is gone — and the upload dies on
+  # `Errno::ENOENT @ rb_file_s_size - /tmp/image_processing*.webp`, taking the
+  # whole job with it. So a variant is only ever rendered with no transaction
+  # open; anywhere else the render is queued for after the commit.
+  #
+  # This is Rails' own predicate for "would a callback registered now be
+  # deferred": it counts only JOINABLE open transactions, so the non-joinable
+  # wrapper transactional fixtures hold open doesn't make every spec defer.
+  def self.variant_render_safe?
+    ActiveRecord.all_open_transactions.empty?
+  end
+
   def tile_variant
     return unless image.attached?
     return unless image.variable?
 
     image.variant(TILE_VARIANT_TRANSFORMATIONS)
+  end
+
+  # Renders the 288px tile variant when it is safe to do so right now, and
+  # queues it for after the commit otherwise. Returns whether the variant is
+  # on the service by the time this returns.
+  def ensure_tile_variant!
+    return false unless image.attached?
+    return false unless image.variable?
+    return true if tile_variant_processed?
+
+    unless self.class.variant_render_safe?
+      queue_tile_variant_render!
+      return false
+    end
+
+    tile_variant&.processed
+    true
+  end
+
+  # Never a bare `perform_async`: the doc row this names may not be committed
+  # yet, and a worker reading on its own connection can dequeue first and find
+  # nothing. Outside a transaction the block runs immediately.
+  def queue_tile_variant_render!
+    doc_id = id
+    ActiveRecord.after_all_transactions_commit do
+      PreprocessDocTileVariantJob.perform_async(doc_id)
+    end
   end
 
   def tile_variant_processed?
@@ -92,6 +135,11 @@ class Doc < ApplicationRecord
 
     variant = tile_variant
     return display_url unless variant
+    # Serving the full-resolution original is correct, just larger — and it is
+    # a real URL, which matters: a blank display_image_url is the marker for
+    # "this tile has no picture". display_url queues the render for after the
+    # commit.
+    return display_url unless tile_variant_processed? || self.class.variant_render_safe?
 
     processed_variant = variant.processed
 
@@ -226,7 +274,7 @@ class Doc < ApplicationRecord
       image = documentable.create_image
     end
     self.image.attach(io: File.open(image.file_path), filename: image.file_name)
-    PreprocessDocTileVariantJob.perform_async(self.id)
+    queue_tile_variant_render!
   end
 
   def self.admin_default_id
@@ -280,9 +328,7 @@ class Doc < ApplicationRecord
 
   def display_url
     return original_image_url if !image.attached?
-    unless tile_variant_processed?
-      PreprocessDocTileVariantJob.perform_async(id)
-    end
+    queue_tile_variant_render! unless tile_variant_processed?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host

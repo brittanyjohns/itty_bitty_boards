@@ -39,8 +39,9 @@ module Images
         )
 
         # Force the 288px variant now so the first board load isn't the thing
-        # that pays for it — same reason save_image_from_base64 does.
-        doc.tile_variant&.processed
+        # that pays for it — same reason save_image_from_base64 does. Falls
+        # back to a queued render if a transaction happens to be open.
+        doc.ensure_tile_variant!
 
         board_image.data = (board_image.data || {}).merge(
           "text_image" => options.to_h.merge("doc_id" => doc.id),

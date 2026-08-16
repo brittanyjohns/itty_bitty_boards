@@ -120,7 +120,7 @@ class OpenSymbol < ApplicationRecord
       new_image_doc = new_image.docs.create!(processed: self.name.parameterize, raw: self.search_string, source_type: "OpenSymbol")
     end
     new_image_doc.image.attach(io: downloaded_image, filename: "#{self.name.parameterize}-symbol-#{self.id}.#{self.extension}")
-    PreprocessDocTileVariantJob.perform_async(new_image_doc.id)
+    new_image_doc.queue_tile_variant_render!
   end
 
   IMAGE_EXTENSIONS = %w(jpg jpeg gif png svg)
@@ -157,7 +157,7 @@ class OpenSymbol < ApplicationRecord
       downloaded_image = get_downloaded_image
       doc = self.docs.create!(processed: self.name.parameterize, raw: self.search_string, source_type: "OpenSymbol")
       doc.image.attach(io: downloaded_image, filename: "#{self.name.parameterize}-symbol-#{self.id}.#{self.extension}")
-      PreprocessDocTileVariantJob.perform_async(doc.id)
+      doc.queue_tile_variant_render!
     rescue => e
       puts "OpenSymbol ERROR: #{e.inspect}"
       raise e
