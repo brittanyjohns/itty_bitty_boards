@@ -57,7 +57,66 @@ RSpec.describe Etsy::CopyRules do
 
       expect(tags.length).to eq(described_class::TAG_MAX)
       expect(tags.uniq).to eq(tags)
-      expect(tags.first(4)).to eq(["aac", "printable", "slp", "farm animals"])
+      # Topic ranks straight after always_on: it is the only pool describing
+      # this particular product.
+      expect(tags.first(4)).to eq(["aac", "printable", "farm animals", "slp"])
+    end
+
+    it "ranks the topic above the product-type, audience and top-up pools" do
+      tags = described_class.assemble_tags(
+        always_on: ["aac"],
+        product_type: ["communication board"],
+        audience: ["classroom"],
+        topic: ["hospital stay", "doctor visit"],
+        top_up: ["speech therapy"],
+      )
+
+      expect(tags).to eq(
+        ["aac", "hospital stay", "doctor visit", "communication board", "classroom", "speech therapy"],
+      )
+    end
+
+    # An uncapped topic pool would take all 13 slots and evict the terms the
+    # listings earning traffic today are found by. Note the arithmetic with a
+    # maxed topic: 3 always-on + 6 topic + 1 product-type + 3 audience fills
+    # the board exactly, so `top_up` is displaced — that's the priority order
+    # working, and it only happens for a topic of 6+ distinct phrases.
+    it "caps the topic so the product-type and audience pools keep their slots" do
+      tags = described_class.assemble_tags(
+        always_on: ["aac", "printable", "digital download"],
+        product_type: ["communication board"],
+        audience: ["autism support", "slp", "classroom"],
+        topic: (1..12).map { |i| "topic phrase #{i}" },
+        top_up: ["speech therapy"],
+      )
+
+      expect(tags.count { |t| t.start_with?("topic phrase") }).to eq(described_class::TOPIC_TAG_MAX)
+      expect(tags).to include("communication board", "autism support")
+      expect(tags.length).to eq(described_class::TAG_MAX)
+    end
+
+    # A topic of ordinary length — which is every real one — leaves the proven
+    # top-up terms exactly where they were.
+    it "leaves the top-up pool intact for a normal-length topic" do
+      tags = described_class.assemble_tags(
+        always_on: ["aac", "printable", "digital download"],
+        product_type: ["communication board"],
+        audience: ["autism support", "slp", "classroom"],
+        topic: ["hospital stay", "doctor visit"],
+        top_up: ["aac printable", "voice output aac", "speech therapy", "special education"],
+      )
+
+      expect(tags).to include("communication board", "speech therapy", "hospital stay")
+      expect(tags.length).to eq(described_class::TAG_MAX)
+    end
+
+    it "honours an explicit topic_max" do
+      tags = described_class.assemble_tags(
+        always_on: [], topic: ["one thing", "two thing", "three thing"], top_up: ["speech therapy"],
+        topic_max: 1,
+      )
+
+      expect(tags).to eq(["one thing", "speech therapy"])
     end
   end
 

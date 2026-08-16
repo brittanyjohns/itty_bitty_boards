@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Generated marketplace copy now describes the printable it belongs to.**
+  Every listing used to open with the same sentence and carry the same 13 tags,
+  so a hospital-stay board and a hair-salon board were indistinguishable in
+  search and competed with each other instead of reaching buyers. The topical
+  keywords now lead the tag list, they are mined from the board's own page names
+  when no topic is typed, and the opening line names the subject. The admin page
+  also warns when a printable's tags overlap heavily with another's, naming the
+  listing it collides with and the tags they share.
+
 - **A board builder page can reuse a board you've already published instead of
   drafting a new one.** Most sets want a "Feelings" page, and the AI cheerfully
   invented a slightly worse one every time. When a page's name matches a

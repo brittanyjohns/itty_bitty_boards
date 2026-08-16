@@ -147,6 +147,27 @@ Rails; the TypeScript side for listings originated by the Node pipeline. If you
 change a rule (a cap, a tag pool, a title template), change both or accept that
 the two now differ on purpose and say so.
 
+**They are out of sync right now, by design.** The Ruby side moved first on the
+boilerplate-copy fix (Aug 2026); `speakanyway-printables` still carries the old
+rules and needs the matching change — see that repo's
+`.claude-notes/etsy-listing-copy-fix-handoff.md`. What differs until it lands:
+the product phrase is `"communication board"` here and `"vocabulary board"`
+there; `assemble_tags` runs `topic` second here (capped at
+`CopyRules::TOPIC_TAG_MAX`) and fourth there; and the description's opening
+sentence is per-product here and a frozen constant there.
+
+**The tag pools describe the product LAST unless something stops them.** The
+generic pools — always-on, product-type, audience, top-up — can fill all 13 of
+Etsy's slots on their own, and when `topic` was consulted after them that is
+exactly what happened: nine printables published Aug 11–15 2026 shipped
+byte-identical 13-tag sets, none of which named the product. Etsy caps how many
+of one shop's results appear per query, so they competed with each other rather
+than reaching buyers. Two things hold the fix in place, and both must stay:
+`topic` ranks straight after `always_on`, and it has a source even when nobody
+typed one (`ListingCopy#topic_source` mines the sub-board names). The
+`Etsy::TagOverlap` warning on the printable's admin page is the backstop — it is
+advisory on purpose, since three sizes of one product genuinely share tags.
+
 One deliberate difference: the Ruby description is **plain text**. Etsy renders
 no markup, and TPT takes a plain-text paste cleanly, so skipping the
 markdown→text conversion means what an admin reads in the textarea is exactly

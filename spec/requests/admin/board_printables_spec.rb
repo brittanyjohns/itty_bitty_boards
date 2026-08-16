@@ -399,6 +399,30 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         expect(response.body).to include("Open board ##{board.id}")
       end
 
+      # Nine printables published with identical tag sets before anyone noticed.
+      it "warns when the tags collide with another printable's, naming it and the shared tags" do
+        sign_in admin
+        other_board = create(:board, user: owner, name: "Hair Salon")
+        BoardPrintable.create!(
+          board: other_board, status: "complete", board_ids: [other_board.id],
+          listing_copy: { "tags" => Etsy::ListingCopy.new(printable).build["tags"] },
+        )
+
+        get admin_dashboard_board_printable_path(printable)
+
+        expect(response.body).to include("overlap heavily")
+        expect(response.body).to include("Hair Salon")
+        expect(response.body).to include("communication board")
+      end
+
+      it "stays quiet when nothing collides" do
+        sign_in admin
+
+        get admin_dashboard_board_printable_path(printable)
+
+        expect(response.body).not_to include("overlap heavily")
+      end
+
       it "links a draft to the seller's listing editor, by numeric id, never by the stored URL string" do
         sign_in admin
         # The stored URL is whatever Etsy's API handed back; the href is built

@@ -16,10 +16,14 @@ module Etsy
     # The product this maps to in the printables pipeline's taxonomy. Every
     # BoardPrintable is an `existing_board` — a real SpeakAnyWay board turned
     # into a printable — so the pools below are that type's, not a generic set.
-    PRODUCT_HUMAN = "vocabulary board".freeze
+    #
+    # "communication board", not "vocabulary board": all three of the shop's
+    # top-viewed listings use it and none of the zero-view ones did. The
+    # smaller term survives in TOP_UP_TAGS.
+    PRODUCT_HUMAN = "communication board".freeze
 
     ALWAYS_ON_TAGS = ["aac", "printable", "digital download"].freeze
-    PRODUCT_TYPE_TAGS = ["vocabulary board"].freeze
+    PRODUCT_TYPE_TAGS = [PRODUCT_HUMAN].freeze
 
     # Every printable here genuinely serves all three audiences, so all three
     # contribute tags and all three are named in the description.
@@ -35,9 +39,13 @@ module Etsy
     # listed with 6 of a possible 13 tags. Note "voice output aac" is 16 chars —
     # the more natural "talking communication board" is 26 and would be silently
     # dropped by normalize_tag.
+    #
+    # "communication board" is deliberately absent: it is PRODUCT_TYPE_TAGS now,
+    # and listing it twice would only mislead the next reader (assemble_tags
+    # dedups it either way). "vocabulary board" sits at the bottom — the smaller
+    # search term is worth a slot when one is free, never ahead of a proven one.
     TOP_UP_TAGS = [
       "aac printable",
-      "communication board",
       "voice output aac",
       "speech therapy",
       "special education",
@@ -47,6 +55,7 @@ module Etsy
       "autism printable",
       "classroom visuals",
       "aac board",
+      "vocabulary board",
     ].freeze
 
     SUMMARY_MAX = 150
@@ -61,10 +70,20 @@ module Etsy
     # images and the description together and shouldn't meet two names for the
     # same thing. The TAG pool below deliberately keeps "voice output aac":
     # tags are what buyers type into Etsy search, not our voice.
-    LEAD = "Give every voice a way to be heard with this Printable Vocabulary Board from " \
-           "SpeakAnyWay. Instant digital download. Print at home or open on any device — and " \
-           "scan the included QR code to use the same board live in the free SpeakAnyWay app " \
-           "with a free audio companion — tap any word and it speaks out loud. No sign-in required.".freeze
+    LEAD_BODY = "Instant digital download. Print at home or open on any device — and " \
+                "scan the included QR code to use the same board live in the free SpeakAnyWay app " \
+                "with a free audio companion — tap any word and it speaks out loud. " \
+                "No sign-in required.".freeze
+
+    # The opening sentence is what Google indexes and the only description text
+    # a buyer reads above the fold, so it names THIS product. It was a frozen
+    # constant, which is why nine listings opened with the same sentence.
+    # `qualifier` is the per-product half ("for Hospital Stay"); with nothing
+    # topical to say, this returns the wording every listing used to carry.
+    def self.lead(qualifier: nil)
+      "Give every voice a way to be heard with this Printable " \
+        "#{CopyRules.title_case_words(PRODUCT_HUMAN)}#{qualifier} from SpeakAnyWay. #{LEAD_BODY}"
+    end
 
     FOOTER = "Pairs with the SpeakAnyWay app at app.speakanyway.com — scan the QR code on any " \
              "board to open the live version with its free audio companion — every word speaks " \
@@ -94,6 +113,22 @@ module Etsy
 
     def topic = printable.topic.presence
 
+    # `topic` is an optional field on the create form and is usually blank —
+    # which used to cost the listing every topical tag AND collapse the title
+    # ladder onto its bare "N-Board Set" rung. The sub-board names are the
+    # per-product vocabulary a buyer searching that scenario actually types
+    # ("Getting Ready", "At the Sink"), so they stand in when nobody typed one.
+    def topic_source
+      return @topic_source if defined?(@topic_source)
+
+      @topic_source = topic || board_labels_topic
+    end
+
+    def board_labels_topic
+      labels = board_labels
+      labels.join(" / ") if labels.size > 1
+    end
+
     def board_count = [printable.board_ids.to_a.size, 1].max
 
     def set? = board_count > 1
@@ -110,12 +145,16 @@ module Etsy
         # 140-char budget, so the type decoration shrinks to "AAC Printable".
         type_words = PRODUCT_HUMAN.downcase.split(/\s+/).select { |w| w.length > 3 }
         names_product = type_words.any? { |w| base.downcase.include?(w) }
-        head = names_product ? "#{base} AAC Printable" : "#{base} AAC Vocabulary Board Printable"
+        head = if names_product
+          "#{base} AAC Printable"
+        else
+          "#{base} AAC #{CopyRules.title_case_words(PRODUCT_HUMAN)} Printable"
+        end
 
         tail = "for Speech Therapy & Autism"
         size_phrase = set? ? "#{board_count}-Board Set" : nil
         topic_phrase = CopyRules.distinct_topic_phrase(
-          title: base, topic: topic, product_human: PRODUCT_HUMAN,
+          title: base, topic: topic_source, product_human: PRODUCT_HUMAN,
         )
 
         # Widest first, shedding a piece at a time. `base` must stay last: it
@@ -154,7 +193,7 @@ module Etsy
         always_on: ALWAYS_ON_TAGS,
         product_type: PRODUCT_TYPE_TAGS,
         audience: AUDIENCE_TAGS,
-        topic: CopyRules.topic_tags(topic),
+        topic: CopyRules.topic_tags(topic_source),
         top_up: TOP_UP_TAGS,
       )
     end
@@ -164,11 +203,27 @@ module Etsy
     # markdown and converts it at publish time; skipping that round trip means
     # what an admin reads in the textarea is exactly what a buyer sees.
     def description
-      sections = [LEAD, "", summary, "", included_section]
+      sections = [lead, "", summary, "", included_section]
       sections += ["", boards_section] if boards_section
       sections += ["", audience_section, "", how_it_works_section, "", ways_to_use_section,
                    "", instant_download_section, "", FOOTER]
       sections.join("\n")
+    end
+
+    def lead = self.class.lead(qualifier: lead_qualifier)
+
+    # The topic if one was authored, otherwise the board's own name — whichever
+    # says something the generic product phrase doesn't. A phrase that repeats
+    # the product ("…Communication Board for Feelings Communication Board")
+    # earns nothing, so the sentence keeps its original wording instead.
+    def lead_qualifier
+      phrase = CopyRules.distinct_topic_phrase(
+        title: PRODUCT_HUMAN, topic: topic_source || board_name, product_human: PRODUCT_HUMAN,
+      )
+      return nil if phrase.blank?
+      return nil if PRODUCT_HUMAN.split(/\s+/).any? { |word| phrase.downcase.include?(word) }
+
+      " for #{phrase}"
     end
 
     def included_section
@@ -192,14 +247,20 @@ module Etsy
 
     # board_ids is in tree order (root first) and a `where` loses that, so the
     # names are re-sorted back into it.
+    # Memoized: the tags, the title and the boards section all read this now,
+    # and it is a query.
     def board_labels
-      ids = printable.board_ids.to_a
-      return [] if ids.size <= 1
-
-      names = Board.where(id: ids).pluck(:id, :name).to_h
-      ids.filter_map { |id| names[id].presence }
-         .map { |n| CopyRules.title_case_words(n) }
-         .uniq
+      @board_labels ||= begin
+        ids = printable.board_ids.to_a
+        if ids.size <= 1
+          []
+        else
+          names = Board.where(id: ids).pluck(:id, :name).to_h
+          ids.filter_map { |id| names[id].presence }
+             .map { |n| CopyRules.title_case_words(n) }
+             .uniq
+        end
+      end
     end
 
     def audience_section
