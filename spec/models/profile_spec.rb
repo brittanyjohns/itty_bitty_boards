@@ -729,4 +729,51 @@ RSpec.describe Profile, type: :model do
       expect(Profile.slug_available?("emma-jones")).to be(false)
     end
   end
+
+  # The public MySpeak page falls back to synthesizing on EVERY tap when a clip
+  # is missing (a multi-second wait each time), so "which fields get a clip" is
+  # the difference between an instant button and a dead-feeling one.
+  describe "#update_audio" do
+    let(:profile) { Profile.new(profileable: child, username: "emma").tap(&:save!) }
+
+    before do
+      allow(VoiceService).to receive(:synthesize_speech).and_return(StringIO.new("mp3-bytes"))
+    end
+
+    it "generates bio audio when there is a bio but no intro" do
+      profile.update_columns(intro: nil, bio: "I love trains.")
+
+      profile.update_audio(:bio)
+
+      expect(VoiceService).to have_received(:synthesize_speech)
+        .with(hash_including(text: "I love trains."))
+      expect(profile.reload.bio_audio).to be_attached
+    end
+
+    it "generates intro audio when there is an intro but no bio" do
+      profile.update_columns(intro: "Hi, I'm Emma.", bio: nil)
+
+      profile.update_audio(:intro)
+
+      expect(VoiceService).to have_received(:synthesize_speech)
+        .with(hash_including(text: "Hi, I'm Emma."))
+      expect(profile.reload.intro_audio).to be_attached
+    end
+
+    it "does not call the synthesizer for a blank field" do
+      profile.update_columns(intro: "Hi, I'm Emma.", bio: "")
+
+      profile.update_audio(:bio)
+
+      expect(VoiceService).not_to have_received(:synthesize_speech)
+      expect(profile.reload.bio_audio).not_to be_attached
+    end
+
+    it "ignores an unknown audio type" do
+      profile.update_columns(intro: "Hi, I'm Emma.", bio: "I love trains.")
+
+      expect(profile.update_audio(:nickname)).to be_nil
+      expect(VoiceService).not_to have_received(:synthesize_speech)
+    end
+  end
 end
