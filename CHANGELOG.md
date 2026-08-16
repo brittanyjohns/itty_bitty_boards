@@ -73,8 +73,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the job died at the very end — after all the work was done — and whatever it
   was in the middle of stopped there. Tile pictures are now resized outside the
   transaction, or queued to be resized the moment it finishes. Nothing is lost
-  in the meantime: the tile shows its full-size picture until the smaller one
-  is ready, then switches over on its own.
+  in the meantime — the tile shows its full-size picture, which looks the same,
+  just weighs more.
 
 - **A board build that finished writing its boards is no longer reported as
   failed.** The builder created the whole set, published it and got it right,

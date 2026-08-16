@@ -159,14 +159,19 @@ RSpec.describe Doc, type: :model do
         expect(PreprocessDocTileVariantJob.jobs.size).to eq(0)
       end
 
+      # Time is frozen only so the two urls are comparable: with no CDN_HOST set
+      # these are signed disk urls carrying an expiry, so the same url built a
+      # millisecond apart is a different string.
       it "falls back to the original image url from #tile_url" do
         doc
 
-        ActiveRecord::Base.transaction do
-          url = doc.tile_url
-          expect(url).to eq(doc.display_url)
-          expect(url).to be_present
-          expect(doc.tile_variant_processed?).to be(false)
+        freeze_time do
+          ActiveRecord::Base.transaction do
+            url = doc.tile_url
+            expect(url).to be_present
+            expect(url).to eq(doc.display_url)
+            expect(doc.tile_variant_processed?).to be(false)
+          end
         end
       end
 
