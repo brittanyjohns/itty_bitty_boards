@@ -32,6 +32,12 @@
       </label>
       <input type="number" name="max_boards" value="<%= BoardPrintable::DEFAULT_MAX_BOARDS %>" min="1" max="<%= BoardPrintable::MAX_BOARDS_CEILING %>"
              class="admin-input border rounded px-2 py-1 text-xs w-16 focus:border-indigo-500 focus:outline-none" title="Max boards in tree">
+      <%# The single richest keyword source a listing has: it leads the tags and
+          widens the title. Left blank, the sub-board names stand in — which is
+          weaker than a real topic, so the placeholder says what it costs. %>
+      <input type="text" name="topic" placeholder="Topic — e.g. hospital stay, doctor visit"
+             title="Comma-separated. Leave blank and the listing falls back to the sub-board names for its topical tags — weaker, and nothing at all for a single board."
+             class="admin-input border rounded px-2 py-1 text-xs w-56 focus:border-indigo-500 focus:outline-none">
       <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0 whitespace-nowrap">
         Generate
       </button>

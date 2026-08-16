@@ -106,27 +106,46 @@ module Etsy
       out
     end
 
+    # How many of the 13 slots the per-product topic may claim. Uncapped, a
+    # wordy topic evicts "communication board" and "speech therapy" — the terms
+    # the listings that actually earn traffic are found by. With `always_on` at
+    # 3 and topic at 6, at least 4 slots survive for the proven pools.
+    TOPIC_TAG_MAX = 6
+
     # Assemble the final tag list from the pools, in priority order, deduped and
     # normalized, capped at Etsy's 13.
     #
-    # `top_up` is what fixes the real defect: the first four pools can only ever
-    # yield ~6 tags for a typical AAC board — under half the allowance, with the
-    # high-intent buyer language missing.
-    def assemble_tags(always_on: [], product_type: [], audience: [], topic: [], top_up: [])
+    # `topic` runs SECOND, straight after the always-on tags, because it is the
+    # only pool that describes THIS product. It used to run fourth: seven
+    # interchangeable tags were committed first and the cap was reached partway
+    # through `top_up`, so nine printables published in Aug 2026 shipped with
+    # byte-identical tag sets and competed with each other in search instead of
+    # reaching buyers. Everything below `topic` is shared boilerplate by
+    # design — reordering it back is how the defect returns.
+    #
+    # `top_up` still matters: the other pools can only ever yield ~7 tags for a
+    # typical AAC board — under half the allowance, with the high-intent buyer
+    # language missing.
+    def assemble_tags(always_on: [], product_type: [], audience: [], topic: [], top_up: [],
+                      topic_max: TOPIC_TAG_MAX)
       tags = []
-      add = lambda do |candidates|
+      add = lambda do |candidates, limit = nil|
+        taken = 0
         Array(candidates).each do |candidate|
-          break if tags.length >= TAG_MAX
+          break if tags.length >= TAG_MAX || (limit && taken >= limit)
 
           tag = normalize_tag(candidate)
-          tags << tag if tag && !tags.include?(tag)
+          next unless tag && !tags.include?(tag)
+
+          tags << tag
+          taken += 1
         end
       end
 
       add.call(always_on)
+      add.call(topic, topic_max)
       add.call(product_type)
       add.call(audience)
-      add.call(topic)
       add.call(top_up)
       tags
     end

@@ -38,6 +38,7 @@ module Admin
       @listing = @printable.listing_copy_or_default
       @marketplace_copy = Printables::MarketplaceCopy.new(@printable, listing: @listing)
       @tree_boards = tree_boards(@printable)
+      @tag_overlap = Etsy::TagOverlap.new(@printable, tags: @listing["tags"])
       @etsy_configured = Etsy::Client.configured?
     end
 

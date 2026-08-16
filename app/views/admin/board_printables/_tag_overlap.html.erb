@@ -1,0 +1,35 @@
+<%# A warning, not a gate: some overlap is correct (the same product at three
+    sizes shares its tags). It names the colliding printable and the shared
+    tags so the fix is obvious — a bare "high overlap" isn't actionable. %>
+<% if @tag_overlap&.any? %>
+  <div class="admin-card border rounded-xl p-5 mb-6" style="border-color: #b45309;">
+    <h2 class="text-sm font-medium mb-1" style="color: #f59e0b;">
+      These tags overlap heavily with <%= pluralize(@tag_overlap.matches.size, "other printable") %>
+    </h2>
+    <p class="text-[11px] text-t3 mb-3">
+      Etsy caps how many results from one shop appear per search, so listings sharing this many tags
+      compete with each other instead of reaching new buyers. Some overlap is fine — three sizes of the
+      same product genuinely share tags. If these are different products, give this one tags that
+      describe <em>it</em>.
+    </p>
+
+    <div class="space-y-3">
+      <% @tag_overlap.matches.each do |match| %>
+        <div class="text-xs">
+          <div class="text-t1 mb-1">
+            <%= link_to admin_dashboard_board_printable_path(match.printable), class: "hover:text-accent transition-colors" do %>
+              <%= match.printable.board&.name || "Board ##{match.printable.board_id}" %>
+              <span class="text-t3">(printable #<%= match.printable.id %>)</span>
+            <% end %>
+            — <strong><%= match.count %></strong> of <%= Etsy::CopyRules::TAG_MAX %> tags shared
+          </div>
+          <div class="flex flex-wrap gap-1">
+            <% match.shared.each do |tag| %>
+              <span class="text-[11px] rounded px-1.5 py-0.5 border admin-input text-t2"><%= tag %></span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
