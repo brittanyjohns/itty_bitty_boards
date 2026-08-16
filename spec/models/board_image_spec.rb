@@ -278,6 +278,104 @@ RSpec.describe BoardImage, type: :model do
     end
   end
 
+  describe "#create_voice_audio" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+    let(:image) { FactoryBot.create(:image, label: "hello", user_id: user.id) }
+    let!(:board_image) do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+    end
+
+    before do
+      # No audio for the voice yet -> the SaveAudioJob branch.
+      allow_any_instance_of(BoardImage).to receive(:audio_url_for_voice).and_return(nil)
+      SaveAudioJob.clear
+    end
+
+    it "pushes SaveAudioJob inline when no transaction is open" do
+      board_image.create_voice_audio
+
+      expect(SaveAudioJob.jobs.size).to eq(1)
+      expect(SaveAudioJob.jobs.first["args"]).to eq([board_image.image_id, board_image.voice, board_image.id])
+    end
+
+    it "holds the push until the enclosing transaction commits" do
+      # Board#set_voice calls this from a before_save callback, so in
+      # Boards::AdminBuilder::Build the push lands inside the one
+      # build.with_lock transaction that writes the whole set. SaveAudioJob
+      # resolves the tile with find_by, so a job that beats the commit finds
+      # nothing, logs, and silently leaves audio_url/voice nil.
+      ActiveRecord::Base.transaction do
+        board_image.create_voice_audio
+        expect(SaveAudioJob.jobs).to be_empty
+      end
+
+      expect(SaveAudioJob.jobs.size).to eq(1)
+      expect(SaveAudioJob.jobs.first["args"]).to eq([board_image.image_id, board_image.voice, board_image.id])
+    end
+
+    it "holds the push until the OUTERMOST transaction commits" do
+      ActiveRecord::Base.transaction do
+        ActiveRecord::Base.transaction(requires_new: true) do
+          board_image.create_voice_audio
+        end
+        expect(SaveAudioJob.jobs).to be_empty
+      end
+
+      expect(SaveAudioJob.jobs.size).to eq(1)
+    end
+
+    it "never pushes when the transaction rolls back" do
+      ActiveRecord::Base.transaction do
+        board_image.create_voice_audio
+        raise ActiveRecord::Rollback
+      end
+
+      expect(SaveAudioJob.jobs).to be_empty
+    end
+  end
+
+  describe "#enqueue_voice_audio_job" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+    let(:image) { FactoryBot.create(:image, label: "hello", user_id: user.id) }
+    let!(:board_image) do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+    end
+
+    before { SaveAudioJob.clear }
+
+    it "enqueues the tile's own voice by default" do
+      board_image.update_columns(voice: "polly:kevin")
+
+      board_image.enqueue_voice_audio_job
+
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:kevin", board_image.id])
+    end
+
+    # The read paths enqueue the voice the VIEWER is about to hear, which by
+    # definition differs from the one stored on the tile.
+    it "enqueues an explicit voice when given one" do
+      board_image.update_columns(voice: "polly:kevin")
+
+      board_image.enqueue_voice_audio_job("polly:joanna")
+
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:joanna", board_image.id])
+    end
+
+    it "captures its arguments rather than reading them back when the block runs" do
+      # Board#api_view_with_images reassigns @board_image on every iteration,
+      # so a block that read from the record at commit time would enqueue the
+      # wrong tile.
+      ActiveRecord::Base.transaction do
+        board_image.enqueue_voice_audio_job("polly:joanna")
+        board_image.voice = "polly:matthew"
+      end
+
+      expect(SaveAudioJob.jobs.first["args"]).to eq([image.id, "polly:joanna", board_image.id])
+    end
+  end
+
   describe "#tile_image_url" do
     let(:user)  { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }
