@@ -130,6 +130,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards on a communicator's MySpeak page now actually open.** A board put on
+  a communicator's public page showed up in the grid, but tapping it gave a
+  "board not found" page unless the board had separately been published — and
+  boards made by the Board Builder, or picked during MySpeak setup, start out
+  unpublished, so this was the normal case rather than a rare one. Adding a
+  board to a communicator now publishes it, along with every page in its set, so
+  folder tiles work too. Removing a board from the page never unpublishes it, so
+  a link already printed on a QR tag or in an IEP keeps working. A board someone
+  else owns — an SLP's shared board — is left alone rather than being published
+  on their behalf; it simply doesn't appear on the public page. Any board that
+  isn't published is now hidden from the grid instead of showing a card that
+  leads nowhere.
+
 - **A printable's listing video is no longer destroyed by "Regenerate".** The
   code that decides which attachments are buyer downloads treated anything that
   wasn't a gallery image as a PDF, so a video counted as one — and the cleanup

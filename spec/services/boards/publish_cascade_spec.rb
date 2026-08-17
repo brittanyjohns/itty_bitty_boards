@@ -196,4 +196,71 @@ RSpec.describe Boards::PublishCascade do
       expect(described_class.new(root).needed?(published: true)).to be false
     end
   end
+
+  # Boards::AssignmentCloner deep-clones a starter's sub-boards and stamps each
+  # with settings["assignment_root_id"]. It creates NO BoardGroup, so those
+  # pages were invisible to the cascade — publishing such a root left every
+  # folder tile 404ing.
+  describe "AssignmentCloner sub-clones" do
+    let(:other_user) { create(:user) }
+
+    def build_clone_set(root_published: false, children_published: false)
+      root = create(:board, user: user, name: "Starter", published: root_published)
+      children = Array.new(2) do |i|
+        create(:board, user: user, name: "Sub #{i + 1}", published: children_published,
+                       settings: { "assignment_child" => true,
+                                   "assignment_root_id" => root.id })
+      end
+      [root, children]
+    end
+
+    it "counts them in #needed? and #summary even with no BoardGroup" do
+      root, children = build_clone_set
+      cascade = described_class.new(root)
+
+      expect(cascade.needed?(published: true)).to be true
+      summary = cascade.summary(published: true)
+      expect(summary[:board_group]).to be_nil
+      expect(summary[:affected][:count]).to eq(2)
+      expect(summary[:affected][:names]).to match_array(children.map(&:name))
+    end
+
+    it "publishes them with the root" do
+      root, children = build_clone_set
+
+      expect(described_class.new(root).apply!(published: true)).to eq(2)
+      expect(children.map { |c| c.reload.published }).to all(be true)
+    end
+
+    it "unpublishes them with the root" do
+      root, children = build_clone_set(root_published: true, children_published: true)
+
+      described_class.new(root).apply!(published: false)
+      expect(children.map { |c| c.reload.published }).to all(be false)
+    end
+
+    # #apply! writes with update_all, so Board's own marketplace guard never
+    # fires for a member. The caller checks blocked_board_ids first — the new
+    # membership source has to be visible to it too.
+    it "reports a marketplace-protected clone in #blocked_board_ids on unpublish" do
+      root, children = build_clone_set(root_published: true, children_published: true)
+      protected_child = children.first
+      expect(Boards::MarketplaceProtection).to receive(:protected_board_ids)
+        .with(array_including(protected_child.id))
+        .and_return(Set.new([protected_child.id]))
+
+      blocked = described_class.new(root).blocked_board_ids(published: false)
+      expect(blocked).to include(protected_child.id)
+    end
+
+    it "is not reachable for a clone owned by another user" do
+      root, _children = build_clone_set
+      foreign = create(:board, user: other_user, published: false,
+                               settings: { "assignment_child" => true,
+                                           "assignment_root_id" => root.id })
+
+      described_class.new(root).apply!(published: true)
+      expect(foreign.reload.published).to be false
+    end
+  end
 end

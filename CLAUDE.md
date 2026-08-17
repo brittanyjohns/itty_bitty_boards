@@ -353,6 +353,23 @@ an explicit decision, not a drive-by edit.
   substitute teacher reads routinely; routing them through the emergency alert
   would train parents to ignore it. Care fields are equally never sent to
   OpenAI. Details: `.claude-notes/safety-profiles.md`.
+- **A board on a communicator's MySpeak page is a PUBLISHED board.** The public
+  grid selects on `child_boards.favorite`, but the board behind each card is
+  gated on `Board#viewable_by?`, which refuses an anonymous visitor an
+  unpublished board — so favoriting alone served a working card that 404'd on
+  tap, and that was the DEFAULT state (Board Builder roots and
+  `AssignmentCloner` clones are both born unpublished). Both halves are
+  required. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
+  `favorite` transition so no call site can forget it, publishes the board and
+  cascades to its set. READ: `Profile#communication_boards` and
+  `Profile#user_boards` filter on `published`. Three rails on the write half —
+  it is **one-way** (unfavoriting never unpublishes; `/pb/<slug>` may already be
+  printed into an IEP), it publishes **only boards owned by the page's owner**
+  (a parent's favorite tap is not an SLP's consent to publish their shared
+  board — such a board is left private and the read filter hides it), and a
+  Board Builder set is synced again in `BuildBoardSetJob` because at favorite
+  time the set is still empty. `child_boards.published` is a dead column that
+  nothing writes; read `board.published?`.
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);

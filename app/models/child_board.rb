@@ -36,6 +36,18 @@ class ChildBoard < ApplicationRecord
   after_create :recalculate_boards_in_use
   after_destroy :recalculate_boards_in_use
 
+  # Favoriting is what puts a board on the communicator's public MySpeak page,
+  # and a board there has to be published or its card 404s on tap. The guard
+  # lives here rather than at the call sites because three separate paths set
+  # `favorite` — #toggle_favorite, the Board Builder, and MySpeak onboarding —
+  # and the next caller shouldn't have to remember. `after_save` covers create
+  # too: a row created with `favorite: true` reports the change as [false, true].
+  #
+  # Deliberately one-way. Unfavoriting never unpublishes: /pb/<slug> may already
+  # be printed into an IEP or a QR code, and un-publishing is the quietest way
+  # to break paper.
+  after_save :publish_for_myspeak, if: -> { saved_change_to_favorite? && favorite? }
+
   # scope :with_artifacts, -> { includes(board: :images) }
   scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs] }] }, :image_parent) }
 
@@ -151,7 +163,11 @@ class ChildBoard < ApplicationRecord
       display_image_url: display_image_url || preview_image_url,
       preview_image_url: preview_image_url,
       board_type: board.board_type,
-      published: published,
+      # The BOARD's flag, not the join row's. `child_boards.published` is a
+      # dead column — nothing in the app has ever written it, so it reported a
+      # constant false while the board it points at may well be published.
+      # `Board#viewable_by?` is what actually gates the public page.
+      published: board.published?,
       favorite: favorite,
       added_by: created_by&.email,
       added_by_id: created_by&.id,
@@ -166,6 +182,11 @@ class ChildBoard < ApplicationRecord
     [board, original_board].compact.uniq.each(&:recalculate_in_use!)
   end
 
+  def publish_for_myspeak
+    Boards::MySpeakPublisher.new(self).call
+  end
+  private :publish_for_myspeak
+
   def api_view_with_images
     {
       id: id,
@@ -179,7 +200,7 @@ class ChildBoard < ApplicationRecord
       images: board.board_images.map(&:api_view),
       favorite: favorite,
       board_type: board.board_type,
-      published: published,
+      published: board.published?,
       added_by: created_by&.email,
       layout: board.layout,
     }

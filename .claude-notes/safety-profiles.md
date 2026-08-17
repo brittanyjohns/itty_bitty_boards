@@ -63,6 +63,20 @@ info** — medical details + emergency contacts + emergency notes
   `GET /api/profiles/:id`, which the edit form uses — keeps `api_view` for
   `user_boards`; only the public payloads are carded. Adding a field to a
   public card is a decision about what the whole internet sees.
+- **Every board list in a public payload is filtered on `published`.** The
+  grid selects on `child_boards.favorite`, but the board BEHIND each card is
+  gated on `Board#viewable_by?`, which refuses an anonymous visitor an
+  unpublished board — so an unfiltered list served a working card (name, slug,
+  cover) for a private board and then 404'd whoever tapped it. Both
+  `Profile#communication_boards` (**both** of its polymorphic branches) and
+  `Profile#user_boards` carry the filter; `general_public_boards` already had
+  it via `Board.public_boards`. This is the READ half of the invariant — the
+  write half is `Boards::MySpeakPublisher`, which publishes a board when it is
+  favorited onto a communicator. The filter is not redundant with it: legacy
+  rows predate the hook, boards can be unpublished afterwards from the editor,
+  and a board owned by someone other than the page owner is deliberately never
+  auto-published. `public_page_board_ids` (the ETag/freshness helper) derives
+  from `communication_boards`, so it follows the filter for free.
 - **`general_public_boards` is the whole admin library, so it is cached, not
   per-request.** `Board.public_board_cards` memoizes into `Rails.cache` (Redis
   in prod) keyed on `Board.public_board_cards_cache_key` (count + max

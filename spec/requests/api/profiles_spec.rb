@@ -576,4 +576,66 @@ RSpec.describe "API::Profiles", type: :request do
       end
     end
   end
+
+  # The grid is selected on `child_boards.favorite`, but the board behind each
+  # card is gated on Board#viewable_by?, which refuses an anonymous visitor an
+  # unpublished board. An unfiltered grid therefore served a card (name, slug,
+  # cover) for a private board and 404'd whoever tapped it.
+  describe "GET /api/profiles/public/:slug (unpublished boards)" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:other_user) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Sky Doe") }
+    let!(:profile) do
+      Profile.new(profileable: child, username: "sky-private", slug: "sky-private").tap(&:save!)
+    end
+
+    before do
+      allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    end
+
+    def public_board_ids
+      JSON.parse(response.body)["public_boards"].map { |c| c["board_id"] }
+    end
+
+    it "publishes the owner's board on favorite so its card works" do
+      board = FactoryBot.create(:board, user: owner, name: "Snack Time", published: false)
+      FactoryBot.create(:child_board, board: board, child_account: child,
+                                      favorite: true, created_by: owner)
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(board.reload.published).to be true
+      expect(public_board_ids).to include(board.id)
+    end
+
+    # A board owned by someone else is deliberately not auto-published — a
+    # parent's favorite tap is not that user's consent. The filter is what
+    # keeps the invariant true for it.
+    it "omits a favorited board owned by another user that is unpublished" do
+      board = FactoryBot.create(:board, user: other_user, name: "SLP Board", published: false)
+      FactoryBot.create(:child_board, board: board, child_account: child,
+                                      favorite: true, created_by: owner)
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(response).to have_http_status(:ok)
+      expect(board.reload.published).to be false
+      expect(public_board_ids).not_to include(board.id)
+      expect(response.body).not_to include("SLP Board")
+    end
+
+    # Legacy rows: favorited before the publish-on-favorite hook existed, or
+    # unpublished afterwards from the board editor.
+    it "omits a favorited board that was unpublished after the fact" do
+      board = FactoryBot.create(:board, user: owner, name: "Retired Board", published: false)
+      FactoryBot.create(:child_board, board: board, child_account: child,
+                                      favorite: true, created_by: owner)
+      board.reload.update!(published: false)
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(public_board_ids).not_to include(board.id)
+      expect(response.body).not_to include("Retired Board")
+    end
+  end
 end

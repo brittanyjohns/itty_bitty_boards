@@ -46,6 +46,7 @@ class BuildBoardSetJob
       # Still backfill the group membership so a set built before the attach ran
       # — or one whose attach was interrupted — ends up fully grouped. Idempotent.
       attach_set_to_group!(root, board_group_id)
+      sync_set_published!(root)
       root.update_column(:status, "complete")
       return
     end
@@ -76,6 +77,7 @@ class BuildBoardSetJob
       # This is the single chokepoint after the full set exists, so it catches
       # boards the build services add outside SeededSetCloner/BoardTreeBuilder.
       attach_set_to_group!(root, board_group_id)
+      sync_set_published!(root)
       sync_nav_rows!(root, level_or_template)
       mute_dynamic_tile_names!(root)
       classify_sub_boards!(root)
@@ -312,6 +314,26 @@ class BuildBoardSetJob
     (ids - existing.to_a).each do |bid|
       group.board_group_boards.create!(board_id: bid)
     end
+  end
+
+  # Bring the set's pages up to the root's `published` flag.
+  #
+  # The root is published before this job ever runs — the controller favorites it
+  # onto the communicator, and ChildBoard's callback publishes it so the MySpeak
+  # page works. But at that moment the set is EMPTY: every page below is created
+  # here, by plain `Board.new`, which takes the column default of false. So the
+  # publish cascade at favorite time is a no-op and the pages would land private,
+  # 404ing behind the root's folder tiles.
+  #
+  # Runs right after attach_set_to_group! because that is the single chokepoint
+  # where the full set exists AND is grouped — PublishCascade reads group
+  # membership. Publish-only: this must never unpublish a page (that would need
+  # the marketplace check the cascade's caller normally performs), so an
+  # unpublished root simply leaves its set alone.
+  def sync_set_published!(root)
+    return unless root.published?
+
+    Boards::PublishCascade.new(root).apply!(published: true)
   end
 
   # Every board in the just-built set: BFS the predictive_board_id links from the
