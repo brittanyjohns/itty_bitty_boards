@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A communicator's public MySpeak page now says whether they can sign in.**
+  The public payload carries a `sign_in_available` boolean so the page can offer
+  a "Sign in as {name}" shortcut to the person it belongs to, instead of leaving
+  them to find the communicator sign-in screen on their own. It is false for
+  sandbox communicators, for anyone in fallback mode after a downgrade, for Free
+  plans, and for accounts with no passcode set — all cases where signing in would
+  dead-end — so the shortcut simply doesn't appear. No passcode, email, or token
+  is exposed.
+
 - **Generated marketplace copy now describes the printable it belongs to.**
   Every listing used to open with the same sentence and carry the same 13 tags,
   so a hospital-stay board and a hair-salon board were indistinguishable in
