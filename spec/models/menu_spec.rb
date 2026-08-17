@@ -57,6 +57,61 @@ RSpec.describe Menu, type: :model do
     end
   end
 
+  describe "#create_board_from_menu_image grid columns" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:menu) { FactoryBot.create(:menu, user: user, name: "Joe's Diner") }
+    let(:board) do
+      FactoryBot.create(:board, user: user, board_type: "menu", large_screen_columns: 8,
+                                medium_screen_columns: 6, small_screen_columns: 4,
+                                parent_type: "Menu", parent_id: menu.id)
+    end
+    let(:doc) { menu.docs.create!(user: user, processed: { "menu_items" => [] }.to_json) }
+
+    # Stand in for the real image build: the only thing the grid math cares
+    # about is how many tiles the menu ended up with.
+    def build_with_tiles(tile_count)
+      allow(menu).to receive(:create_images_from_description) do |b|
+        tile_count.times { FactoryBot.create(:board_image, board: b) }
+      end
+      menu.create_board_from_menu_image(doc, board.id)
+      board.reload
+    end
+
+    it "sizes the grid to an exact square when the item count allows one" do
+      build_with_tiles(16)
+
+      expect(board.large_screen_columns).to eq(4)
+      expect(board.rows_for_screen_size("lg")).to eq(4)
+    end
+
+    it "derives the medium and small counts from the large one" do
+      build_with_tiles(16)
+
+      expect(board.medium_screen_columns).to eq(Boards::ScreenColumns.derive(4, "md"))
+      expect(board.small_screen_columns).to eq(Boards::ScreenColumns.derive(4, "sm"))
+    end
+
+    it "keeps number_of_columns in step with the grid the layout uses" do
+      build_with_tiles(9)
+
+      expect(board.large_screen_columns).to eq(3)
+      expect(board.number_of_columns).to eq(board.get_number_of_columns("lg"))
+    end
+
+    it "lays every tile out inside the chosen width" do
+      build_with_tiles(10)
+
+      expect(board.large_screen_columns).to eq(4)
+      expect(board.layout["lg"].map { |cell| cell["x"] }.max).to eq(3)
+    end
+
+    it "leaves the board's columns alone when no tiles were created" do
+      build_with_tiles(0)
+
+      expect(board.large_screen_columns).to eq(8)
+    end
+  end
+
   describe "#create_images_from_description image budget" do
     let(:user) { FactoryBot.create(:user) }
     let(:menu) { FactoryBot.create(:menu, user: user, token_limit: 10) }
