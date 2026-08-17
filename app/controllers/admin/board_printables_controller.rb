@@ -31,6 +31,12 @@ module Admin
       @public_boards = sorted_boards(printable_boards).limit(PUBLIC_BOARD_LIMIT)
 
       @subboard_counts = direct_subboard_counts(@public_boards + @boards)
+      # One query for the whole picker. The partial takes this as a local; a
+      # per-row `board.marketplace_protected?` would be PUBLIC_BOARD_LIMIT
+      # queries.
+      @protected_board_ids = Boards::MarketplaceProtection.protected_board_ids(
+        (@public_boards + @boards).map(&:id),
+      )
     end
 
     def show
@@ -102,6 +108,28 @@ module Admin
 
       redirect_to admin_dashboard_board_printable_path(printable),
                   notice: "Regenerating from the current board… the listing images are now out of date, so re-render those when it finishes."
+    end
+
+    # Releases the boards this printable froze (Boards::MarketplaceProtection).
+    #
+    # The only supported way to unprotect a board: it's deliberate, it's
+    # attributable, and it leaves the listing pointer alone so the record still
+    # says which Etsy draft this was. Not reversible through the UI on purpose —
+    # re-protecting is publishing again.
+    def waive_protection
+      printable = BoardPrintable.find(params[:id])
+
+      if !printable.etsy_published?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable was never published to Etsy, so it isn't protecting anything."
+      elsif printable.protection_waived?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "Protection was already released #{printable.protection_waived_at.to_date}."
+      else
+        printable.waive_protection!(user: current_user, reason: params[:reason])
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    notice: "Protection released. These boards can be edited, renamed and deleted again — printed copies still point at them."
+      end
     end
 
     # Destroys the record and (via Active Storage) its PDFs and gallery images.

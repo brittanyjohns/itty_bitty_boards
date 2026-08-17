@@ -694,6 +694,19 @@ board: { id, name }, usage: { referencing_boards, communicators, teams,
 builder_set, subboards } }` (counts exact, name lists capped at 10).
 Unreferenced boards delete in one step as before.
 
+- **Marketplace protection answers first, and can't be confirmed away.** A board
+  that backs an Etsy printable returns **409** `board_marketplace_protected`
+  before `UsageCheck` runs at all, with `blocked_action` and a `marketplace`
+  summary naming the listing. `board_in_use` is *confirmable* — the client's
+  correct response is to resend with `confirm=true` — and this one is not, so
+  putting the confirmable warning first would teach the client to retry into a
+  wall. Only one error key per response; don't merge the two payloads. The same
+  key covers the refused cascades (`blocked_boards` / `blocked_subboards`) and
+  the refused unpublish; structural tile edits get the separate, confirmable
+  `board_marketplace_edit_confirmation_required` and the
+  `confirm_marketplace_edit` param. Authority and rationale:
+  `.claude-notes/board-printables-etsy.md`.
+
 - **Subboards count as usage, and the cascade is opt-in.** `Boards::SubboardTree`
   walks the board's *outbound* folder links (`Boards::ReachableBoardIds`, an
   id-only BFS that handles cycles and caps the walk) and splits the tree into

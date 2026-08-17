@@ -45,7 +45,23 @@ module Admin
       base = "Delete this printable and its PDFs? This can't be undone."
       return base unless printable.etsy_published?
 
-      "#{base} Etsy draft #{printable.etsy_listing_id} stays on Etsy — remove it there yourself."
+      # The second sentence is the less obvious consequence: this record is what
+      # freezes its boards, so deleting it makes them deletable and renameable
+      # again while the listing is still up.
+      "#{base} Etsy draft #{printable.etsy_listing_id} stays on Etsy — remove it there yourself. " \
+      "The #{pluralize(printable.protected_board_ids.size, "board")} it protects will no longer be protected."
+    end
+
+    def marketplace_protection_badge
+      "bg-amber-900/60 text-amber-300"
+    end
+
+    # The confirm on the release button. Names the listing id, because that's
+    # the thing an admin should go look at before deciding the paper is dead.
+    def waive_protection_confirm(printable)
+      "Release protection on #{pluralize(printable.protected_board_ids.size, "board")}? " \
+      "Etsy listing #{printable.etsy_listing_id} may still be live, and printed copies keep pointing at these boards. " \
+      "They become deletable, renameable and unpublishable again."
     end
 
     # The list is capped at PUBLIC_BOARD_LIMIT, so which boards you see depends

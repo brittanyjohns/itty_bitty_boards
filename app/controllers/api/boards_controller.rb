@@ -5,6 +5,9 @@ class API::BoardsController < API::ApplicationController
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone create_from_template import_obf ]
   before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
+  # Declared AFTER check_board_editable! so the plan gate still answers first —
+  # a read-only board is 403 board_locked whether or not it's also for sale.
+  before_action :check_marketplace_edit_confirmed!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image associate_image associate_images remove_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -417,6 +420,19 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
+    # Unpublishing and renaming a board that's sold as a printable are refused
+    # outright — no confirm clears them. Unpublishing 404s /pb/<slug> for every
+    # sheet already printed, and the name is the product's title. Both run
+    # before any attribute is assigned, so a refusal writes nothing. Released
+    # by waiving protection on the printable in the admin.
+    if unpublishing_requested?
+      return if render_marketplace_protection_conflict(@board, action: "unpublished")
+    end
+
+    if renaming_requested?
+      return if render_marketplace_protection_conflict(@board, action: "renamed", blocked_action: "rename")
+    end
+
     # Warn+confirm before cascading publish across a Board Builder set, mirroring
     # the delete flow. This runs BEFORE any attribute is assigned, so a declined
     # cascade writes nothing at all — the client re-sends the identical payload
@@ -437,6 +453,12 @@ class API::BoardsController < API::ApplicationController
       # NULL out) every non-NULL member.
       if [true, false].include?(target_published) && target_published != @board.published
         cascade = Boards::PublishCascade.new(@board)
+        # Before the confirm, and not confirmable: #apply! writes with
+        # update_all, so a protected member page would be unpublished with no
+        # callback to stop it.
+        blocked = cascade.blocked_board_ids(published: target_published)
+        return if render_marketplace_cascade_conflict_for_unpublish(blocked)
+
         if cascade.needed?(published: target_published) && params[:confirm].to_s != "true"
           render json: {
                    error: "publish_cascade_confirmation_required",
@@ -1245,6 +1267,32 @@ class API::BoardsController < API::ApplicationController
   # and the client can opt into the cascade with delete_subboards=true.
   def destroy
     usage = Boards::UsageCheck.new(@board)
+
+    # Marketplace protection is checked FIRST and separately from UsageCheck.
+    # `board_in_use` is a confirmable 409 — the client's correct response is to
+    # resend with confirm=true — and this one can't be confirmed away. Showing
+    # the confirmable warning first would teach the client to retry into a wall.
+    return if render_marketplace_protection_conflict(@board, action: "deleted")
+
+    if (group = usage.builder_group)
+      # The group cascade destroys every member board, so a protected member
+      # has to be caught before group.destroy! reaches the model guard — a raise
+      # from inside destroy_all would be a 500, not a 409.
+      blocked = Boards::MarketplaceProtection.protected_board_ids(
+        group.board_group_boards.pluck(:board_id),
+      )
+      return if render_marketplace_cascade_conflict(blocked, key: :blocked_boards)
+    elsif params[:delete_subboards].to_s == "true"
+      # Refuse the WHOLE cascade rather than skipping the protected child:
+      # skipping would delete the parent and leave the protected page behind
+      # with a folder tile pointing at nothing, which is the corruption this
+      # feature exists to prevent.
+      blocked = Boards::MarketplaceProtection.protected_board_ids(
+        usage.subboard_tree&.deletable_ids || [],
+      )
+      return if render_marketplace_cascade_conflict(blocked, key: :blocked_subboards)
+    end
+
     if usage.in_use? && params[:confirm].to_s != "true"
       render json: {
                error: "board_in_use",
@@ -1631,6 +1679,128 @@ class API::BoardsController < API::ApplicationController
       board_limit: current_user.board_limit,
       editable_board_id: current_user.effective_editable_board_id,
     }, status: :forbidden
+  end
+
+  # ---- Marketplace protection -------------------------------------------
+  #
+  # A board whose content was sold as a printable is frozen: printed sheets
+  # carry a QR pointing at /pb/<slug> and paper can't be re-issued. Deleting,
+  # unpublishing and renaming are refused outright (released only by an admin
+  # waiver on the printable); structural tile edits are refused once and then
+  # allowed with an explicit confirm.
+  #
+  # All of these are 409 — a state conflict on the resource, the same code the
+  # existing board_in_use / publish_cascade warnings use. Never 403, which is
+  # reserved for permission and plan gates.
+
+  # Renders and returns true when the board itself is protected.
+  def render_marketplace_protection_conflict(board, action:, blocked_action: nil)
+    protection = board.marketplace_protection
+    return false unless protection.protected?
+
+    noun = protection.role == :root ? "board" : "page"
+    render json: {
+      error: "board_marketplace_protected",
+      message: "\"#{board.name}\" is #{protection.role == :root ? "sold as a printable" : "part of a printable that's for sale"} — printed copies point at this #{noun}, so it can't be #{action}. Release protection on the printable in the admin first.",
+      board: { id: board.id, name: board.name },
+      blocked_action: blocked_action || action,
+      marketplace: protection.summary,
+    }, status: :conflict
+    true
+  end
+
+  # Renders and returns true when a cascade would take a protected board with
+  # it. The cascade is refused whole — never partially applied.
+  def render_marketplace_cascade_conflict(blocked_ids, key:)
+    return false if blocked_ids.blank?
+
+    boards = Board.where(id: blocked_ids.to_a).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+    render json: {
+      error: "board_marketplace_protected",
+      message: "Deleting \"#{@board.name}\" would also delete #{boards.size == 1 ? "a board" : "#{boards.size} boards"} sold as a printable. Release protection in the admin first.",
+      board: { id: @board.id, name: @board.name },
+      blocked_action: "deleted",
+      key => boards,
+    }, status: :conflict
+    true
+  end
+
+  def render_marketplace_cascade_conflict_for_unpublish(blocked_ids)
+    return false if blocked_ids.blank?
+
+    boards = Board.where(id: blocked_ids.to_a).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+    render json: {
+      error: "board_marketplace_protected",
+      message: "Unpublishing \"#{@board.name}\" would take #{boards.size == 1 ? "a page" : "#{boards.size} pages"} sold as a printable offline. Release protection in the admin first.",
+      board: { id: @board.id, name: @board.name },
+      blocked_action: "unpublish",
+      blocked_boards: boards,
+    }, status: :conflict
+    true
+  end
+
+  # Structural tile edits: warn once, then proceed on confirm_marketplace_edit.
+  # Deliberately NOT `confirm`, which #update already means "yes, cascade the
+  # publish" by — reusing it would let one click authorize the other thing.
+  def check_marketplace_edit_confirmed!
+    set_board if @board.nil?
+    return if @board.nil?
+    return unless marketplace_edit_is_structural?
+    return if params[:confirm_marketplace_edit].to_s == "true"
+
+    protection = @board.marketplace_protection
+    return unless protection.protected?
+
+    render json: {
+      error: "board_marketplace_edit_confirmation_required",
+      message: "\"#{@board.name}\" is sold as a printable. Changing it means the paper a buyer holds and the board online stop matching.",
+      board: { id: @board.id, name: @board.name },
+      marketplace: protection.summary,
+    }, status: :conflict
+  end
+
+  # Every gated action except #update is structural by definition. #update is
+  # the general-purpose save, so it only counts when the payload actually
+  # touches structure — a favorite/tags/category save shouldn't prompt.
+  #
+  # Reads raw params rather than `board_params`, which calls
+  # `params.require(:board)` and would raise on the image_ids_to_remove-only
+  # payload (itself a structural edit: it removes tiles).
+  # `name` is deliberately absent: renaming is refused outright inside #update,
+  # and listing it here would let the softer before_action answer first — a
+  # confirmable 409 in front of an unconfirmable one, which is the ordering
+  # this feature avoids everywhere else. It would also fire on the ordinary
+  # save that re-sends the board's existing name unchanged.
+  MARKETPLACE_STRUCTURAL_KEYS = %w[
+    number_of_columns small_screen_columns medium_screen_columns
+    large_screen_columns word_list layout
+  ].freeze
+
+  # Same shape as the publish-cascade guard: raw booleans only, so a malformed
+  # value can't read as "unpublish".
+  def unpublishing_requested?
+    return false if params[:image_ids_to_remove].present?
+    return false unless params[:board].respond_to?(:key?) && params[:board].key?("published")
+
+    target = ActiveModel::Type::Boolean.new.cast(params[:board]["published"])
+    target == false && @board.published?
+  end
+
+  def renaming_requested?
+    return false if params[:image_ids_to_remove].present?
+
+    incoming = params.dig(:board, :name)
+    incoming.present? && incoming.to_s != @board.name.to_s
+  end
+
+  def marketplace_edit_is_structural?
+    return true unless action_name == "update"
+    return true if params[:image_ids_to_remove].present?
+
+    board_payload = params[:board]
+    return false if board_payload.blank?
+
+    MARKETPLACE_STRUCTURAL_KEYS.any? { |key| board_payload.key?(key) }
   end
 
   def boards_for_user

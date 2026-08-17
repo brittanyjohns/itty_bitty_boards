@@ -33,7 +33,8 @@
       </tr>
     </thead>
     <tbody>
-      <%= render partial: "board_option", collection: boards, as: :board, locals: { subboard_counts: subboard_counts } %>
+      <%= render partial: "board_option", collection: boards, as: :board,
+                 locals: { subboard_counts: subboard_counts, protected_board_ids: @protected_board_ids } %>
     </tbody>
   </table>
 </div>

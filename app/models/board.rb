@@ -107,6 +107,28 @@ class Board < ApplicationRecord
   # `freeze_published_slug`.
   attr_accessor :allow_slug_change
 
+  # Console/rake-only hatches for a board frozen by a marketplace listing. They
+  # are never wired to a request param: the supported way to release a board is
+  # BoardPrintable#waive_protection!, which leaves an audit trail. A param would
+  # turn the hard block into a warning with extra steps.
+  attr_accessor :allow_marketplace_protected_destroy
+  attr_accessor :allow_marketplace_protected_change
+
+  # Raised, not `throw :abort`, because the cascades that can reach a protected
+  # board ignore a false return: BoardGroup destroys its members with
+  # `destroy_all` and Admin::BoardBuildsController with `reverse_each(&:destroy)`.
+  # Aborting there would destroy the group and leave the protected board behind,
+  # orphaned — worse than the deletion it was meant to prevent.
+  class MarketplaceProtectedError < StandardError
+    attr_reader :board, :action
+
+    def initialize(board, action)
+      @board = board
+      @action = action
+      super("Board #{board.id} backs a marketplace listing and cannot be #{action}")
+    end
+  end
+
   validates :slug, uniqueness: true
 
   include UtilHelper
@@ -231,6 +253,12 @@ class Board < ApplicationRecord
   # dynamic_board_id/phrase_board_id) and scenarios. Off-request because the
   # JSONB scans aren't indexed.
   after_destroy :enqueue_destroy_cleanup
+
+  # prepend: true so the guard runs BEFORE the dependent: :destroy cascades.
+  # Without it every board_image, child_board and printable is destroyed first
+  # and then rolled back — a lot of work to arrive at the same refusal.
+  before_destroy :block_marketplace_protected_destroy, prepend: true
+  before_save :block_marketplace_protected_unpublish
 
   def enqueue_destroy_cleanup
     BoardDestroyCleanupJob.perform_async(id)
@@ -1569,16 +1597,71 @@ class Board < ApplicationRecord
     published? && slug.present?
   end
 
+  # The other printed-paper freeze, and the stronger one: this board's content
+  # was sold as a PDF, and the QR on that PDF resolves to it. See
+  # Boards::MarketplaceProtection for what counts and why it's permanent.
+  # Not memoized on the board: waiving protection in the admin has to take
+  # effect for the delete that follows it in the same request.
+  def marketplace_protection
+    Boards::MarketplaceProtection.new(self)
+  end
+
+  def marketplace_protected?
+    return false if new_record?
+
+    marketplace_protection.protected?
+  end
+
   # The deliberate rename path. Used by the admin/internal API and the
   # `boards:rename_slug` rake task — never by an ordinary board update.
   # Callers are responsible for reprinting anything already in the wild.
   def rename_slug!(requested_slug)
+    # The deliberate-rename hatch is exactly the one that would silently 404 a
+    # printed QR, so a marketplace-protected board needs its own second opt-in
+    # on top of it.
+    if marketplace_protected? && !allow_marketplace_protected_change
+      raise MarketplaceProtectedError.new(self, "slug-renamed")
+    end
+
     self.allow_slug_change = true
     generate_unique_slug(requested_slug)
     save
   ensure
     self.allow_slug_change = false
   end
+
+  # Console/rake hatch. The supported admin release is
+  # BoardPrintable#waive_protection!.
+  def destroy_despite_marketplace_protection!
+    self.allow_marketplace_protected_destroy = true
+    destroy!
+  ensure
+    self.allow_marketplace_protected_destroy = false
+  end
+
+  def block_marketplace_protected_destroy
+    return if allow_marketplace_protected_destroy
+    return unless marketplace_protected?
+
+    raise MarketplaceProtectedError.new(self, "deleted")
+  end
+  private :block_marketplace_protected_destroy
+
+  # Unpublishing is the quietest way to break a printed board: /pb/<slug> stops
+  # resolving for every sheet already in the wild, with no redirect. Raises
+  # rather than reverting (unlike freeze_published_slug) because `published` is
+  # only ever sent when someone deliberately toggles it — a silent revert would
+  # leave the admin looking at "Published" after clicking Unpublish.
+  def block_marketplace_protected_unpublish
+    return if new_record?
+    return if allow_marketplace_protected_change
+    return unless published_change_to_be_saved
+    return unless published_was && !published
+    return unless marketplace_protected?
+
+    raise MarketplaceProtectedError.new(self, "unpublished")
+  end
+  private :block_marketplace_protected_unpublish
 
   # Reverts a slug change on an already-published board rather than rejecting
   # the save: the frontend re-derives the slug from the name on every rename
@@ -2629,8 +2712,13 @@ class Board < ApplicationRecord
     @display_image_url = display_image_url
     @preview_image_url = preview_image_url
 
+    # Admin-only, and only computed for admins: it costs a query, and which of
+    # Brittany's boards are for sale is not a fact a member needs.
+    @marketplace_protection = nil
+
     if viewing_user && viewing_user.admin?
       @in_a_public_group = in_a_public_group?
+      @marketplace_protection = marketplace_protection.summary
     end
     {
       id: id,
@@ -2639,6 +2727,8 @@ class Board < ApplicationRecord
       bg_color: bg_color,
       text_color: text_color,
       tags: tags,
+      marketplace_protected: @marketplace_protection.present?,
+      marketplace_protection: @marketplace_protection,
       user_name: user.to_s,
       name: name,
       is_template: is_template,

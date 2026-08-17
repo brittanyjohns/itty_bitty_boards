@@ -443,6 +443,16 @@ module Admin
 
       name = @build.name
       set = @build.set_boards
+
+      # The whole set, not just the root: any page of a built tree can be the
+      # page a printable was sold from, and `set.reverse_each(&:destroy)` would
+      # otherwise hit the model guard mid-loop with the build row already gone.
+      blocked = Boards::MarketplaceProtection.protected_board_ids(set.map(&:id))
+      if blocked.any?
+        names = Board.where(id: blocked.to_a).pluck(:name).to_sentence
+        return redirect_to admin_dashboard_board_builds_path,
+                           alert: "#{names} #{blocked.size == 1 ? "is" : "are"} sold as a printable — release protection on the printable before deleting this build."
+      end
       # The build row first: admin_board_builds.board_id carries a foreign key,
       # so destroying the board while the build still points at it violates it.
       @build.destroy

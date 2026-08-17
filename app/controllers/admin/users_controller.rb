@@ -224,6 +224,14 @@ module Admin
       @user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_user.id) unless @user.soft_deleted?
       redirect_to admin_dashboard_users_path,
                   notice: "Demo account #{email} deleted (content destroyed, row anonymized).", status: :see_other
+    rescue Board::MarketplaceProtectedError => e
+      # Ahead of the blanket rescue below, which would otherwise flatten this
+      # into "check logs". Shouldn't be reachable — only demo accounts get here
+      # and a demo board is never sold — but a silent mystery is the wrong
+      # failure mode for a guard whose whole job is to be explicable.
+      redirect_to admin_dashboard_user_path(params[:id]),
+                  alert: "\"#{e.board.name}\" is sold as a printable — release protection on the printable first.",
+                  status: :see_other
     rescue => e
       Rails.logger.error("[DemoCleanup] Failed to delete user #{params[:id]}: #{e.class} - #{e.message}")
       redirect_to admin_dashboard_user_path(params[:id]), alert: "Delete failed — check logs.", status: :see_other

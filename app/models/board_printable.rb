@@ -77,6 +77,7 @@ class BoardPrintable < ApplicationRecord
 
   belongs_to :board
   belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :protection_waived_by, class_name: "User", optional: true
 
   has_many_attached :files
 
@@ -226,6 +227,32 @@ class BoardPrintable < ApplicationRecord
   def board_page_count = board_ids.to_a.size * DOWNLOAD_VARIANTS.size
 
   def etsy_published? = etsy_listing_id.present?
+
+  # Whether this printable freezes the boards it was rendered from.
+  #
+  # Keyed on `etsy_listing_id`, NOT on the record existing: generating a
+  # printable to look at it is the normal way to use the admin, and locking a
+  # board every time would make the feature something to avoid. It is also not
+  # keyed on any "is the listing still live" state — the thing protection
+  # defends is a printed sheet with a QR on it, and ending an Etsy listing
+  # doesn't un-print that sheet. Release is the explicit waiver below.
+  def protects_board? = etsy_published? && protection_waived_at.nil?
+
+  def protection_waived? = protection_waived_at.present?
+
+  def waive_protection!(user:, reason: nil)
+    update!(
+      protection_waived_at: Time.current,
+      protection_waived_by: user,
+      protection_waived_reason: reason.presence,
+    )
+  end
+
+  # Every board this printable was rendered from — the root plus each page of
+  # the tree. `board_ids` is written by Boards::Printables::Generate; the root
+  # is unioned in because a printable that failed before that write still has a
+  # real `board_id`.
+  def protected_board_ids = (board_ids.to_a + [board_id]).compact.uniq
 
   # The copy an admin has saved, or the generated default when nothing has been
   # saved yet — so the show page can preview a listing before anyone edits it.

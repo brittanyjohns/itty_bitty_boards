@@ -110,6 +110,7 @@ Rails.application.routes.draw do
         post :publish_to_etsy
         post :regenerate_listing_images
         post :regenerate
+        post :waive_protection
       end
     end
   end
