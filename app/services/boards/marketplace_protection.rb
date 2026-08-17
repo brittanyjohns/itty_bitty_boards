@@ -61,19 +61,27 @@ module Boards
     # integers is what works, and it's what the GIN index on board_ids serves.
     # The `board_id IN (...)` half is belt-and-braces for a printable that
     # failed before board_ids was written.
+    #
+    # `@>` means "contains ALL of", so a single condition can't ask for "any of
+    # these ids" — it needs one `@>` per id, OR'd. Composed with ActiveRecord's
+    # #or rather than by interpolating the ORs into one SQL string: the
+    # interpolated version was safe (the fragment is a fixed literal repeated
+    # `ids.size` times, and every id is bound) but it read as SQL injection to
+    # Brakeman, and "trust me, the interpolation has no user input in it" is a
+    # bad thing to have to re-verify. Each condition here is a literal with a
+    # bind param, which is checkable at a glance.
     def self.protecting_scope(ids)
       ids = Array(ids).map { |id| id.is_a?(Board) ? id.id : id.to_i }.uniq
       return BoardPrintable.none if ids.empty?
 
-      containment = ids.map { "board_printables.board_ids @> ?" }.join(" OR ")
+      matching = ids.reduce(BoardPrintable.where(board_id: ids)) do |scope, id|
+        scope.or(BoardPrintable.where("board_printables.board_ids @> ?", [id].to_json))
+      end
+
       BoardPrintable
         .where.not(etsy_listing_id: nil)
         .where(protection_waived_at: nil)
-        .where(
-          "board_printables.board_id IN (?) OR (#{containment})",
-          ids,
-          *ids.map { |id| [id].to_json },
-        )
+        .merge(matching)
     end
 
     private

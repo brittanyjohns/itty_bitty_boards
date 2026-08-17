@@ -204,6 +204,10 @@ RSpec.describe "API::Boards marketplace protection", type: :request do
     end
 
     it "serves the PDF" do
+      # Same stub as board_pdf_spec: CI has no Chrome, and what's under test
+      # here is that the request isn't gated, not that Grover works.
+      allow(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-fake"))
+
       get "/api/boards/#{root.id}/pdf", headers: auth_headers(user)
       expect(response.status).to be_in([200, 302])
     end
