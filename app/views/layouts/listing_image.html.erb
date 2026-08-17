@@ -566,6 +566,166 @@
         text-align: center;
       }
 
+      /* ── Flip book ────────────────────────────────────────────────────── */
+      .flip-stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        width: 100%;
+      }
+
+      .flip-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        width: 100%;
+        min-height: 0;
+      }
+
+      .flip-children { display: flex; gap: 14px; min-width: 0; }
+
+      /* The pages are cards of a fixed WIDTH with their height following the
+         image, so a root page and its children line up on their top edges
+         however differently shaped the boards are. */
+      .flip-card {
+        flex: 0 0 auto;
+        position: relative;
+        width: 190px;
+        padding: 8px 8px 6px;
+        background: var(--white);
+        border-radius: 12px;
+        box-shadow: var(--shadow-card);
+      }
+
+      .flip-card.is-root { width: 300px; }
+
+      .flip-card img { display: block; width: 100%; border-radius: 6px; }
+
+      .flip-caption {
+        margin-top: 6px;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--navy);
+        text-align: center;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      /* The whole point of the slide, on every child card. */
+      .flip-back {
+        position: absolute;
+        left: 8px;
+        bottom: 8px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: var(--band);
+        color: var(--navy);
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .flip-arrow {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        color: var(--accent);
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+
+      .flip-arrow svg {
+        width: 74px;
+        height: 38px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .flip-bullets {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px 18px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        width: 100%;
+      }
+
+      .flip-bullets li {
+        padding: 12px 22px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.94);
+        color: var(--ink);
+        font-size: 26px;
+        font-weight: 700;
+        box-shadow: var(--shadow-soft);
+      }
+
+      /* ── Page index ───────────────────────────────────────────────────── */
+      .index-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+        min-height: 0;
+        /* The list never runs past the footer even at PAGE_INDEX_ROWS: two
+           dense columns of twelve fit inside this, and the cap is what keeps
+           that true. */
+        max-height: 640px;
+        padding: 26px 30px;
+        background: rgba(255,255,255,0.94);
+        border-radius: 20px;
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+      }
+
+      /* Two columns, filled top-to-bottom, so tree order still reads down the
+         page rather than snaking across it. */
+      .index-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        columns: 2;
+        column-gap: 40px;
+      }
+
+      .index-list li {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        break-inside: avoid;
+        padding: 7px 0;
+        font-size: 30px;
+        color: var(--ink);
+      }
+
+      .index-list.is-dense li { padding: 4px 0; font-size: 24px; }
+
+      .index-list li.is-root { font-weight: 800; color: var(--navy); }
+
+      .index-marker { flex: 0 0 auto; color: var(--accent); font-weight: 800; }
+
+      .index-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+      .index-overflow {
+        flex: 0 0 auto;
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--accent);
+      }
+
       /* ── Listing video frames ─────────────────────────────────────────── */
       /* Rendered at 1080 square rather than the slides' 1280, so everything
          here is sized against that rather than reusing the slide bands. They

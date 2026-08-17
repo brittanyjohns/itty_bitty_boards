@@ -34,9 +34,12 @@ module Boards
       # => BoardPrintable::LISTING_IMAGE_ORDER
       def call
         printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO)
+        printable.attach_image!(bytes: render("flip_book", assigns: flip_book_assigns), variant: BoardPrintable::IMAGE_FLIP_BOOK)
         printable.attach_image!(bytes: render("on_a_device", assigns: on_a_device_assigns), variant: BoardPrintable::IMAGE_ON_A_DEVICE)
         printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: false)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
         printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: true)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
+        printable.attach_image!(bytes: render("assemble", assigns: shared_assigns), variant: BoardPrintable::IMAGE_ASSEMBLE)
+        printable.attach_image!(bytes: render("page_index", assigns: page_index_assigns), variant: BoardPrintable::IMAGE_PAGE_INDEX)
         printable.attach_image!(bytes: render("how_it_works", assigns: shared_assigns), variant: BoardPrintable::IMAGE_HOW_IT_WORKS)
         printable.attach_image!(bytes: render("about", assigns: about_assigns), variant: BoardPrintable::IMAGE_ABOUT)
 
@@ -160,6 +163,51 @@ module Boards
         return tiles if root_index.nil? || root_index == center
 
         tiles.dup.tap { |t| t.insert(center, t.delete_at(root_index)) }
+      end
+
+      # Reuses the hero's page thumbnails rather than taking a pass of its own —
+      # the root plus the first pages its folder tiles open is exactly what
+      # `hero_thumbnails` already rendered.
+      #
+      # FLIP_BOOK_CHILDREN is small on purpose: this slide is an argument, not
+      # an inventory. Two children make the point that a folder tile opens a
+      # page and the page comes back; a row of five just makes the cards small.
+      FLIP_BOOK_CHILDREN = 2
+
+      def flip_book_assigns
+        tiles = tiles_from(hero_thumbnails)
+        root = tiles.find { |tile| tile[:board_id] == board.id } || tiles.first
+        children = tiles.reject { |tile| tile.equal?(root) }.first(FLIP_BOOK_CHILDREN)
+
+        shared_assigns.merge(
+          headline: ::Printables::SlideCopy.flip_book_headline(board_count: board_count),
+          bullets: ::Printables::SlideCopy.flip_book_bullets(board_count: board_count),
+          pages: [root].compact,
+          linked: children,
+        )
+      end
+
+      # Every board in the set, named, in tree order. Text only — no page
+      # renders — so the cost is the one slide.
+      #
+      # Capped because a 25-row list at a legible size doesn't fit two columns
+      # on a square slide; past the cap the remainder is counted rather than
+      # silently dropped.
+      PAGE_INDEX_ROWS = 24
+
+      def page_index_assigns
+        boards = printable.ordered_boards
+        rows = boards.first(PAGE_INDEX_ROWS).map do |page|
+          {label: Boards::AssetRendering.board_title_for(page), root: page.id == board.id}
+        end
+        remaining = boards.size - rows.size
+
+        shared_assigns.merge(
+          title: ::Printables::SlideCopy.page_index_title(board_count: board_count),
+          headline: ::Printables::SlideCopy.page_index_headline(board_count: board_count),
+          entries: rows,
+          overflow: remaining.positive? ? "+ #{remaining} more #{'page'.pluralize(remaining)}" : nil,
+        )
       end
 
       def whats_included_assigns(low_ink:)

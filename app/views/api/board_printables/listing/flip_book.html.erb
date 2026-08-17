@@ -1,0 +1,80 @@
+<%# Rank 2, right behind the search thumbnail, and the slide that says what this
+    product actually IS.
+
+    A buyer can already see a stack of pages in the hero. What they can't see is
+    that the stack is wired: a folder tile on the root page opens a specific
+    sub-page, and every sub-page carries a way back. That is true of the printed
+    sheets because Boards::BackTileStamper guarantees it — it just has never
+    been said anywhere a buyer looks.
+
+    Reuses the hero's already-rendered page thumbnails, so this slide costs one
+    Grover render and no extra page passes. %>
+<div class="slide bg-sky">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-footer">
+    <div class="title-banner"><%= Printables::SlideCopy.flip_book_title %></div>
+    <div class="headline-callout"><%= @headline %></div>
+    <div class="audio-badge"><span><%= Printables::SlideCopy.flip_book_badge %></span></div>
+
+    <div class="flip-stage stretch">
+      <%# The root page, then an arrow, then the pages its folder tiles open —
+          each marked with the back button that returns to the root. With only
+          one page there is nothing to link to, so the sheet stands alone and
+          the bullets carry the claim instead. %>
+      <% if @pages.any? %>
+        <div class="flip-row">
+          <div class="flip-card is-root">
+            <img src="<%= @pages.first[:data_uri] %>" alt="<%= @pages.first[:label] %>" />
+            <div class="flip-caption"><%= @pages.first[:label] %></div>
+          </div>
+
+          <% if @linked.any? %>
+            <div class="flip-arrow" aria-hidden="true">
+              <svg viewBox="0 0 64 32">
+                <path d="M2 16h54" />
+                <path d="M44 5l12 11-12 11" />
+              </svg>
+              <span>opens</span>
+            </div>
+
+            <div class="flip-children">
+              <% @linked.each do |page| %>
+                <div class="flip-card">
+                  <img src="<%= page[:data_uri] %>" alt="<%= page[:label] %>" />
+                  <div class="flip-back">◀ back</div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <ul class="flip-bullets">
+        <% @bullets.each do |bullet| %>
+          <li><%= bullet %></li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.audio_companion_eyebrow %></div>
+      <ul class="bullets">
+        <li><%= Printables::SlideCopy.audio_companion_sub %></li>
+      </ul>
+    </div>
+
+    <% if @qr_data_url %>
+      <div class="footer-qr">
+        <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        <span class="qr-caption">Scan to try this board free</span>
+      </div>
+    <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
+  </div>
+</div>

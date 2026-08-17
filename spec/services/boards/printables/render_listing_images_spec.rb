@@ -34,6 +34,14 @@ RSpec.describe Boards::Printables::RenderListingImages do
   # Slides only — the thumbnail renders go through the same Grover stub.
   def slide_html = rendered_html.select { |html| html.include?("slide-stack") }
 
+  # Slides render in LISTING_IMAGE_ORDER, so a variant's rendered HTML is at its
+  # rank. Looked up by NAME rather than by a literal index: inserting a slide
+  # renumbers every one after it, and a spec asserting on slide_html[2] then
+  # fails somewhere unrelated to what it was testing.
+  def slide_for(variant)
+    slide_html[BoardPrintable::LISTING_IMAGE_ORDER.index(variant)]
+  end
+
   def slide_count = BoardPrintable::LISTING_IMAGE_ORDER.size
 
   it "attaches the gallery slides in rank order, tagged as images not PDFs" do
@@ -66,7 +74,8 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(Boards::Printables::RenderPageThumbnails).to have_received(:new)
       .with(hash_including(hide_colors: true, hide_header: true))
 
-    colour, low_ink = slide_html[2], slide_html[3]
+    colour = slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)
+    low_ink = slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
     expect(colour).to include("What&#39;s included")
     expect(low_ink).to include("Low-ink version included")
   end
@@ -233,6 +242,99 @@ RSpec.describe Boards::Printables::RenderListingImages do
     end
   end
 
+  describe "the flip-book slide" do
+    it "earns rank 2, straight behind the search thumbnail" do
+      expect(BoardPrintable::LISTING_IMAGE_ORDER[1]).to eq(BoardPrintable::IMAGE_FLIP_BOOK)
+    end
+
+    it "shows the root opening its subpages, each with a way back" do
+      third = create(:board, user: owner, name: "Places")
+      printable.update!(board_ids: [board.id, other.id, third.id], include_subboards: true)
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      slide = slide_for(BoardPrintable::IMAGE_FLIP_BOOK)
+      expect(slide).to include("flip-card is-root")
+      # Matched on markup: the layout inlines its CSS, so the bare class name is
+      # in every slide's <style> block.
+      expect(slide.scan('<div class="flip-back">').size).to eq(described_class::FLIP_BOOK_CHILDREN)
+      expect(slide).to include("data:image/png;base64,core-words")
+    end
+
+    # The slide can't be skipped for a single board — LISTING_IMAGE_ORDER
+    # defines a current gallery, so a conditional variant would leave every
+    # small printable permanently stale. Only the copy changes.
+    it "still renders for a single board, with copy that fits one page" do
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      slide = slide_for(BoardPrintable::IMAGE_FLIP_BOOK)
+      expect(slide).to include(Printables::SlideCopy.flip_book_headline(board_count: 1))
+      expect(slide).not_to include('<div class="flip-back">')
+    end
+
+    it "adds no page renders of its own" do
+      printable.update!(board_ids: [board.id, other.id])
+      passes = []
+      allow(Boards::Printables::RenderPageThumbnails).to receive(:new) do |boards:, **opts|
+        passes << opts
+        instance_double(
+          Boards::Printables::RenderPageThumbnails,
+          call: boards.to_h { |b| [b.id, thumbnail_for(b)] },
+        )
+      end
+
+      described_class.new(printable: printable).call
+
+      expect(passes.size).to eq(3)
+    end
+  end
+
+  describe "the page index" do
+    it "names every board in the set, in tree order, root first" do
+      third = create(:board, user: owner, name: "Places")
+      printable.update!(board_ids: [board.id, other.id, third.id], include_subboards: true)
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      slide = slide_for(BoardPrintable::IMAGE_PAGE_INDEX)
+      expect(slide.index("Core Words")).to be < slide.index("Feelings")
+      expect(slide.index("Feelings")).to be < slide.index("Places")
+      expect(slide).to include("is-root")
+    end
+
+    # whats_included caps its thumbnails at 8 and says "+17 more"; this is the
+    # slide where a big set is meant to be fully legible, so what it drops it
+    # has to count.
+    it "counts what it had to leave off rather than dropping it silently" do
+      printable.update!(board_ids: Array.new(30) { create(:board, user: owner).id })
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      slide = slide_for(BoardPrintable::IMAGE_PAGE_INDEX)
+      expect(slide.scan('<span class="index-label">').size).to eq(described_class::PAGE_INDEX_ROWS)
+      expect(slide).to include("+ #{30 - described_class::PAGE_INDEX_ROWS} more pages")
+    end
+
+    it "asks a single board what's on it rather than counting pages" do
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      expect(slide_for(BoardPrintable::IMAGE_PAGE_INDEX)).to include("What&#39;s on this board")
+    end
+  end
+
+  # Etsy caps a listing at ten photos. The video is a separate slot and doesn't
+  # count against it.
+  it "leaves room in Etsy's gallery for something hand-made" do
+    expect(BoardPrintable::LISTING_IMAGE_ORDER.size).to be < 10
+  end
+
   describe "the bundle sticker" do
     it "counts the whole set, even when the hero could only show some of it" do
       printable.update!(board_ids: Array.new(9) { create(:board, user: owner).id })
@@ -261,7 +363,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
     described_class.new(printable: printable).call
 
-    expect(slide_html[2]).to include("Core Words", "Feelings")
+    expect(slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)).to include("Core Words", "Feelings")
   end
 
   # The "In your download" panel is read against the listing description, so it
@@ -271,8 +373,8 @@ RSpec.describe Boards::Printables::RenderListingImages do
     it "quotes a single board's three board pages, not the merged seven" do
       described_class.new(printable: printable).call
 
-      expect(slide_html[2]).to include("3-page board PDF")
-      expect(slide_html[2]).not_to include("7-page")
+      expect(slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)).to include("3-page board PDF")
+      expect(slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)).not_to include("7-page")
     end
 
     it "counts every board in a set once per variant across the three files" do
@@ -280,8 +382,8 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
       described_class.new(printable: printable).call
 
-      expect(slide_html[2]).to include("2 boards, 6 pages")
-      expect(slide_html[2]).not_to include("26 pages")
+      expect(slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)).to include("2 boards, 6 pages")
+      expect(slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)).not_to include("26 pages")
     end
   end
 
@@ -289,7 +391,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
   it "warps the root board onto a tablet" do
     described_class.new(printable: printable).call
 
-    device = slide_html[1]
+    device = slide_for(BoardPrintable::IMAGE_ON_A_DEVICE)
     expect(device).to include("matrix3d(", "mockup-screen")
     expect(device).to include("data:image/jpeg;base64,")
   end

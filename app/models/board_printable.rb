@@ -55,9 +55,12 @@ class BoardPrintable < ApplicationRecord
   KIND_DOWNLOADABLE = [nil, KIND_PDF].freeze
 
   IMAGE_HERO = "hero".freeze
+  IMAGE_FLIP_BOOK = "flip_book".freeze
   IMAGE_ON_A_DEVICE = "on_a_device".freeze
   IMAGE_WHATS_INCLUDED = "whats_included".freeze
   IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
+  IMAGE_ASSEMBLE = "assemble".freeze
+  IMAGE_PAGE_INDEX = "page_index".freeze
   IMAGE_HOW_IT_WORKS = "how_it_works".freeze
   IMAGE_ABOUT = "about".freeze
 
@@ -69,14 +72,36 @@ class BoardPrintable < ApplicationRecord
   # This constant is the whole definition of a current gallery: adding a variant
   # here makes every previously-rendered printable stale, which is what surfaces
   # the admin badge and forces a re-render before publishing.
+  # Nine, against Etsy's cap of ten photos — the tenth is left free for
+  # something hand-made uploaded in the seller UI. A listing VIDEO occupies its
+  # own slot and does not count against this.
+  #
+  # No slide here may be conditional on board count. #listing_images_current?
+  # requires EVERY variant in this list, so "only render page_index for a set"
+  # would leave every single-board printable permanently stale, permanently
+  # badged in the admin, and re-rendering its whole gallery on every publish.
+  # Where a slide means something different for one board, its COPY varies —
+  # see Printables::SlideCopy — and the variant is still rendered.
   LISTING_IMAGE_ORDER = [
     IMAGE_HERO,
-    # Rank 2: the claim a buyer scrolling an Etsy gallery is least likely to
-    # believe from text alone is that this printable also opens on a screen and
-    # talks. It goes before the inventory slides.
+    # Rank 2: the thesis. A buyer can see a stack of pages in the thumbnail;
+    # what they cannot see is that the pages are LINKED — folder tiles open
+    # sub-pages and every sub-page carries a way back. It is the one claim no
+    # competing AAC printable can make, so it goes straight behind the
+    # thumbnail.
+    IMAGE_FLIP_BOOK,
+    # Then the claim a buyer is least likely to believe from text alone: that
+    # this printable also opens on a screen and talks.
     IMAGE_ON_A_DEVICE,
     IMAGE_WHATS_INCLUDED,
     IMAGE_WHATS_INCLUDED_LOW_INK,
+    # Answers the objection the hero's count sticker creates: "so what do I do
+    # with all these sheets?"
+    IMAGE_ASSEMBLE,
+    # The only slide on which a large set is fully legible — whats_included
+    # shows thumbnails capped at ContentTilePlan::MAX_TILES and then gives up
+    # with "+17 more pages".
+    IMAGE_PAGE_INDEX,
     IMAGE_HOW_IT_WORKS,
     IMAGE_ABOUT,
   ].freeze

@@ -106,6 +106,71 @@ module Printables
       ]
     end
 
+    # ── The flip-book slides ───────────────────────────────────────────────
+    #
+    # The claim these three exist to make, and the only one no competing AAC
+    # printable can match: the PAGES ARE LINKED. Folder tiles open sub-pages and
+    # every sub-page carries a way back, so a printed set navigates the way the
+    # app does rather than being a stack of unrelated sheets.
+    #
+    # Every one of them renders for a single-board printable too. The copy
+    # varies; the slide does not disappear. LISTING_IMAGE_ORDER defines what a
+    # current gallery is, so a conditional slide would leave small printables
+    # permanently stale and permanently re-rendering — see the constant.
+
+    def flip_book_title = "It works like a flip book"
+
+    def flip_book_headline(board_count:)
+      return "One page — and the QR turns it into a talking board" unless board_count > 1
+
+      "Folder tiles open a page. Every page has a way back."
+    end
+
+    def flip_book_badge = "LINKED PAGES · BACK BUTTONS THAT WORK"
+
+    def flip_book_bullets(board_count:)
+      return single_board_flip_book_bullets unless board_count > 1
+
+      [
+        "Tap a folder tile, turn to that page",
+        "Every page carries a back button home",
+        "Bind it once and it navigates like the app",
+      ]
+    end
+
+    def single_board_flip_book_bullets
+      [
+        "One sheet, the whole core vocabulary",
+        "Scan the QR and the same board talks",
+        "Print again any time — it's yours",
+      ]
+    end
+
+    def assemble_title = "Print it once, use it all year"
+
+    def assemble_headline = "Three minutes from download to a board you can hand over"
+
+    # Four steps, and the third is the one that answers the objection the
+    # count sticker creates: "so what do I do with all these sheets?"
+    def assemble_steps
+      [
+        {title: "Print", body: "Plain Letter paper. Colour or low-ink, your call."},
+        {title: "Trim", body: "The trim-ready version cuts down clean for laminating."},
+        {title: "Hole-punch & ring", body: "Three rings turn the set into a book that flips."},
+        {title: "Scan to hear it", body: "Every page's QR opens that page online, free."},
+      ]
+    end
+
+    def page_index_title(board_count:)
+      board_count > 1 ? "Every page in the set" : "What's on this board"
+    end
+
+    def page_index_headline(board_count:)
+      return "The full vocabulary, on one printable sheet" unless board_count > 1
+
+      "#{board_count} pages, linked — here's every one"
+    end
+
     def about_title = "About SpeakAnyWay"
 
     def founder_greeting = "Hi, I'm Brittany"
