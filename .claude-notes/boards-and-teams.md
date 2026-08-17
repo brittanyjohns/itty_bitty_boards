@@ -350,6 +350,32 @@ path must therefore be keyed on the **button or the tile**, never on
   `Boards::TileDeduper` groups on `(label, folder?)` and an unlinked folder
   looks like a duplicate word.
 
+## OBF/OBZ import — tile spans
+
+OBF has no colspan. A file states tile size by **repeating one button id across
+the cells it covers**, so `Board.build_coords_index` returns
+`[x, y, w, h]` per button rather than a bare `[x, y]`, and
+`upsert_board_image` writes that span into `layout` for all three screen
+sizes. It previously hardcoded `"w" => 1, "h" => 1`, which flattened every
+imported board to a uniform grid regardless of what the file described.
+
+Two rails keep a malformed file from producing a monster tile:
+
+- **Only a solid, gap-free rectangle is a span.** `Board.span_from_cells`
+  accepts the bounding box only when the cell count equals `w * h` and no cell
+  is repeated; anything else (a stray duplicate id in a far corner, an L shape)
+  falls back to the button's **first** cell at 1x1. Taking the bounding box
+  unconditionally would stretch one tile across everything between the two
+  occurrences.
+- **`ext_speakanyway_w` / `ext_speakanyway_h` override the derived span**, for
+  files that would rather state size than repeat ids. `Board.obf_button_span`
+  ignores zero, negative, and non-numeric values and clamps width to the
+  columns actually remaining to the right of `x`, so a bad value can't produce
+  a tile wider than the board.
+
+A file with neither repeated ids nor `ext_` fields imports exactly as it did
+before — every tile 1x1 — so this is additive for every OBF already in use.
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently

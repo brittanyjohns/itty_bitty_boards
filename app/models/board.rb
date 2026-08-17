@@ -3147,7 +3147,8 @@ class Board < ApplicationRecord
 
       board_image = upsert_board_image(board, image, item, coords, temp_display_image,
                                        apply_button_attributes: apply_button_attributes,
-                                       board_image_cache: board_image_cache)
+                                       board_image_cache: board_image_cache,
+                                       columns: columns)
       # Keyed on the TILE, not the Image. Two authored buttons can legitimately
       # resolve to one Image (Core 60/84 author both a "more" word button and a
       # "More" folder button; Image lookup is case-insensitive by design), and
@@ -3187,18 +3188,59 @@ class Board < ApplicationRecord
   end
   private_class_method :parse_obf_input
 
+  # button id => [x, y, w, h].
+  #
+  # A button repeated across neighbouring cells describes ONE spanning tile —
+  # that is how OBF files state tile size, since the format has no colspan.
+  # Only a solid, gap-free rectangle counts: a stray duplicate elsewhere in the
+  # grid would otherwise stretch one tile across the whole board, so anything
+  # that isn't a filled rectangle falls back to its first cell at 1x1 (the
+  # behaviour every import had before spans were read at all).
   def self.build_coords_index(grid_order)
     return {} unless grid_order.is_a?(Array)
-    index = {}
+    cells = Hash.new { |hash, key| hash[key] = [] }
     grid_order.each_with_index do |row, y|
       Array(row).each_with_index do |cell, x|
         next if cell.blank?
-        index[cell.to_s] = [x, y]
+        cells[cell.to_s] << [x, y]
       end
     end
-    index
+    cells.transform_values { |points| span_from_cells(points) }
   end
   private_class_method :build_coords_index
+
+  def self.span_from_cells(points)
+    xs = points.map(&:first)
+    ys = points.map(&:last)
+    x = xs.min
+    y = ys.min
+    w = xs.max - x + 1
+    h = ys.max - y + 1
+    return [x, y, w, h] if points.uniq.size == points.size && points.size == w * h
+
+    first_x, first_y = points.first
+    [first_x, first_y, 1, 1]
+  end
+  private_class_method :span_from_cells
+
+  # Explicit ext_ fields win over a span derived from the grid, so a file can
+  # state tile size without repeating ids across cells. Clamped to at least 1
+  # and never past the right edge of the board — a bad value in an imported
+  # file must not produce a tile wider than the grid.
+  def self.obf_button_span(item, derived_w, derived_h, x, columns)
+    w = positive_obf_int(item["ext_speakanyway_w"]) || derived_w
+    h = positive_obf_int(item["ext_speakanyway_h"]) || derived_h
+    limit = columns.to_i - x.to_i
+    w = limit if limit.positive? && w > limit
+    [w, h]
+  end
+  private_class_method :obf_button_span
+
+  def self.positive_obf_int(value)
+    int = Integer(value, exception: false)
+    int if int&.positive?
+  end
+  private_class_method :positive_obf_int
 
   def self.find_or_init_board_for_import(board_id:, obf_id:, name:, user:, columns:, voice:, board_data:, board_type:)
     board = Board.find_by(id: board_id, user_id: user.id) if board_id
@@ -3337,7 +3379,7 @@ class Board < ApplicationRecord
   end
   private_class_method :attach_image_doc
 
-  def self.upsert_board_image(board, image, item, coords, display_url, apply_button_attributes: false, board_image_cache: nil)
+  def self.upsert_board_image(board, image, item, coords, display_url, apply_button_attributes: false, board_image_cache: nil, columns: nil)
     obf_button_id = item["id"].presence&.to_s
 
     # Idempotency key is the AUTHORED OBF button id, NOT the resolved image_id.
@@ -3392,7 +3434,9 @@ class Board < ApplicationRecord
     apply_obf_part_of_speech(board_image, image, item) if apply_button_attributes
 
     if coords
-      layout = { "x" => coords[0], "y" => coords[1], "w" => 1, "h" => 1, "i" => board_image.id.to_s }
+      x, y, derived_w, derived_h = coords
+      w, h = obf_button_span(item, derived_w, derived_h, x, columns)
+      layout = { "x" => x, "y" => y, "w" => w, "h" => h, "i" => board_image.id.to_s }
       board_image.layout["lg"] = layout
       board_image.layout["md"] = layout
       board_image.layout["sm"] = layout
