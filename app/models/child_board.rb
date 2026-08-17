@@ -118,18 +118,24 @@ class ChildBoard < ApplicationRecord
   # grid). Deliberately NOT api_view: that emits `added_by` — the email of
   # whoever assigned the board — plus the assigning user's id and the board
   # owner's name, none of which belongs on a page with no authentication and
-  # none of which a card renders. Keys mirror the frontend's `PublicBoardCard`
-  # type (itty-bitty-frontend/src/data/profiles.ts).
+  # none of which a card renders.
+  #
+  # Delegates to Board#public_card_view rather than rebuilding the hash: both
+  # cards feed the SAME frontend component and the same `PublicBoardCard` type
+  # (itty-bitty-frontend/src/data/profiles.ts), and maintaining them in
+  # parallel had already dropped `preset_display_image_url` and `slug` here —
+  # so a communicator's card could not reach the cover fallback its library
+  # twin resolved fine. Board owns cover resolution; this adds only the
+  # join-row's own identity.
   def public_card_view
-    {
+    # Merge AFTER: Board's card sets `id: id, board_id: id` — both the board's
+    # id — and a communicator card must report the child_board id.
+    board.public_card_view.merge(
       id: id,
       board_id: board_id,
-      name: board.name,
-      display_image_url: display_image_url || preview_image_url,
-      preview_image_url: preview_image_url,
       bg_color: board.bg_color,
       text_color: board.text_color,
-    }
+    )
   end
 
   def api_view
