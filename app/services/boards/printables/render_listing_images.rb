@@ -34,9 +34,12 @@ module Boards
       # => BoardPrintable::LISTING_IMAGE_ORDER
       def call
         printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO)
+        printable.attach_image!(bytes: render("flip_book", assigns: flip_book_assigns), variant: BoardPrintable::IMAGE_FLIP_BOOK)
         printable.attach_image!(bytes: render("on_a_device", assigns: on_a_device_assigns), variant: BoardPrintable::IMAGE_ON_A_DEVICE)
         printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: false)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
         printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: true)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
+        printable.attach_image!(bytes: render("assemble", assigns: shared_assigns), variant: BoardPrintable::IMAGE_ASSEMBLE)
+        printable.attach_image!(bytes: render("page_index", assigns: page_index_assigns), variant: BoardPrintable::IMAGE_PAGE_INDEX)
         printable.attach_image!(bytes: render("how_it_works", assigns: shared_assigns), variant: BoardPrintable::IMAGE_HOW_IT_WORKS)
         printable.attach_image!(bytes: render("about", assigns: about_assigns), variant: BoardPrintable::IMAGE_ABOUT)
 
@@ -60,21 +63,16 @@ module Boards
       # Planned before anything is rendered, so Grover is only paid for tiles
       # that will actually be shown.
       def plan
-        @plan ||= ContentTilePlan.build(boards: ordered_boards)
+        @plan ||= ContentTilePlan.build(boards: printable.ordered_boards)
       end
 
-      # board_ids is in tree order (root first) and a `where` loses it, so the
-      # records are put back into it.
-      def ordered_boards
-        ids = printable.board_ids.to_a.presence || [board.id]
-        by_id = Board.where(id: ids).index_by(&:id)
-        ids.filter_map { |id| by_id[id] }
-      end
-
-      # The hero shows at most three pages. It is a shop window, not an
-      # inventory: past three the pages are too small to tell apart, and the
-      # what's-included slide is where the full set is counted.
-      HERO_TILES = 3
+      # The hero shows at most five pages. It is a shop window, not an
+      # inventory: past five each card is under 290px on the 960px stage and a
+      # board page at that size is a coloured smudge, and the what's-included
+      # slide is where the full set is counted. HeroFan owns that limit — this
+      # constant must not exceed HeroFan::MAX_CARDS, which is asserted in the
+      # spec rather than left to whoever raises it next.
+      HERO_TILES = 5
 
       # Three passes over the boards, each memoized, because the slides need
       # genuinely different pages — not the same pixels twice:
@@ -86,9 +84,9 @@ module Boards
       #           header is just the slide's own title band again, and hiding it
       #           gives the board the whole tile.
       #
-      # Budget: min(boards, 3) + min(boards, 8) * 2 renders, plus six slides and
-      # the one device screen. That is why this runs on Sidekiq and never on a
-      # request thread.
+      # Budget: min(boards, HERO_TILES) + min(boards, 8) * 2 renders, plus the
+      # slides themselves and the one device screen. That is why this runs on
+      # Sidekiq and never on a request thread.
       def hero_thumbnails
         @hero_thumbnails ||= RenderPageThumbnails.new(
           boards: plan.boards.first(HERO_TILES),
@@ -131,11 +129,20 @@ module Boards
       end
 
       def hero_assigns
+        tiles = hero_tiles
+
         shared_assigns.merge(
           title: Boards::AssetRendering.board_title_for(board),
           headline: ::Printables::SlideCopy.hero_headline(board_count: board_count, topic: printable.topic),
           background: BrandAssets.scene_data_uri_for(board),
-          thumbnails: hero_tiles,
+          thumbnails: tiles,
+          # Keyed off how many pages actually RENDERED, not board_count: a board
+          # whose thumbnail failed is dropped by tiles_from, and a fan sized for
+          # a card that isn't there leaves a hole in the pile.
+          fan: tiles.size > 1 ? HeroFan.build(tiles.size) : nil,
+          # The sticker counts the whole set, which is the honest number even
+          # when the hero could only show five of them.
+          count_badge: ::Printables::SlideCopy.hero_count_badge(board_count: board_count),
         )
       end
 
@@ -156,6 +163,51 @@ module Boards
         return tiles if root_index.nil? || root_index == center
 
         tiles.dup.tap { |t| t.insert(center, t.delete_at(root_index)) }
+      end
+
+      # Reuses the hero's page thumbnails rather than taking a pass of its own —
+      # the root plus the first pages its folder tiles open is exactly what
+      # `hero_thumbnails` already rendered.
+      #
+      # FLIP_BOOK_CHILDREN is small on purpose: this slide is an argument, not
+      # an inventory. Two children make the point that a folder tile opens a
+      # page and the page comes back; a row of five just makes the cards small.
+      FLIP_BOOK_CHILDREN = 2
+
+      def flip_book_assigns
+        tiles = tiles_from(hero_thumbnails)
+        root = tiles.find { |tile| tile[:board_id] == board.id } || tiles.first
+        children = tiles.reject { |tile| tile.equal?(root) }.first(FLIP_BOOK_CHILDREN)
+
+        shared_assigns.merge(
+          headline: ::Printables::SlideCopy.flip_book_headline(board_count: board_count),
+          bullets: ::Printables::SlideCopy.flip_book_bullets(board_count: board_count),
+          pages: [root].compact,
+          linked: children,
+        )
+      end
+
+      # Every board in the set, named, in tree order. Text only — no page
+      # renders — so the cost is the one slide.
+      #
+      # Capped because a 25-row list at a legible size doesn't fit two columns
+      # on a square slide; past the cap the remainder is counted rather than
+      # silently dropped.
+      PAGE_INDEX_ROWS = 24
+
+      def page_index_assigns
+        boards = printable.ordered_boards
+        rows = boards.first(PAGE_INDEX_ROWS).map do |page|
+          {label: Boards::AssetRendering.board_title_for(page), root: page.id == board.id}
+        end
+        remaining = boards.size - rows.size
+
+        shared_assigns.merge(
+          title: ::Printables::SlideCopy.page_index_title(board_count: board_count),
+          headline: ::Printables::SlideCopy.page_index_headline(board_count: board_count),
+          entries: rows,
+          overflow: remaining.positive? ? "+ #{remaining} more #{'page'.pluralize(remaining)}" : nil,
+        )
       end
 
       def whats_included_assigns(low_ink:)
@@ -184,9 +236,13 @@ module Boards
           title: title,
           scene: scene,
           scene_data_uri: scene.data_uri,
+          # The scene is handed over so the app shell is rendered at THIS
+          # tablet's proportions — the homography will stretch whatever it is
+          # given onto the glass, and a mismatched shell ships a squashed board.
           board_data_uri: RenderDeviceScreen.new(
             title: title,
             thumbnail: grid_thumbnails(low_ink: false)[board.id],
+            scene: scene,
           ).call,
         )
       end

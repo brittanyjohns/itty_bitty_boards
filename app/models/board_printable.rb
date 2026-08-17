@@ -32,18 +32,35 @@ class BoardPrintable < ApplicationRecord
   # prints if they only print one.
   DOWNLOAD_VARIANTS = [VARIANT_COLOR, VARIANT_LOW_INK, VARIANT_TRIM_READY].freeze
 
-  # `files` holds two kinds of blob: the printable PDFs a buyer downloads, and
-  # the PNG gallery images a marketplace listing needs. They are separated by
-  # blob metadata rather than a second attachment because the PNGs arrived long
-  # after the PDFs and re-homing the existing ones would have churned every
-  # stored key. Blobs written before this existed carry no "kind", and are PDFs.
+  # `files` holds three kinds of blob: the printable PDFs a buyer downloads, the
+  # PNG gallery images a marketplace listing needs, and the listing video. They
+  # are separated by blob metadata rather than by separate attachments because
+  # the PNGs arrived long after the PDFs and re-homing the existing ones would
+  # have churned every stored key. Blobs written before this existed carry no
+  # "kind", and are PDFs.
   KIND_PDF = "pdf".freeze
   KIND_IMAGE = "image".freeze
+  KIND_VIDEO = "video".freeze
+
+  # What counts as a buyer-facing download. An ALLOWLIST, and it has to stay
+  # one: #pdf_files used to select by exclusion (`kind != KIND_IMAGE`), which
+  # was correct only while "not an image" and "is a PDF" meant the same thing.
+  # The moment a third kind existed the video became a PDF everywhere it
+  # mattered — it would have been handed to a buyer by #files_view, uploaded to
+  # Etsy as `application/pdf` against the five-file cap, and, worst because it
+  # is silent, DELETED by #purge_stale_pdfs! on every "Regenerate" since the
+  # video's key is never in that run's keep_keys.
+  #
+  # nil is in the list because blobs predating the `kind` metadata are PDFs.
+  KIND_DOWNLOADABLE = [nil, KIND_PDF].freeze
 
   IMAGE_HERO = "hero".freeze
+  IMAGE_FLIP_BOOK = "flip_book".freeze
   IMAGE_ON_A_DEVICE = "on_a_device".freeze
   IMAGE_WHATS_INCLUDED = "whats_included".freeze
   IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
+  IMAGE_ASSEMBLE = "assemble".freeze
+  IMAGE_PAGE_INDEX = "page_index".freeze
   IMAGE_HOW_IT_WORKS = "how_it_works".freeze
   IMAGE_ABOUT = "about".freeze
 
@@ -55,17 +72,57 @@ class BoardPrintable < ApplicationRecord
   # This constant is the whole definition of a current gallery: adding a variant
   # here makes every previously-rendered printable stale, which is what surfaces
   # the admin badge and forces a re-render before publishing.
+  #
+  # Nine, against Etsy's cap of ten photos — the tenth is left free for
+  # something hand-made uploaded in the seller UI. A listing VIDEO occupies its
+  # own slot and does not count against this.
+  #
+  # No slide here may be conditional on board count. #listing_images_current?
+  # requires EVERY variant in this list, so "only render page_index for a set"
+  # would leave every single-board printable permanently stale, permanently
+  # badged in the admin, and re-rendering its whole gallery on every publish.
+  # Where a slide means something different for one board, its COPY varies —
+  # see Printables::SlideCopy — and the variant is still rendered.
   LISTING_IMAGE_ORDER = [
     IMAGE_HERO,
-    # Rank 2: the claim a buyer scrolling an Etsy gallery is least likely to
-    # believe from text alone is that this printable also opens on a screen and
-    # talks. It goes before the inventory slides.
+    # Rank 2: the thesis. A buyer can see a stack of pages in the thumbnail;
+    # what they cannot see is that the pages are LINKED — folder tiles open
+    # sub-pages and every sub-page carries a way back. It is the one claim no
+    # competing AAC printable can make, so it goes straight behind the
+    # thumbnail.
+    IMAGE_FLIP_BOOK,
+    # Then the claim a buyer is least likely to believe from text alone: that
+    # this printable also opens on a screen and talks.
     IMAGE_ON_A_DEVICE,
     IMAGE_WHATS_INCLUDED,
     IMAGE_WHATS_INCLUDED_LOW_INK,
+    # Answers the objection the hero's count sticker creates: "so what do I do
+    # with all these sheets?"
+    IMAGE_ASSEMBLE,
+    # The only slide on which a large set is fully legible — whats_included
+    # shows thumbnails capped at ContentTilePlan::MAX_TILES and then gives up
+    # with "+17 more pages".
+    IMAGE_PAGE_INDEX,
     IMAGE_HOW_IT_WORKS,
     IMAGE_ABOUT,
   ].freeze
+
+  # The listing video. One per printable — Etsy allows a listing exactly one,
+  # and it occupies a slot of its own rather than counting against the ten
+  # gallery photos.
+  VIDEO_FLIP_THROUGH = "flip_through".freeze
+  VIDEO_MANUAL = "manual".freeze
+
+  # Bumping this marks every rendered video stale and forces a re-render, the
+  # same job LISTING_IMAGE_ORDER does for the gallery. It lives in blob
+  # metadata rather than a column because the alternative is a migration every
+  # time the frame design changes.
+  VIDEO_SPEC_VERSION = 1
+
+  # Etsy's limits. 5-15 seconds, one video, and a listing video's audio track is
+  # stripped on upload — so a clip must carry everything it says visually.
+  VIDEO_MIN_SECONDS = 5.0
+  VIDEO_MAX_SECONDS = 15.0
 
   # The gallery used to be a scaled-down print sheet: a "cover" plus a
   # what's-included slide. Nothing renders a cover any more, but printables
@@ -144,16 +201,77 @@ class BoardPrintable < ApplicationRecord
     )
   end
 
+  # Same shape as #attach_image!, and versioned for the same CloudFront reason.
+  # `source` distinguishes a rendered flip-through from a clip an operator
+  # uploaded by hand: a hand-made clip must never be marked stale by a spec
+  # bump, because nothing can re-render it.
+  def attach_video!(bytes:, duration:, source: VIDEO_FLIP_THROUGH)
+    video_files.each(&:purge)
+    reload_files_association
+
+    filename = "#{source.dasherize}-#{SecureRandom.hex(4)}.mp4"
+    attach_blob!(
+      key: versioned_storage_key_for(filename),
+      filename: filename,
+      bytes: bytes,
+      content_type: VideoTranscoder::OUTPUT_CONTENT_TYPE,
+      metadata: {
+        "kind" => KIND_VIDEO,
+        "variant" => source,
+        "spec_version" => VIDEO_SPEC_VERSION,
+        "duration" => duration.to_f.round(2),
+        "board_count" => board_ids.to_a.size,
+      },
+    )
+  end
+
+  def video_files
+    return [] unless files.attached?
+
+    files.select { |f| f.metadata["kind"] == KIND_VIDEO }
+  end
+
+  def video_file = video_files.first
+
+  def listing_video? = video_file.present?
+
+  # Whether the attached video is one this code would produce today. A
+  # hand-uploaded clip is always current — there is no renderer that could
+  # replace it, so badging it stale would only nag.
+  def listing_video_current?
+    file = video_file
+    return false if file.nil?
+    return true if file.metadata["variant"] == VIDEO_MANUAL
+
+    file.metadata["spec_version"].to_i == VIDEO_SPEC_VERSION &&
+      file.metadata["board_count"].to_i == board_ids.to_a.size
+  end
+
+  # Deliberately not folded into #files_view: that is the buyer's download list.
+  def listing_video_view
+    file = video_file
+    return nil if file.nil?
+
+    {
+      variant: file.metadata["variant"],
+      filename: file.filename.to_s,
+      url: url_for_file(file),
+      byte_size: file.byte_size,
+      duration: file.metadata["duration"].to_f,
+      manual: file.metadata["variant"] == VIDEO_MANUAL,
+    }
+  end
+
   # The downloadable product. Deliberately PDFs only — the admin download
   # buttons and the /api/board_printables/:id/download_url contract both read
-  # this, and neither should start handing out marketing images.
+  # this, and neither should start handing out marketing images or video.
   def files_view
     view_for(pdf_files)
   end
 
   # The marketplace gallery images, in the order Etsy should rank them.
   #
-  # Filtered, not just sorted: a blob from the retired two-image gallery would
+  # Filtered, not just sorted: a blob from a retired gallery design would
   # otherwise sort to the end and get uploaded as a real listing photo.
   def listing_images_view
     view_for(current_image_files).sort_by { |f| LISTING_IMAGE_ORDER.index(f[:variant]) }
@@ -162,7 +280,7 @@ class BoardPrintable < ApplicationRecord
   def pdf_files
     return [] unless files.attached?
 
-    files.select { |f| f.metadata["kind"].presence != KIND_IMAGE }
+    files.select { |f| KIND_DOWNLOADABLE.include?(f.metadata["kind"].presence) }
   end
 
   def image_files
@@ -173,7 +291,7 @@ class BoardPrintable < ApplicationRecord
 
   def listing_images? = image_files.any?
 
-  # Images from the current four-slide gallery only.
+  # Images from the gallery this code ships today, and nothing else.
   def current_image_files
     image_files.select { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
   end
@@ -225,6 +343,16 @@ class BoardPrintable < ApplicationRecord
   # each board exactly once per download variant: the count is exact for
   # printables generated before this existed, with no re-render.
   def board_page_count = board_ids.to_a.size * DOWNLOAD_VARIANTS.size
+
+  # Every board this printable covers, as records, in TREE order with the root
+  # first — which is the order `board_ids` is written in and the order a
+  # `where` throws away. Lives here rather than in a renderer because both the
+  # gallery and the video need exactly this and a second copy would drift.
+  def ordered_boards
+    ids = board_ids.to_a.presence || [board_id]
+    by_id = Board.where(id: ids).index_by(&:id)
+    ids.filter_map { |id| by_id[id] }
+  end
 
   def etsy_published? = etsy_listing_id.present?
 

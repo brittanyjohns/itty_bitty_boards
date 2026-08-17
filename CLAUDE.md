@@ -424,6 +424,18 @@ an explicit decision, not a drive-by edit.
   rotates on every exchange, so it lives in `oauth_credentials` (not ENV) and
   Rails holds a **separate authorization** from the one `speakanyway-printables`
   uses — a shared grant makes the two invalidate each other.
+- **A `board_printables` blob is a download, a gallery image, or the listing
+  video — and `pdf_files` is the ALLOWLIST that keeps them apart.** The three
+  share one `has_many_attached :files`, separated by blob metadata `kind`
+  (`pdf`/`image`/`video`, with a missing `kind` meaning PDF for everything
+  written before the split existed). `pdf_files` once selected by EXCLUSION
+  (`kind != "image"`), which was correct only while "not an image" and "is a
+  PDF" were the same thing; adding video made that false and the video then read
+  as a buyer download everywhere — served by `files_view`, uploaded to Etsy as
+  `application/pdf` against the five-file cap, and, silently, destroyed by
+  `purge_stale_pdfs!` on every "Regenerate", which is handed only the keys of
+  the PDFs that run just wrote. A new kind gets its own reader and stays out of
+  `KIND_DOWNLOADABLE`; never widen the partition by negation.
 - **`child_accounts.settings` MERGES on update; `details` REPLACES.** The two
   jsonb blobs have opposite semantics on purpose, and both are load-bearing.
   Several frontend surfaces save `settings` as a fresh literal holding only

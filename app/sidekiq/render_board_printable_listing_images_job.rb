@@ -1,4 +1,5 @@
-# Re-renders the marketplace gallery images for a printable. Two Grover renders,
+# Re-renders the marketplace gallery images for a printable. Up to ~25 Grover
+# renders — nine slides, three passes of page thumbnails and a device screen —
 # so it never runs on a request thread.
 class RenderBoardPrintableListingImagesJob
   include Sidekiq::Job

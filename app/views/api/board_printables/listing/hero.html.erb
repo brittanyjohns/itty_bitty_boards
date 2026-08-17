@@ -39,11 +39,27 @@
     </div>
 
     <%# One page gets the stage to itself; a set fans so the count is legible
-        before a word of the description is read. %>
-    <div class="hero-stage stretch <%= @thumbnails.size > 1 ? "fan" : "single" %>">
+        before a word of the description is read.
+
+        The fan's geometry is written inline from Boards::Printables::HeroFan
+        rather than living in the layout, so the CSS never has to know how many
+        cards there are — see the .hero-stage.fan comment there. %>
+    <div class="hero-stage stretch <%= @fan ? "fan" : "single" %> <%= "has-sticker" if @count_badge %>"
+         <%= "style=\"--fan-w: #{@fan.css_width}; --fan-overlap: #{@fan.css_overlap};\"".html_safe if @fan %>>
+      <%# The sticker, over the pile rather than in the column: at Etsy
+          thumbnail size a headline is a smudge and a numeral is not. %>
+      <% if @count_badge %>
+        <div class="count-sticker">
+          <strong><%= @count_badge[:count] %></strong>
+          <span><%= @count_badge[:label] %></span>
+        </div>
+      <% end %>
+
       <% if @thumbnails.any? %>
-        <% @thumbnails.each do |tile| %>
-          <div class="paper" style="aspect-ratio: <%= tile[:width] %> / <%= tile[:height] %>;">
+        <% @thumbnails.each_with_index do |tile, index| %>
+          <% card = @fan&.cards&.[](index) %>
+          <div class="paper"
+               style="aspect-ratio: <%= tile[:width] %> / <%= tile[:height] %>;<%= " --rot: #{card.rotation_deg}deg; --z: #{card.z_index};" if card %>">
             <img src="<%= tile[:data_uri] %>" alt="<%= tile[:label] %>" />
           </div>
         <% end %>
@@ -51,6 +67,10 @@
         <div class="hero-empty"><%= @headline %></div>
       <% end %>
     </div>
+
+    <% if @count_badge %>
+      <div class="variant-strip"><%= @count_badge[:detail] %></div>
+    <% end %>
   </div>
 
   <div class="footer-strip">

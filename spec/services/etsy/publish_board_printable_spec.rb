@@ -180,4 +180,56 @@ RSpec.describe Etsy::PublishBoardPrintable do
       expect(printable.reload.status).to eq("complete")
     end
   end
+
+  describe "the listing video" do
+    before { allow(client).to receive(:upload_video).and_return(true) }
+
+    def attach_video!
+      printable.attach_video!(bytes: "mp4-bytes", duration: 9.4)
+      printable.reload
+    end
+
+    it "uploads the attached clip alongside the draft" do
+      attach_video!
+
+      expect(client).to receive(:upload_video).with(987, hash_including(bytes: "mp4-bytes"))
+
+      expect(publish.ok?).to be true
+    end
+
+    # A printable is published exactly once, so a draft never already has a
+    # video and Etsy's one-per-listing rule can't be hit.
+    it "is skipped entirely when nothing has been rendered" do
+      expect(client).not_to receive(:upload_video)
+
+      expect(publish.ok?).to be true
+    end
+
+    # A draft carrying images and download files is finishable without a video.
+    # Failing the publish would leave a real listing already created in the
+    # shop while reporting failure, which is a manual cleanup rather than a
+    # retry.
+    it "does not fail the publish when the upload is rejected" do
+      attach_video!
+      allow(client).to receive(:upload_video).and_raise(Etsy::Client::Error, "Etsy POST 413: too big")
+
+      result = publish
+
+      expect(result.ok?).to be true
+      expect(result.listing_id).to eq(987)
+      expect(printable.reload.etsy_listing_id).to eq(987)
+      expect(printable.etsy_error).to include("listing video failed to upload")
+    end
+
+    # The gallery is auto-rendered at publish because Etsy won't let a listing
+    # with no photos go live. Video has no such rule, and rendering one here
+    # would put ffmpeg inside a job that is deliberately never retried.
+    it "is never rendered on the fly the way the gallery is" do
+      expect_any_instance_of(Boards::Printables::RenderListingVideo).not_to receive(:call)
+
+      publish
+
+      expect(printable.reload.listing_video?).to be false
+    end
+  end
 end
