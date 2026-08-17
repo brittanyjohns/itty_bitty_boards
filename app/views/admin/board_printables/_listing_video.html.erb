@@ -1,0 +1,76 @@
+<%# The listing's video slot. Unlike the gallery images, publishing does NOT
+    render this on the fly — Etsy blocks a listing with no photos but is happy
+    with no video, and an ffmpeg encode inside the never-retried publish job is
+    a good way to wedge a publish half-done. So: render it here, before you
+    publish, or the draft goes up without one. %>
+<% video = @printable.listing_video_view %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Listing video</h2>
+    <% if @ffmpeg_available %>
+      <%= button_to "Render flip-through", regenerate_listing_video_admin_dashboard_board_printable_path(@printable),
+            method: :post,
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+    <% end %>
+  </div>
+
+  <p class="text-[11px] text-t3 mb-4">
+    A flip-through of this printable's pages — root first, with the back marker
+    on every page after it — landing on the QR and the same board open in the
+    app. Etsy allows one video per listing, it doesn't count against the ten
+    photos, and <strong>Etsy strips the audio</strong>, so the clip says
+    everything on screen. It only reaches Etsy if it exists <em>before</em> you
+    create the draft.
+  </p>
+
+  <% unless @ffmpeg_available %>
+    <p class="text-xs mb-4 px-3 py-2 rounded border"
+       style="border-color: var(--border); color: var(--t1);">
+      ffmpeg isn't installed on this host, so a flip-through can't be rendered
+      here. You can still upload a clip below.
+    </p>
+  <% end %>
+
+  <%# Board count is baked into the frames (the counter reads "3 / 6"), so a
+      printable that has since gained or lost a page has a video that contradicts
+      itself. A hand-uploaded clip is never stale — nothing could re-render it. %>
+  <% if video && !@printable.listing_video_current? %>
+    <p class="text-xs mb-4 px-3 py-2 rounded border"
+       style="border-color: var(--border); color: var(--t1);">
+      This was rendered from a different version of this printable. Re-render before publishing.
+    </p>
+  <% end %>
+
+  <% if video %>
+    <div class="flex flex-wrap items-start gap-4 mb-4">
+      <%# preload="metadata" so opening this page doesn't pull the whole clip
+          off the CDN just to show a poster frame. %>
+      <video src="<%= video[:url] %>" controls preload="metadata"
+             class="w-64 rounded-lg border bg-black" style="border-color: var(--border);"></video>
+      <div class="text-[11px] text-t3">
+        <p><%= video[:manual] ? "Uploaded by hand" : "Rendered flip-through" %></p>
+        <p><%= video[:duration].positive? ? "#{number_with_precision(video[:duration], precision: 1)}s" : "duration unknown" %></p>
+        <p><%= number_to_human_size(video[:byte_size]) %></p>
+        <p class="mt-1"><%= link_to "Open", video[:url], target: "_blank", rel: "noopener", class: "underline" %></p>
+      </div>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3 mb-4">
+      None yet. The draft will be published without a video unless you render or upload one.
+    </p>
+  <% end %>
+
+  <%# For the listings worth filming. A real recording of a board being used
+      beats a rendered slideshow, and no renderer can produce one. %>
+  <%= form_with url: upload_listing_video_admin_dashboard_board_printable_path(@printable),
+                method: :post, class: "flex flex-wrap items-center gap-3 pt-3 border-t",
+                style: "border-color: var(--border);" do |f| %>
+    <%= f.file_field :video, accept: "video/mp4", class: "text-xs text-t2" %>
+    <%= f.submit "Upload instead",
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+    <span class="text-[11px] text-t3">
+      .mp4, <%= BoardPrintable::VIDEO_MIN_SECONDS.to_i %>–<%= BoardPrintable::VIDEO_MAX_SECONDS.to_i %>s,
+      under 100 MB. Replaces the rendered clip.
+    </span>
+  <% end %>
+</div>
