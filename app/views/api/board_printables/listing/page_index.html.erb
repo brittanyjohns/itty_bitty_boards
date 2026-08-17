@@ -1,0 +1,56 @@
+<%# Every page in the set, named, in tree order.
+
+    Distinct from what's-included, which shows THUMBNAILS capped at
+    ContentTilePlan::MAX_TILES and then gives up with "+17 more pages". For a
+    large set this is the only slide on which the whole thing is legible, and
+    what a buyer is really asking at this point is "is the vocabulary I need
+    actually in here?" — a question a grid of eight postage stamps can't answer.
+
+    Pure text: no page renders, one Grover render, nothing to go stale. %>
+<div class="slide bg-sky">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-footer">
+    <div class="title-banner <%= "small" if @title.to_s.length > 26 %>"><%= @title %></div>
+    <div class="headline-callout"><%= @headline %></div>
+
+    <%# Deliberately NOT `stretch`: the card hugs its list. Stretched, a set of
+        eight names sat in the top fifth of a full-height white box and the
+        slide read as unfinished. A short list now makes a short card and the
+        background carries the rest. %>
+    <div class="index-card">
+      <ul class="index-list <%= "is-dense" if @entries.size > 12 %>">
+        <% @entries.each do |entry| %>
+          <li class="<%= "is-root" if entry[:root] %>">
+            <span class="index-marker"><%= entry[:root] ? "◆" : "└" %></span>
+            <span class="index-label"><%= entry[:label] %></span>
+          </li>
+        <% end %>
+      </ul>
+
+      <% if @overflow.present? %>
+        <div class="index-overflow"><%= @overflow %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.audio_companion_eyebrow %></div>
+      <ul class="bullets">
+        <li><%= Printables::SlideCopy.audio_companion_sub %></li>
+      </ul>
+    </div>
+
+    <% if @qr_data_url %>
+      <div class="footer-qr">
+        <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        <span class="qr-caption">Scan to try this board free</span>
+      </div>
+    <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
+  </div>
+</div>

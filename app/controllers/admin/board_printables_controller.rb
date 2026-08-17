@@ -46,6 +46,10 @@ module Admin
       @tree_boards = tree_boards(@printable)
       @tag_overlap = Etsy::TagOverlap.new(@printable, tags: @listing["tags"])
       @etsy_configured = Etsy::Client.configured?
+      # The listing-video card offers a render button only where the binaries
+      # exist; a button that enqueues a job which immediately returns looks
+      # broken rather than unsupported.
+      @ffmpeg_available = VideoTranscoder.available?
     end
 
     # Saves the editable listing copy. Deliberately separate from publishing:
@@ -159,6 +163,65 @@ module Admin
                   notice: "Rendering listing images… refresh in a moment."
     end
 
+    def regenerate_listing_video
+      printable = BoardPrintable.find(params[:id])
+
+      if !printable.complete?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable isn't finished generating yet."
+      elsif !VideoTranscoder.available?
+        # Said out loud rather than enqueued: the job would return immediately
+        # and the page would look like the button did nothing.
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "ffmpeg isn't installed on this host, so a listing video can't be rendered here."
+      else
+        RenderBoardPrintableListingVideoJob.perform_async(printable.id)
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    notice: "Rendering the listing video… this takes a minute or two. Refresh to see it."
+      end
+    end
+
+    # A hand-made clip, for the listings worth filming. The rendered
+    # flip-through is a good default for every listing; a real recording of a
+    # board being used is better than a default, and there is no renderer that
+    # can produce one.
+    #
+    # Validated here rather than trusted: Etsy accepts an out-of-spec video on
+    # upload and only rejects it when the seller tries to ACTIVATE the listing,
+    # by which point nothing points back at the cause.
+    def upload_listing_video
+      printable = BoardPrintable.find(params[:id])
+      upload = params[:video]
+
+      error = manual_video_error(upload)
+      if error
+        redirect_to admin_dashboard_board_printable_path(printable), alert: error
+        return
+      end
+
+      # Probed BEFORE the bytes are read: probing consumes the upload and
+      # rewinds it, so reading first leaves ffprobe an empty file and the
+      # length check silently passes on every clip.
+      duration = VideoTranscoder.available? ? probe_upload_duration(upload) : nil
+      bytes = upload.read
+
+      if duration && (duration < BoardPrintable::VIDEO_MIN_SECONDS || duration > BoardPrintable::VIDEO_MAX_SECONDS)
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "Etsy needs a listing video between #{BoardPrintable::VIDEO_MIN_SECONDS.to_i} and " \
+                           "#{BoardPrintable::VIDEO_MAX_SECONDS.to_i} seconds; this one is #{duration.round(1)}s."
+        return
+      end
+
+      printable.attach_video!(
+        bytes: bytes,
+        duration: duration || 0,
+        source: BoardPrintable::VIDEO_MANUAL,
+      )
+
+      redirect_to admin_dashboard_board_printable_path(printable),
+                  notice: "Uploaded. This clip will go up with the draft instead of a rendered flip-through."
+    end
+
     def create
       board = Board.find_by(id: params[:board_id])
       unless board
@@ -194,6 +257,39 @@ module Admin
     end
 
     private
+
+    # mp4 only. Not a taste preference: the rendered flip-through is H.264 mp4,
+    # Etsy processes that most reliably, and accepting anything else would mean
+    # owning a transcode path for operator uploads too.
+    MANUAL_VIDEO_CONTENT_TYPES = ["video/mp4"].freeze
+
+    def manual_video_error(upload)
+      return "Choose a video file to upload." if upload.blank? || !upload.respond_to?(:read)
+      unless MANUAL_VIDEO_CONTENT_TYPES.include?(upload.content_type)
+        return "That file is #{upload.content_type.presence || 'an unknown type'}; upload an .mp4."
+      end
+      if upload.size > Etsy::Client::VIDEO_CAP_BYTES
+        return "That clip is #{ActiveSupport::NumberHelper.number_to_human_size(upload.size)}; " \
+               "Etsy caps a listing video at 100 MB."
+      end
+
+      nil
+    end
+
+    # ffprobe needs a path, and an uploaded file may be in memory. Returns nil
+    # rather than raising: an unreadable duration is a reason to skip the
+    # length CHECK, not a reason to refuse a clip the operator chose.
+    def probe_upload_duration(upload)
+      Dir.mktmpdir("manual-listing-video") do |dir|
+        path = File.join(dir, "upload.mp4")
+        File.binwrite(path, upload.read)
+        upload.rewind
+        VideoTranscoder.duration(path)
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[Admin::BoardPrintables] could not probe uploaded video: #{e.class}: #{e.message}")
+      nil
+    end
 
     # The listing_copy jsonb is written wholesale rather than merged: the form
     # posts every field every time, so a merge would only ever preserve stale

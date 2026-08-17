@@ -176,6 +176,38 @@ RSpec.describe Etsy::Client do
     end
   end
 
+  describe "#upload_video" do
+    before { stub_token_exchange }
+
+    it "posts multipart to the listing's own video endpoint" do
+      stub_request(:post, "#{api}/shops/42/listings/987/videos").to_return(status: 201, body: "{}")
+
+      client.upload_video(987, bytes: "mp4-bytes", filename: "flip through.mp4")
+
+      expect(a_request(:post, "#{api}/shops/42/listings/987/videos").with { |req|
+        req.headers["Content-Type"].to_s.start_with?("multipart/form-data") &&
+          req.body.include?('name="video"') &&
+          req.body.include?('name="name"') &&
+          req.body.include?("flip-through.mp4")
+      }).to have_been_made
+    end
+
+    it "refuses a clip over Etsy's 100 MB cap instead of failing mid-upload" do
+      expect {
+        client.upload_video(987, bytes: "x" * (described_class::VIDEO_CAP_BYTES + 1), filename: "big.mp4")
+      }.to raise_error(described_class::Error, /caps a listing video at 100 MB/)
+    end
+
+    # Etsy allows one video per listing, and its `video_id` field replaces it.
+    # This app only ever creates fresh drafts, so there is nothing to replace
+    # and nothing to delete — and a DELETE against a live listing is what the
+    # drafts-only invariant exists to prevent.
+    it "has no list or delete counterpart" do
+      expect(described_class.instance_methods)
+        .not_to include(:list_listing_videos, :delete_listing_video)
+    end
+  end
+
   describe "#normalize_filename" do
     it "keeps only the characters Etsy allows" do
       expect(client.normalize_filename("Core Words! v2.pdf")).to eq("Core-Words-v2.pdf")

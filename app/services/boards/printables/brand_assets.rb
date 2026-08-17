@@ -23,8 +23,10 @@ module Boards
     module BrandAssets
       DIR = Rails.root.join("app/assets/images/printables").freeze
 
-      # Ordered, and the order is load-bearing: a scene is picked by hashing the
-      # board, so reordering this list re-skins every existing listing.
+      # The NAMES are load-bearing; the order is not. A scene is picked by
+      # scoring each name against the board (StablePick), so this list may be
+      # reordered or appended to — renaming a scene is what re-skins the boards
+      # that had picked it.
       SCENES = %w[
         reading-nook
         kitchen-morning
@@ -46,15 +48,13 @@ module Boards
 
         # Deterministic per board, never random: re-rendering a printable must
         # not hand a live Etsy listing a different background. Same reasoning as
-        # the pipeline's pickVariant, and the same reason SCENES is ordered.
+        # the pipeline's pickVariant.
         def scene_data_uri_for(board)
-          name = SCENES[scene_index_for(board)]
-          scene_data_uri(name)
+          scene_data_uri(scene_name_for(board))
         end
 
-        def scene_index_for(board)
-          key = board.try(:slug).presence || board.try(:id).to_s
-          Digest::SHA256.hexdigest(key.to_s).to_i(16) % SCENES.size
+        def scene_name_for(board)
+          StablePick.from(SCENES, salt: "scene", board: board)
         end
 
         def scene_data_uri(name)

@@ -109,6 +109,8 @@ Rails.application.routes.draw do
         patch :update_listing
         post :publish_to_etsy
         post :regenerate_listing_images
+        post :regenerate_listing_video
+        post :upload_listing_video
         post :regenerate
         post :waive_protection
       end

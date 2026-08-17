@@ -1,0 +1,80 @@
+<%# The physical half of the flip-book pitch, and the answer to the objection
+    the hero's count sticker creates: "so what do I do with eighteen sheets?"
+
+    Board-agnostic apart from its palette, like how_it_works — one render, and
+    nothing on it can go stale.
+
+    Inline SVG icons, never emoji: the render box's Chrome has no guaranteed
+    colour-emoji font, so an emoji ships to Etsy as a tofu box. %>
+<div class="slide bg-sky">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="slide-stack has-footer">
+    <%# Stepped down past 26 characters, same rule as the hero: the banner is an
+        inline block on the same row as the corner logo, and at 64px a longer
+        title runs under it. %>
+    <% title = Printables::SlideCopy.assemble_title %>
+    <div class="title-banner <%= "small" if title.length > 26 %>"><%= title %></div>
+    <div class="headline-callout"><%= Printables::SlideCopy.assemble_headline %></div>
+
+    <div class="steps-strip stretch">
+      <% Printables::SlideCopy.assemble_steps.each_with_index do |step, index| %>
+        <div class="step-card">
+          <div class="step-num"><%= index + 1 %></div>
+
+          <svg class="step-icon" viewBox="0 0 48 48" aria-hidden="true">
+            <% case index %>
+            <% when 0 %>
+              <%# Print: printer with a sheet emerging %>
+              <path d="M14 18V8h20v10" />
+              <path d="M8 18h32v14H8z" />
+              <path d="M14 28h20v12H14z" />
+            <% when 1 %>
+              <%# Trim: scissors on a cut line %>
+              <path d="M4 24h40" stroke-dasharray="4 4" />
+              <path d="M14 10l16 20" />
+              <path d="M34 10L18 30" />
+              <circle cx="15" cy="36" r="4" />
+              <circle cx="33" cy="36" r="4" />
+            <% when 2 %>
+              <%# Hole-punch and ring: a page with three rings down its spine %>
+              <path d="M16 6h26v36H16z" />
+              <circle cx="10" cy="14" r="4" />
+              <circle cx="10" cy="24" r="4" />
+              <circle cx="10" cy="34" r="4" />
+              <path d="M10 10v-4M10 20v-4M10 30v-4" />
+            <% else %>
+              <%# Scan to hear: phone with sound waves %>
+              <path d="M10 6h16v36H10z" />
+              <path d="M33 17c3 3.5 3 10.5 0 14" />
+              <path d="M39 12c5 6 5 18 0 24" />
+            <% end %>
+          </svg>
+
+          <div class="step-title"><%= step[:title] %></div>
+          <div class="step-body"><%= step[:body] %></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="footer-strip">
+    <div class="footer-bullets">
+      <div class="footer-title"><%= Printables::SlideCopy.audio_companion_eyebrow %></div>
+      <ul class="bullets">
+        <li><%= Printables::SlideCopy.audio_companion_sub %></li>
+      </ul>
+    </div>
+
+    <% if @qr_data_url %>
+      <div class="footer-qr">
+        <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        <span class="qr-caption">Scan to try this board free</span>
+      </div>
+    <% end %>
+
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
+  </div>
+</div>

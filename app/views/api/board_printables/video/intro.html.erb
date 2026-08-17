@@ -1,0 +1,28 @@
+<%# The listing video's opening frame — on screen for INTRO_SECONDS, so it has
+    one job: say what the buyer is about to watch pages of. Shares the gallery's
+    layout and tokens so the clip and the still images read as one listing. %>
+<div class="slide video-frame has-ribbon">
+  <% if @background %>
+    <img class="bg-image" src="<%= @background %>" alt="" />
+    <div class="bg-scrim"></div>
+  <% end %>
+
+  <div class="instant-ribbon"><%= Printables::SlideCopy.instant_download_banner %></div>
+
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="video-stack">
+    <div class="title-banner <%= "small" if @title.to_s.length > 26 %>"><%= @title %></div>
+
+    <% if @count_badge %>
+      <div class="video-count">
+        <strong><%= @count_badge[:count] %></strong>
+        <span><%= @count_badge[:label] %></span>
+      </div>
+    <% end %>
+
+    <div class="video-headline"><%= @headline %></div>
+  </div>
+</div>

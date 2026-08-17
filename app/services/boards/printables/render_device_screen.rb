@@ -16,11 +16,21 @@
 module Boards
   module Printables
     class RenderDeviceScreen
-      # 1100x720 ≈ 1.528, the mean of the two tablet quad aspects in
-      # TabletScene::SCENES (1.50 and 1.55). A homography stretches the artwork
-      # onto the quad whatever shape it is, so this ratio is what keeps the
-      # board from arriving on the glass squashed. Changing it means re-checking
-      # every scene.
+      # A homography maps the shell onto the screen quad WHATEVER shape either
+      # is, so a shell that doesn't match the quad's proportions doesn't fail —
+      # it silently ships a stretched board, which a buyer reads as "the product
+      # is distorted". The shell is therefore sized from the scene it is going
+      # onto, at roughly constant total pixels.
+      #
+      # This used to be a fixed 1100x720 (≈1.528), the mean of the only two
+      # scenes that existed. Every scene added since is a real photograph of a
+      # real tablet, and those are 4:3 — so a fixed shell was one scene away
+      # from being wrong for most of the library.
+      SHELL_AREA = 1100 * 720
+      DEFAULT_ASPECT = 1100.0 / 720
+
+      # Kept for the scene guard spec, which asserts a scene's screen is
+      # something this class can actually fill.
       SHELL_WIDTH = 1100
       SHELL_HEIGHT = 720
 
@@ -40,9 +50,25 @@ module Boards
       # (Boards::RenderAssetData::HEADER_NONE). A page carrying the print header
       # would put the scan-me band and its QR on the screen, which is the exact
       # tell this slide exists to remove.
-      def initialize(title:, thumbnail:)
+      # `scene` is the TabletScene this screen will be warped onto, and is what
+      # the shell takes its proportions from. Optional: the video's outro stages
+      # the app chrome on a flat card with no tablet behind it, and there the
+      # default shape is the right one.
+      def initialize(title:, thumbnail:, scene: nil)
         @title = title
         @thumbnail = thumbnail
+        @scene = scene
+      end
+
+      # The shell's pixel size for this scene: the quad's aspect, at the same
+      # total area the fixed shell used, rounded to even numbers so the 2x
+      # render lands on whole pixels.
+      def shell_width
+        @shell_width ||= (Math.sqrt(SHELL_AREA * aspect) / 2).round * 2
+      end
+
+      def shell_height
+        @shell_height ||= (Math.sqrt(SHELL_AREA / aspect) / 2).round * 2
       end
 
       # => a PNG data URI, or nil when there is no board render to stage. nil
@@ -64,7 +90,7 @@ module Boards
 
         png = Grover.new(
           html,
-          viewport: { width: SHELL_WIDTH, height: SHELL_HEIGHT, device_scale_factor: SCALE },
+          viewport: { width: shell_width, height: shell_height, device_scale_factor: SCALE },
           full_page: false,
           print_background: true,
         ).to_png
@@ -77,7 +103,14 @@ module Boards
 
       private
 
-      attr_reader :title, :thumbnail
+      attr_reader :title, :thumbnail, :scene
+
+      def aspect
+        return DEFAULT_ASPECT if scene.nil?
+
+        ratio = scene.screen_width.to_f / scene.screen_height
+        ratio.positive? && ratio.finite? ? ratio : DEFAULT_ASPECT
+      end
 
       # Does the board, drawn at full width, still fit under the chrome? A wide,
       # short board does and gets centred; anything taller runs past the bottom
@@ -86,8 +119,8 @@ module Boards
       def fits?
         return true unless thumbnail.width.to_i.positive? && thumbnail.height.to_i.positive?
 
-        body_width = SHELL_WIDTH - (BODY_PADDING * 2)
-        body_height = SHELL_HEIGHT - CHROME_HEIGHT - BODY_PADDING
+        body_width = shell_width - (BODY_PADDING * 2)
+        body_height = shell_height - CHROME_HEIGHT - BODY_PADDING
 
         (thumbnail.width.to_f / thumbnail.height) >= (body_width.to_f / body_height)
       end
