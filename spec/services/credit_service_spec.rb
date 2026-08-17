@@ -32,6 +32,43 @@ RSpec.describe CreditService, type: :service do
     end
   end
 
+  describe ".plan_allowance" do
+    it "returns the amount of the most recent plan_grant" do
+      described_class.grant_plan!(user, amount: 400, period_end: 30.days.from_now)
+      expect(described_class.plan_allowance(user.reload)).to eq(400)
+    end
+
+    it "reflects a grant that overrode the plan default (Stripe price metadata)" do
+      user.update_columns(plan_type: "basic")
+      described_class.grant_plan!(user, amount: 900, period_end: 30.days.from_now)
+
+      expect(described_class.plan_allowance(user.reload)).to eq(900)
+      expect(described_class.monthly_credits_for("basic")).to eq(400)
+    end
+
+    it "uses the newest grant when the user has renewed" do
+      described_class.grant_plan!(user, amount: 400, period_end: 30.days.from_now)
+      travel_to(1.hour.from_now) do
+        described_class.grant_plan!(user, amount: 1500, period_end: 30.days.from_now)
+      end
+
+      expect(described_class.plan_allowance(user.reload)).to eq(1500)
+    end
+
+    it "falls back to the plan default when the user has never been granted" do
+      user.update_columns(plan_type: "pro")
+      expect(described_class.plan_allowance(user.reload)).to eq(1500)
+    end
+
+    it "ignores top-up purchases and expirations" do
+      described_class.grant_plan!(user, amount: 400, period_end: 30.days.from_now)
+      described_class.grant_topup!(user, amount: 978)
+      described_class.expire_plan_credits!(user.reload)
+
+      expect(described_class.plan_allowance(user.reload)).to eq(400)
+    end
+  end
+
   describe ".initial_period_end_for" do
     it "is 14 days for basic_trial (matches the soft-trial window)" do
       from = Time.utc(2026, 5, 1)

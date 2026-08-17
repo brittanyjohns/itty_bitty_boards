@@ -11,6 +11,9 @@ class API::MeController < API::ApplicationController
       total: balance[:total],
       reset_at: balance[:reset_at]&.iso8601,
       plan_type: current_user.plan_type,
+      # The denominator for the client's "N of X left" gauge. Served rather
+      # than hardcoded per plan: a Stripe Price can override the grant.
+      plan_allowance: CreditService.plan_allowance(current_user),
     }
   end
 

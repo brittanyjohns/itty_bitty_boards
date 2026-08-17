@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **The credits endpoint now reports your actual monthly allowance.**
+  `GET /api/me/credits` returns a `plan_allowance` field alongside the existing
+  balances, taken from the amount you were really granted this period rather
+  than a per-plan constant — so a plan whose allowance was set individually
+  reports the number you were given. The app uses it as the denominator for
+  "N of 400 left" on the dashboard.
+
 - **Imported boards keep their tile sizes.** OBF/OBZ import used to force every
   tile to a single cell, so a board whose file described wide tiles — a
   point-to-talk board with a 13-column alphabet strip under word tiles spanning
