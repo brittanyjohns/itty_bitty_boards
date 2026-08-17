@@ -10,9 +10,10 @@
 #
 #   1. The pick is DETERMINISTIC and hashed from the board, never random. A
 #      listing is already live by the time anyone re-renders it, and a random
-#      pick would re-skin a published Etsy listing on every regeneration. Same
-#      reasoning as BrandAssets::SCENES, and PALETTES is ordered for the same
-#      reason: reordering it re-skins every existing listing.
+#      pick would re-skin a published Etsy listing on every regeneration. The
+#      identity that pick keys on is a palette's `key`, not its position — see
+#      StablePick — so this list may be reordered and appended to, and renaming
+#      a key is the thing that re-skins.
 #   2. The salt differs from the scene pick, so palette and room photo rotate
 #      INDEPENDENTLY. Hashing the same key twice would pair scene 1 with palette
 #      1 forever and collapse 4 x 5 looks back down to 4.
@@ -67,11 +68,10 @@ module Boards
       ].freeze
 
       class << self
-        def for(board) = new(PALETTES[index_for(board)])
+        def for(board) = new(palette_for(board))
 
-        def index_for(board)
-          key = board.try(:slug).presence || board.try(:id).to_s
-          Digest::SHA256.hexdigest("palette:#{key}").to_i(16) % PALETTES.size
+        def palette_for(board)
+          StablePick.from(PALETTES, salt: "palette", board: board, slug_for: ->(p) { p[:key] })
         end
       end
 

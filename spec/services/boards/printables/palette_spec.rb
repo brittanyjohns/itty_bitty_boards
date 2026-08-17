@@ -25,10 +25,37 @@ RSpec.describe Boards::Printables::Palette do
     boards = Array.new(40) { |i| board("board-#{i}") }
 
     pairs = boards.map do |b|
-      [Boards::Printables::BrandAssets.scene_index_for(b), described_class.index_for(b)]
+      [Boards::Printables::BrandAssets.scene_name_for(b), described_class.for(b).key]
     end
 
     expect(pairs.uniq.size).to be > described_class::PALETTES.size
+  end
+
+  # The property the modulo pick did not have, and the reason it was replaced:
+  # appending a palette must not reshuffle the boards already using the others.
+  it "leaves most boards where they were when a palette is appended" do
+    boards = Array.new(60) { |i| board("board-#{i}") }
+    before = boards.map { |b| described_class.for(b).key }
+
+    grown = described_class::PALETTES + [described_class::PALETTES.first.merge(key: "brand-new")]
+    stub_const("#{described_class}::PALETTES", grown)
+    after = boards.map { |b| described_class.for(b).key }
+
+    unchanged = before.zip(after).count { |was, now| was == now }
+    # Only boards that land on the new palette may move; nothing else does.
+    expect(unchanged).to eq(after.count { |key| key != "brand-new" })
+    expect(after).to include("brand-new")
+  end
+
+  # Order carried meaning under the modulo pick. It must not any more, or the
+  # next person to tidy this list re-skins the whole shop.
+  it "is unaffected by the order of the list" do
+    boards = Array.new(30) { |i| board("board-#{i}") }
+    before = boards.map { |b| described_class.for(b).key }
+
+    stub_const("#{described_class}::PALETTES", described_class::PALETTES.reverse)
+
+    expect(boards.map { |b| described_class.for(b).key }).to eq(before)
   end
 
   describe "#css_vars" do

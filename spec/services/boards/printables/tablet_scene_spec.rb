@@ -26,10 +26,49 @@ RSpec.describe Boards::Printables::TabletScene do
     boards = Array.new(40) { |i| board("board-#{i}") }
 
     pairs = boards.map do |b|
-      [Boards::Printables::BrandAssets.scene_index_for(b), described_class.index_for(b)]
+      [Boards::Printables::BrandAssets.scene_name_for(b), described_class.for(b).slug]
     end
 
     expect(pairs.uniq.size).to be > described_class::SCENES.size
+  end
+
+  # Calibration is done by hand in the printables repo's
+  # calibrate-mockup-scene.html and the numbers are copied here, so these are the
+  # assertions that catch a bad paste before a listing does.
+  describe "every vendored scene" do
+    described_class::SCENES.each do |values|
+      context values[:slug] do
+        subject(:scene) { described_class.new(values) }
+
+        it "has its photo on disk" do
+          expect(scene.data_uri).to start_with("data:image/jpeg;base64,")
+        end
+
+        it "keeps every quad corner inside the photo" do
+          scene.quad.each do |x, y|
+            expect(x).to be_between(0, values[:width])
+            expect(y).to be_between(0, values[:height])
+          end
+        end
+
+        it "solves to a matrix rather than a degenerate quad" do
+          expect { scene.matrix3d }.not_to raise_error
+        end
+
+        # A homography maps ANY rectangle onto the quad, so a screen shaped
+        # unlike the app shell doesn't fail — it silently ships a stretched
+        # board, which a buyer reads as "the product is distorted".
+        # RenderDeviceScreen's shell is one fixed size for every scene, so the
+        # constraint lands here: keep new scenes near it, or teach that class to
+        # size itself from scene.screen_width / scene.screen_height.
+        it "has a screen shaped like the app shell it receives" do
+          shell = Boards::Printables::RenderDeviceScreen::SHELL_WIDTH.to_f /
+                  Boards::Printables::RenderDeviceScreen::SHELL_HEIGHT
+
+          expect(scene.screen_width.to_f / scene.screen_height).to be_within(0.06).of(shell)
+        end
+      end
+    end
   end
 
   describe "the screen it warps onto" do

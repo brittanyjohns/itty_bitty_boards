@@ -16,10 +16,12 @@ module Boards
     class TabletScene
       DIR = Rails.root.join("app/assets/images/printables/mockups").freeze
 
-      # Ordered, and the order is load-bearing for exactly the same reason as
-      # BrandAssets::SCENES and Palette::PALETTES: the pick is hashed from the
-      # board so a re-render can't hand a live listing a different photo, which
-      # means reordering this list re-skins every existing listing.
+      # The SLUGS are load-bearing; the order is not. StablePick scores each
+      # entry by its own slug rather than its index, so this list can be
+      # reordered or appended to freely — renaming a slug is what re-skins the
+      # boards that had picked it. See StablePick for why that replaced the
+      # modulo pick this (and BrandAssets::SCENES, and Palette::PALETTES) used
+      # to do.
       SCENES = [
         {
           slug: "hands-tablet",
@@ -37,11 +39,10 @@ module Boards
       ].freeze
 
       class << self
-        def for(board) = new(SCENES[index_for(board)])
+        def for(board) = new(scene_for(board))
 
-        def index_for(board)
-          key = board.try(:slug).presence || board.try(:id).to_s
-          Digest::SHA256.hexdigest("tablet:#{key}").to_i(16) % SCENES.size
+        def scene_for(board)
+          StablePick.from(SCENES, salt: "tablet", board: board, slug_for: ->(s) { s[:slug] })
         end
       end
 
