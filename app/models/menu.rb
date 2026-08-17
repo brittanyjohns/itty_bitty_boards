@@ -111,16 +111,32 @@ class Menu < ApplicationRecord
       board.name = self.name || "Board for Doc #{id}"
       board.token_limit = token_limit
       board.description = new_doc.processed
-      board.number_of_columns = 6
       board.save!
       new_doc.update!(board_id: board.id)
       create_images_from_description(board)
+      apply_grid_columns!(board)
       board.reset_layouts
       board
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
       nil
     end
+  end
+
+  # The tile count isn't known until the vision result has been turned into
+  # tiles, so the grid is sized here rather than at board-create time: a menu
+  # board gets the squarest grid its own item count allows.
+  def apply_grid_columns!(board)
+    tile_count = board.board_images.reset.size
+    return if tile_count.zero?
+
+    columns = Boards::GridFit.columns_for(tile_count)
+    board.large_screen_columns = columns
+    board.medium_screen_columns = Boards::ScreenColumns.derive(columns, "md")
+    board.small_screen_columns = Boards::ScreenColumns.derive(columns, "sm")
+    # Keep the serialized value in step with the value the layout math reads.
+    board.number_of_columns = columns
+    board.save!
   end
 
   def public_url

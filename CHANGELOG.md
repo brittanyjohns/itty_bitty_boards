@@ -68,6 +68,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **A board made from a menu photo now fits its own grid.** Menu boards were
+  always built eight tiles wide no matter what the photo held, so a six-item
+  café menu arrived as one long strip and a forty-item diner menu as a wide
+  block with a ragged last row. The grid is now sized from the number of items
+  actually found on the menu, squaring up whenever the count allows it — nine
+  items land 3×3, sixteen land 4×4, twenty-five land 5×5 — and a very long menu
+  gets taller rather than squeezing tiles too small to hit on a tablet. The
+  board also now reports the same width it is drawn at; the two had drifted
+  apart (laid out at eight columns, described as six).
 - **AI board drafts now come back laid out, not just filled in.** The order the
   AI answers in is the order the tiles land on the grid, so a scrambled word list
   was a scrambled board: a verb, a noun, a pronoun, another noun, and the
