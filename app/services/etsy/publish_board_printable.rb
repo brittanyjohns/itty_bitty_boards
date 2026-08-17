@@ -81,7 +81,11 @@ module Etsy
       return "This printable has no PDF files attached." if printable.pdf_files.empty?
 
       if printable.etsy_published?
-        return "Already on Etsy as listing #{printable.etsy_listing_id}. Delete that draft first if you want a new one."
+        # Naming the way out matters: deleting the draft on Etsy does NOT free
+        # this printable, because nothing there writes back here. "Detach &
+        # relist" is the only thing that clears the listing id.
+        return "Already on Etsy as listing #{printable.etsy_listing_id}. Use \"Detach & relist\" to " \
+               "make a replacement draft — deleting it on Etsy alone won't free this printable."
       end
 
       return "Listing title and description are required." if copy["title"].blank? || copy["description"].blank?

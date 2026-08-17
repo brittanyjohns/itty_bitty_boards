@@ -2,7 +2,8 @@ module Boards
   # Read-only "does a marketplace listing depend on this board?" check.
   #
   # A board is protected when a BoardPrintable that reached Etsy
-  # (`etsy_listing_id` present, protection not waived) was rendered from it.
+  # (ever published, protection not waived) was rendered from it — see
+  # BoardPrintable#etsy_ever_published? for why that is a union of two columns.
   # That covers the WHOLE printed tree, not just the printable's root board:
   # every interior page carries its own QR pointing at its own `/pb/<slug>`, so
   # deleting page 4 of a twelve-page set breaks the product exactly as badly as
