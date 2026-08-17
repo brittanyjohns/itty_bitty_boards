@@ -126,4 +126,61 @@ RSpec.describe ChildBoard, type: :model do
       )
     end
   end
+
+  # Favoriting is what puts a board on the communicator's public MySpeak page,
+  # and Board#viewable_by? refuses an anonymous visitor an unpublished board —
+  # so the card would render and then 404 on tap.
+  describe "publishing on favorite" do
+    let(:unpublished) { create(:board, user: user, published: false) }
+
+    it "publishes the board when a row is created already favorited" do
+      create(:child_board, board: unpublished, child_account: communicator, favorite: true)
+
+      expect(unpublished.reload.published).to be true
+    end
+
+    it "publishes the board when #toggle_favorite turns it on" do
+      child_board = create(:child_board, board: unpublished, child_account: communicator)
+
+      expect { child_board.toggle_favorite }
+        .to change { unpublished.reload.published }.from(false).to(true)
+    end
+
+    it "does not publish a board that is merely attached, not favorited" do
+      create(:child_board, board: unpublished, child_account: communicator)
+
+      expect(unpublished.reload.published).to be false
+    end
+
+    # /pb/<slug> may already be printed into an IEP or a QR code. Removing a
+    # board from MySpeak must never break paper.
+    it "leaves the board published when the favorite is turned back off" do
+      child_board = create(:child_board, board: unpublished, child_account: communicator,
+                                         favorite: true)
+
+      expect { child_board.toggle_favorite }
+        .not_to change { unpublished.reload.published }.from(true)
+    end
+
+    it "does not publish a board owned by another user" do
+      foreign = create(:board, user: create(:user), published: false)
+      create(:child_board, board: foreign, child_account: communicator, favorite: true)
+
+      expect(foreign.reload.published).to be false
+    end
+  end
+
+  # `child_boards.published` is a dead column — nothing in the app writes it —
+  # so the serializers report the BOARD's flag, which is what actually gates
+  # the public page.
+  describe "#api_view published flag" do
+    it "reports the board's published state, not the join row's" do
+      board.update!(published: true)
+      child_board = create(:child_board, board: board, child_account: communicator)
+
+      expect(child_board.read_attribute(:published)).to be false
+      expect(child_board.api_view[:published]).to be true
+      expect(child_board.api_view_with_images[:published]).to be true
+    end
+  end
 end

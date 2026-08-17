@@ -825,10 +825,18 @@ Re-send the identical payload with `confirm=true` to apply it; the root's save a
 The guard runs **before any attribute is assigned**, so a declined cascade writes
 nothing — other fields in the same payload are neither applied nor lost.
 
-The cascade set is the root's builder `BoardGroup` membership — the same set
-`Boards::UsageCheck#builder_group` cascades on delete. Hand-linked folder-tile
-descendants (`board_images.predictive_board_id`) outside the builder set are
-deliberately **not** included: they aren't owned by the root.
+The cascade set has **two** membership sources, unioned:
+
+1. the root's builder `BoardGroup` membership — the same set
+   `Boards::UsageCheck#builder_group` cascades on delete; and
+2. `Boards::AssignmentCloner`'s sub-clones, which carry
+   `settings["assignment_root_id"] = <root clone id>` and have **no**
+   `BoardGroup` at all. Without this source a cloned starter's folder tiles
+   404'd on a published root — the exact failure the cascade exists to prevent.
+
+Hand-linked folder-tile descendants (`board_images.predictive_board_id`)
+outside the root's own tree are deliberately **not** included: they aren't
+owned by the root.
 
 Members are additionally scoped to **the root board's owner**
 (`user_id: board.user_id`). `Board#builder_board_group` falls back to
@@ -855,6 +863,20 @@ Any new way to hang a page off a builder set needs the same join.
 **Image-removal bypass:** The guard is skipped entirely when the request carries
 `image_ids_to_remove` — that branch returns early (line 453 in the controller)
 without any board attribute assignment or save, so there is nothing to confirm.
+
+**Favoriting onto a communicator publishes, without a confirmation.**
+`Boards::MySpeakPublisher` runs from a `ChildBoard` `after_save` hook when
+`favorite` flips true, because a board on a communicator's public MySpeak page
+has to be published or its card 404s on tap. It goes straight to
+`PublishCascade#apply!` with no 409: `blocked_board_ids` returns empty for
+`published: true` (publishing can't break printed paper), so there is nothing
+to confirm. Three rails distinguish it from the controller path — it never
+unpublishes (unfavoriting is a no-op, since `/pb/<slug>` may already be on
+paper), it publishes only boards owned by the communicator's owner, and a
+Board Builder set gets a second sync at the end of `BuildBoardSetJob`, since
+at favorite time the root's group is still empty. The matching read-side
+filter lives in `Profile#communication_boards` — see
+`.claude-notes/safety-profiles.md`.
 
 ### `published` vs `predefined` — not the same permission
 

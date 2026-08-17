@@ -776,4 +776,74 @@ RSpec.describe Profile, type: :model do
       expect(VoiceService).not_to have_received(:synthesize_speech)
     end
   end
+
+  # Both lists are serialized straight into an UNAUTHENTICATED payload, while
+  # the board behind each card is gated on Board#viewable_by? — which refuses
+  # an anonymous visitor an unpublished board. Selecting on `favorite` alone
+  # served a card for a private board that 404'd on tap.
+  describe "published filtering on the public board lists" do
+    let(:owner) { create(:user) }
+
+    describe "#communication_boards for a communicator" do
+      let(:child) { create(:child_account, user: owner, owner: owner) }
+      let(:profile) do
+        Profile.new(profileable: child, username: "sky-cb", slug: "sky-cb").tap(&:save!)
+      end
+
+      it "includes a favorited published board" do
+        board = create(:board, user: owner, published: true)
+        create(:child_board, board: board, child_account: child, favorite: true)
+
+        expect(profile.communication_boards.map(&:board_id)).to include(board.id)
+      end
+
+      it "excludes a favorited board that is not published" do
+        board = create(:board, user: create(:user), published: false)
+        create(:child_board, board: board, child_account: child, favorite: true)
+
+        expect(profile.communication_boards.map(&:board_id)).not_to include(board.id)
+      end
+
+      it "still preloads without raising on the ChildBoard relation" do
+        board = create(:board, user: owner, published: true)
+        create(:child_board, board: board, child_account: child, favorite: true)
+
+        expect { profile.communication_boards.map(&:public_card_view) }.not_to raise_error
+      end
+    end
+
+    # User#favorite_boards returns Boards, not ChildBoard join rows — the two
+    # branches of #communication_boards can't be collapsed, so both need cover.
+    describe "#communication_boards for a user" do
+      let(:profile) do
+        Profile.new(profileable: owner, username: "pat-cb", slug: "pat-cb").tap(&:save!)
+      end
+
+      it "excludes an unpublished favorited board" do
+        published = create(:board, user: owner, favorite: true, published: true)
+        private_board = create(:board, user: owner, favorite: true, published: false)
+
+        ids = profile.communication_boards.map(&:id)
+        expect(ids).to include(published.id)
+        expect(ids).not_to include(private_board.id)
+      end
+    end
+
+    describe "#user_boards" do
+      let(:profile) do
+        Profile.new(profileable: owner, username: "pat-ub", slug: "pat-ub").tap(&:save!)
+      end
+
+      it "excludes an unpublished board from the user's public page" do
+        published = create(:board, user: owner, published: true,
+                                   board_type: "board", sub_board: false)
+        private_board = create(:board, user: owner, published: false,
+                                       board_type: "board", sub_board: false)
+
+        ids = profile.user_boards.map(&:id)
+        expect(ids).to include(published.id)
+        expect(ids).not_to include(private_board.id)
+      end
+    end
+  end
 end
