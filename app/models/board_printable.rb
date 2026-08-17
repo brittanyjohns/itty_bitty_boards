@@ -81,6 +81,23 @@ class BoardPrintable < ApplicationRecord
     IMAGE_ABOUT,
   ].freeze
 
+  # The listing video. One per printable — Etsy allows a listing exactly one,
+  # and it occupies a slot of its own rather than counting against the ten
+  # gallery photos.
+  VIDEO_FLIP_THROUGH = "flip_through".freeze
+  VIDEO_MANUAL = "manual".freeze
+
+  # Bumping this marks every rendered video stale and forces a re-render, the
+  # same job LISTING_IMAGE_ORDER does for the gallery. It lives in blob
+  # metadata rather than a column because the alternative is a migration every
+  # time the frame design changes.
+  VIDEO_SPEC_VERSION = 1
+
+  # Etsy's limits. 5-15 seconds, one video, and a listing video's audio track is
+  # stripped on upload — so a clip must carry everything it says visually.
+  VIDEO_MIN_SECONDS = 5.0
+  VIDEO_MAX_SECONDS = 15.0
+
   # The gallery used to be a scaled-down print sheet: a "cover" plus a
   # what's-included slide. Nothing renders a cover any more, but printables
   # generated before the redesign still carry the blob, and it must not reach a
@@ -158,9 +175,70 @@ class BoardPrintable < ApplicationRecord
     )
   end
 
+  # Same shape as #attach_image!, and versioned for the same CloudFront reason.
+  # `source` distinguishes a rendered flip-through from a clip an operator
+  # uploaded by hand: a hand-made clip must never be marked stale by a spec
+  # bump, because nothing can re-render it.
+  def attach_video!(bytes:, duration:, source: VIDEO_FLIP_THROUGH)
+    video_files.each(&:purge)
+    reload_files_association
+
+    filename = "#{source.dasherize}-#{SecureRandom.hex(4)}.mp4"
+    attach_blob!(
+      key: versioned_storage_key_for(filename),
+      filename: filename,
+      bytes: bytes,
+      content_type: VideoTranscoder::OUTPUT_CONTENT_TYPE,
+      metadata: {
+        "kind" => KIND_VIDEO,
+        "variant" => source,
+        "spec_version" => VIDEO_SPEC_VERSION,
+        "duration" => duration.to_f.round(2),
+        "board_count" => board_ids.to_a.size,
+      },
+    )
+  end
+
+  def video_files
+    return [] unless files.attached?
+
+    files.select { |f| f.metadata["kind"] == KIND_VIDEO }
+  end
+
+  def video_file = video_files.first
+
+  def listing_video? = video_file.present?
+
+  # Whether the attached video is one this code would produce today. A
+  # hand-uploaded clip is always current — there is no renderer that could
+  # replace it, so badging it stale would only nag.
+  def listing_video_current?
+    file = video_file
+    return false if file.nil?
+    return true if file.metadata["variant"] == VIDEO_MANUAL
+
+    file.metadata["spec_version"].to_i == VIDEO_SPEC_VERSION &&
+      file.metadata["board_count"].to_i == board_ids.to_a.size
+  end
+
+  # Deliberately not folded into #files_view: that is the buyer's download list.
+  def listing_video_view
+    file = video_file
+    return nil if file.nil?
+
+    {
+      variant: file.metadata["variant"],
+      filename: file.filename.to_s,
+      url: url_for_file(file),
+      byte_size: file.byte_size,
+      duration: file.metadata["duration"].to_f,
+      manual: file.metadata["variant"] == VIDEO_MANUAL,
+    }
+  end
+
   # The downloadable product. Deliberately PDFs only — the admin download
   # buttons and the /api/board_printables/:id/download_url contract both read
-  # this, and neither should start handing out marketing images.
+  # this, and neither should start handing out marketing images or video.
   def files_view
     view_for(pdf_files)
   end
@@ -239,6 +317,16 @@ class BoardPrintable < ApplicationRecord
   # each board exactly once per download variant: the count is exact for
   # printables generated before this existed, with no re-render.
   def board_page_count = board_ids.to_a.size * DOWNLOAD_VARIANTS.size
+
+  # Every board this printable covers, as records, in TREE order with the root
+  # first — which is the order `board_ids` is written in and the order a
+  # `where` throws away. Lives here rather than in a renderer because both the
+  # gallery and the video need exactly this and a second copy would drift.
+  def ordered_boards
+    ids = board_ids.to_a.presence || [board_id]
+    by_id = Board.where(id: ids).index_by(&:id)
+    ids.filter_map { |id| by_id[id] }
+  end
 
   def etsy_published? = etsy_listing_id.present?
 

@@ -132,6 +132,26 @@ module Printables
       ]
     end
 
+    # The listing video's frames. Etsy STRIPS a listing video's audio, so every
+    # one of these has to be readable rather than narrated — and short, because
+    # a page frame is on screen for around a second.
+    # "boards", not "pages", and the same word the sticker beside it uses:
+    # printing one number as boards in one place and pages in the other is how
+    # a buyer starts wondering which of the two they're actually getting.
+    def video_intro_headline(board_count:)
+      return "Every word. Ready to print." unless board_count > 1
+
+      "#{board_count} linked boards that flip like a book"
+    end
+
+    # Sits on each page frame after the first. The claim no other AAC printable
+    # on the marketplace makes: the links work on paper.
+    def video_back_marker = "◀ back button on every page"
+
+    def video_outro_headline = "Scan any page — every word talks"
+
+    def video_outro_sub = "Free audio companion. No app, no sign-in."
+
     def hero_footer_bullets
       [
         "Free audio companion — no app, no subscription",

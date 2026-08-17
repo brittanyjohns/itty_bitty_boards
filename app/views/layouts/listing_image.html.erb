@@ -69,10 +69,15 @@
         --shadow-soft: 0 18px 40px rgba(19, 73, 111, 0.18);
         --shadow-card: 0 24px 56px rgba(19, 73, 111, 0.28);
 
+        /* The canvas edge length. Gallery slides render at 1280; the listing
+           video's frames override this to 1080 (.video-frame below). */
+        --slide-px: 1280px;
+
         /* The horizontal safe zone — see rail 5 at the top of this file.
            12.5% of the 1280px canvas, against the 10% Etsy actually takes off
-           each side. Every inset that holds CONTENT reads this token; band
-           backgrounds still bleed to the edge. */
+           each side, and a larger fraction still at the video's 1080. Every
+           inset that holds CONTENT reads this token; band backgrounds still
+           bleed to the edge. */
         --safe-x: 160px;
 
         /* Rotated per listing by Boards::Printables::Palette. These defaults
@@ -112,10 +117,15 @@
       /* Square, because that is the shape Etsy's search grid uses and the one
          all six slides share. It is NOT the shape every view uses — see rail 5
          above; the safe zone is what makes a square source survive the crops. */
+      /* Square, and sized from a token because two renderers share this layout
+         at different edge lengths: RenderListingImages::CANVAS_PX (1280) for
+         the gallery slides and RenderListingVideo::FRAME_PX (1080) for the
+         video frames. A hardcoded 1280 here rendered a video frame clipped to
+         its viewport rather than fitted to it. */
       .slide {
         position: relative;
-        width: 1280px;
-        height: 1280px;
+        width: var(--slide-px);
+        height: var(--slide-px);
         overflow: hidden;
         background: var(--cream);
       }
@@ -555,6 +565,183 @@
         letter-spacing: 0.08em;
         text-align: center;
       }
+
+      /* ── Listing video frames ─────────────────────────────────────────── */
+      /* Rendered at 1080 square rather than the slides' 1280, so everything
+         here is sized against that rather than reusing the slide bands. They
+         share the layout for the tokens, the inlined fonts and the palette —
+         the clip and the still gallery have to read as one listing.
+
+         The safe zone still applies, and harder: Etsy crops a listing video to
+         a 4:5 frame the same way it crops a photo, and there is no
+         "adjust thumbnail" dialog to rescue a cropped word. */
+      .video-frame {
+        --slide-px: 1080px;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+      }
+
+      .video-stack {
+        position: relative;
+        z-index: 4;
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+        padding: 96px var(--safe-x);
+        text-align: center;
+      }
+
+      .video-headline {
+        font-size: 58px;
+        font-weight: 800;
+        line-height: 1.15;
+        color: var(--navy);
+        background: rgba(255,255,255,0.94);
+        border-radius: 20px;
+        padding: 26px 34px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .video-sub {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+
+      .video-count {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 236px;
+        height: 236px;
+        border: 10px solid var(--white);
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--white);
+        box-shadow: var(--shadow-card);
+      }
+
+      .video-count strong { font-size: 116px; font-weight: 800; line-height: 0.9; }
+
+      .video-count span {
+        white-space: pre-line;
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        line-height: 1.1;
+      }
+
+      /* A page frame gives the sheet nearly the whole 1080, because the page IS
+         the content — the head and foot only exist to say it belongs to a set. */
+      .video-page { padding: 34px var(--safe-x); gap: 22px; }
+
+      .video-page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .video-page-label {
+        flex: 1 1 auto;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        padding: 14px 26px;
+        border-radius: 14px;
+        background: var(--navy);
+        color: var(--white);
+        font-size: 40px;
+        font-weight: 800;
+        text-align: left;
+      }
+
+      .video-page-count {
+        flex: 0 0 auto;
+        padding: 14px 26px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--white);
+        font-size: 36px;
+        font-weight: 800;
+      }
+
+      /* The page fits itself into whatever height is left, at its own aspect.
+         Deliberately NOT an aspect-ratio on a flex-grow item: `flex: 1 1 auto`
+         resolves the height first and aspect-ratio then has nothing to say, so
+         a landscape page rendered as a tall white box with the board floating
+         in the middle of it. A centring wrapper plus max-width/max-height on
+         the image itself can't get this wrong, and a rendered page already has
+         its own white paper — it never needed a card behind it. */
+      .video-paper {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .video-paper img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 16px;
+        box-shadow: var(--shadow-card);
+      }
+
+      .video-page-foot { flex: 0 0 auto; }
+
+      .video-back {
+        padding: 16px 28px;
+        border-radius: 999px;
+        background: var(--band);
+        color: var(--navy);
+        font-size: 34px;
+        font-weight: 800;
+        text-align: center;
+      }
+
+      /* The first page has nothing to go back TO, so it carries the download
+         claim in the same slot rather than leaving a hole the eye tracks. */
+      .video-back.is-root {
+        background: var(--ink);
+        color: var(--white);
+        font-size: 28px;
+        letter-spacing: 0.08em;
+      }
+
+      .video-outro-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 40px;
+        width: 100%;
+      }
+
+      .video-qr {
+        flex: 0 0 auto;
+        padding: 18px;
+        border-radius: 20px;
+        background: var(--white);
+        box-shadow: var(--shadow-card);
+      }
+
+      .video-qr img { display: block; width: 244px; height: 244px; }
+
+      .video-device { flex: 0 1 auto; min-width: 0; }
+
+      .video-device img {
+        display: block;
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 14px;
+      }
+
+      .video-outro .site-mark { font-size: 28px; }
 
       .hero-empty {
         font-size: 30px;

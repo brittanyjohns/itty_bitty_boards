@@ -60,15 +60,7 @@ module Boards
       # Planned before anything is rendered, so Grover is only paid for tiles
       # that will actually be shown.
       def plan
-        @plan ||= ContentTilePlan.build(boards: ordered_boards)
-      end
-
-      # board_ids is in tree order (root first) and a `where` loses it, so the
-      # records are put back into it.
-      def ordered_boards
-        ids = printable.board_ids.to_a.presence || [board.id]
-        by_id = Board.where(id: ids).index_by(&:id)
-        ids.filter_map { |id| by_id[id] }
+        @plan ||= ContentTilePlan.build(boards: printable.ordered_boards)
       end
 
       # The hero shows at most five pages. It is a shop window, not an
