@@ -40,6 +40,13 @@ module Etsy
     FILE_CAP_BYTES = 20 * 1024 * 1024
     MAX_DOWNLOAD_FILES = 5
 
+    # A listing video is capped at 100 MB and must run 5-15 seconds. The
+    # duration is enforced where the clip is made
+    # (Boards::Printables::RenderListingVideo), because Etsy does not reject a
+    # bad one on upload — it rejects it when the seller tries to activate the
+    # listing, with nothing pointing back at the cause.
+    VIDEO_CAP_BYTES = 100 * 1024 * 1024
+
     TIMEOUT = 30
     OPEN_TIMEOUT = 10
 
@@ -156,6 +163,30 @@ module Etsy
         "rank" => rank.to_s,
       }
       request(:post, "/shops/#{shop_id}/listings/#{listing_id}/images", body: body)
+      true
+    end
+
+    # A listing's video. Separate from the gallery: Etsy allows exactly one,
+    # and it does NOT count against the ten photos.
+    #
+    # There is deliberately no list or delete counterpart. Etsy's `video_id`
+    # form field replaces an existing video, which is what an update path would
+    # want — but this app only ever creates fresh drafts
+    # (Etsy::PublishBoardPrintable refuses a printable that is already
+    # published), so a listing here can never already have one. A DELETE
+    # against a live listing is also exactly what the drafts-only invariant
+    # exists to prevent.
+    def upload_video(listing_id, bytes:, filename:)
+      if bytes.bytesize > VIDEO_CAP_BYTES
+        raise Error, "#{filename} is #{bytes.bytesize} bytes; Etsy caps a listing video at 100 MB."
+      end
+
+      name = normalize_filename(filename)
+      body = {
+        "video" => multipart_part(bytes, VideoTranscoder::OUTPUT_CONTENT_TYPE, name),
+        "name" => name,
+      }
+      request(:post, "/shops/#{shop_id}/listings/#{listing_id}/videos", body: body)
       true
     end
 

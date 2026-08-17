@@ -52,6 +52,12 @@ module Etsy
         etsy_error: nil,
       )
 
+      # AFTER the record is marked published, and outside the rescue that turns
+      # a failure into a Result: the video is the one optional part of a draft,
+      # and losing it must not turn a listing that exists into a publish that
+      # reports failure. See #upload_video.
+      upload_video(listing[:listing_id])
+
       Result.new(ok?: true, listing_id: listing[:listing_id], listing_url: listing[:url])
     rescue => e
       Rails.logger.error("[Etsy::PublishBoardPrintable] printable #{printable.id}: #{e.class} - #{e.message}")
@@ -120,6 +126,34 @@ module Etsy
           rank: index + 1,
         )
       end
+    end
+
+    # Opt-in, and never fatal.
+    #
+    # Deliberately NOT mirrored on #render_listing_images_if_missing. That
+    # exists because Etsy won't let a listing go live with zero photos, so a
+    # draft without them is a dead end. There is no equivalent rule for video —
+    # a draft without one is finishable — and rendering a video here would put
+    # ten Grover renders plus an ffmpeg encode inside a job that is
+    # deliberately `retry: 0`, where a timeout wedges a publish half-done in a
+    # real shop. The video is rendered from the admin, ahead of time.
+    #
+    # A failure is recorded on `etsy_error` and nowhere else. That field
+    # otherwise means "the publish failed", which this overloads — but the
+    # alternative is a silently video-less listing, and `etsy_published?` keys
+    # on `etsy_listing_id` while `guard_failure` never reads `etsy_error`, so
+    # nothing branches on it.
+    def upload_video(listing_id)
+      file = printable.video_file
+      return if file.blank?
+
+      client.upload_video(listing_id, bytes: file.download, filename: file.filename.to_s)
+    rescue StandardError => e
+      Rails.logger.error("[Etsy::PublishBoardPrintable] printable #{printable.id} video: #{e.class} - #{e.message}")
+      printable.update_columns(
+        etsy_error: "Draft created, but the listing video failed to upload: #{e.message}".truncate(1000),
+        updated_at: Time.current,
+      )
     end
 
     def upload_files(listing_id)
