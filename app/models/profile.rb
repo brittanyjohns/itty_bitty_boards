@@ -360,6 +360,14 @@ class Profile < ApplicationRecord
   end
 
   # Public-facing communicator/safety page view — do NOT leak email / full settings
+  # Only communicator pages have a private login to offer. Users and vendors
+  # sign in through the normal user flow, so this is always false for them.
+  def communicator_sign_in_available?
+    return false unless profileable_type == "ChildAccount"
+
+    profileable.present? && profileable.sign_in_available?
+  end
+
   def safety_view
     {
       id: id,
@@ -396,6 +404,11 @@ class Profile < ApplicationRecord
       # If you need this for the UI, keep it minimal
       profileable_type: profileable_type,
       profileable_id: profileable_id,
+
+      # Whether this communicator has a working private login, so the public
+      # page can offer a "Sign in as {name}" CTA instead of dead-ending them.
+      # A bare boolean — never the passcode.
+      sign_in_available: communicator_sign_in_available?,
 
       claim_url: claim_url, # ok to show if you want the CTA
       public_about_html: safe_html(public_about&.body&.to_s),
@@ -439,7 +452,8 @@ class Profile < ApplicationRecord
       public_bio_html: safe_html(public_bio&.body&.to_s),
       # Use a minimal public-safe view instead of the full api_view which
       # leaks parent email, supporter/supervisor emails, and passcode.
-      communicator_account: profileable_type == "ChildAccount" ? profileable.public_api_view : nil
+      communicator_account: profileable_type == "ChildAccount" ? profileable.public_api_view : nil,
+      sign_in_available: communicator_sign_in_available?
     }
   end
 
