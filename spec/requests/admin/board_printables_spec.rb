@@ -651,6 +651,59 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       end
     end
 
+    describe "POST relist_on_etsy" do
+      before { printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 2.days.ago) }
+
+      it "detaches the listing so publishing can create a fresh draft" do
+        sign_in admin
+
+        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
+
+        printable.reload
+        expect(printable.etsy_published?).to be false
+        expect(flash[:notice]).to include("987")
+      end
+
+      # The reason protection was rekeyed. A relisted printable's boards still
+      # have printed QR codes pointing at them.
+      it "leaves the boards it protects frozen" do
+        sign_in admin
+
+        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.protects_board?).to be true
+        expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
+      end
+
+      it "unblocks the publish guard it was previously failing" do
+        sign_in admin
+        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to match(/Already on Etsy/)
+
+        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
+        expect(Etsy::PublishBoardPrintable.new(printable.reload).send(:guard_failure))
+          .not_to match(/Already on Etsy/)
+      end
+
+      it "refuses a printable that isn't attached to a listing" do
+        sign_in admin
+        printable.update!(etsy_listing_id: nil)
+
+        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(flash[:alert]).to match(/nothing to relist/)
+      end
+
+      # Detaching must never reach Etsy — deleting the old draft is the
+      # operator's job, and this app implements no delete call at all.
+      it "sends nothing to Etsy" do
+        sign_in admin
+        expect(Etsy::Client).not_to receive(:new)
+
+        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
+      end
+    end
+
     describe "POST regenerate" do
       it "re-runs the PDF pipeline on the same record" do
         sign_in admin

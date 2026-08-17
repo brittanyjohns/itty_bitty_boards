@@ -78,8 +78,14 @@ module Boards
         scope.or(BoardPrintable.where("board_printables.board_ids @> ?", [id].to_json))
       end
 
+      # The UNION of both columns, matching BoardPrintable#etsy_ever_published?.
+      # Not `etsy_listing_id` alone — #relist! clears that so a fresh draft can
+      # be created, and keying here on it would unfreeze every relisted
+      # printable's boards. Not `etsy_published_at` alone either: a row with an
+      # id and no timestamp used to be protected and still must be. The two
+      # definitions must not be able to disagree.
       BoardPrintable
-        .where.not(etsy_listing_id: nil)
+        .where("board_printables.etsy_published_at IS NOT NULL OR board_printables.etsy_listing_id IS NOT NULL")
         .where(protection_waived_at: nil)
         .merge(matching)
     end

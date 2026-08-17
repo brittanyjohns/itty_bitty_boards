@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A published printable can be relisted.** The app only ever creates Etsy
+  listings — it has no way to update one — so re-rendering a gallery or a video
+  could never reach a draft that already existed. "Detach & relist" on the Etsy
+  card releases the link so Publish makes a fresh draft with the current images
+  and video. Nothing is sent to Etsy; the old draft is yours to delete. The
+  boards the printable protects stay protected.
+
 - **The credits endpoint now reports your actual monthly allowance.**
   `GET /api/me/credits` returns a `plan_allowance` field alongside the existing
   balances, taken from the amount you were really granted this period rather

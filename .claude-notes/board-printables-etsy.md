@@ -607,6 +607,45 @@ no migration; bump `BoardPrintable::VIDEO_SPEC_VERSION` to force a fleet-wide
 re-render. A hand-uploaded clip (`VIDEO_MANUAL`, the admin's "Upload instead"
 field) is never stale — nothing could re-render it.
 
+## Replacing a draft — "Detach & relist"
+
+This app **creates** listings and implements no call that updates one. So a
+re-rendered gallery or a newly rendered video **cannot reach an existing draft**
+— there is no code path, by design. `POST relist_on_etsy` is the way round it:
+it clears `etsy_listing_id` / `etsy_listing_url` so `guard_failure` stops
+refusing, and Publish then creates a fresh draft carrying the current images and
+video. It sends **nothing** to Etsy; deleting the superseded draft is the
+operator's job, because doing it here would mean adding the delete call the
+drafts-only invariant exists to keep out.
+
+**Two published-states, and they must not be collapsed:**
+
+| Predicate | Column | Means | Cleared by relist? |
+|---|---|---|---|
+| `etsy_published?` | `etsy_listing_id` | attached to a listing right now | **yes** |
+| `etsy_ever_published?` | `etsy_published_at` **OR** `etsy_listing_id` | a draft was made at some point | never |
+
+`etsy_ever_published?` is a **union**, and that is not belt-and-braces for its
+own sake: protection must never end up narrower than the `etsy_listing_id` test
+it replaced. A row carrying a listing id but no timestamp — set by hand, or by
+anything predating the two being written together — protected its boards before
+and has to keep doing so. `#relist!` stamps `etsy_published_at` before it drops
+the id, so such a row doesn't lose its only remaining evidence on the way past.
+Widening can only over-protect; narrowing unfreezes printed paper.
+
+**Marketplace protection keys on `etsy_ever_published?`.** It used to key on
+`etsy_listing_id`, which was fine while that column only ever went from nil to
+set. Relisting clears it, so leaving protection there would silently unfreeze
+boards whose printed pages already carry their QR codes — the precise failure
+protection exists to prevent. `Boards::MarketplaceProtection`'s SQL scope and
+`BoardPrintable#protects_board?` read the same column and must not diverge; the
+model spec asserts a relisted printable still protects.
+
+Everything protection-facing follows the same rule — the waiver action, the
+delete confirm, the release confirm, and the protection block in `_etsy` — since
+a detached printable still freezes its boards and would otherwise lose the only
+control that releases them.
+
 ## Publishing is never retried
 
 `PublishBoardPrintableToEtsyJob` is `retry: 0`. A retry after a partial success
