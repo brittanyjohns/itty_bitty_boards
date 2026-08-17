@@ -1333,10 +1333,19 @@ class Board < ApplicationRecord
     # points at the *source's* image, so the clone would render the wrong
     # board. Default every clone to its own auto preview and drop the
     # inherited snapshot.
+    #
+    # `settings` carries the same hazard and needs the same treatment:
+    # preset_display_image_url is the legacy cover snapshot, and
+    # Board#preset_display_image_url falls back to it whenever the column is
+    # blank — which is exactly the state the line above just created — so a
+    # clone would resolve to the SOURCE board's cover. preview_status /
+    # preview_generated_at go with it: the clone has rendered nothing, and
+    # inheriting "ok" makes it claim a render that doesn't exist, which is the
+    # field clients poll instead of the URL.
     @cloned_board.write_attribute(:display_image_url, nil)
     @cloned_board.settings = (@cloned_board.settings || {}).merge(
       "display_image_source" => "preview",
-    )
+    ).except("preset_display_image_url", "preview_status", "preview_generated_at")
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
@@ -1397,6 +1406,15 @@ class Board < ApplicationRecord
         end
       end
     end
+    # Reload before asking. The loop above writes each tile with `board_id=`
+    # rather than through `@cloned_board.board_images`, so the DB counter
+    # increments while this instance still holds the 0 set before the save —
+    # and `board_images.any?` reads that column, never the DB
+    # (BoardImage belongs_to :board, counter_cache: true). Without the reload
+    # the guard is always false and NO cloned board is ever rendered. Same trap
+    # Boards::SeededSetCloner works around; the reload also clears the
+    # loaded-empty association cache on the object we hand back to callers.
+    @cloned_board.reload
     @cloned_board.run_generate_preview_job if @cloned_board.board_images.any? && @cloned_board.valid?
 
     unless communicator_account.nil? || communicator_account.child_boards.where(board_id: @cloned_board.id).exists?

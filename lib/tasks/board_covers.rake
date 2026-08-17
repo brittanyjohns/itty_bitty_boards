@@ -102,4 +102,69 @@ namespace :board_covers do
 
     puts "board_covers:refresh_blanked_tile_covers — enqueued #{enqueued} preview render(s)."
   end
+
+  # Render the cover for boards that have tiles but no cover at all — the
+  # backlog left by Board#clone_with_images, whose preview enqueue was guarded
+  # on a stale counter cache and so never fired for any cloned board. Those
+  # boards show as a placeholder everywhere a cover is drawn, including the
+  # public MySpeak page's board grid.
+  #
+  # Selection is by OUTCOME, not by provenance: no preview attachment and a
+  # blank display_image_url column means Board#display_image_url has nothing to
+  # return, whatever created the board. Boards with no tiles are excluded —
+  # there is nothing to render, and Board#preview_generation_blocker refuses
+  # them anyway.
+  #
+  # builder_child sub-boards are skipped here rather than left to the job's own
+  # skip: a board set renders ONE preview (the root) and thumbnails every other
+  # page from the folder tile that opens it, so enqueuing them is pure queue
+  # volume for a render that is discarded.
+  #
+  # Enqueue goes through run_generate_preview_job, not a bare perform_async, so
+  # the render is marked `queued` (what clients poll) and carries
+  # hide_header — a direct push produces a cover WITH a header, unlike every
+  # other caller in the app.
+  #
+  # These are Grover (headless Chrome) renders, so a large batch is real Sidekiq
+  # load. Read the dry-run count first, and use LIMIT to stage it.
+  #
+  #   rake board_covers:render_missing                       # dry run, all
+  #   DRY_RUN=false LIMIT=200 rake board_covers:render_missing
+  #   DRY_RUN=false USER_ID=740 rake board_covers:render_missing
+  desc "Render covers for boards that have tiles but no cover (DRY_RUN=false to apply; LIMIT=N, USER_ID=N to scope)"
+  task render_missing: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+    limit = ENV["LIMIT"].presence&.to_i
+
+    # Excluded via a subquery rather than `where.not("settings @> ?", …)`:
+    # boards.settings has no NOT NULL constraint, and `NULL @> x` is NULL, so
+    # negating it inline would silently drop every board with nil settings —
+    # which is exactly the set most likely to be missing a cover.
+    builder_children = Board.where("settings @> ?", { builder_child: true }.to_json)
+
+    scope = Board.where.missing(:preview_image_attachment)
+                 .where(display_image_url: [nil, ""])
+                 .where(id: BoardImage.select(:board_id))
+                 .where.not(id: builder_children)
+    scope = scope.where(user_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    total = scope.count
+    puts "board_covers:render_missing — #{total} board(s) with tiles and no cover."
+
+    if dry_run
+      target = limit ? [limit, total].min : total
+      puts "(dry run — re-run with DRY_RUN=false to enqueue #{target} Grover render(s))"
+      next
+    end
+
+    enqueued = 0
+    scope.find_each do |board|
+      break if limit && enqueued >= limit
+
+      board.run_generate_preview_job
+      enqueued += 1
+    end
+
+    puts "board_covers:render_missing — enqueued #{enqueued} preview render(s)."
+  end
 end

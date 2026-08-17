@@ -889,6 +889,20 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  # Public-page safe: is there actually a working private login behind this
+  # communicator's MySpeak page? `can_sign_in?` alone isn't enough — the passcode
+  # validations are commented out, so an `active` communicator with a blank
+  # passcode is representable and would 401 at ChildAuthsController#create.
+  #
+  # Called with no user_context on purpose: this answer ships on an
+  # unauthenticated payload, so it must never reflect an admin viewer.
+  def sign_in_available?
+    return false if archived?
+    return false if passcode.blank?
+
+    can_sign_in?
+  end
+
   def admin?
     user.admin?
   end

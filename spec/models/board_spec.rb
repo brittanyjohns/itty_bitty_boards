@@ -106,6 +106,54 @@ RSpec.describe Board, type: :model do
       expect(cloned.display_image_source).to eq("preview")
     end
 
+    describe "cover render" do
+      # Asserting on settings["preview_status"] rather than on
+      # GenerateBoardPreviewJob.jobs: run_generate_preview_job defers the
+      # Sidekiq push to ActiveRecord.after_all_transactions_commit, and under
+      # transactional fixtures that commit never arrives — so the queue is
+      # empty here whether or not the enqueue happened. mark_preview_queued!
+      # runs synchronously, and it's what clients actually poll.
+      it "queues a render for the clone" do
+        cloned = board.clone_with_images(user.id)
+        expect(cloned.reload.settings["preview_status"]).to eq("queued")
+      end
+
+      it "does not queue a render when the source has no tiles" do
+        empty = FactoryBot.create(:board, user: user, name: "Empty")
+        cloned = empty.clone_with_images(user.id)
+        expect(cloned.reload.settings["preview_status"]).to be_nil
+      end
+
+      it "hands back a clone whose tile count is not the stale counter cache" do
+        # The tile loop writes board_images with `board_id=`, so this instance's
+        # board_images_count stays 0 without a reload — and `size`/`any?` read
+        # that column, not the DB. This is the read that made the enqueue guard
+        # always false.
+        cloned = board.clone_with_images(user.id)
+        expect(cloned.board_images.size).to eq(board.board_images.count)
+        expect(cloned.board_images).to be_any
+      end
+
+      it "does not inherit the source's cover snapshot or render outcome" do
+        board.update!(
+          settings: board.settings.to_h.merge(
+            "preset_display_image_url" => "https://cdn.example.com/source-cover.png",
+            "preview_status" => "ok",
+            "preview_generated_at" => 1.day.ago.iso8601,
+          ),
+        )
+
+        cloned = board.clone_with_images(user.id).reload
+
+        # The column is nulled on clone, so preset_display_image_url would fall
+        # through to the inherited snapshot and resolve to the SOURCE's cover.
+        expect(cloned.settings["preset_display_image_url"]).to be_nil
+        expect(cloned.preset_display_image_url).to be_nil
+        expect(cloned.settings["preview_generated_at"]).to be_nil
+        expect(cloned.settings["preview_status"]).to eq("queued")
+      end
+    end
+
     context "tile display_image_url fallback on clone" do
       let(:other_user) { FactoryBot.create(:user) }
 

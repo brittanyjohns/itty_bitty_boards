@@ -72,6 +72,19 @@ RSpec.describe Boards::AssignmentCloner do
     expect { call! }.not_to change { owner.reload.countable_board_count }
   end
 
+  # Assignment is the path that produced a communicator dashboard of boards with
+  # no covers at all: clone_with_images guarded its preview enqueue on a stale
+  # counter cache, so nothing here was ever rendered. The enqueue is deferred to
+  # after_all_transactions_commit — which never fires under transactional
+  # fixtures — so assert the synchronous marker, not the Sidekiq queue.
+  it "queues a cover render for every cloned board in the set" do
+    root_clone = call!
+    food_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
+
+    expect(root_clone.reload.settings["preview_status"]).to eq("queued")
+    expect(food_clone.reload.settings["preview_status"]).to eq("queued")
+  end
+
   it "rolls back everything when a sub-board clone fails" do
     allow_any_instance_of(Board).to receive(:clone_with_images).and_wrap_original do |m, *args, **kwargs|
       m.receiver.name == "Food" ? nil : m.call(*args, **kwargs)

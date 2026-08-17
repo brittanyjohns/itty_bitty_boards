@@ -108,6 +108,16 @@ changed/broke when the source owner edited or deleted them.
 - Legacy shallow clones (no `assignment_root_id` marker) behave as before —
   nothing migrates them; the delete-safety 409 now correctly warns source
   owners that their sub-boards are still referenced.
+- **An assigned clone renders its own cover, and inherits none of the
+  source's.** The cloner has no enqueue of its own — it relies on the one
+  inside `clone_with_images`, which was guarded on a stale counter cache and
+  so never fired, leaving every communicator dashboard (and the public MySpeak
+  board grid) a wall of placeholders. Mechanics and the reload that fixes it:
+  `.claude-notes/artifact-generation-services.md` §3. The clone also drops the
+  source's `settings["preset_display_image_url"]`, `preview_status`, and
+  `preview_generated_at` — the display_image_url COLUMN is nulled on clone, so
+  an inherited snapshot would resolve the clone's card to the *source board's*
+  cover, the same wrong-board render the nulled column exists to prevent.
 
 ### Board removal after hand-off (non-destructive)
 

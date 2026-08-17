@@ -15,6 +15,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   either from a button repeated across the cells it covers or from explicit
   `ext_speakanyway_w` / `ext_speakanyway_h` fields. Files that say nothing about
   size import exactly as before.
+- **A communicator's public MySpeak page now says whether they can sign in.**
+  The public payload carries a `sign_in_available` boolean so the page can offer
+  a "Sign in as {name}" shortcut to the person it belongs to, instead of leaving
+  them to find the communicator sign-in screen on their own. It is false for
+  sandbox communicators, for anyone in fallback mode after a downgrade, for Free
+  plans, and for accounts with no passcode set — all cases where signing in would
+  dead-end — so the shortcut simply doesn't appear. No passcode, email, or token
+  is exposed.
 
 - **Generated marketplace copy now describes the printable it belongs to.**
   Every listing used to open with the same sentence and carry the same 13 tags,
@@ -83,6 +91,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Drafting also runs on a stronger model. (Admin only.)
 
 ### Fixed
+
+- **Boards assigned to a communicator now get their own cover picture.** A board
+  put on a communicator is copied rather than shared, and the copy's cover was
+  never drawn — so a communicator's dashboard, and the board grid on their public
+  MySpeak page, showed a grid of grey "Board thumbnail" placeholders instead of
+  pictures. Someone opening a MySpeak page from a QR tag had no way to tell the
+  boards apart at a glance. New copies render their cover on assignment, and
+  `rake board_covers:render_missing` draws the missing ones for boards assigned
+  before this fix. A copy also no longer borrows the original board's cover
+  picture, which could show the wrong board under the right name.
 
 - **Tiles no longer end up silently missing their own audio.** When a board's
   voice was set while its tiles were still being written, the job that fills in

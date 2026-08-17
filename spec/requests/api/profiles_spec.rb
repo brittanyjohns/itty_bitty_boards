@@ -233,6 +233,64 @@ RSpec.describe "API::Profiles", type: :request do
     end
   end
 
+  # The public MySpeak page offers a "Sign in as {name}" CTA, but only when the
+  # communicator actually has a working private login. Sandbox/fallback/Free
+  # accounts would dead-end at the login endpoint, so the flag hides the CTA.
+  describe "GET /api/profiles/public/:slug (sign_in_available flag)" do
+    let(:owner) { FactoryBot.create(:user, plan_type: "pro") }
+
+    def public_body_for(child)
+      profile = Profile.create!(
+        profileable: child,
+        username: "sign-in-#{SecureRandom.hex(3)}",
+        slug: "sign-in-#{SecureRandom.hex(3)}",
+      )
+      get "/api/profiles/public/#{profile.slug}"
+      expect(response).to have_http_status(:ok)
+      JSON.parse(response.body)
+    end
+
+    it "is true for an active communicator with a passcode" do
+      child = FactoryBot.create(
+        :child_account, user: owner, owner: owner,
+        name: "Ada", status: "active", passcode: "letmein1"
+      )
+
+      expect(public_body_for(child)["sign_in_available"]).to be(true)
+    end
+
+    it "is false for a sandbox communicator" do
+      child = FactoryBot.create(
+        :child_account, user: owner, owner: owner,
+        name: "Ada", status: "sandbox"
+      )
+
+      expect(public_body_for(child)["sign_in_available"]).to be(false)
+    end
+
+    it "is false for a communicator in fallback mode" do
+      child = FactoryBot.create(
+        :child_account, user: owner, owner: owner,
+        name: "Ada", status: "active", passcode: "letmein1"
+      )
+      child.enter_fallback!
+
+      expect(public_body_for(child.reload)["sign_in_available"]).to be(false)
+    end
+
+    it "never exposes the passcode alongside the flag" do
+      child = FactoryBot.create(
+        :child_account, user: owner, owner: owner,
+        name: "Ada", status: "active", passcode: "letmein1"
+      )
+      body = public_body_for(child)
+
+      expect(body["sign_in_available"]).to be(true)
+      expect(body).not_to have_key("passcode")
+      expect(response.body).not_to include("letmein1")
+    end
+  end
+
   describe "GET /api/profiles/public/:slug (legacy slug fallback)" do
     let(:owner) { FactoryBot.create(:user) }
     let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Emma") }
@@ -381,6 +439,25 @@ RSpec.describe "API::Profiles", type: :request do
       expect(card).not_to have_key("added_by_id")
       expect(card).not_to have_key("board_owner_name")
       expect(response.body).not_to include("assigning-parent@example.com")
+    end
+
+    # The MySpeak board grid resolves a thumbnail through
+    # display_image_url -> preset_display_image_url -> preview_image_url. The
+    # communicator card omitted the middle key, so a board whose only cover was
+    # the legacy settings snapshot rendered as a "Board thumbnail" placeholder
+    # while the same board in the library grid rendered fine.
+    it "serves the communicator's cards with the cover fallback the library cards have" do
+      favorite.board.update!(
+        settings: favorite.board.settings.to_h.merge(
+          "preset_display_image_url" => "https://cdn.example.com/snack-cover.png",
+        ),
+      )
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      card = JSON.parse(response.body)["public_boards"].first
+      expect(card["preset_display_image_url"]).to eq("https://cdn.example.com/snack-cover.png")
+      expect(card.keys).to include(*JSON.parse(response.body)["general_public_boards"].first.keys)
     end
 
     it "serves the admin library as cards without communicator identities" do
