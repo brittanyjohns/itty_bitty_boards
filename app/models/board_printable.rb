@@ -32,13 +32,27 @@ class BoardPrintable < ApplicationRecord
   # prints if they only print one.
   DOWNLOAD_VARIANTS = [VARIANT_COLOR, VARIANT_LOW_INK, VARIANT_TRIM_READY].freeze
 
-  # `files` holds two kinds of blob: the printable PDFs a buyer downloads, and
-  # the PNG gallery images a marketplace listing needs. They are separated by
-  # blob metadata rather than a second attachment because the PNGs arrived long
-  # after the PDFs and re-homing the existing ones would have churned every
-  # stored key. Blobs written before this existed carry no "kind", and are PDFs.
+  # `files` holds three kinds of blob: the printable PDFs a buyer downloads, the
+  # PNG gallery images a marketplace listing needs, and the listing video. They
+  # are separated by blob metadata rather than by separate attachments because
+  # the PNGs arrived long after the PDFs and re-homing the existing ones would
+  # have churned every stored key. Blobs written before this existed carry no
+  # "kind", and are PDFs.
   KIND_PDF = "pdf".freeze
   KIND_IMAGE = "image".freeze
+  KIND_VIDEO = "video".freeze
+
+  # What counts as a buyer-facing download. An ALLOWLIST, and it has to stay
+  # one: #pdf_files used to select by exclusion (`kind != KIND_IMAGE`), which
+  # was correct only while "not an image" and "is a PDF" meant the same thing.
+  # The moment a third kind existed the video became a PDF everywhere it
+  # mattered — it would have been handed to a buyer by #files_view, uploaded to
+  # Etsy as `application/pdf` against the five-file cap, and, worst because it
+  # is silent, DELETED by #purge_stale_pdfs! on every "Regenerate" since the
+  # video's key is never in that run's keep_keys.
+  #
+  # nil is in the list because blobs predating the `kind` metadata are PDFs.
+  KIND_DOWNLOADABLE = [nil, KIND_PDF].freeze
 
   IMAGE_HERO = "hero".freeze
   IMAGE_ON_A_DEVICE = "on_a_device".freeze
@@ -162,7 +176,7 @@ class BoardPrintable < ApplicationRecord
   def pdf_files
     return [] unless files.attached?
 
-    files.select { |f| f.metadata["kind"].presence != KIND_IMAGE }
+    files.select { |f| KIND_DOWNLOADABLE.include?(f.metadata["kind"].presence) }
   end
 
   def image_files
