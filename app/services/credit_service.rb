@@ -82,6 +82,22 @@ class CreditService
       PLAN_MONTHLY_CREDITS[plan_type.to_s] || PLAN_MONTHLY_CREDITS["free"]
     end
 
+    # The monthly allowance actually granted for the CURRENT period — the
+    # denominator the dashboard's "N of X left" gauge needs. Reads the last
+    # `plan_grant` rather than PLAN_MONTHLY_CREDITS so a Stripe Price
+    # `monthly_credits` override is reflected; falls back to the plan default
+    # for accounts with no grant row (admins, never-granted). Deliberately NOT
+    # folded into `balance` — that hash is pure column reads and runs on every
+    # 402 response.
+    def plan_allowance(user)
+      amount = user.credit_transactions
+        .where(kind: "plan_grant")
+        .order(created_at: :desc)
+        .limit(1)
+        .pick(:amount).to_i
+      amount.positive? ? amount : monthly_credits_for(user.plan_type)
+    end
+
     def initial_period_end_for(plan_type, from: Time.current)
       days = INITIAL_PERIOD_DAYS[plan_type.to_s] || DEFAULT_INITIAL_PERIOD_DAYS
       from + days.days

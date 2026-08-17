@@ -22,6 +22,18 @@
 topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
 - Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
   exhaustion.
+- **`GET /api/me/credits` is the client's only balance read**, returning
+  `plan`, `topup`, `total`, `reset_at`, `plan_type`, and `plan_allowance`.
+  `plan_allowance` is the **denominator** for the dashboard's "N of X left"
+  gauge and comes from `CreditService.plan_allowance`, which reads the amount
+  of the most recent `plan_grant` ledger row — **not**
+  `PLAN_MONTHLY_CREDITS`. A Stripe Price's `monthly_credits` metadata overrides
+  the plan default at grant time, so the constant is not what the user actually
+  received; it is only the fallback for accounts with no grant on record
+  (admins, never-granted). Keep it out of `CreditService.balance`: that hash is
+  pure column reads and runs on every 402 response and admin page.
+  The client must treat a missing `plan_allowance` as "fall back to my own
+  per-plan table", never as zero — otherwise an older backend renders "of 0".
 - **Menu boards have a user-picked image budget.** `POST /api/menus` (and
   `POST /api/menus/:id/rerun`, which is owner-gated: 403 for non-owners) spends
   **one** up-front transaction: the flat `menu_create` fee (5) + `token_limit` ×

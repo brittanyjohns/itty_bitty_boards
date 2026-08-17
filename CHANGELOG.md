@@ -7,6 +7,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **The credits endpoint now reports your actual monthly allowance.**
+  `GET /api/me/credits` returns a `plan_allowance` field alongside the existing
+  balances, taken from the amount you were really granted this period rather
+  than a per-plan constant — so a plan whose allowance was set individually
+  reports the number you were given. The app uses it as the denominator for
+  "N of 400 left" on the dashboard.
 - **Etsy listings now carry a video.** A printable's listing gets a
   flip-through: an intro card, each printed page in turn with the "back button
   on every page" marker, and a closing frame with the QR beside the same board
