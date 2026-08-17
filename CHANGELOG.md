@@ -16,6 +16,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   dead-end — so the shortcut simply doesn't appear. No passcode, email, or token
   is exposed.
 
+- **Boards that are sold as printables are now protected from accidental
+  changes.** Once a printable reaches Etsy, the boards it was built from — the
+  whole set, not just the first page — can no longer be deleted, unpublished or
+  renamed, and editing their tiles asks for a confirmation first. Printed copies
+  carry a QR code pointing at each page, and paper can't be re-issued, so a
+  rename or an unpublish would quietly 404 a sheet already in someone's hands.
+  The admin shows which boards are frozen and by which listing, and has a
+  deliberate "Release protection" button for when a product really is retired.
+
+- **Printables now tell buyers how to keep their own copy.** The about page and
+  the how-to-use page explain that a shared board can change or move over time,
+  and that making a free account and saving your own copy keeps the exact set of
+  words in this print. Nothing about the boards themselves changed.
+
 - **Generated marketplace copy now describes the printable it belongs to.**
   Every listing used to open with the same sentence and carry the same 13 tags,
   so a hospital-stay board and a hair-salon board were indistinguishable in

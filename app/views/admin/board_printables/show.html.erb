@@ -24,6 +24,24 @@
   <%= link_to "← All printables", admin_dashboard_board_printables_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
 </div>
 
+<%# Above the status card, because it changes what the buttons on that card
+    will do — Delete printable releases these boards. The release button itself
+    lives on the Etsy card, next to the listing id that turned protection on. %>
+<% if @printable.protects_board? %>
+  <div class="admin-card border rounded-xl px-5 py-4 mb-6 border-amber-500/40">
+    <p class="text-sm text-t1">
+      <span class="inline-block px-1.5 py-0.5 rounded <%= marketplace_protection_badge %> text-xs font-medium mr-1">Protected</span>
+      <%= pluralize(@printable.protected_board_ids.size, "board") %> can't be deleted, renamed or unpublished
+      while this printable is on Etsy.
+    </p>
+    <p class="text-[11px] text-t3 mt-1">
+      Printed copies carry a QR pointing at each page — <code>/pb/&lt;slug&gt;</code> has no redirect behind it,
+      so a rename or an unpublish 404s paper that's already in someone's hands. Tile edits still work,
+      but ask for a confirmation first. Release protection on the Etsy card below.
+    </p>
+  </div>
+<% end %>
+
 <div class="admin-card border rounded-xl p-5 mb-6">
   <div class="flex items-center gap-3 mb-4">
     <span class="<%= board_printable_status_badge(@printable.status) %> inline-block text-xs rounded px-2.5 py-1"><%= @printable.status %></span>

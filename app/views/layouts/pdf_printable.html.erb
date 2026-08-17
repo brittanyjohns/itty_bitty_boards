@@ -285,6 +285,17 @@
         color: var(--blue-mid);
       }
 
+      /* Sits under the URL on the about page. Narrower than the card so it
+         wraps to two or three short lines instead of one wide one. */
+      .qr-card .qr-note {
+        font-size: 8.5pt;
+        line-height: 1.35;
+        color: var(--ink);
+        max-width: 2.9in;
+        text-align: center;
+        text-wrap: balance;
+      }
+
       .cover-footer {
         flex: 0 0 auto;
         padding: 0 0.9in 0.55in;

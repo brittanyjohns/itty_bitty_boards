@@ -1,0 +1,120 @@
+require "rails_helper"
+
+RSpec.describe Boards::MarketplaceProtection do
+  let(:user) { FactoryBot.create(:user) }
+  let(:root) { FactoryBot.create(:board, user: user, name: "Daily Routines") }
+  let(:page) { FactoryBot.create(:board, user: user, name: "Snack Time") }
+  let(:unrelated) { FactoryBot.create(:board, user: user, name: "Something Else") }
+
+  def printable(listing_id: 1234567890, boards: [root, page], **attrs)
+    BoardPrintable.create!(
+      board: root,
+      status: "complete",
+      board_ids: boards.map(&:id),
+      etsy_listing_id: listing_id,
+      etsy_listing_url: "https://www.etsy.com/listing/#{listing_id}",
+      **attrs,
+    )
+  end
+
+  it "protects the board the printable was generated from" do
+    printable
+
+    expect(described_class.new(root).protected?).to be true
+    expect(described_class.new(root).role).to eq(:root)
+  end
+
+  # The whole point of covering board_ids: every interior page of a printed set
+  # carries its own QR pointing at its own /pb/<slug>, so deleting page 4 breaks
+  # the product exactly as badly as deleting the root.
+  it "protects an interior page of the printed tree" do
+    printable
+
+    expect(described_class.new(page).protected?).to be true
+    expect(described_class.new(page).role).to eq(:page)
+  end
+
+  it "leaves boards the printable never covered alone" do
+    printable
+
+    expect(described_class.new(unrelated).protected?).to be false
+  end
+
+  # Generating a printable to look at it is the normal way to use the admin.
+  # Locking a board every time would make the feature something to avoid.
+  it "does not protect until the printable reaches Etsy" do
+    BoardPrintable.create!(board: root, status: "complete", board_ids: [root.id, page.id])
+
+    expect(described_class.new(root).protected?).to be false
+    expect(described_class.new(page).protected?).to be false
+  end
+
+  it "stops protecting once protection is waived" do
+    record = printable
+    expect(described_class.new(root).protected?).to be true
+
+    record.waive_protection!(user: user, reason: "listing ended")
+
+    expect(described_class.new(root).protected?).to be false
+    expect(described_class.new(page).protected?).to be false
+  end
+
+  # A printable that failed before Generate wrote board_ids still names a real
+  # board through its belongs_to, and that board is still what was sold.
+  it "falls back to board_id when board_ids was never written" do
+    printable(boards: [])
+
+    expect(described_class.new(root).protected?).to be true
+  end
+
+  # board_ids holds INTEGERS (Boards::Printables::Generate writes
+  # `collected[:boards].map(&:id)`). The `@>` containment lookup compares JSON
+  # values, so a string would silently never match and every interior page
+  # would quietly lose its protection.
+  it "matches on integer board_ids, not strings" do
+    record = printable
+    expect(record.reload.board_ids).to all(be_a(Integer))
+
+    record.update_column(:board_ids, [page.id.to_s])
+
+    expect(described_class.new(page).protected?).to be false
+  end
+
+  describe ".protected_board_ids" do
+    it "returns only the protected ids from the batch, in one query" do
+      printable
+
+      result = described_class.protected_board_ids([root.id, page.id, unrelated.id])
+
+      expect(result).to eq(Set[root.id, page.id])
+    end
+
+    it "is empty for an empty batch" do
+      expect(described_class.protected_board_ids([])).to eq(Set.new)
+    end
+
+    it "accepts Board records as well as ids" do
+      printable
+
+      expect(described_class.protected_board_ids([page])).to eq(Set[page.id])
+    end
+  end
+
+  describe "#summary" do
+    it "names the listing and the printable's root board" do
+      printable
+
+      summary = described_class.new(page).summary
+
+      expect(summary[:role]).to eq(:page)
+      expect(summary[:printables].first).to include(
+        etsy_listing_id: 1234567890,
+        root_board: { id: root.id, name: "Daily Routines" },
+      )
+    end
+
+    it "is nil when nothing protects the board" do
+      expect(described_class.new(unrelated).summary).to be_nil
+    end
+  end
+end

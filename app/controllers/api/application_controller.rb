@@ -4,6 +4,19 @@ module API
     skip_before_action :authenticate_token!, only: %i[authenticate_child_token! preset_colors]
     include ActiveStorage::SetCurrent
 
+    # Net for Board's marketplace-protection guards. The endpoints that can hit
+    # one check it up front and render a richer 409; this only catches the
+    # paths that reach a protected board indirectly (a cascade, a nested
+    # destroy), which would otherwise be a 500.
+    rescue_from Board::MarketplaceProtectedError do |e|
+      render json: {
+        error: "board_marketplace_protected",
+        message: "\"#{e.board.name}\" is sold as a printable — printed copies point at it, so it can't be #{e.action}. Release protection on the printable in the admin first.",
+        board: { id: e.board.id, name: e.board.name },
+        blocked_action: e.action,
+      }, status: :conflict
+    end
+
     # application_controller.rb
     rescue_from ActionController::InvalidAuthenticityToken do |e|
       Rails.logger.warn "CSRF fail UA=#{request.user_agent} IP=#{request.remote_ip} Origin=#{request.headers["Origin"]} Referrer=#{request.referer} Cookies?=#{request.cookies.present?}"

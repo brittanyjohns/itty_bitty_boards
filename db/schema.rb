@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -241,10 +241,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_120000) do
     t.string "etsy_listing_url"
     t.datetime "etsy_published_at"
     t.text "etsy_error"
+    t.datetime "protection_waived_at"
+    t.bigint "protection_waived_by_id"
+    t.string "protection_waived_reason"
     t.index ["board_id", "status"], name: "index_board_printables_on_board_id_and_status"
     t.index ["board_id"], name: "index_board_printables_on_board_id"
+    t.index ["board_ids"], name: "index_board_printables_on_board_ids", using: :gin
     t.index ["created_by_id"], name: "index_board_printables_on_created_by_id"
     t.index ["etsy_listing_id"], name: "index_board_printables_on_etsy_listing_id"
+    t.index ["protection_waived_by_id"], name: "index_board_printables_on_protection_waived_by_id"
   end
 
   create_table "board_screenshot_cells", force: :cascade do |t|
@@ -1164,6 +1169,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_120000) do
   add_foreign_key "board_images", "images"
   add_foreign_key "board_printables", "boards"
   add_foreign_key "board_printables", "users", column: "created_by_id"
+  add_foreign_key "board_printables", "users", column: "protection_waived_by_id"
   add_foreign_key "board_screenshot_cells", "board_screenshot_imports"
   add_foreign_key "board_screenshot_imports", "users"
   add_foreign_key "boards", "users"

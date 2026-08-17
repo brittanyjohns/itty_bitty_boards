@@ -115,6 +115,22 @@ stands alone. The trim-ready file reuses the **colour** cover — it is a colour
 print, only its board pages differ — and gets its own how-to-use page, because
 that page is the only thing that tells a reader where the QR went.
 
+**The permanence note lives on the credits and how-to-use pages, never on the
+cover.** A buyer's QR points at a board that may later change or move, so both
+pages tell them to make a free account and save their own copy — the credits
+page beside the QR itself, and how-to-use as step 6. Two placements are ruled
+out: the **cover**, because `RenderWrappers#cover_assigns` is shared verbatim
+with `RenderListingImages` and the cover therefore *is* the Etsy search
+thumbnail (a "may not stay online" line would ship as the product's first
+photo); and the **license page**, where the surrounding anti-redistribution
+terms make it read as a restriction on the buyer rather than a nudge. Word it as
+a next action, not a disclaimer — "isn't guaranteed forever" on a product page
+reads as a warning about what was just paid for. `credits` renders once and
+`MergePdf` binds the same bytes into all three files, and the how-to-use line
+sits outside step 1's `@variant` branch, so both are variant-independent by
+construction. None of this touches `api/boards/print.html.erb` or
+`layouts/pdf.html.erb`, which are shared with real users' PDF downloads.
+
 **`hide_header: true` is not the way to build the trim-ready page.** The QR
 lives *inside* the header block in `api/boards/print.html.erb`, so hiding the
 header takes the code with it — and the free audio companion is the single
@@ -407,6 +423,74 @@ rather than emptying the record.
 its PDFs and images with it. It cannot touch Etsy — this app implements no
 listing update or delete call — so the confirm dialog names the surviving draft
 id when one exists (`Admin::BoardPrintablesHelper#board_printable_delete_confirm`).
+The dialog also says how many boards will stop being protected, because this
+record is what freezes them (below).
+
+## Listed boards are protected
+
+Once a printable has an `etsy_listing_id`, every board it was rendered from is
+frozen: **deleting, unpublishing and renaming are refused; structural tile edits
+need an explicit confirm.** `Boards::MarketplaceProtection` is the single
+authority; `Board#marketplace_protected?` delegates to it.
+
+**Protection covers the whole printed tree, not the printable's root board.**
+The scope matches `board_printables.board_ids` (a jsonb array of integers, GIN
+indexed, matched with `@>`) unioned with `board_id`. Every interior page of a
+set carries its own QR pointing at its own `/pb/<slug>`, so deleting page 4 of a
+twelve-page set breaks the product exactly as badly as deleting the root. The
+`board_id` half of the union is belt-and-braces for a printable that failed
+before `Generate` wrote `board_ids`. Note the ids are **integers** — a string in
+that array silently matches nothing and every interior page quietly loses its
+protection.
+
+**Why `etsy_listing_id` and not a listing state.** The obvious design is a
+`draft / active / ended` column so an ended listing releases its boards. It
+models the wrong fact. What protection defends is a printed sheet with a QR on
+it, and ending an Etsy listing doesn't recall a laminated board off a fridge.
+The column would also be hand-maintained against a shop this app cannot read,
+and its one drift mode is the unsafe one: you end a listing, forget to flip the
+column, and the boards unprotect while the paper is still live. Release is
+therefore an explicit act — `BoardPrintable#waive_protection!`, stamped with who
+and when — not an inferred state. Equally, protection does **not** key on the
+printable merely existing: generating one to look at it is the normal way to use
+the admin, and locking a board every time would make the feature something to
+avoid.
+
+**Hard blocks vs confirm.** Deleting, unpublishing and renaming are refused
+outright — no request param clears them, only the waiver. Structural tile edits
+(layout, columns, adding/removing tiles, colors, tile art) return
+`board_marketplace_edit_confirmation_required` once and proceed on
+`confirm_marketplace_edit=true`. That param is deliberately not `confirm`, which
+`#update` already means "yes, cascade the publish" by — one click must not
+authorize the other thing. Reads, PDF exports and audio are never gated.
+
+Both refusals are **409**, alongside the existing `board_in_use` and
+`publish_cascade_confirmation_required`. Protection is checked **before**
+`Boards::UsageCheck`: `board_in_use` is confirmable and this is not, so
+answering with the confirmable one first would teach the client to retry into a
+wall. Cascades (`delete_subboards=true`, a builder `BoardGroup`, an unpublish
+cascade) are pre-checked and refused **whole** — skipping the protected member
+would delete its parent and leave it behind with a folder tile pointing at
+nothing, which is the corruption this exists to prevent. `Boards::PublishCascade`
+needs its own pre-check because `#apply!` writes with `update_all`, which skips
+callbacks entirely.
+
+The model guard (`Board#block_marketplace_protected_destroy`, `prepend: true`)
+**raises** rather than `throw :abort`, because the cascades that can reach a
+protected board ignore a false return — `BoardGroup` uses `destroy_all`,
+`Admin::BoardBuildsController` uses `reverse_each(&:destroy)`. Aborting there
+would destroy the group and leave the protected board orphaned, which is worse
+than the deletion. `prepend: true` matters too: without it every `dependent:
+:destroy` cascade runs and is rolled back to reach the same refusal.
+`Board#destroy_despite_marketplace_protection!` is a console/rake hatch and is
+never wired to a request param.
+
+`Board#rename_slug!` — the deliberate-rename hatch behind the internal API's
+`force_slug` and the `boards:rename_slug` rake task — raises on a protected
+board unless `allow_marketplace_protected_change` is also set. It is exactly the
+hatch that would silently 404 printed paper. `freeze_published_slug` still
+**reverts** rather than raising on the ordinary path, because the frontend
+re-derives the slug from the name on every rename; don't convert it.
 
 ## Storage layout
 

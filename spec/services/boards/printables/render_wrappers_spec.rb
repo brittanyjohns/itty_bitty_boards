@@ -190,7 +190,23 @@ RSpec.describe Boards::Printables::RenderWrappers do
     it "warns that a shared board can drift from the print" do
       render
 
-      expect(rendered[:how_to_use]).to include("may stop matching this print")
+      expect(rendered[:how_to_use]).to include("even if the shared board later changes or moves")
+    end
+
+    # The point of the step is the buyer's own copy, which is the only thing
+    # that survives the shared board changing. It sits outside step 1's variant
+    # branch, so all three files say it identically.
+    it "tells the buyer to save their own copy, in every variant" do
+      render(board_count: 4)
+
+      [
+        rendered[:how_to_use],
+        rendered[:how_to_use_low_ink],
+        rendered[:how_to_use_trim_ready],
+      ].each do |html|
+        expect(html).to include("Save your own copy")
+        expect(html).to include("even if the shared board later changes or moves")
+      end
     end
 
     # The QR opens a web page, not a native app — three pages used to describe
@@ -220,6 +236,36 @@ RSpec.describe Boards::Printables::RenderWrappers do
 
     expect(rendered[:credits]).to include("About SpeakAnyWay")
     expect(rendered[:credits]).to include("data:image/png;base64,")
+  end
+
+  describe "the permanence note" do
+    # Sits beside the QR, which is the thing that can one day stop resolving.
+    it "sits under the QR on the credits page" do
+      render
+
+      expect(rendered[:credits]).to include("can change or move over time")
+      expect(rendered[:credits]).to include("save your own copy")
+    end
+
+    # The cover assigns are shared verbatim with RenderListingImages, so the
+    # cover IS the Etsy search thumbnail. A "may not stay online" line there
+    # reads as a disclaimer about the thing the buyer is about to pay for.
+    it "never appears on the cover" do
+      render(board_count: 4)
+
+      [rendered[:cover], rendered[:cover_low_ink]].each do |html|
+        expect(html).not_to include("can change or move over time")
+        expect(html).not_to include("save your own copy")
+      end
+    end
+
+    # Surrounded by the anti-redistribution terms it would read as a limit on
+    # the buyer's rights rather than a helpful nudge.
+    it "never appears on the license page" do
+      render
+
+      expect(rendered[:license]).not_to include("can change or move over time")
+    end
   end
 
   # MergePdf emits a separate low-ink FILE for a set, and it opens on its own

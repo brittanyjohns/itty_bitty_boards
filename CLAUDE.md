@@ -209,7 +209,12 @@ an explicit decision, not a drive-by edit.
 - **HTTP error semantics:** **402** = credit exhaustion only
   (`insufficient_credits`). **429** = true rate limiting only. **403** =
   permission/plan gates (`board_locked`, `pro_required`,
-  `communicator_in_fallback`, `myspeak_id_limit_reached`, …). Never leak
+  `communicator_in_fallback`, `myspeak_id_limit_reached`, …). **409** = state
+  conflicts, some confirmable (`board_in_use`,
+  `publish_cascade_confirmation_required`,
+  `board_marketplace_edit_confirmation_required`) and some not
+  (`board_marketplace_protected`) — an unconfirmable conflict is always
+  answered FIRST, or the client learns to retry into a wall. Never leak
   internals in API errors — generic messages only.
 - **`User#paid_plan?` is the single paid-tier gate.** It checks both
   `plan_type` and `plan_status`; `basic_trial` and Stripe `trialing` count as
@@ -307,6 +312,17 @@ an explicit decision, not a drive-by edit.
   silently reverts a slug change on a published board (reverts, never raises —
   the frontend re-derives the slug on every rename). Deliberate renames go
   through `Board#rename_slug!`.
+- **A board that backs a marketplace listing can't be deleted, unpublished or
+  renamed.** Same reason as the frozen slug, one step further: the board's
+  content was sold as a PDF and every printed page carries a QR pointing at its
+  own `/pb/<slug>`. `Boards::MarketplaceProtection` is the single authority and
+  covers the whole printed tree (`board_printables.board_ids`), not just the
+  printable's root — deleting an interior page breaks the product just as badly.
+  It keys on `etsy_listing_id`, never on a hand-maintained listing state: ending
+  an Etsy listing doesn't un-print paper, and such a column would only ever
+  drift in the unsafe direction. Release is the audited
+  `BoardPrintable#waive_protection!`. Details:
+  `.claude-notes/board-printables-etsy.md`.
 - **Downgrades retain, never delete.** Over-limit boards become read-only;
   over-limit communicators enter fallback mode (public MySpeak page stays
   up). No plan change destroys user content.

@@ -32,6 +32,16 @@
         <% if @public_url.present? %>
           <p class="qr-url"><%= @public_url %></p>
         <% end %>
+        <%# The reader is looking at the QR, which is the thing that can one day
+            stop resolving — so this is where the permanence note belongs, not
+            on the cover (which doubles as the Etsy thumbnail) or the license
+            page (where it would read as a restriction on the buyer). Worded as
+            a next action rather than a disclaimer: on a product page,
+            "not guaranteed" reads as a warning about what was just paid for. %>
+        <p class="qr-note">
+          Shared boards can change or move over time. Make a free account and
+          save your own copy — it stays in your account, exactly as it is here.
+        </p>
       </div>
     <% end %>
 

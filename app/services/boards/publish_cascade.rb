@@ -39,6 +39,18 @@ module Boards
       }
     end
 
+    # Members frozen by a marketplace listing that this cascade would unpublish.
+    #
+    # #apply! writes with update_all, which skips callbacks — so Board's own
+    # marketplace guard never fires for a member and an unpublish would silently
+    # 404 the QR on a printed page. The caller must check this before applying.
+    # Only unpublishing is checked: publishing a board can't break printed paper.
+    def blocked_board_ids(published:)
+      return Set.new if published
+
+      MarketplaceProtection.protected_board_ids(member_boards_to_change(published).pluck(:id))
+    end
+
     # Flips the members only — the root is saved by the caller through the
     # normal update path. update_all skips callbacks on purpose: a built set
     # can be dozens of boards and only one boolean column changes. It also

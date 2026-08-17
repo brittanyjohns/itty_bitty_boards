@@ -1,4 +1,7 @@
 <% subboard_count = (defined?(subboard_counts) && subboard_counts ? subboard_counts[board.id] : nil).to_i %>
+<%# Passed down as a Set built once in the controller — a per-row lookup here
+    would be one query per row across PUBLIC_BOARD_LIMIT rows. %>
+<% board_protected = defined?(protected_board_ids) && protected_board_ids ? protected_board_ids.include?(board.id) : false %>
 <tr class="admin-hover-row transition-colors" style="border-bottom: 1px solid var(--border-light);">
   <td class="px-3 py-2">
     <div class="text-t1 font-medium"><%= board.name %></div>
@@ -10,6 +13,12 @@
       <%= link_to "Open ↗", board_public_page_url(board), target: "_blank", rel: "noopener",
                   class: "text-t2 hover:text-accent underline transition-colors",
                   title: "Open this board in a new tab" %>
+      <% if board_protected %>
+        <span class="inline-block rounded px-1.5 py-0.5 <%= marketplace_protection_badge %> font-medium"
+              title="Already sold as a printable — this board can't be deleted, renamed or unpublished">
+          Protected
+        </span>
+      <% end %>
     </div>
   </td>
   <td class="px-3 py-2 whitespace-nowrap">
