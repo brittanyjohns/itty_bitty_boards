@@ -350,7 +350,14 @@ an explicit decision, not a drive-by edit.
   `!isPublicGrid && can_edit`, so they were never rendered — only transmitted,
   which is why the leak survived so long. `api_view` is also the expensive one
   — it runs three `rows_for_screen_size` passes per board — so reaching for it
-  on a public list leaks and is slow at the same time. Details:
+  on a public list leaks and is slow at the same time. **`ChildBoard#public_card_view`
+  delegates to `Board#public_card_view`** rather than rebuilding the hash: both
+  cards feed one frontend component and one `PublicBoardCard` type, and
+  maintaining them in parallel silently dropped `preset_display_image_url` and
+  `slug` from the communicator card — so a communicator's board couldn't reach a
+  cover fallback its library twin resolved fine. `Profile#communication_boards`
+  is polymorphic in RETURN TYPE (ChildAccount → ChildBoard rows, User → Boards),
+  which is why one grid can drift from the other unnoticed. Details:
   `.claude-notes/safety-profiles.md`.
 - **`print_grid_layout_for_screen_size` must build a DENSE list.** It once
   assigned into a plain Array at `layout_to_set[bi.id]` — the global

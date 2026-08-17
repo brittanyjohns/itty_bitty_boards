@@ -84,6 +84,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards assigned to a communicator now get their own cover picture.** A board
+  put on a communicator is copied rather than shared, and the copy's cover was
+  never drawn — so a communicator's dashboard, and the board grid on their public
+  MySpeak page, showed a grid of grey "Board thumbnail" placeholders instead of
+  pictures. Someone opening a MySpeak page from a QR tag had no way to tell the
+  boards apart at a glance. New copies render their cover on assignment, and
+  `rake board_covers:render_missing` draws the missing ones for boards assigned
+  before this fix. A copy also no longer borrows the original board's cover
+  picture, which could show the wrong board under the right name.
+
 - **Tiles no longer end up silently missing their own audio.** When a board's
   voice was set while its tiles were still being written, the job that fills in
   each tile's audio could run before those tiles existed. It didn't fail — it

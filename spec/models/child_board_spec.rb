@@ -79,4 +79,51 @@ RSpec.describe ChildBoard, type: :model do
       expect(board.reload.in_use).to be(true)
     end
   end
+
+  describe "#public_card_view" do
+    let(:child_board) { create(:child_board, board: board, child_account: communicator) }
+
+    subject(:card) { child_board.public_card_view }
+
+    # The drift guard. This card and Board#public_card_view feed the same
+    # frontend component and the same PublicBoardCard type; maintaining them in
+    # parallel is what dropped preset_display_image_url here, so a
+    # communicator's board could not reach a cover its library twin resolved.
+    # If Board grows a key, this fails until ChildBoard relays it.
+    it "carries every key Board#public_card_view does" do
+      expect(card.keys).to contain_exactly(
+        :id, :board_id, :slug, :name,
+        :display_image_url, :preview_image_url, :preset_display_image_url,
+        :bg_color, :text_color,
+      )
+      expect(card.keys).to include(*board.public_card_view.keys)
+    end
+
+    # Locks the merge order — the one way delegating here breaks silently.
+    # Board's card sets `id: id, board_id: id`, both the board's id.
+    it "reports the child_board id and the board id separately" do
+      expect(card[:id]).to eq(child_board.id)
+      expect(card[:board_id]).to eq(board.id)
+    end
+
+    it "resolves the cover snapshot the column cannot reach" do
+      board.update!(
+        settings: board.settings.to_h.merge(
+          "preset_display_image_url" => "https://cdn.example.com/cover.png",
+        ),
+      )
+      board.update_column(:display_image_url, nil)
+
+      expect(card[:preset_display_image_url]).to eq("https://cdn.example.com/cover.png")
+    end
+
+    # An unauthenticated page must never receive what api_view publishes:
+    # added_by is the assigning user's EMAIL.
+    it "publishes nothing that identifies a person" do
+      expect(card.keys).not_to include(
+        :added_by, :added_by_id, :board_owner_name, :board_owner_id,
+        :settings, :in_use_by, :communicator_account_data,
+      )
+    end
+  end
 end

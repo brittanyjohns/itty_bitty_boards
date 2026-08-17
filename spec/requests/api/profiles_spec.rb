@@ -441,6 +441,25 @@ RSpec.describe "API::Profiles", type: :request do
       expect(response.body).not_to include("assigning-parent@example.com")
     end
 
+    # The MySpeak board grid resolves a thumbnail through
+    # display_image_url -> preset_display_image_url -> preview_image_url. The
+    # communicator card omitted the middle key, so a board whose only cover was
+    # the legacy settings snapshot rendered as a "Board thumbnail" placeholder
+    # while the same board in the library grid rendered fine.
+    it "serves the communicator's cards with the cover fallback the library cards have" do
+      favorite.board.update!(
+        settings: favorite.board.settings.to_h.merge(
+          "preset_display_image_url" => "https://cdn.example.com/snack-cover.png",
+        ),
+      )
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      card = JSON.parse(response.body)["public_boards"].first
+      expect(card["preset_display_image_url"]).to eq("https://cdn.example.com/snack-cover.png")
+      expect(card.keys).to include(*JSON.parse(response.body)["general_public_boards"].first.keys)
+    end
+
     it "serves the admin library as cards without communicator identities" do
       get "/api/profiles/public/#{profile.slug}"
 
