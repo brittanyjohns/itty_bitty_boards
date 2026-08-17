@@ -192,6 +192,15 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(render_html).to include(profile.public_url)
     end
 
+    # The sheet lives in a folder for a school year — a printed date only makes
+    # a still-current plan look stale, so the band carries no "Prepared ...".
+    it "prints no prepared-on date" do
+      html = render_html
+
+      expect(html).not_to include("Prepared")
+      expect(html).not_to include(I18n.l(Date.current, format: :long))
+    end
+
     # The density change, pinned: one gradient band instead of masthead +
     # identity, and the care sections in two newspaper columns.
     it "renders one header band and flows the care sections into columns" do

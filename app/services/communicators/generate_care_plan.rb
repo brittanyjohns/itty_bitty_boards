@@ -112,16 +112,15 @@ module Communicators
 
     def template_assigns
       {
-        # No subtitle: the condensed band carries title · prepared-on · URL on
-        # one 7.5pt meta line, and "How to support Rosa day to day" is the one
-        # line on the old sheet a reader already knows. care.document.subtitle
-        # is left in the locale files for whoever brings it back.
+        # No subtitle: the condensed band carries title · URL on one 7.5pt meta
+        # line, and "How to support Rosa day to day" is the one line on the old
+        # sheet a reader already knows. care.document.subtitle is left in the
+        # locale files for whoever brings it back.
+        #
+        # No prepared-on date either: the sheet lives in a backpack or a school
+        # folder for a whole year, and a printed date only makes a still-current
+        # plan look stale. care.document.prepared_on stays in the locale files.
         title: I18n.t("care.document.title.#{variant}", locale: locale),
-        prepared_on: I18n.t(
-          "care.document.prepared_on",
-          date: I18n.l(Date.current, format: :long, locale: locale),
-          locale: locale,
-        ),
         display_name: profile.safety_display_name,
         pronouns: (profile.settings || {})["pronouns"].presence,
         # Resolved to a data: URI here, BEFORE the render, so the render itself
