@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Imported boards keep their tile sizes.** OBF/OBZ import used to force every
+  tile to a single cell, so a board whose file described wide tiles — a
+  point-to-talk board with a 13-column alphabet strip under word tiles spanning
+  three or four columns — arrived as a uniform grid with gaps, and every tile
+  had to be resized by hand. Import now reads the size the file describes,
+  either from a button repeated across the cells it covers or from explicit
+  `ext_speakanyway_w` / `ext_speakanyway_h` fields. Files that say nothing about
+  size import exactly as before.
+
 - **Generated marketplace copy now describes the printable it belongs to.**
   Every listing used to open with the same sentence and carry the same 13 tags,
   so a hospital-stay board and a hair-salon board were indistinguishable in
