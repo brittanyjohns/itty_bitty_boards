@@ -51,10 +51,10 @@ module Boards
         )
       end
 
-      # Public because RenderListingImages renders the SAME cover as a PNG for
-      # the marketplace gallery. Sharing the assigns rather than rebuilding them
-      # is what keeps the listing's first image identical to the product's first
-      # page — including the QR target, which is easy to get subtly wrong.
+      # Public for historical reasons: RenderListingImages used to render this
+      # same cover as the gallery's first image, and shared the assigns so the
+      # two could not drift. That slide was retired when the gallery became
+      # purpose-built marketing art, so this now has one caller — the PDF.
       def cover_assigns
         {
           title: Boards::AssetRendering.board_title_for(board),

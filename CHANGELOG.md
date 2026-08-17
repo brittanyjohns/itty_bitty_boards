@@ -7,6 +7,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Etsy listings now carry a video.** A printable's listing gets a
+  flip-through: an intro card, each printed page in turn with the "back button
+  on every page" marker, and a closing frame with the QR beside the same board
+  open in the app. Rendered from the admin ahead of publishing, 1080×1080 and
+  5–15 seconds so Etsy accepts it, and uploaded with the draft. A hand-made
+  clip can be uploaded instead for the listings worth filming.
+- **Three new gallery slides, and a hero that shows a bundle is a bundle.** The
+  gallery goes from six images to nine. The new second image is the one that
+  says what these products actually are — a flip book of linked pages, where
+  folder tiles open a page and every page has a way back. There is also a
+  print-and-bind slide and a full page index, and the hero now carries a bundle
+  count and fans up to five pages instead of three.
+- **Listings are staged on photographs of real tablets** rather than a drawn
+  one, with the board warped onto the glass in perspective.
+
 - **Imported boards keep their tile sizes.** OBF/OBZ import used to force every
   tile to a single cell, so a board whose file described wide tiles — a
   point-to-talk board with a 13-column alphabet strip under word tiles spanning
@@ -115,6 +130,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A printable's listing video is no longer destroyed by "Regenerate".** The
+  code that decides which attachments are buyer downloads treated anything that
+  wasn't a gallery image as a PDF, so a video counted as one — and the cleanup
+  that removes superseded PDFs deleted it silently on every regeneration. It
+  could also have been handed to a buyer as a download.
 - **Boards assigned to a communicator now get their own cover picture.** A board
   put on a communicator is copied rather than shared, and the copy's cover was
   never drawn — so a communicator's dashboard, and the board grid on their public

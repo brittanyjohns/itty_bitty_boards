@@ -106,7 +106,7 @@ module Etsy
     # draft.
     # Guarded on "current", not "any": a printable generated before the gallery
     # was redesigned still HAS images — the retired cover/what's-included pair —
-    # and publishing those would put the old two-image gallery on a live
+    # and publishing those would put a retired gallery design on a live
     # listing.
     def render_listing_images_if_missing
       return if printable.listing_images_current?

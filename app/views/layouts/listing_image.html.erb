@@ -1,5 +1,7 @@
-<%# Layout for the square marketplace listing slides (hero, what's included,
-    how it works, about).
+<%# Layout for the square marketplace listing slides AND for the listing video's
+    frames — one set of tokens, fonts and chrome, so the clip and the gallery
+    read as one listing. The two render at different edge lengths; see
+    `--slide-px` below.
 
     Separate from layouts/pdf_printable.html.erb on purpose. That layout is the
     printed product and is measured in inches and points; this one is a 1280px
@@ -115,13 +117,15 @@
 
       /* ── The canvas ───────────────────────────────────────────────────── */
       /* Square, because that is the shape Etsy's search grid uses and the one
-         all six slides share. It is NOT the shape every view uses — see rail 5
-         above; the safe zone is what makes a square source survive the crops. */
-      /* Square, and sized from a token because two renderers share this layout
-         at different edge lengths: RenderListingImages::CANVAS_PX (1280) for
-         the gallery slides and RenderListingVideo::FRAME_PX (1080) for the
-         video frames. A hardcoded 1280 here rendered a video frame clipped to
-         its viewport rather than fitted to it. */
+         every slide and every video frame shares. It is NOT the shape every view
+         uses — see rail 5 above; the safe zone is what makes a square source
+         survive the crops.
+
+         Sized from a TOKEN because two renderers share this layout at different
+         edge lengths: RenderListingImages::CANVAS_PX (1280) for the gallery
+         slides and RenderListingVideo::FRAME_PX (1080) for the video frames. A
+         hardcoded 1280 here rendered a video frame clipped to its viewport
+         rather than fitted to it. */
       .slide {
         position: relative;
         width: var(--slide-px);

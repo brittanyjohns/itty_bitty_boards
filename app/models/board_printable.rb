@@ -72,6 +72,7 @@ class BoardPrintable < ApplicationRecord
   # This constant is the whole definition of a current gallery: adding a variant
   # here makes every previously-rendered printable stale, which is what surfaces
   # the admin badge and forces a re-render before publishing.
+  #
   # Nine, against Etsy's cap of ten photos — the tenth is left free for
   # something hand-made uploaded in the seller UI. A listing VIDEO occupies its
   # own slot and does not count against this.
@@ -270,7 +271,7 @@ class BoardPrintable < ApplicationRecord
 
   # The marketplace gallery images, in the order Etsy should rank them.
   #
-  # Filtered, not just sorted: a blob from the retired two-image gallery would
+  # Filtered, not just sorted: a blob from a retired gallery design would
   # otherwise sort to the end and get uploaded as a real listing photo.
   def listing_images_view
     view_for(current_image_files).sort_by { |f| LISTING_IMAGE_ORDER.index(f[:variant]) }
@@ -290,7 +291,7 @@ class BoardPrintable < ApplicationRecord
 
   def listing_images? = image_files.any?
 
-  # Images from the current four-slide gallery only.
+  # Images from the gallery this code ships today, and nothing else.
   def current_image_files
     image_files.select { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
   end
