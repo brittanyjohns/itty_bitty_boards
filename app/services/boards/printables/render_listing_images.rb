@@ -71,10 +71,13 @@ module Boards
         ids.filter_map { |id| by_id[id] }
       end
 
-      # The hero shows at most three pages. It is a shop window, not an
-      # inventory: past three the pages are too small to tell apart, and the
-      # what's-included slide is where the full set is counted.
-      HERO_TILES = 3
+      # The hero shows at most five pages. It is a shop window, not an
+      # inventory: past five each card is under 290px on the 960px stage and a
+      # board page at that size is a coloured smudge, and the what's-included
+      # slide is where the full set is counted. HeroFan owns that limit — this
+      # constant must not exceed HeroFan::MAX_CARDS, which is asserted in the
+      # spec rather than left to whoever raises it next.
+      HERO_TILES = 5
 
       # Three passes over the boards, each memoized, because the slides need
       # genuinely different pages — not the same pixels twice:
@@ -86,9 +89,9 @@ module Boards
       #           header is just the slide's own title band again, and hiding it
       #           gives the board the whole tile.
       #
-      # Budget: min(boards, 3) + min(boards, 8) * 2 renders, plus six slides and
-      # the one device screen. That is why this runs on Sidekiq and never on a
-      # request thread.
+      # Budget: min(boards, HERO_TILES) + min(boards, 8) * 2 renders, plus the
+      # slides themselves and the one device screen. That is why this runs on
+      # Sidekiq and never on a request thread.
       def hero_thumbnails
         @hero_thumbnails ||= RenderPageThumbnails.new(
           boards: plan.boards.first(HERO_TILES),
@@ -131,11 +134,20 @@ module Boards
       end
 
       def hero_assigns
+        tiles = hero_tiles
+
         shared_assigns.merge(
           title: Boards::AssetRendering.board_title_for(board),
           headline: ::Printables::SlideCopy.hero_headline(board_count: board_count, topic: printable.topic),
           background: BrandAssets.scene_data_uri_for(board),
-          thumbnails: hero_tiles,
+          thumbnails: tiles,
+          # Keyed off how many pages actually RENDERED, not board_count: a board
+          # whose thumbnail failed is dropped by tiles_from, and a fan sized for
+          # a card that isn't there leaves a hole in the pile.
+          fan: tiles.size > 1 ? HeroFan.build(tiles.size) : nil,
+          # The sticker counts the whole set, which is the honest number even
+          # when the hero could only show five of them.
+          count_badge: ::Printables::SlideCopy.hero_count_badge(board_count: board_count),
         )
       end
 

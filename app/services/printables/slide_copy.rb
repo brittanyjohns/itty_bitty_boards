@@ -23,9 +23,27 @@ module Printables
 
     def hero_headline(board_count:, topic: nil)
       return "Words for #{topic}" if topic.present?
-      return "#{board_count} printable boards in one download" if board_count > 1
+      return "#{board_count} linked boards — flips like a book" if board_count > 1
 
       "A printable communication board"
+    end
+
+    # The sticker that answers "is this one page or a set?" before a word of
+    # copy is read. The headline says the same thing, but a headline is text at
+    # ~230px wide in an Etsy search grid, and a number is not.
+    #
+    # Counts BOARDS, and does not multiply them by the print variants.
+    # board_page_count would say "18 PAGES" for a six-board set, which a buyer
+    # reads as eighteen distinct pages of vocabulary rather than six pages in
+    # three versions. The variants get their own line, spelled out, where they
+    # can't be mistaken for content.
+    #
+    # nil below two boards: "1 LINKED BOARD" undersells a single-page printable
+    # and reads as a rendering bug.
+    def hero_count_badge(board_count:)
+      return nil unless board_count > 1
+
+      {count: board_count.to_s, label: "LINKED\nBOARDS", detail: "COLOUR · LOW-INK · TRIM-READY"}
     end
 
     # The banner that does the most work in an Etsy grid: it answers "is this a

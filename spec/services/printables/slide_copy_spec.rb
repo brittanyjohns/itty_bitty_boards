@@ -7,12 +7,29 @@ RSpec.describe Printables::SlideCopy do
         .to eq("Words for the playground")
     end
 
-    it "counts the boards for a set" do
-      expect(described_class.hero_headline(board_count: 6)).to eq("6 printable boards in one download")
+    it "counts the boards for a set, and says what the set is" do
+      expect(described_class.hero_headline(board_count: 6)).to eq("6 linked boards — flips like a book")
     end
 
     it "doesn't claim a count for a single board" do
       expect(described_class.hero_headline(board_count: 1)).to eq("A printable communication board")
+    end
+  end
+
+  describe ".hero_count_badge" do
+    it "counts boards and names the print versions separately" do
+      badge = described_class.hero_count_badge(board_count: 6)
+
+      expect(badge[:count]).to eq("6")
+      expect(badge[:label]).to include("LINKED", "BOARDS")
+      # Never board_page_count: "18 PAGES" reads as eighteen pages of
+      # vocabulary rather than six pages in three print versions.
+      expect(badge[:detail]).to eq("COLOUR · LOW-INK · TRIM-READY")
+      expect(badge.values.join).not_to include("18")
+    end
+
+    it "is absent for a single board, which has no count worth claiming" do
+      expect(described_class.hero_count_badge(board_count: 1)).to be_nil
     end
   end
 

@@ -197,6 +197,63 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
       expect(hero_board_order).to eq(%w[core-words])
     end
+
+    # The layout used to carry an nth-child(1)/(2)/(3) ladder, so a fourth and
+    # fifth card got no transform, no negative margin and no z-index and half
+    # the pile ended up off the slide. The geometry is written inline now, and
+    # this is the assertion that it actually closes.
+    it "writes a geometry that keeps every card inside the stage" do
+      printable.update!(board_ids: Array.new(5) { create(:board, user: owner).id })
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      hero = slide_html.first
+      width = hero[/--fan-w:\s*([\d.]+)%/, 1].to_f
+      overlap = hero[/--fan-overlap:\s*([\d.]+)%/, 1].to_f
+      cards = hero.scan(/--rot:\s*(-?[\d.]+)deg/).flatten
+
+      expect(cards.size).to eq(described_class::HERO_TILES)
+      expect((cards.size * width) - ((cards.size - 1) * overlap))
+        .to be <= Boards::Printables::HeroFan::MAX_COVERAGE
+      # The middle card is the root board's, and it is the one drawn flat.
+      expect(cards[cards.size / 2].to_f).to eq(0.0)
+    end
+
+    # RenderPageThumbnails omits any board whose render failed, and tiles_from
+    # drops the tile with it. A fan sized from board_ids rather than from the
+    # tiles that survived leaves a gap in the pile.
+    it "sizes the fan to the pages that rendered, not to the boards asked for" do
+      printable.update!(board_ids: [board.id, other.id, create(:board, user: owner).id])
+      stub_thumbnail_renders!(skip: other)
+
+      described_class.new(printable: printable).call
+
+      expect(slide_html.first.scan(/--rot:/).size).to eq(2)
+    end
+  end
+
+  describe "the bundle sticker" do
+    it "counts the whole set, even when the hero could only show some of it" do
+      printable.update!(board_ids: Array.new(9) { create(:board, user: owner).id })
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      # Matched on the markup, not the bare class name — the layout inlines all
+      # of its CSS, so ".count-sticker" is in every slide's <style> block.
+      expect(slide_html.first).to include('<div class="count-sticker">', ">9<", "LINKED")
+      expect(slide_html.first).to include("COLOUR · LOW-INK · TRIM-READY")
+    end
+
+    # "1 LINKED BOARD" undersells a single-page printable and reads as a bug.
+    it "is absent from a single-board hero" do
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      expect(slide_html.first).not_to include('<div class="count-sticker">')
+    end
   end
 
   it "names the boards in a set on the what's-included slide" do
@@ -324,15 +381,32 @@ RSpec.describe Boards::Printables::RenderListingImages do
                          "#{selector} sets a side inset Etsy will crop through:\n#{block}"
       end
     end
+
+    # The rules above all inset from the token because they sit on the slide.
+    # The count sticker sits inside .slide-stack, which has already paid the
+    # inset — so its own safety is simply that it never reaches back OUT of that
+    # container. It carries the biggest numeral on the slide, and a negative
+    # side offset here puts that numeral straight under Etsy's 4:5 crop.
+    it "keeps the count sticker inside the container that pays the inset" do
+      described_class.new(printable: printable).call
+
+      block = declarations_for(".count-sticker")
+      expect(block).to be_present
+      expect(block).not_to match(/(?:left|right):\s*-/),
+                           "the count sticker reaches outside the safe zone:\n#{block}"
+    end
   end
 
   # Real thumbnails all decode to the same stubbed bytes, so the board a card is
   # showing is only distinguishable when each render is keyed to its board.
-  def stub_thumbnail_renders!
+  # `skip` stands in for a board whose page render failed: the real class omits
+  # it from the hash rather than returning a nil thumbnail.
+  def stub_thumbnail_renders!(skip: nil)
     allow(Boards::Printables::RenderPageThumbnails).to receive(:new) do |boards:, **_opts|
+      rendered = boards.reject { |b| b.id == skip&.id }
       instance_double(
         Boards::Printables::RenderPageThumbnails,
-        call: boards.to_h { |b| [b.id, thumbnail_for(b)] },
+        call: rendered.to_h { |b| [b.id, thumbnail_for(b)] },
       )
     end
   end

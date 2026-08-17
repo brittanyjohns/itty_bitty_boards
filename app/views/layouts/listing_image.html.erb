@@ -440,6 +440,7 @@
       .slide-stack.has-ribbon { padding-top: 108px; }
 
       .hero-stage {
+        position: relative;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -457,25 +458,102 @@
          at that size is a coloured smudge — the buyer can count the pages but
          can't see a single word. Overlapping buys each card ~50% more width
          and reads as "more than one board" just as fast. */
-      /* The widths have to close: three cards at W overlapping by V occupy
-         3W - 2V, and anything over 100% runs the outer pages off the slide
-         edge. 40% and 11% land at 98% and leave room for the rotation to
-         bleed without clipping. */
-      .hero-stage.fan { gap: 0; }
-      .hero-stage.fan .paper { flex: 0 0 40%; }
+      /* The widths have to close: n cards at W overlapping by V occupy
+         nW - (n-1)V, and anything over 100% runs the outer pages off the slide
+         edge. Boards::Printables::HeroFan holds the per-n table and asserts
+         that sum stays under 98%, which leaves room for the rotation to bleed
+         without clipping.
 
-      .hero-stage.fan .paper:nth-child(1) {
-        transform: rotate(-3deg);
-        margin-right: -11%;
-        z-index: 1;
+         --fan-w, --fan-overlap, --rot and --z are written inline by hero.html.erb
+         rather than being an nth-child ladder here. The ladder only covered
+         three cards, so raising HERO_TILES left cards four and five with no
+         transform, no negative margin and no z-index — 200% of the stage, half
+         of it off the slide. A rule that has to be edited whenever a constant
+         moves is a rule that will be forgotten. */
+      .hero-stage.fan { gap: 0; }
+
+      /* Makes room for the sticker. Slightly narrower cards beat a sticker
+         sitting on top of one. */
+      .hero-stage.has-sticker { padding-left: 96px; }
+
+      .hero-stage.fan .paper {
+        flex: 0 0 var(--fan-w);
+        transform: rotate(var(--rot));
+        z-index: var(--z);
       }
 
-      .hero-stage.fan .paper:nth-child(2) { z-index: 3; }
+      .hero-stage.fan .paper + .paper { margin-left: calc(-1 * var(--fan-overlap)); }
 
-      .hero-stage.fan .paper:nth-child(3) {
-        transform: rotate(3deg);
-        margin-left: -11%;
-        z-index: 2;
+      /* The bundle count, over the top-left of the pile. A sticker rather than
+         another line in the column because the hero is judged at ~230px wide in
+         an Etsy search grid: at that size the headline that says the same thing
+         is an illegible smudge and a single numeral is still a numeral.
+         z-index sits above every card in the fan (HeroFan hands out at most
+         MAX_CARDS). */
+      /* The sticker must clip the CORNER of the pile, not cover a page. The fan
+         runs to 98% of the stage, so there is no free space to sit in — the
+         stage is indented instead (.hero-stage.has-sticker below) and the
+         sticker fills the gap that opens up. The outermost card is the least
+         important one (RenderListingImages puts the root in the middle), but a
+         listing photo that hides a page it is advertising still reads as a
+         mistake.
+
+         `left: 0`, never a negative value: the sticker carries the biggest
+         numeral on the slide and .slide-stack's --safe-x inset is the only
+         thing keeping it out of Etsy's 4:5 side crop. See rail 5. A negative
+         top is fine — Etsy crops the sides, not the top. */
+      .count-sticker {
+        position: absolute;
+        z-index: 20;
+        top: -20px;
+        left: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 176px;
+        height: 176px;
+        padding: 10px;
+        border: 8px solid var(--white);
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--white);
+        text-align: center;
+        transform: rotate(-8deg);
+        box-shadow: var(--shadow-card);
+      }
+
+      .count-sticker strong {
+        font-size: 82px;
+        font-weight: 800;
+        line-height: 0.9;
+      }
+
+      .count-sticker span {
+        /* The label carries its own line break, so the two words stack without
+           depending on the width happening to wrap them. */
+        white-space: pre-line;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        line-height: 1.1;
+      }
+
+      /* Names the three print versions instead of multiplying them into the
+         count — see SlideCopy.hero_count_badge for why "18 PAGES" is the wrong
+         number to print here. */
+      .variant-strip {
+        position: relative;
+        z-index: 4;
+        align-self: stretch;
+        padding: 14px 24px;
+        border-radius: 12px;
+        background: var(--band);
+        color: var(--navy);
+        font-weight: 800;
+        font-size: 26px;
+        letter-spacing: 0.08em;
+        text-align: center;
       }
 
       .hero-empty {
