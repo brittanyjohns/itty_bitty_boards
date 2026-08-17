@@ -56,16 +56,17 @@ RSpec.describe Boards::Printables::TabletScene do
         end
 
         # A homography maps ANY rectangle onto the quad, so a screen shaped
-        # unlike the app shell doesn't fail — it silently ships a stretched
-        # board, which a buyer reads as "the product is distorted".
-        # RenderDeviceScreen's shell is one fixed size for every scene, so the
-        # constraint lands here: keep new scenes near it, or teach that class to
-        # size itself from scene.screen_width / scene.screen_height.
-        it "has a screen shaped like the app shell it receives" do
-          shell = Boards::Printables::RenderDeviceScreen::SHELL_WIDTH.to_f /
-                  Boards::Printables::RenderDeviceScreen::SHELL_HEIGHT
+        # unlike the shell it receives doesn't fail — it silently ships a
+        # stretched board, which a buyer reads as "the product is distorted".
+        # RenderDeviceScreen sizes itself from the scene, so what has to hold is
+        # that the two agree, and that the quad is a plausible landscape tablet
+        # rather than a mis-clicked sliver.
+        it "gets an app shell shaped like its own screen" do
+          screen = scene.screen_width.to_f / scene.screen_height
+          shell = Boards::Printables::RenderDeviceScreen.new(title: "x", thumbnail: nil, scene: scene)
 
-          expect(scene.screen_width.to_f / scene.screen_height).to be_within(0.06).of(shell)
+          expect(screen).to be_between(1.2, 1.8)
+          expect(shell.shell_width.to_f / shell.shell_height).to be_within(0.02).of(screen)
         end
       end
     end
@@ -77,10 +78,27 @@ RSpec.describe Boards::Printables::TabletScene do
     # The board is letterboxed into a rectangle of the quad's own proportions. A
     # homography will map ANY rectangle onto the quad, so getting this wrong
     # doesn't fail — it silently stretches the board on the glass.
-    it "sizes the flat rectangle to the quad's own proportions" do
-      tl, tr, br, bl = scene.quad
-      expect(scene.screen_width).to be_within(2).of((tr[0] - tl[0] + br[0] - bl[0]) / 2)
-      expect(scene.screen_height).to be_within(2).of((bl[1] - tl[1] + br[1] - tr[1]) / 2)
+    #
+    # Measured as EDGE LENGTH, not as the quad's width and height on the page.
+    # Those agree only while a tablet is photographed square-on; for one held at
+    # an angle the extents are much shorter than the edges, and sizing from them
+    # would squash the board by exactly the amount the tablet is rotated.
+    it "sizes the flat rectangle to the quad's own edges, not its extents" do
+      described_class::SCENES.each do |values|
+        scene = described_class.new(values)
+        tl, tr, br, bl = scene.quad
+        edge = ->(a, b) { Math.hypot(b[0] - a[0], b[1] - a[1]) }
+
+        expect(scene.screen_width).to be_within(1).of((edge.call(tl, tr) + edge.call(bl, br)) / 2)
+        expect(scene.screen_height).to be_within(1).of((edge.call(tl, bl) + edge.call(tr, br)) / 2)
+      end
+    end
+
+    it "measures a rotated tablet's screen larger than its bounding box" do
+      rotated = described_class.new(described_class::SCENES.find { |s| s[:slug] == "desk-tablet-tap" })
+      tl, tr, = rotated.quad
+
+      expect(rotated.screen_width).to be > (tr[0] - tl[0])
     end
 
     it "warps that rectangle, not some other one" do

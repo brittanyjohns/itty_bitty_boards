@@ -236,9 +236,13 @@ module Boards
           title: title,
           scene: scene,
           scene_data_uri: scene.data_uri,
+          # The scene is handed over so the app shell is rendered at THIS
+          # tablet's proportions — the homography will stretch whatever it is
+          # given onto the glass, and a mismatched shell ships a squashed board.
           board_data_uri: RenderDeviceScreen.new(
             title: title,
             thumbnail: grid_thumbnails(low_ink: false)[board.id],
+            scene: scene,
           ).call,
         )
       end
