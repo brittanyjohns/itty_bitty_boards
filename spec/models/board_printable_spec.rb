@@ -75,6 +75,51 @@ RSpec.describe BoardPrintable do
 
       expect(printable.reload.image_files.length).to eq(1)
     end
+
+    # #pdf_files is an ALLOWLIST, and these are why. It used to select by
+    # exclusion (`kind != KIND_IMAGE`), which made a video a PDF everywhere the
+    # partition is read.
+    describe "a listing video blob" do
+      before do
+        printable.files.attach(
+          ActiveStorage::Blob.create_and_upload!(
+            io: StringIO.new("mp4"),
+            filename: "flip-through.mp4",
+            content_type: "video/mp4",
+            key: printable.versioned_storage_key_for("flip-through.mp4"),
+            metadata: { "kind" => described_class::KIND_VIDEO, "variant" => "flip_through" },
+          ),
+        )
+        printable.reload
+      end
+
+      it "is neither a download nor a gallery image" do
+        expect(printable.pdf_files.map { |f| f.filename.to_s }).to eq(["core.pdf"])
+        expect(printable.image_files.length).to eq(1)
+        expect(printable.current_image_files.map { |f| f.metadata["variant"] })
+          .to eq([described_class::IMAGE_HERO])
+      end
+
+      it "is never offered to a buyer as a download" do
+        expect(printable.files_view.map { |f| f[:filename] }).to eq(["core.pdf"])
+        expect(printable.api_view[:files].map { |f| f[:filename] }).to eq(["core.pdf"])
+      end
+
+      # The silent one: Boards::Printables::Generate calls this with only the
+      # keys of the PDFs it just wrote, so a video counted as a PDF would be
+      # destroyed by every "Regenerate" with no error anywhere.
+      it "survives a PDF regeneration" do
+        # Boards::Printables::Generate passes the keys of the blobs IT just
+        # attached, so the keep list is PDFs and nothing else — which is what
+        # made the old denylist delete the video here.
+        fresh = printable.attach_pdf!(filename: "core.pdf", bytes: "pdf-2", variant: described_class::VARIANT_FULL)
+
+        printable.reload.purge_stale_pdfs!([fresh.key])
+
+        expect(printable.reload.files.map { |f| f.metadata["kind"] }).to include(described_class::KIND_VIDEO)
+        expect(printable.pdf_files.map(&:key)).to eq([fresh.key])
+      end
+    end
   end
 
   describe "#listing_copy_or_default" do

@@ -306,6 +306,10 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         child_board = communicator.child_boards.find_by(board_id: root.id)
         expect(child_board.favorite).to eq(true)
 
+        # Favoriting puts the root on the communicator's public MySpeak page,
+        # where Board#viewable_by? demands it be published or the card 404s.
+        expect(root.published).to be(true)
+
         # Interests are normalized + persisted in-request for re-run prefill.
         expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "grandma"])
 

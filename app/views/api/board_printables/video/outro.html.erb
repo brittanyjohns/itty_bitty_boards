@@ -1,0 +1,33 @@
+<%# The closing frame, and the longest hold in the clip: a buyer may actually be
+    pointing a phone at the QR. It gets OUTRO_SECONDS for that reason, and the
+    concat manifest repeats this frame so the demuxer doesn't drop its duration
+    — see VideoTranscoder.concat_manifest. %>
+<div class="slide video-frame video-outro">
+  <% if @logo %>
+    <img class="logo-corner" src="<%= @logo %>" alt="SpeakAnyWay" />
+  <% end %>
+
+  <div class="video-stack">
+    <div class="video-headline"><%= @headline %></div>
+
+    <div class="video-outro-row">
+      <% if @qr_data_url %>
+        <div class="video-qr">
+          <img src="<%= @qr_data_url %>" alt="Scan to open this board" />
+        </div>
+      <% end %>
+
+      <%# The same board, on a screen, talking — the half of the pitch a stack
+          of paper can't make on its own. Absent rather than fatal if the
+          device render failed. %>
+      <% if @device_data_uri %>
+        <div class="video-device">
+          <img src="<%= @device_data_uri %>" alt="The same board open in the app" />
+        </div>
+      <% end %>
+    </div>
+
+    <div class="video-sub"><%= @sub %></div>
+    <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
+  </div>
+</div>

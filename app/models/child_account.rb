@@ -757,7 +757,9 @@ class ChildAccount < ApplicationRecord
           display_image_url: b.display_image_url,
           preset_display_image_url: b.preset_display_image_url,
           favorite: cb.favorite,
-          published: cb.published,
+          # The board's flag — `child_boards.published` is a dead column that
+          # nothing writes. See ChildBoard#api_view.
+          published: b.published?,
           added_by: cb.created_by&.display_name,
           added_by_id: cb.created_by&.id,
           board_owner_id: b.user_id,
@@ -1170,7 +1172,7 @@ class ChildAccount < ApplicationRecord
           communicator_board_id: cb.id,
           display_image_url: b.display_image_url || og_board&.display_image_url,
           favorite: cb.favorite,
-          published: cb.published,
+          published: b.published?,
           added_by: cb.created_by&.display_name,
           added_by_id: cb.created_by&.id,
           board_owner_id: b.user_id,

@@ -554,6 +554,103 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       end
     end
 
+    describe "POST regenerate_listing_video" do
+      it "enqueues the render job" do
+        sign_in admin
+        allow(VideoTranscoder).to receive(:available?).and_return(true)
+
+        expect(RenderBoardPrintableListingVideoJob).to receive(:perform_async).with(printable.id)
+
+        post regenerate_listing_video_admin_dashboard_board_printable_path(printable)
+        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
+      end
+
+      # The job would return immediately, so the page would look like the
+      # button did nothing.
+      it "says so rather than enqueuing a job that can't work" do
+        sign_in admin
+        allow(VideoTranscoder).to receive(:available?).and_return(false)
+
+        expect(RenderBoardPrintableListingVideoJob).not_to receive(:perform_async)
+
+        post regenerate_listing_video_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to match(/ffmpeg isn't installed/)
+      end
+
+      it "refuses a printable that is still generating" do
+        sign_in admin
+        printable.update_columns(status: "generating")
+
+        expect(RenderBoardPrintableListingVideoJob).not_to receive(:perform_async)
+
+        post regenerate_listing_video_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to be_present
+      end
+    end
+
+    describe "POST upload_listing_video" do
+      let(:clip) do
+        Rack::Test::UploadedFile.new(StringIO.new("mp4-bytes"), "video/mp4", original_filename: "demo.mp4")
+      end
+
+      before { allow(VideoTranscoder).to receive(:available?).and_return(false) }
+
+      it "attaches the clip and marks it as the operator's, not a render" do
+        sign_in admin
+
+        post upload_listing_video_admin_dashboard_board_printable_path(printable), params: {video: clip}
+
+        printable.reload
+        expect(printable.listing_video?).to be true
+        expect(printable.listing_video_view[:manual]).to be true
+        # Nothing can re-render a hand-made clip, so badging it stale only nags.
+        expect(printable.listing_video_current?).to be true
+      end
+
+      it "keeps the clip out of the buyer's downloads and the gallery" do
+        sign_in admin
+
+        post upload_listing_video_admin_dashboard_board_printable_path(printable), params: {video: clip}
+
+        printable.reload
+        expect(printable.files_view.map { |f| f[:filename] }).to all(end_with(".pdf"))
+        expect(printable.current_image_files).to be_empty
+      end
+
+      it "refuses a file that isn't an mp4" do
+        sign_in admin
+        png = Rack::Test::UploadedFile.new(StringIO.new("png"), "image/png", original_filename: "nope.png")
+
+        post upload_listing_video_admin_dashboard_board_printable_path(printable), params: {video: png}
+
+        expect(flash[:alert]).to match(/upload an \.mp4/)
+        expect(printable.reload.listing_video?).to be false
+      end
+
+      # Etsy accepts an out-of-spec clip and only rejects it at activation, so
+      # the length has to be checked here or not at all.
+      it "refuses a clip outside Etsy's duration window" do
+        sign_in admin
+        allow(VideoTranscoder).to receive(:available?).and_return(true)
+        allow(VideoTranscoder).to receive(:duration).and_return(31.0)
+
+        post upload_listing_video_admin_dashboard_board_printable_path(printable), params: {video: clip}
+
+        expect(flash[:alert]).to match(/between 5 and 15 seconds/)
+        expect(printable.reload.listing_video?).to be false
+      end
+
+      it "records the probed duration when it can read one" do
+        sign_in admin
+        allow(VideoTranscoder).to receive(:available?).and_return(true)
+        allow(VideoTranscoder).to receive(:duration).and_return(7.5)
+
+        post upload_listing_video_admin_dashboard_board_printable_path(printable), params: {video: clip}
+
+        expect(printable.reload.listing_video_view[:duration]).to eq(7.5)
+      end
+    end
+
     describe "POST regenerate" do
       it "re-runs the PDF pipeline on the same record" do
         sign_in admin

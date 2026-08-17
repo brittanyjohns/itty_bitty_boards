@@ -13,6 +13,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   than a per-plan constant — so a plan whose allowance was set individually
   reports the number you were given. The app uses it as the denominator for
   "N of 400 left" on the dashboard.
+- **Etsy listings now carry a video.** A printable's listing gets a
+  flip-through: an intro card, each printed page in turn with the "back button
+  on every page" marker, and a closing frame with the QR beside the same board
+  open in the app. Rendered from the admin ahead of publishing, 1080×1080 and
+  5–15 seconds so Etsy accepts it, and uploaded with the draft. A hand-made
+  clip can be uploaded instead for the listings worth filming.
+- **Three new gallery slides, and a hero that shows a bundle is a bundle.** The
+  gallery goes from six images to nine. The new second image is the one that
+  says what these products actually are — a flip book of linked pages, where
+  folder tiles open a page and every page has a way back. There is also a
+  print-and-bind slide and a full page index, and the hero now carries a bundle
+  count and fans up to five pages instead of three.
+- **Listings are staged on photographs of real tablets** rather than a drawn
+  one, with the board warped onto the glass in perspective.
 
 - **Imported boards keep their tile sizes.** OBF/OBZ import used to force every
   tile to a single cell, so a board whose file described wide tiles — a
@@ -75,6 +89,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **A board made from a menu photo now fits its own grid.** Menu boards were
+  always built eight tiles wide no matter what the photo held, so a six-item
+  café menu arrived as one long strip and a forty-item diner menu as a wide
+  block with a ragged last row. The grid is now sized from the number of items
+  actually found on the menu, squaring up whenever the count allows it — nine
+  items land 3×3, sixteen land 4×4, twenty-five land 5×5 — and a very long menu
+  gets taller rather than squeezing tiles too small to hit on a tablet. The
+  board also now reports the same width it is drawn at; the two had drifted
+  apart (laid out at eight columns, described as six).
 - **AI board drafts now come back laid out, not just filled in.** The order the
   AI answers in is the order the tiles land on the grid, so a scrambled word list
   was a scrambled board: a verb, a noun, a pronoun, another noun, and the
@@ -113,6 +136,24 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards on a communicator's MySpeak page now actually open.** A board put on
+  a communicator's public page showed up in the grid, but tapping it gave a
+  "board not found" page unless the board had separately been published — and
+  boards made by the Board Builder, or picked during MySpeak setup, start out
+  unpublished, so this was the normal case rather than a rare one. Adding a
+  board to a communicator now publishes it, along with every page in its set, so
+  folder tiles work too. Removing a board from the page never unpublishes it, so
+  a link already printed on a QR tag or in an IEP keeps working. A board someone
+  else owns — an SLP's shared board — is left alone rather than being published
+  on their behalf; it simply doesn't appear on the public page. Any board that
+  isn't published is now hidden from the grid instead of showing a card that
+  leads nowhere.
+
+- **A printable's listing video is no longer destroyed by "Regenerate".** The
+  code that decides which attachments are buyer downloads treated anything that
+  wasn't a gallery image as a PDF, so a video counted as one — and the cleanup
+  that removes superseded PDFs deleted it silently on every regeneration. It
+  could also have been handed to a buyer as a download.
 - **Boards assigned to a communicator now get their own cover picture.** A board
   put on a communicator is copied rather than shared, and the copy's cover was
   never drawn — so a communicator's dashboard, and the board grid on their public

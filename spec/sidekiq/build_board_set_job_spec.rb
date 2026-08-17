@@ -852,4 +852,58 @@ RSpec.describe BuildBoardSetJob do
       expect(favorites.reload.board_images.map { |bi| bi.label.to_s.downcase }).not_to include("backpack")
     end
   end
+
+  # The controller favorites the root onto the communicator before enqueueing
+  # this job, which publishes it so its MySpeak card works. At that moment the
+  # set is EMPTY — every page below is created here, by plain Board.new, which
+  # takes the column default of false. Without a sync at the end of the build,
+  # the root's folder tiles 404 for a public visitor.
+  describe "publish state across the built set" do
+    def precreate_root_and_group!(name:)
+      root  = precreate_root!(name: name)
+      group = user.board_groups.create!(name: name, builder: true)
+      group.board_group_boards.create!(board: root, position: 0)
+      group.update!(root_board_id: root.id)
+      [root, group]
+    end
+
+    it "publishes every page of the set when the root is published" do
+      root, group = precreate_root_and_group!(name: "Home")
+      expect(root.reload.published).to be(true) # favorited by precreate_root!
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"],
+                                  {}, { "board_group_id" => group.id })
+
+      members = group.reload.boards.where.not(id: root.id)
+      expect(members).to be_present
+      expect(members.pluck(:published)).to all(be(true))
+    end
+
+    it "leaves the set unpublished when the root is not published" do
+      root, group = precreate_root_and_group!(name: "Home")
+      root.update!(published: false)
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"],
+                                  {}, { "board_group_id" => group.id })
+
+      members = group.reload.boards.where.not(id: root.id)
+      expect(members).to be_present
+      expect(members.pluck(:published)).to all(be(false))
+    end
+
+    # Same early-return path that backfills group membership for a set built
+    # before the attach existed — it has to backfill publish state too.
+    it "backfills publish state when an already-built set is re-run with the group id" do
+      root, group = precreate_root_and_group!(name: "Home")
+      described_class.new.perform(root.id, communicator.id, "home", [])
+      Board.where(id: group.reload.boards.pluck(:id)).update_all(published: false)
+      root.reload.update!(published: true)
+
+      described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
+
+      members = group.reload.boards.where.not(id: root.id)
+      expect(members).to be_present
+      expect(members.pluck(:published)).to all(be(true))
+    end
+  end
 end

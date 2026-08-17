@@ -353,6 +353,23 @@ an explicit decision, not a drive-by edit.
   substitute teacher reads routinely; routing them through the emergency alert
   would train parents to ignore it. Care fields are equally never sent to
   OpenAI. Details: `.claude-notes/safety-profiles.md`.
+- **A board on a communicator's MySpeak page is a PUBLISHED board.** The public
+  grid selects on `child_boards.favorite`, but the board behind each card is
+  gated on `Board#viewable_by?`, which refuses an anonymous visitor an
+  unpublished board — so favoriting alone served a working card that 404'd on
+  tap, and that was the DEFAULT state (Board Builder roots and
+  `AssignmentCloner` clones are both born unpublished). Both halves are
+  required. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
+  `favorite` transition so no call site can forget it, publishes the board and
+  cascades to its set. READ: `Profile#communication_boards` and
+  `Profile#user_boards` filter on `published`. Three rails on the write half —
+  it is **one-way** (unfavoriting never unpublishes; `/pb/<slug>` may already be
+  printed into an IEP), it publishes **only boards owned by the page's owner**
+  (a parent's favorite tap is not an SLP's consent to publish their shared
+  board — such a board is left private and the read filter hides it), and a
+  Board Builder set is synced again in `BuildBoardSetJob` because at favorite
+  time the set is still empty. `child_boards.published` is a dead column that
+  nothing writes; read `board.published?`.
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);
@@ -407,6 +424,18 @@ an explicit decision, not a drive-by edit.
   rotates on every exchange, so it lives in `oauth_credentials` (not ENV) and
   Rails holds a **separate authorization** from the one `speakanyway-printables`
   uses — a shared grant makes the two invalidate each other.
+- **A `board_printables` blob is a download, a gallery image, or the listing
+  video — and `pdf_files` is the ALLOWLIST that keeps them apart.** The three
+  share one `has_many_attached :files`, separated by blob metadata `kind`
+  (`pdf`/`image`/`video`, with a missing `kind` meaning PDF for everything
+  written before the split existed). `pdf_files` once selected by EXCLUSION
+  (`kind != "image"`), which was correct only while "not an image" and "is a
+  PDF" were the same thing; adding video made that false and the video then read
+  as a buyer download everywhere — served by `files_view`, uploaded to Etsy as
+  `application/pdf` against the five-file cap, and, silently, destroyed by
+  `purge_stale_pdfs!` on every "Regenerate", which is handed only the keys of
+  the PDFs that run just wrote. A new kind gets its own reader and stays out of
+  `KIND_DOWNLOADABLE`; never widen the partition by negation.
 - **`child_accounts.settings` MERGES on update; `details` REPLACES.** The two
   jsonb blobs have opposite semantics on purpose, and both are load-bearing.
   Several frontend surfaces save `settings` as a fresh literal holding only

@@ -119,10 +119,11 @@ that page is the only thing that tells a reader where the QR went.
 cover.** A buyer's QR points at a board that may later change or move, so both
 pages tell them to make a free account and save their own copy — the credits
 page beside the QR itself, and how-to-use as step 6. Two placements are ruled
-out: the **cover**, because `RenderWrappers#cover_assigns` is shared verbatim
-with `RenderListingImages` and the cover therefore *is* the Etsy search
-thumbnail (a "may not stay online" line would ship as the product's first
-photo); and the **license page**, where the surrounding anti-redistribution
+out: the **cover**, which is the first thing a buyer sees on opening the product
+(a "may not stay online" line has no business being the first page of something
+just paid for — and when this was written the cover was also rendered as the
+gallery's first image, so it *was* the Etsy search thumbnail); and the
+**license page**, where the surrounding anti-redistribution
 terms make it read as a restriction on the buyer rather than a nudge. Word it as
 a next action, not a disclaimer — "isn't guaranteed forever" on a product page
 reads as a warning about what was just paid for. `credits` renders once and
@@ -209,19 +210,46 @@ asks for.
 
 ## Gallery images
 
-`Boards::Printables::RenderListingImages` renders **six** square 2560px slides
+`Boards::Printables::RenderListingImages` renders **nine** square 2560px slides
 through `layouts/listing_image.html.erb` — a marketing canvas of its own, not
 the print sheet. `LISTING_IMAGE_ORDER` is the Etsy rank order, and rank 1 is the
-search thumbnail:
+search thumbnail. Etsy caps a listing at ten photos, so nine leaves one slot for
+something hand-made uploaded in the seller UI; the listing VIDEO is a separate
+slot and does not count against the ten.
 
 | Slide | Board-specific? | Ported from (`speakanyway-printables`) |
 |---|---|---|
-| `hero` | yes — real page thumbnails on a room background | `previews/hero-board.*` |
+| `hero` | yes — real page thumbnails fanned on a room background, with the bundle sticker | `previews/hero-board.*` |
+| `flip_book` | yes — the root page opening two subpages, each with its back marker | — |
 | `on_a_device` | yes — the root board, in the app's chrome, warped onto a photographed tablet | step 14 + `previews/content-mock-app.*` |
 | `whats_included` | yes — capped thumbnail grid of the colour pages | `previews/whats-included.*` |
 | `whats_included_low_ink` | yes — the same grid rendered `hide_colors` | — |
+| `assemble` | no — print, trim, hole-punch & ring, scan | — |
+| `page_index` | yes — every board named, in tree order | — |
 | `how_it_works` | no | `plugins/aac/.../about-saw.*` (steps half) |
 | `about` | no | `plugins/aac/.../about-saw.*` (founder half) |
+
+### No slide may be conditional on board count
+
+`listing_images_current?` requires EVERY variant in `LISTING_IMAGE_ORDER`, so a
+slide skipped for a single-board printable would leave that printable
+permanently stale, permanently badged in the admin, and re-rendering its whole
+gallery on every publish. Where a slide means something different for one board,
+its **copy** varies (`Printables::SlideCopy`) and the variant is still rendered:
+`flip_book` becomes "one page — and the QR turns it into a talking board",
+`page_index` becomes "what's on this board".
+
+Adding to that constant makes every existing printable stale. That is the point:
+it is what surfaces the admin badge and forces a re-render before publishing.
+
+### The flip-book angle
+
+The three slides added in Aug 2026 (`flip_book`, `assemble`, `page_index`) all
+serve one claim: **a printable is a bundle of LINKED pages**. Folder tiles open
+sub-pages and every sub-page carries a way back — `Boards::BackTileStamper`
+guarantees it, every page carries its own QR, and none of it was said anywhere a
+buyer looks. `flip_book` earns rank 2 because it is the one claim no competing
+AAC printable on the marketplace can make.
 
 **Rails is authoritative for listings the Rails admin originates**; the pipeline
 is authoritative for the ones its own steps 11/13/14 originate. Same rule, and
@@ -232,7 +260,8 @@ the same drift hazard, as `Etsy::CopyRules` above.
 Etsy does **not** letterbox a square photo. The listing page frames it 4:5 and
 cover-crops, taking **10% off each side**, and the seller-side "Adjust
 thumbnail" dialog crops again for the search grid. So the canvas stays square —
-that is the search grid's shape and the one all six slides share — and the
+that is the search grid's shape, and the one every slide and video frame
+shares — and the
 layout keeps everything that carries meaning inside `--safe-x` (160px of the
 1280px canvas, 12.5%, against the 10% Etsy takes).
 
@@ -256,6 +285,18 @@ their hand-clicked screen corners are vendored into
 doesn't make (ID cards, device tags, stickers, tattoos) or warp a printed sheet
 onto furniture — that compositing is still that repo's job.
 
+Two more scenes (`desk-tablet-tap`, `table-tablet-talk`) are photographs of real
+tablets, exported from Canva mockups and calibrated here. **Calibrate by warping
+a block onto the photo and looking, not by drawing the quad flat on it.** The
+warp composes the quad with the slide's cover-placement transform, so an error
+invisible on the flat photo is 20–40px of someone else's wallpaper showing along
+an edge once the board is on the glass. Both fitted quads land at 4:3, which is
+the check that the numbers are right — that is a real iPad screen.
+
+Both sit a few pixels **proud** of the glass on purpose. Each photo's screen
+already shows something, and a flush quad leaves a sliver of it visible, which
+reads as a rendering fault; bleeding onto the bezel reads as the screen's edge.
+
 **What sits on the glass is the app, not a sheet of paper.**
 `Boards::Printables::RenderDeviceScreen` wraps the board in SpeakAnyWay's own
 chrome — board name, nav, empty speech bar, play/clear/download — and *that*
@@ -265,9 +306,12 @@ talks; the print header would put a scan-me band and a second QR on the glass.
 Ported from that repo's `renderContentAppPage`, chrome and all, so a listing
 from either source shows one app. Two constraints:
 
-- **The shell is 1100x720 (~1.528)**, the mean of the two tablet quad aspects
-  in `TabletScene::SCENES`. The homography stretches the artwork onto the quad
-  whatever shape it is, so a shell at another aspect arrives visibly squashed.
+- **The shell is sized from the scene**, at a constant total area
+  (`RenderDeviceScreen::SHELL_AREA`). The homography stretches the artwork onto
+  the quad whatever shape it is, so a shell at another aspect arrives visibly
+  squashed. It used to be a fixed 1100x720 (~1.528) — the mean of the only two
+  scenes that existed — and the photographed scenes added since are 4:3, so a
+  fixed shell was one scene away from being wrong for most of the library.
 - **The board image is the header-less thumbnail** the what's-included grid
   already rendered, so the slide costs one extra Grover render, not two. A
   board too tall for the shell is top-anchored and clipped — that's what a real
@@ -276,9 +320,17 @@ from either source shows one app. Two constraints:
 
 Three things hold the warp together:
 
-- **The quads are copied, not re-measured.** They are the corners someone
-  clicked in that repo's `calibrate-mockup-scene.html`, in the scene JPG's own
-  pixel space. Re-deriving them by eye puts the board a few pixels off the glass.
+- **The quads are copied, not re-measured.** For the two ported scenes they are
+  the corners someone clicked in that repo's `calibrate-mockup-scene.html`, in
+  the scene JPG's own pixel space. Re-deriving them by eye puts the board a few
+  pixels off the glass.
+- **Scene lists are picked by rendezvous hash, not modulo.**
+  `Boards::Printables::StablePick` scores each entry by its own slug, so
+  `TabletScene::SCENES`, `BrandAssets::SCENES` and `Palette::PALETTES` can all
+  be reordered and appended to. Under the old `% list.size` pick, adding one
+  photo re-skinned every printable in the shop, which is why those files used to
+  warn that their order was load-bearing. **The slug is now the load-bearing
+  thing** — renaming one re-skins the boards that had picked it.
 - **Everything inside `.mockup-stage` lays out in those same scene pixels**, and
   the stage as a whole is scaled and offset to cover the slide. `object-fit:
   cover` on the photo would move it without telling anything where the corners
@@ -369,8 +421,8 @@ so `PublishBoardPrintable` renders them when they aren't current.
 
 **`listing_images?` is not a strong enough guard — use `listing_images_current?`.**
 A printable generated before a gallery change still has images — the retired
-`cover`/`whats_included` pair, or a four-slide gallery from before the low-ink
-split. `LISTING_IMAGE_ORDER` is the whole definition of "current", so adding a
+`cover`/`whats_included` pair, or any earlier gallery from before a slide was
+added. `LISTING_IMAGE_ORDER` is the whole definition of "current", so adding a
 variant to it is what makes every older printable stale. Four things stop a
 stale image reaching a live listing:
 `listing_images_view` filters to known variants, `purge_legacy_listing_images!`
@@ -494,16 +546,66 @@ re-derives the slug from the name on every rename; don't convert it.
 
 ## Storage layout
 
-`BoardPrintable#files` holds both kinds of blob, separated by blob metadata
-`kind` (`pdf` / `image`) rather than a second attachment — the PNGs arrived long
-after the PDFs and re-homing the existing ones would have churned every stored
-key. **A blob with no `kind` is a PDF** (that's every blob written before this
-existed).
+`BoardPrintable#files` holds all three kinds of blob, separated by blob metadata
+`kind` (`pdf` / `image` / `video`) rather than by separate attachments — the
+PNGs arrived long after the PDFs and re-homing the existing ones would have
+churned every stored key. **A blob with no `kind` is a PDF** (that's every blob
+written before this existed).
+
+**`pdf_files` is an ALLOWLIST (`KIND_DOWNLOADABLE`) and must stay one.** It used
+to select by exclusion (`kind != KIND_IMAGE`), which was correct only while "not
+an image" and "is a PDF" meant the same thing. The moment a third kind existed
+the video read as a PDF everywhere the partition is used: `files_view` would
+hand it to a buyer, `upload_files` would send it to Etsy as `application/pdf`
+against the five-file cap, and — silently, which is the one that matters —
+`purge_stale_pdfs!` would DELETE it on every "Regenerate", since `Generate`
+passes only the keys of the PDFs it just wrote.
 
 `files_view` is PDFs only, on purpose: the admin download buttons and the
 `/api/board_printables/:id/download_url` contract both read it, and neither
 should start handing out marketing art. `listing_images_view` is the images, in
-Etsy rank order.
+Etsy rank order; `listing_video_view` is separate again.
+
+## The listing video
+
+`Boards::Printables::RenderListingVideo` builds a **flip-through**: an intro
+card, one frame per printed page in tree order (root first, capped at
+`MAX_PAGE_FRAMES = 8` to match `ContentTilePlan::MAX_TILES`), then a QR outro
+showing the same board open in the app. Frames are Grover-rendered 1080-square
+cards — the page thumbnails are already data URIs, and every brand element is
+already CSS in the shared layout, so an ffmpeg filter graph would be rebuilding
+both.
+
+Etsy's rules: 5–15 seconds, ≤100 MB, ≥500px (1080×1080 recommended), **one
+video per listing**, and **Etsy strips the audio** — so the clip carries
+everything visually and nothing here encodes an audio stream. Scope `listings_w`
+covers `POST /shops/:shop_id/listings/:id/videos`, and this app's grant already
+holds it.
+
+Three rails:
+
+- **Duration is a pure function** (`.plan_seconds`), specced across every board
+  count the admin allows, and the encoded file's real duration is measured again
+  before it is attached. Etsy rejects an out-of-spec video at ACTIVATION time in
+  the seller UI, a long way from anything that explains why.
+- **Do NOT use the ffmpeg concat demuxer.** It is the obvious tool and its
+  timing does not survive contact with still images: measured against ffmpeg
+  8.1, frames of 1s/2s/4s produced a 5s clip, and the widely-repeated "repeat
+  the last file" workaround produced 11s. `VideoTranscoder.encode_still_sequence`
+  uses one looped input per frame plus a concat FILTER, which reproduces the
+  plan to within a frame. `spec/services/video_transcoder_encode_spec.rb` runs
+  ffmpeg for real because no stubbed spec can catch a wrong duration.
+- **Publishing never renders it.** The gallery is auto-rendered at publish
+  because Etsy won't let a listing with zero photos go live; there is no
+  equivalent rule for video, and ten Grover renders plus an ffmpeg encode inside
+  a `retry: 0` job is a way to wedge a publish half-done in a real shop. Render
+  from the admin first, or the draft goes up without one. A failed video upload
+  records itself on `etsy_error` and does **not** fail the publish.
+
+Staleness lives in blob metadata (`spec_version` + `board_count`), so there is
+no migration; bump `BoardPrintable::VIDEO_SPEC_VERSION` to force a fleet-wide
+re-render. A hand-uploaded clip (`VIDEO_MANUAL`, the admin's "Upload instead"
+field) is never stale — nothing could re-render it.
 
 ## Publishing is never retried
 

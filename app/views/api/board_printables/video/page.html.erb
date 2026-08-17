@@ -1,0 +1,26 @@
+<%# One printed page, held for about a second before the next cuts in. The page
+    itself is nearly the whole frame — the chrome around it is a counter and the
+    back marker, and both exist to say the pages are a SET rather than a pile.
+
+    Rendered with the page header shown, so the printed QR is visible on every
+    single frame. That is the flip-book claim made continuously rather than
+    once at the end. %>
+<div class="slide video-frame video-page">
+  <div class="video-page-head">
+    <div class="video-page-label"><%= @page_label %></div>
+    <div class="video-page-count"><%= @position %> / <%= @total %></div>
+  </div>
+
+  <div class="video-paper">
+    <img src="<%= @thumbnail.data_uri %>" alt="<%= @page_label %>"
+         style="aspect-ratio: <%= @thumbnail.width %> / <%= @thumbnail.height %>;" />
+  </div>
+
+  <div class="video-page-foot">
+    <% if @back_marker %>
+      <div class="video-back"><%= @back_marker %></div>
+    <% else %>
+      <div class="video-back is-root"><%= Printables::SlideCopy.instant_download_banner %></div>
+    <% end %>
+  </div>
+</div>

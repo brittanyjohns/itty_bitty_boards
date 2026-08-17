@@ -11,7 +11,7 @@ RSpec.describe Boards::Printables::BrandAssets do
     it "picks the same scene for the same board every time" do
       board = create(:board, user: owner, name: "Core Words")
 
-      picks = 5.times.map { described_class.scene_index_for(board) }
+      picks = 5.times.map { described_class.scene_name_for(board) }
 
       expect(picks.uniq.size).to eq(1)
     end
@@ -19,10 +19,10 @@ RSpec.describe Boards::Printables::BrandAssets do
     it "spreads different boards across the scene pool" do
       boards = 40.times.map { |i| create(:board, user: owner, name: "Board #{i}") }
 
-      indexes = boards.map { |b| described_class.scene_index_for(b) }
+      names = boards.map { |b| described_class.scene_name_for(b) }
 
-      expect(indexes.uniq.size).to be > 1
-      expect(indexes).to all(be_between(0, described_class::SCENES.size - 1))
+      expect(names.uniq.size).to be > 1
+      expect(names).to all(be_in(described_class::SCENES))
     end
 
     it "returns an inline data URI, never a path or a URL" do

@@ -252,7 +252,7 @@ class Profile < ApplicationRecord
 
   def user_boards
     return [] if profileable.nil?
-    return profileable.boards.main_boards.alphabetical.includes(:user, *BOARD_CARD_PRELOADS) if profileable_type == "User"
+    return profileable.boards.main_boards.published.alphabetical.includes(:user, *BOARD_CARD_PRELOADS) if profileable_type == "User"
     []
   end
 
@@ -261,6 +261,16 @@ class Profile < ApplicationRecord
   # returns Boards. The preload has to follow that — `includes(board: ...)` on a
   # Board relation raises AssociationNotFoundError and 500s the public page.
   # Both branches still answer `public_card_view`, which is what the callers need.
+  #
+  # Filtered on `published` because this list is serialized straight into an
+  # UNAUTHENTICATED payload, while the board behind each card is gated on
+  # `Board#viewable_by?` — which refuses an anonymous visitor unless the board
+  # is published. Selecting on `favorite` alone published a card (name, slug,
+  # cover) for a private board and then 404'd whoever tapped it. The write side
+  # has the matching half: favoriting a board publishes it
+  # (`Boards::MySpeakPublisher`). This is the backstop for everything that
+  # bypasses it — legacy rows, and boards owned by someone other than the page
+  # owner, which are deliberately not auto-published.
   def communication_boards
     return [] unless profileable&.respond_to?(:favorite_boards)
 
@@ -268,9 +278,9 @@ class Profile < ApplicationRecord
     return [] if favorites.blank?
 
     if favorites.klass == Board
-      favorites.includes(*BOARD_CARD_PRELOADS)
+      favorites.published.includes(*BOARD_CARD_PRELOADS)
     else
-      favorites.includes(board: BOARD_CARD_PRELOADS)
+      favorites.joins(:board).merge(Board.published).includes(board: BOARD_CARD_PRELOADS)
     end
   end
 
