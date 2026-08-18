@@ -106,7 +106,7 @@ Every printable ships each board three times
 |---|---|---|
 | `color` | full colour | full band — logo, board title, scan-me line, QR |
 | `low_ink` | white tile backgrounds | full band |
-| `trim_ready` | full colour | **QR alone, top-right** |
+| `trim_ready` | full colour | **one thin address line, top-right** |
 
 A single board is ONE file holding all three pages; a subboard tree is three
 files (`<slug>.color.pdf`, `.low-ink.pdf`, `.trim-ready.pdf`), each fully
@@ -155,13 +155,24 @@ gallery slides, which must keep encoding exactly what the downloaded page does
 lives *inside* the header block in `api/boards/print.html.erb`, so hiding the
 header takes the code with it — and the free audio companion is the single
 claim the whole listing leans on. `Boards::RenderAssetData` therefore carries a
-three-state `header_mode` (`full` / `qr_only` / `none`), never a second boolean
+three-state `header_mode` (`full` / `url_only` / `none`), never a second boolean
 that can contradict `hide_header`:
 
-- `qr_only` reserves a 20mm band (`#header_band_height_mm`) instead of 30-34mm
-  and prints a 0.6in QR in the corner. The band is **reserved, not overlaid**:
-  a width-limited board spans the full sheet, so a floating QR would land on
-  tiles.
+- `url_only` reserves a 6mm band (`#header_band_height_mm`) instead of 30-34mm
+  and prints ONE thin line of type — the board's address, no code. The band is
+  **reserved, not overlaid**: a width-limited board spans the full sheet, so
+  floating text would land on tiles.
+- **The trim-ready page carries no QR, deliberately.** "Trim-ready" is a size
+  claim, and the 0.6in code cost 20mm of sheet — ~15% of the board's printed
+  area on a height-limited landscape page — for a code that is ~0.37mm per
+  module at that size, at or under the phone-camera floor that made the
+  classroom-kit tags unscannable (`.claude-notes/marketing-assets.md`). It was
+  paying a size penalty for a scan that half-works. The scannable code still
+  ships on the colour and low-ink pages, and on the trim-ready file's own
+  cover and credits pages; the how-to-use page says where it went.
+- Because that page renders no code, `RenderAssetData` skips the 480px QR
+  encode for it entirely while still resolving `qr_target_url` for the printed
+  line.
 - `hide_header:` still works for the callers that only ever wanted
   all-or-nothing (board previews, the print endpoints, the gallery's grid
   thumbnails) and maps onto `full`/`none`. `header_mode:` wins when both are

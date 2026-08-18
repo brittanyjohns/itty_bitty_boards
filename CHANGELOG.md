@@ -7,6 +7,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **The trim-ready pages print bigger.** That variant exists so the board fills
+  the sheet, but it was still reserving 20mm for a QR code — about 15% of the
+  board's printed area on a landscape page, for a code small enough that phones
+  struggled with it anyway. The band is now one thin line naming the board's
+  web address, and the board takes the space back. The scannable code is
+  unchanged on the full-colour and low-ink pages and on the cover.
 - **Etsy listing QRs are tagged for attribution.** The QR in a printable's
   gallery images and listing video now carries `utm_source=etsy` campaign tags,
   so traffic from a listing is identifiable in analytics. The QR **printed into
