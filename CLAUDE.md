@@ -219,6 +219,19 @@ an explicit decision, not a drive-by edit.
 - **`User#paid_plan?` is the single paid-tier gate.** It checks both
   `plan_type` and `plan_status`; `basic_trial` and Stripe `trialing` count as
   paid while active. Never read `plan_type` directly for a paid-feature check.
+- **A board's `parent` is PROVENANCE, not ownership — never reassign it on a
+  save.** `user_id` says who owns a board; `parent` says where it came from
+  (the `Menu` a menu board was extracted from, the `Image` behind a
+  predictive/category board, the `Board` that spawned a subboard, the
+  `OpenaiPrompt` behind a generated one). Both update paths used to set
+  `parent_type = "User"` unconditionally, which severed that link on the first
+  rename — and no other column points back, so it was unrecoverable from the
+  row. A menu board silently lost `original_menu_image_url` (the frontend's
+  "View Menu" button), `menu_description`, and reported its *owner's* user id
+  as `menu_id`. Route every assignment through `Board#sync_user_parent`, which
+  re-points only a `"User"` parent (so a hand-off still follows the owner).
+  Anything derived from `parent` must key on `parent_type`, never on
+  `board_type`. Repair for already-severed rows: `rake menu_boards:relink`.
 - **`User#countable_board_count` / `at_board_limit?` is the single source of
   truth for board counting.** Builder sub-boards (`builder_child`) are
   excluded so a built tree counts as one; every creation gate routes through

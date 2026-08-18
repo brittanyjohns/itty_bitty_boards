@@ -531,8 +531,10 @@ class API::BoardsController < API::ApplicationController
       settings = !board_params[:settings].blank? ? board_params[:settings] : params[:settings] || {}
       settings["board_type"] = board_type
 
-      @board.parent_type = "User"
-      @board.parent_id = @board_user&.id || User::DEFAULT_ADMIN_ID
+      # Never stomp a Menu/Image/Board/OpenaiPrompt parent here — that link is
+      # the board's provenance and nothing else records it. See
+      # Board#sync_user_parent.
+      @board.sync_user_parent(@board_user&.id)
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
 
