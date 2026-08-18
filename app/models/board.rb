@@ -550,6 +550,27 @@ class Board < ApplicationRecord
     generated_token.present?
   end
 
+  # A board's `parent` records PROVENANCE, not ownership — a menu board points
+  # at the Menu it was extracted from, a predictive/category board at its Image,
+  # a subboard at the Board that spawned it, a generated board at its
+  # OpenaiPrompt. Ownership is `user_id`, and only `user_id`.
+  #
+  # The controllers used to reassign parent to the owner on EVERY save, which
+  # severed that link permanently on the first rename or color change: a menu
+  # board silently lost `original_menu_image_url` (the "View Menu" button),
+  # `menu_description`, and `menu_id`, and there is no other column pointing
+  # back at the Menu, so the association could not be recovered from the row.
+  # Call this instead of assigning parent_type/parent_id directly.
+  #
+  # A "User" parent IS re-pointed at the current owner, deliberately: that
+  # parent means "this board belongs to a person" and must follow a hand-off.
+  def sync_user_parent(owner_id = nil)
+    return if parent_id.present? && parent_type.present? && parent_type != "User"
+
+    self.parent_type = "User"
+    self.parent_id = owner_id || user_id || User::DEFAULT_ADMIN_ID
+  end
+
   def set_parent
     if parent_type.nil? && parent_id.nil?
       self.parent_type = "User"
@@ -2302,7 +2323,7 @@ class Board < ApplicationRecord
       source_type: source_type,
       vendor: vendor,
       week_chart: week_chart,
-      menu_id: board_type === "menu" ? parent_id : nil,
+      menu_id: parent_type === "Menu" ? parent_id : nil,
       name: name,
       root_board: @root_board,
       language: language,
@@ -2329,7 +2350,7 @@ class Board < ApplicationRecord
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       menu_description: parent_type === "Menu" ? parent&.description : nil,
       original_menu_image_url: parent_type === "Menu" ? parent&.menu_image_url : nil,
-      parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
+      parent_prompt: parent_type === "OpenaiPrompt" ? parent&.prompt_text : nil,
       predefined: predefined,
       favorite: favorite,
       published: published,

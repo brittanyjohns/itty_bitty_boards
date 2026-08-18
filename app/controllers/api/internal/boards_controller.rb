@@ -175,8 +175,9 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
       @board.settings = @board.settings.merge(incoming_settings)
     end
 
-    @board.parent_type = "User"
-    @board.parent_id = @board.user_id || User::DEFAULT_ADMIN_ID
+    # Same guard as the public update path — an admin edit must not sever a
+    # menu board from its Menu. See Board#sync_user_parent.
+    @board.sync_user_parent
 
     # A published board's slug is frozen (printed QR codes encode `/pb/<slug>`
     # — see Board#slug_locked?). This admin surface is the deliberate rename

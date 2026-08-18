@@ -5,6 +5,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Menu boards keep their menu photo.** Renaming a board built from a menu —
+  or changing its color, or saving its words — used to disconnect it from the
+  menu it was made from, so the "View Menu" button vanished from the board page
+  and never came back. Saving a board no longer touches where it came from.
+  Boards already disconnected can be reconnected with `rake menu_boards:relink`.
 ### Changed
 
 - **The trim-ready pages print bigger.** That variant exists so the board fills
