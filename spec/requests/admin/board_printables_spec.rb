@@ -651,6 +651,108 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       end
     end
 
+    describe "editing the topic and regenerating copy" do
+      # The topic is create-only no longer: it is the ONLY pool that describes
+      # the product, so a listing made without one carries the same 13 tags as
+      # every other listing in the shop.
+      it "saves the topic alongside the copy" do
+        sign_in admin
+
+        patch update_listing_admin_dashboard_board_printable_path(printable), params: {
+          title: "T", summary: "S", description: "D", tags: "aac", price: "5.00",
+          topic: "hospital stay, doctor visit",
+        }
+
+        expect(printable.reload.topic).to eq("hospital stay, doctor visit")
+      end
+
+      it "clears the topic when the field is emptied" do
+        sign_in admin
+        printable.update!(topic: "hospital stay")
+
+        patch update_listing_admin_dashboard_board_printable_path(printable), params: {
+          title: "T", summary: "S", description: "D", tags: "aac", price: "5.00", topic: "",
+        }
+
+        expect(printable.reload.topic).to be_nil
+      end
+
+      # Saving the topic must NOT rewrite the copy: the copy is hand-edited
+      # before publishing, and rebuilding it silently would discard that.
+      it "leaves the saved copy alone when only the topic changes" do
+        sign_in admin
+
+        patch update_listing_admin_dashboard_board_printable_path(printable), params: {
+          title: "Hand written title", summary: "S", description: "D", tags: "aac", price: "5.00",
+          topic: "hospital stay",
+        }
+
+        expect(printable.reload.listing_copy["title"]).to eq("Hand written title")
+      end
+
+      it "rebuilds the copy from the topic on regenerate" do
+        sign_in admin
+        printable.update!(topic: "hospital stay, doctor visit")
+        printable.update!(listing_copy: {
+          "title" => "stale", "description" => "stale", "tags" => ["aac"], "price_cents" => 500,
+        })
+
+        post regenerate_listing_copy_admin_dashboard_board_printable_path(printable)
+
+        tags = printable.reload.listing_copy["tags"]
+        expect(printable.listing_copy["title"]).not_to eq("stale")
+        expect(tags).to include("hospital stay")
+        # The whole point: the topic tags rank straight after the always-on
+        # three, so they can't be crowded out by the generic pools.
+        expect(tags.index("hospital stay")).to be < tags.index("speech therapy") if tags.include?("speech therapy")
+      end
+
+      # The generator emits a constant price, so regenerating would silently
+      # reset a price someone chose.
+      it "keeps a hand-set price" do
+        sign_in admin
+        printable.update!(topic: "hospital stay", listing_copy: {
+          "title" => "t", "description" => "d", "tags" => [], "price_cents" => 1250,
+        })
+
+        post regenerate_listing_copy_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.listing_copy["price_cents"]).to eq(1250)
+      end
+
+      it "preserves keys the generator doesn't emit" do
+        sign_in admin
+        printable.update!(topic: "hospital stay", listing_copy: {
+          "title" => "t", "description" => "d", "tags" => [], "tpt_title_override" => "kept",
+        })
+
+        post regenerate_listing_copy_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.listing_copy["tpt_title_override"]).to eq("kept")
+      end
+
+      # Regenerating is local. A published printable's live listing only changes
+      # when the copy is pushed with the printables CLI.
+      it "sends nothing to Etsy and leaves the listing attached" do
+        sign_in admin
+        printable.update!(topic: "hospital stay", etsy_listing_id: 987, etsy_published_at: 1.day.ago)
+        allow(Etsy::Client).to receive(:new).and_raise("no Etsy call should be made")
+
+        post regenerate_listing_copy_admin_dashboard_board_printable_path(printable)
+
+        expect(printable.reload.etsy_listing_id).to eq(987)
+        expect(flash[:notice]).to match(/[Nn]othing has been sent to Etsy/)
+      end
+
+      it "redirects a non-admin away" do
+        sign_in create(:user)
+
+        post regenerate_listing_copy_admin_dashboard_board_printable_path(printable)
+
+        expect(response).to redirect_to(root_path)
+      end
+    end
+
     describe "POST push_video_to_etsy" do
       before do
         printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 2.days.ago)

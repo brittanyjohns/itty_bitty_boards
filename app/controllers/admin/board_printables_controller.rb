@@ -58,8 +58,30 @@ module Admin
     def update_listing
       printable = BoardPrintable.find(params[:id])
 
-      printable.update!(listing_copy: listing_copy_params(printable))
+      # `topic` is a column, not part of the listing_copy jsonb, but it is
+      # edited on the same form because it is the input that DRIVES that copy.
+      # Saving it does not rewrite the copy — that is the separate, confirmed
+      # regenerate below, since rebuilding would discard hand edits.
+      printable.update!(
+        listing_copy: listing_copy_params(printable),
+        topic: params[:topic].presence,
+      )
       redirect_to admin_dashboard_board_printable_path(printable), notice: "Listing copy saved."
+    end
+
+    # Re-runs Etsy::ListingCopy over the record, which is the only way a topic
+    # set after creation can reach the copy — the generator is deterministic, so
+    # nothing else re-reads it. Destructive to hand-edited title/summary/
+    # description/tags, which is what the confirm dialog is for.
+    #
+    # Local only: this touches no marketplace. A published printable's live
+    # listing is unaffected until the copy is pushed with the printables CLI.
+    def regenerate_listing_copy
+      printable = BoardPrintable.find(params[:id])
+
+      printable.regenerate_listing_copy!
+      redirect_to admin_dashboard_board_printable_path(printable),
+                  notice: "Listing copy regenerated from the topic. Nothing has been sent to Etsy."
     end
 
     # Enqueues the DRAFT-only Etsy publish. Nothing here can activate a

@@ -454,6 +454,30 @@ class BoardPrintable < ApplicationRecord
     listing_copy.presence || Etsy::ListingCopy.new(self).build
   end
 
+  # Rebuild the saved listing copy from the record as it stands — which in
+  # practice means "from `topic`", the only input that describes THIS product.
+  #
+  # Destructive on purpose: title, summary, description and tags are all
+  # regenerated, so hand edits to them are lost. That is the point — the reason
+  # to press it is that the generated copy is wrong because the topic was blank
+  # when the printable was created, and Etsy::ListingCopy is deterministic, so
+  # the only way to benefit from a new topic is to re-run it.
+  #
+  # Two things it deliberately keeps:
+  #
+  #   price_cents — not topic-derived at all (the generator emits a constant),
+  #                 so regenerating would silently reset a price someone chose.
+  #   any other key — merged over rather than replaced, so a key the generator
+  #                 doesn't emit (the TPT overrides listing_copy_params folds
+  #                 back in) survives. Same discipline as that method.
+  def regenerate_listing_copy!
+    existing = listing_copy.to_h
+    generated = Etsy::ListingCopy.new(self).build
+    generated["price_cents"] = existing["price_cents"] if existing["price_cents"].present?
+
+    update!(listing_copy: existing.merge(generated))
+  end
+
   def api_view
     {
       id: id,
