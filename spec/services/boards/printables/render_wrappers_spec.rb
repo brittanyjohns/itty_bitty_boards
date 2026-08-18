@@ -69,7 +69,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render
 
       expect(RQRCode::QRCode).to have_received(:new)
-        .with("https://app.speakanyway.com/pb/core-words")
+        .with("https://app.speakanyway.com/pb/core-words", level: Boards::Printables::Qr::PRINT_ECC)
     end
 
     it "encodes the id when the board has no slug" do
@@ -79,7 +79,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render
 
       expect(RQRCode::QRCode).to have_received(:new)
-        .with("https://app.speakanyway.com/pb/#{board.id}")
+        .with("https://app.speakanyway.com/pb/#{board.id}", level: Boards::Printables::Qr::PRINT_ECC)
     end
 
     it "describes a single board" do

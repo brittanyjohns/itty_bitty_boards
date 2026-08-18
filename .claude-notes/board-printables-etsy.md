@@ -132,6 +132,25 @@ sits outside step 1's `@variant` branch, so both are variant-independent by
 construction. None of this touches `api/boards/print.html.erb` or
 `layouts/pdf.html.erb`, which are shared with real users' PDF downloads.
 
+**Campaign tags go on the SCREEN QRs only.** `Boards::Printables::Qr` builds
+two URLs for the same board: `target_url_for` (bare `/pb/<slug>`) for anything
+printed, and `listing_target_url_for(board, content:)` for the gallery images
+and the listing video, which adds
+`utm_source=etsy&utm_medium=listing&utm_campaign=board_printable&utm_content=<surface>`.
+The split is a scannability constraint, not a taste one: the bare URL is a
+version-6 (41-module) code at the renderer's ECC — already ~0.5mm per module at
+the printed page's 0.8in header, the phone-camera detection floor that made the
+classroom-kit tags unscannable in 2026-07 — and tagging it pushes it to version
+12 (65 modules, 0.31mm), i.e. a code that does not resolve off paper. Screen
+QRs pay nothing for the extra characters, and they render at
+`Qr::SCREEN_ECC` (`:m`) rather than print's `:h` so the tagged URL stays a
+49-module code with ~5px per module in the frame's 244px slot, which survives
+Etsy's video re-encode. **Never route a printed QR through
+`listing_target_url_for`** — that includes the page thumbnails inside the
+gallery slides, which must keep encoding exactly what the downloaded page does
+(`RenderPageThumbnails`). Guarded by
+`spec/services/boards/printables/qr_spec.rb`.
+
 **`hide_header: true` is not the way to build the trim-ready page.** The QR
 lives *inside* the header block in `api/boards/print.html.erb`, so hiding the
 header takes the code with it — and the free audio companion is the single

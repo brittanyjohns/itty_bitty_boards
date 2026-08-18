@@ -773,8 +773,13 @@
       .video-sub {
         font-size: 32px;
         font-weight: 700;
+        line-height: 1.3;
         color: var(--ink);
       }
+
+      /* One phrase per line, each unbroken: the sub is a two-clause claim and
+         wrapping mid-clause left "in." alone on its own row. */
+      .video-sub span { display: block; white-space: nowrap; }
 
       .video-count {
         display: flex;

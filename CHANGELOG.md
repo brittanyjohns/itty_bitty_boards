@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Etsy listing QRs are tagged for attribution.** The QR in a printable's
+  gallery images and listing video now carries `utm_source=etsy` campaign tags,
+  so traffic from a listing is identifiable in analytics. The QR **printed into
+  the PDF** deliberately stays untagged — the longer URL makes a denser code
+  than the printed size can carry, and a code that won't scan costs more than
+  the attribution is worth.
+- **The listing video's closing frame reads on two lines.** "Free audio
+  companion. / No app, no sign-in." no longer wraps mid-phrase.
+
 ### Added
 
 - **A published printable can be relisted.** The app only ever creates Etsy
