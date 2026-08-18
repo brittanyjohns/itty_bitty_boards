@@ -1526,14 +1526,24 @@ class Board < ApplicationRecord
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
   end
 
+  # Read path — hit by `word_sample` for every board in a card list, so it must
+  # never write. `set_current_word_list` only stages onto the in-memory record;
+  # persistence happens on the write paths and via `boards:backfill_word_lists`.
   def current_word_list
     return data["current_word_list"] if data && data["current_word_list"].present?
     set_current_word_list
   end
 
+  # Computes the word list AND stages it on `data` so the caller's `save` sticks.
+  #
+  # This used to open with `data = self.data || {}`, which bound a LOCAL `data`
+  # shadowing the attribute, then mutated that hash in place. In-place jsonb
+  # mutation is not tracked as dirty, so the list was never persisted — not even
+  # by the `set_current_word_list` + `save!` pair in `add_images`. Every board
+  # that had never been written through another path therefore recomputed its
+  # word list on every single request, forever. Assign through `self.data =` so
+  # ActiveRecord sees the change.
   def set_current_word_list
-    data = self.data || {}
-
     # display_label, not label: this list is surfaced as `word_list` in the
     # board payload, and before `label` became a pure matching key it carried
     # the tile's text. Both sides of the clone-dedup comparison in
@@ -1541,7 +1551,7 @@ class Board < ApplicationRecord
     words = board_images.order(:position).pluck(:display_label)
     return [] if words.blank?
 
-    data["current_word_list"] = words
+    self.data = (data || {}).merge("current_word_list" => words)
     words
   end
 
@@ -2825,6 +2835,42 @@ class Board < ApplicationRecord
 
   def word_sample
     current_word_list ? current_word_list.join(", ").truncate(150) : nil
+  end
+
+  # Batched `word_sample` for a list of boards: {board_id => sample_or_nil}.
+  #
+  # `word_sample` alone is one query per board whenever the board has no cached
+  # `data["current_word_list"]` — and `api_view` on a communicator renders it
+  # for every board the owner has (four figures on a heavy account), so the
+  # per-board fallback was thousands of queries. Resolve the cached ones in
+  # memory and the rest in a single grouped board_images read.
+  def self.word_samples_for(boards)
+    boards = Array(boards)
+    return {} if boards.empty?
+
+    words_by_board = {}
+    missing_ids = []
+
+    boards.each do |board|
+      cached = board.data && board.data["current_word_list"]
+      if cached.present?
+        words_by_board[board.id] = cached
+      else
+        missing_ids << board.id
+      end
+    end
+
+    if missing_ids.any?
+      BoardImage.where(board_id: missing_ids)
+                .order(:position)
+                .pluck(:board_id, :display_label)
+                .each { |board_id, label| (words_by_board[board_id] ||= []) << label }
+    end
+
+    boards.each_with_object({}) do |board, out|
+      words = words_by_board[board.id]
+      out[board.id] = words.present? ? words.join(", ").truncate(150) : nil
+    end
   end
 
   def user_api_view(viewing_user = nil)

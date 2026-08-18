@@ -50,6 +50,57 @@
 require "rails_helper"
 
 RSpec.describe Board, type: :model do
+
+  describe "#set_current_word_list" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    it "persists the computed list so it is not recomputed on every read" do
+      FactoryBot.create(:board_image, board: board)
+      board.reload
+
+      expect(board.data["current_word_list"]).to be_nil
+
+      board.set_current_word_list
+      board.save!
+
+      # This used to fail: the method bound a LOCAL `data` shadowing the
+      # attribute and mutated the jsonb hash in place, so ActiveRecord never
+      # saw the record as dirty and the list was never written. Every board
+      # missing it therefore re-queried board_images forever.
+      expect(board.reload.data["current_word_list"]).to be_present
+    end
+
+    it "marks the record dirty so a caller's save writes the column" do
+      FactoryBot.create(:board_image, board: board)
+      board.reload
+
+      board.set_current_word_list
+
+      expect(board.changed).to include("data")
+    end
+
+    it "leaves the list unset for a board with no tiles" do
+      board.set_current_word_list
+
+      expect(board.data["current_word_list"]).to be_nil
+    end
+  end
+
+  describe "#current_word_list" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    it "does not write on the read path" do
+      FactoryBot.create(:board_image, board: board)
+      board.reload
+
+      expect(board.current_word_list).to be_present
+      # `word_sample` calls this for every board in a card list; a GET must not
+      # issue an UPDATE per board.
+      expect(board.reload.data["current_word_list"]).to be_nil
+    end
+  end
   describe "#clone_with_images" do
     let(:user)  { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user, name: "Original Board") }

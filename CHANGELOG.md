@@ -191,6 +191,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The communicator page loads quickly again.** Opening a communicator could
+  hang for over 12 seconds for anyone with a large board library — the page
+  rebuilt a picture-and-word preview for every board the owner had, one
+  database round trip at a time, so the wait grew with the size of the library
+  rather than with anything on screen. The page now gathers those previews in a
+  fixed number of queries, so it opens at the same speed whether the owner has
+  ten boards or a thousand. The "recently used" strip is also fixed: on a board
+  shared with other people it could show activity that wasn't this
+  communicator's.
+
 - **Boards on a communicator's MySpeak page now actually open.** A board put on
   a communicator's public page showed up in the grid, but tapping it gave a
   "board not found" page unless the board had separately been published — and
