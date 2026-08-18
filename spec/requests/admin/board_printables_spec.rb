@@ -651,6 +651,104 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       end
     end
 
+    describe "POST push_video_to_etsy" do
+      before do
+        printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 2.days.ago)
+        printable.attach_video!(bytes: "mp4-bytes", duration: 9.0)
+        allow(Etsy::Client).to receive(:configured?).and_return(true)
+      end
+
+      it "enqueues the push for the attached listing" do
+        sign_in admin
+
+        expect {
+          post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
+        }.to change(PushBoardPrintableVideoToEtsyJob.jobs, :size).by(1)
+
+        expect(flash[:notice]).to include("987")
+      end
+
+      it "refuses a printable that isn't attached to a listing" do
+        sign_in admin
+        printable.update!(etsy_listing_id: nil)
+
+        expect {
+          post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
+        }.not_to change(PushBoardPrintableVideoToEtsyJob.jobs, :size)
+
+        expect(flash[:alert]).to match(/nothing to send a video to/)
+      end
+
+      it "refuses when there is no video to send" do
+        sign_in admin
+        printable.video_files.each(&:purge)
+
+        post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(flash[:alert]).to match(/no listing video yet/i)
+      end
+
+      # Etsy allows one video per listing and this app can't read a listing back
+      # to find out whether one is there, so the stamp is the only guard.
+      it "refuses a second push and points at the seller UI" do
+        sign_in admin
+        printable.update_columns(etsy_video_pushed_at: 1.hour.ago)
+
+        expect {
+          post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
+        }.not_to change(PushBoardPrintableVideoToEtsyJob.jobs, :size)
+
+        expect(flash[:alert]).to match(/already been sent/)
+        expect(flash[:alert]).to match(/seller UI/)
+      end
+
+      it "refuses when Etsy isn't configured" do
+        sign_in admin
+        allow(Etsy::Client).to receive(:configured?).and_return(false)
+
+        post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(flash[:alert]).to match(/isn't configured/)
+      end
+
+      it "redirects a non-admin away" do
+        sign_in create(:user)
+
+        post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
+
+        expect(response).to redirect_to(root_path)
+      end
+
+      describe "the show page" do
+        it "offers the control for a listed printable whose video hasn't gone" do
+          sign_in admin
+
+          get admin_dashboard_board_printable_path(printable)
+
+          expect(response.body).to include("Send video to the listing")
+        end
+
+        it "retires the control once a video has gone, and says where to swap it" do
+          sign_in admin
+          printable.update_columns(etsy_video_pushed_at: 1.hour.ago)
+
+          get admin_dashboard_board_printable_path(printable)
+
+          expect(response.body).not_to include("Send video to the listing")
+          expect(response.body).to include("seller UI")
+        end
+
+        it "doesn't offer it for a printable with no listing" do
+          sign_in admin
+          printable.update!(etsy_listing_id: nil)
+
+          get admin_dashboard_board_printable_path(printable)
+
+          expect(response.body).not_to include("Send video to the listing")
+        end
+      end
+    end
+
     describe "POST relist_on_etsy" do
       before { printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 2.days.ago) }
 

@@ -6,15 +6,16 @@ module Boards
     # other and the combination that matters most — no title band, code intact —
     # is exactly the one two booleans make ambiguous.
     #
-    #   full    — logo, board title, scan-me line and the QR beside them.
-    #   qr_only — a small QR alone in the top-right. The board gets nearly the
-    #             whole sheet, and the code survives the buyer trimming the band.
-    #   none    — nothing. Used for screen mockups and grid thumbnails, where a
-    #             printed QR reads as an ad pasted on the glass.
+    #   full     — logo, board title, scan-me line and the QR beside them.
+    #   url_only — one thin line of type in the top corner: the board's web
+    #              address, no code. The band costs 6mm instead of 20mm, which
+    #              is the whole point of the trim-ready print.
+    #   none     — nothing. Used for screen mockups and grid thumbnails, where a
+    #              printed QR reads as an ad pasted on the glass.
     HEADER_FULL = "full".freeze
-    HEADER_QR_ONLY = "qr_only".freeze
+    HEADER_URL_ONLY = "url_only".freeze
     HEADER_NONE = "none".freeze
-    HEADER_MODES = [HEADER_FULL, HEADER_QR_ONLY, HEADER_NONE].freeze
+    HEADER_MODES = [HEADER_FULL, HEADER_URL_ONLY, HEADER_NONE].freeze
 
     # `hide_header:` is kept for the callers that only ever wanted all-or-
     # nothing (board previews, the print endpoints, grid thumbnails). Pass
@@ -38,7 +39,12 @@ module Boards
 
     def call
       qr_target_url = resolved_qr_target_url
-      qr_data_url   = qr_target_url.present? ? AssetRendering.qr_data_url_for(qr_target_url, size: 480) : nil
+      # The url_only page prints the address as text, so rendering a PNG for it
+      # would cost a 480px encode per board page and reach nothing.
+      qr_data_url =
+        if qr_target_url.present? && header_mode != HEADER_URL_ONLY
+          AssetRendering.qr_data_url_for(qr_target_url, size: 480)
+        end
       tiles = normalized_tiles
       columns = resolved_columns
       rows = resolved_rows(tiles)
@@ -111,15 +117,14 @@ module Boards
       rows > columns
     end
 
-    # The qr_only band reserves room for the code and nothing else — the QR
-    # prints at 0.6in there, so 20mm clears it with a little air. Reserving the
-    # space rather than floating the QR over the sheet is deliberate: a
-    # width-limited board spans the full page, and an overlaid code would land
-    # on top of tiles.
+    # The url_only band reserves room for a single line of small type and
+    # nothing else. Reserving the space rather than floating the line over the
+    # sheet is deliberate: a width-limited board spans the full page, and
+    # overlaid text would land on top of tiles.
     def header_band_height_mm(landscape)
       case header_mode
       when HEADER_NONE then 0
-      when HEADER_QR_ONLY then 20.0
+      when HEADER_URL_ONLY then 6.0
       else landscape ? 30.0 : 34.0
       end
     end

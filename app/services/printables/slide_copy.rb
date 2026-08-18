@@ -215,7 +215,10 @@ module Printables
 
     def video_outro_headline = "Scan any page — every word talks"
 
-    def video_outro_sub = "Free audio companion. No app, no sign-in."
+    # Two lines, deliberately. As one string the sub wraps wherever the frame
+    # runs out of room, which put "in." alone on the last row; the renderer
+    # keeps each line unbroken.
+    def video_outro_sub_lines = ["Free audio companion.", "No app, no sign-in."]
 
     def hero_footer_bullets
       [

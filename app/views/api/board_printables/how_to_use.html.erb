@@ -9,7 +9,8 @@
                          trim-ready copy of the board
       set, colour      → this file is all colour
       set, low-ink     → this file is all low-ink
-      set, trim-ready  → this file is all header-less, QR in the corner
+      set, trim-ready  → this file is all header-less, address line in the
+                         corner
 
     No set variant mentions the other files. A reader holding the low-ink
     print doesn't need to be told a colour one exists somewhere; being told so
@@ -44,7 +45,8 @@
               This file includes the board three times: in full color, again
               with white tile backgrounds for a lower-ink print, and once more
               with no header so the board fills the whole page. Use whichever
-              fits your printer.
+              fits your printer — the QR code is on the first two and on the
+              cover.
             </p>
           <% elsif @variant == BoardPrintable::VARIANT_LOW_INK %>
             <p class="lead">Printed low-ink</p>
@@ -56,8 +58,9 @@
             <p class="lead">Printed to the edges</p>
             <p>
               Every board in this file drops the page header so the board prints
-              as large as the sheet allows. The QR code moves to the top corner,
-              so it still opens online after you trim and laminate.
+              as large as the sheet allows. The board's web address prints as
+              one small line in the top corner — the scannable code is on the
+              cover, so keep that page if you want it.
             </p>
           <% else %>
             <p class="lead">Printed in full color</p>

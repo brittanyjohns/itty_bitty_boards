@@ -111,6 +111,32 @@ RSpec.describe Boards::Printables::RenderListingVideo do
       expect(frame_html.length).to eq(described_class::MAX_PAGE_FRAMES + 2)
     end
 
+    # Etsy strips the audio, so the outro's claim is read, not heard — and as
+    # one string it wrapped wherever the frame ran out of room, leaving "in."
+    # alone on the last row. Each clause is its own unbreakable line.
+    it "sets the outro's sub one clause per line" do
+      stub_thumbnails!
+
+      described_class.new(printable: printable).call
+
+      outro = frame_html.last
+      Printables::SlideCopy.video_outro_sub_lines.each do |line|
+        expect(outro).to include("<span>#{line}</span>")
+      end
+    end
+
+    # The listing's QR is scanned off a screen, where the extra modules are
+    # free — unlike the printed one, which stays bare (see Qr).
+    it "tags the outro QR with the surface it was scanned from" do
+      stub_thumbnails!
+      allow(Boards::Printables::Qr).to receive(:data_url_for).and_call_original
+
+      described_class.new(printable: printable).call
+
+      expect(Boards::Printables::Qr).to have_received(:data_url_for)
+        .with(a_string_including("utm_content=listing_video"), level: Boards::Printables::Qr::SCREEN_ECC)
+    end
+
     # A page whose render failed costs a frame, not the video.
     it "skips a board whose page didn't render" do
       second = create(:board, user: owner, name: "Feelings")

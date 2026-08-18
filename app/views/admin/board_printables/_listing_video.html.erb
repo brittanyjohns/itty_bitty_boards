@@ -60,6 +60,40 @@
     </p>
   <% end %>
 
+  <%# Sending the clip to a listing that already exists. Publishing carries the
+      video with it, so this is only for a listing that was created before its
+      video was rendered — which is every listing made before the video slot
+      existed. Additive: Etsy takes one video per listing and this adds it. The
+      app cannot read a listing back to check, so once one has been sent the
+      control retires itself and says where to swap it instead. %>
+  <% if @printable.etsy_published? %>
+    <div class="mb-4 pt-3 border-t" style="border-color: var(--border);">
+      <% if @printable.etsy_video_pushed? %>
+        <p class="text-[11px] text-t3">
+          Sent to listing <%= @printable.etsy_listing_id %>
+          <%= "on #{@printable.etsy_video_pushed_at.strftime('%b %-d, %Y')}" if @printable.etsy_video_pushed_at %>.
+          Etsy allows one video per listing and this app can't replace it — swap it in the seller UI.
+        </p>
+      <% elsif video %>
+        <div class="flex items-start justify-between gap-4">
+          <p class="text-[11px] text-t3">
+            This listing was created without a video. Send this clip to it — Etsy takes one video per
+            listing, so only do this if listing <%= @printable.etsy_listing_id %> hasn't got one already.
+          </p>
+          <%= button_to "Send video to the listing", push_video_to_etsy_admin_dashboard_board_printable_path(@printable),
+                method: :post,
+                class: "shrink-0 text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+                form: { data: { turbo_confirm: push_video_confirm(@printable) } } %>
+        </div>
+      <% else %>
+        <p class="text-[11px] text-t3">
+          Listing <%= @printable.etsy_listing_id %> has no video. Render or upload a clip above and you
+          can send it without relisting.
+        </p>
+      <% end %>
+    </div>
+  <% end %>
+
   <%# For the listings worth filming. A real recording of a board being used
       beats a rendered slideshow, and no renderer can produce one. %>
   <%= form_with url: upload_listing_video_admin_dashboard_board_printable_path(@printable),

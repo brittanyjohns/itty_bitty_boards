@@ -433,7 +433,12 @@ an explicit decision, not a drive-by edit.
   `Etsy::Client#create_listing` hardcodes `state: "draft"` and the client
   implements no activate call — the absence is the guarantee. Publishing a
   board printable to Etsy means creating a draft; going live stays a deliberate
-  click in the Etsy seller UI. Relatedly, Etsy's refresh token is single-use and
+  click in the Etsy seller UI. The line the invariant draws is between ADDING
+  media and UPDATING a listing: `upload_image`/`upload_file`/`upload_video` all
+  run against listings and always have, so sending a video to a listing that has
+  none (`Etsy::PushListingVideo`) is in bounds, while replacing a gallery needs a
+  DELETE and stays out — that path lives in `speakanyway-printables`. Relatedly,
+  Etsy's refresh token is single-use and
   rotates on every exchange, so it lives in `oauth_credentials` (not ENV) and
   Rails holds a **separate authorization** from the one `speakanyway-printables`
   uses — a shared grant makes the two invalidate each other.

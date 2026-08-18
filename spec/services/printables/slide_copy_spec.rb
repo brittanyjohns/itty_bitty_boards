@@ -81,6 +81,17 @@ RSpec.describe Printables::SlideCopy do
     end
   end
 
+  # The outro sub is rendered one line per clause. Kept short here because the
+  # renderer sets each line `white-space: nowrap` — a long clause would run off
+  # the frame instead of wrapping.
+  it "splits the outro sub into two short, self-contained clauses" do
+    lines = described_class.video_outro_sub_lines
+
+    expect(lines.length).to eq(2)
+    expect(lines).to all(satisfy { |line| line.length <= 28 })
+    expect(lines.join(" ")).to eq("Free audio companion. No app, no sign-in.")
+  end
+
   # The render box's Chrome has no guaranteed colour-emoji font, so an emoji in
   # slide copy ships to Etsy as a tofu box. Icons are inline SVG instead.
   it "carries no emoji or decorative glyphs outside the font's coverage" do

@@ -522,4 +522,16 @@ RSpec.describe Boards::Printables::RenderListingImages do
       height: 700,
     )
   end
+
+  # The gallery QR is scanned off a screen, where the extra modules are free —
+  # unlike the printed one in the download, which stays bare (see Qr).
+  it "tags the gallery QR with the surface it was scanned from" do
+    allow(Boards::Printables::Qr).to receive(:data_url_for).and_call_original
+
+    described_class.new(printable: printable).call
+
+    expect(Boards::Printables::Qr).to have_received(:data_url_for)
+      .with(a_string_including("utm_content=listing_image"), level: Boards::Printables::Qr::SCREEN_ECC)
+      .at_least(:once)
+  end
 end

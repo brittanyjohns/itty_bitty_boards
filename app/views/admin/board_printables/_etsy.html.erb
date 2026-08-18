@@ -42,14 +42,20 @@
           target: "_blank", rel: "noopener",
           class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
 
-    <%# The app CREATES listings and implements no call that updates one, so a
-        re-rendered gallery can never reach this draft in place. Replacing it is
-        a deliberate two-step: detach here, delete the old draft on Etsy
-        yourself, publish again. Nothing here touches Etsy. %>
+    <%# The app CREATES listings and implements no call that UPDATES one, so a
+        re-rendered gallery can never reach this draft in place: replacing photos
+        needs a delete Etsy::Client deliberately doesn't have. Replacing it is a
+        deliberate two-step: detach here, delete the old draft on Etsy yourself,
+        publish again. Nothing here touches Etsy.
+
+        The video is the one exception, and it is not an update: adding a video
+        to a listing that has none is an additive POST, offered on the video card
+        above. Everything else needs a relist. %>
     <div class="mt-4 pt-4 border-t border-white/10 flex items-start justify-between gap-4">
       <p class="text-[11px] text-t3">
-        Re-rendered the images or the video? They <strong>won't</strong> reach this draft — the app
-        only ever creates listings. Detach, delete the old draft on Etsy, then publish again.
+        Re-rendered the <strong>images</strong>? They won't reach this draft — the app only ever creates
+        listings. Detach, delete the old draft on Etsy, then publish again. A <strong>video</strong> is the
+        exception: if this listing hasn't got one, send it from the video card above without relisting.
       </p>
       <%= button_to "Detach & relist", relist_on_etsy_admin_dashboard_board_printable_path(@printable),
             method: :post,
