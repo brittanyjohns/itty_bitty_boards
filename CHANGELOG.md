@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A printable's topic can be edited after it's created, and the listing copy
+  rebuilt from it.** The topic is the only part of a listing that describes the
+  product — without one, the generic tag pools fill all 13 of Etsy's slots and
+  every listing ships the same tags. It used to be settable only when the
+  printable was created. It now sits on the listing form, with a
+  "Regenerate from topic" action that rebuilds the title, summary, description
+  and tags (keeping the price). Nothing is sent to any marketplace.
+
 - **A listing video can be sent to a listing that already exists.** Publishing
   carries the video with it, so a listing created before its video was rendered
   could never get one without relisting. The video card now offers "Send video

@@ -11,6 +11,31 @@
   <p class="text-[11px] text-t3 mb-4">Used for Etsy and for the copy-and-paste blocks below. Edit freely, then Save.</p>
 
   <%= form_tag update_listing_admin_dashboard_board_printable_path(@printable), method: :patch, data: { turbo: false } do %>
+    <%# Topic is a COLUMN, not part of the listing_copy jsonb, but it is edited
+        here because it is what drives every field below it. It is the only
+        input that describes THIS product: the generic tag pools can fill all 13
+        of Etsy's slots on their own, so a blank topic is how a listing ends up
+        with the same tags as every other one. Saving it does not rewrite the
+        copy — Regenerate does, and it is separate because it discards hand
+        edits. %>
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-t2 mb-1" for="listing_topic">
+        Topic
+        <span class="text-t3 font-normal">— comma separated, short phrases; drives the tags, title and opening line</span>
+      </label>
+      <%= text_field_tag :topic, @printable.topic, id: "listing_topic", class: "admin-input w-full",
+            placeholder: "hospital stay, doctor visit, medical vocabulary, nurse words" %>
+      <p class="text-[11px] text-t3 mt-1">
+        The only part of the copy that describes <em>this</em> product — up to
+        <%= Etsy::CopyRules::TOPIC_TAG_MAX %> of the <%= Etsy::CopyRules::TAG_MAX %> tags come from it, and
+        without it the rest are the same boilerplate every listing gets.
+        <strong>Give it at least <%= Etsy::TagOverlap::MIN_TOPIC_TAGS %> phrases</strong> — below that,
+        the generic pools fill the gap from the same ordered list and two listings still collide.
+        Keep each phrase under <%= Etsy::CopyRules::TAG_LEN_MAX %> characters or only its last few words
+        survive. Save, then <strong>Regenerate</strong> to apply it.
+      </p>
+    </div>
+
     <div class="mb-4">
       <label class="block text-xs font-medium text-t2 mb-1" for="listing_title">
         Title
@@ -60,6 +85,22 @@
     <%= submit_tag "Save listing copy",
           class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer" %>
   <% end %>
+
+  <%# Outside the form above: this is a POST of its own, and it REPLACES the
+      fields in it. Deliberately not wired to the topic input changing — the
+      copy is hand-edited before publishing, so rebuilding it has to be
+      something an admin asks for and confirms. Touches no marketplace. %>
+  <div class="mt-4 pt-4 border-t flex items-start justify-between gap-4" style="border-color: var(--border);">
+    <p class="text-[11px] text-t3">
+      Changed the topic? Rebuild the title, summary, description and tags from it.
+      <strong>Replaces</strong> everything above except the price — hand edits are lost.
+      Nothing is sent to Etsy<%= " (listing #{@printable.etsy_listing_id} is untouched)" if @printable.etsy_published? %>.
+    </p>
+    <%= button_to "Regenerate from topic", regenerate_listing_copy_admin_dashboard_board_printable_path(@printable),
+          method: :post,
+          class: "shrink-0 text-xs font-medium px-3 py-2 rounded admin-card-alt text-t2 hover:text-t1 cursor-pointer",
+          form: { data: { turbo_confirm: regenerate_copy_confirm(@printable) } } %>
+  </div>
 </div>
 
 <% content_for :head_extra do %>

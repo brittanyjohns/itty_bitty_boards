@@ -185,6 +185,29 @@ typed one (`ListingCopy#topic_source` mines the sub-board names). The
 `Etsy::TagOverlap` warning on the printable's admin page is the backstop — it is
 advisory on purpose, since three sizes of one product genuinely share tags.
 
+**A topic has to yield at least `TagOverlap::MIN_TOPIC_TAGS` (4) tags to clear
+that warning, and the number is arithmetic, not taste.** Every pool but `topic`
+is shared boilerplate, and whatever slots the topic leaves empty are filled from
+the same ORDERED `top_up` list — so a short topic collides twice over. Two
+listings differing only in topic share `TAG_MAX - t` tags for `t` topic tags
+each, which puts a three-phrase topic at exactly the 10 the warning fires on.
+`MIN_TOPIC_TAGS` is derived from `TAG_MAX` and `HIGH_OVERLAP` rather than
+written down, because the admin hint quotes it — moving either constant must not
+leave the form telling an admin a stale number.
+
+**`topic` is editable after creation.** The listing form writes the column, and
+`BoardPrintable#regenerate_listing_copy!` behind a confirmed POST re-runs
+`ListingCopy` over it. It has to be: `ListingCopy` is deterministic and reads
+`topic` only when it runs, so a listing generated before anyone typed one keeps
+the boilerplate tags forever otherwise. Three rules hold it together — saving
+the topic deliberately does NOT rewrite the copy (the copy is hand-edited before
+publishing, so rebuilding it is a separate action with its own confirm);
+regenerating KEEPS `price_cents`, which isn't topic-derived at all (the
+generator emits a constant, so it would silently reset a chosen price); and it
+merges over the stored hash rather than replacing it, so a key the generator
+doesn't emit survives. It is local — a published printable's live listing is
+unchanged until the copy is pushed with the printables CLI.
+
 One deliberate difference: the Ruby description is **plain text**. Etsy renders
 no markup, and TPT takes a plain-text paste cleanly, so skipping the
 markdown→text conversion means what an admin reads in the textarea is exactly

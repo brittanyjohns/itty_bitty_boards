@@ -18,6 +18,19 @@ module Etsy
     # audience boilerplate is expected and not worth a warning.
     HIGH_OVERLAP = 10
 
+    # How many tags a printable's TOPIC has to yield to stay under the warning.
+    #
+    # Every other pool is shared boilerplate by design, so two listings differing
+    # only in topic share `TAG_MAX - t` tags, where t is the number of topic tags
+    # each one has (the shortfall is made up from the same ordered `top_up` list,
+    # which is why a short topic collides twice over). Setting `13 - t <
+    # HIGH_OVERLAP` gives the minimum below.
+    #
+    # It is derived rather than written as a number so that moving either
+    # constant can't leave the admin hint quoting a stale one — the number an
+    # admin is told is the number the check actually uses.
+    MIN_TOPIC_TAGS = CopyRules::TAG_MAX - HIGH_OVERLAP + 1
+
     # Only printables that already have saved listing copy are compared, and
     # only the most recent slice of them: generating defaults for every row to
     # compare against would make this page's cost grow with the table.

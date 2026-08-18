@@ -107,6 +107,7 @@ Rails.application.routes.draw do
     resources :board_printables, only: [:index, :show, :create, :destroy], as: :dashboard_board_printables do
       member do
         patch :update_listing
+        post :regenerate_listing_copy
         post :publish_to_etsy
         post :relist_on_etsy
         post :push_video_to_etsy

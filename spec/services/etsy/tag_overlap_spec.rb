@@ -59,6 +59,71 @@ RSpec.describe Etsy::TagOverlap do
     expect(described_class.new(subject_printable, tags: BOILERPLATE)).to be_any
   end
 
+  # The acceptance criterion for making `topic` editable after creation: the
+  # warning exists to catch listings that don't describe themselves, and a topic
+  # is the only thing that can fix one. Two printables that each say what they
+  # are must stop colliding — otherwise the control is theatre.
+  describe "a topic set after creation" do
+    def with_topic(name, topic)
+      board = create(:board, user: owner, name: name)
+      p = BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], topic: topic)
+      p.regenerate_listing_copy!
+      p
+    end
+
+    it "silences the warning between two printables that describe themselves" do
+      with_topic("Hospital Words", "hospital stay, doctor visit, medical vocabulary, nurse words")
+      subject_printable = with_topic("Playground Words", "playground, outdoor play, park vocabulary, swing words")
+
+      expect(described_class.new(subject_printable)).not_to be_any
+    end
+
+    # The boundary, and the reason MIN_TOPIC_TAGS is derived rather than a
+    # number in the hint text. Every pool but `topic` is shared, and the
+    # shortfall is topped up from the same ORDERED list — so a short topic
+    # collides twice over, and three phrases lands exactly on the threshold.
+    it "still warns when each topic yields one tag fewer than the minimum" do
+      short = Etsy::TagOverlap::MIN_TOPIC_TAGS - 1
+      with_topic("Hospital Words", Array.new(short) { |i| "hospital word #{i}" }.join(", "))
+      subject_printable = with_topic("Playground Words", Array.new(short) { |i| "park word #{i}" }.join(", "))
+
+      overlap = described_class.new(subject_printable)
+      expect(overlap).to be_any
+      expect(overlap.matches.first.count).to eq(Etsy::CopyRules::TAG_MAX - short)
+    end
+
+    it "stops warning at exactly MIN_TOPIC_TAGS" do
+      enough = Etsy::TagOverlap::MIN_TOPIC_TAGS
+      with_topic("Hospital Words", Array.new(enough) { |i| "hospital word #{i}" }.join(", "))
+      subject_printable = with_topic("Playground Words", Array.new(enough) { |i| "park word #{i}" }.join(", "))
+
+      expect(described_class.new(subject_printable)).not_to be_any
+    end
+
+    # The failure the reordering fixed: with nothing topical to say, the generic
+    # pools fill all 13 slots identically.
+    it "still warns when neither has a topic" do
+      first = create(:board, user: owner, name: "No Topic One")
+      second = create(:board, user: owner, name: "No Topic Two")
+      [first, second].each do |board|
+        BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id])
+                      .regenerate_listing_copy!
+      end
+
+      subject_printable = BoardPrintable.order(:id).last
+      expect(described_class.new(subject_printable)).to be_any
+    end
+
+    it "puts the topic's own tags ahead of the generic pools" do
+      p = with_topic("Hospital Words", "hospital stay, doctor visit")
+
+      tags = p.listing_copy["tags"]
+      expect(tags).to include("hospital stay", "doctor visit")
+      # always_on is three, then topic — so a topic tag can never be crowded out.
+      expect(tags.index("hospital stay")).to be < tags.index("communication board")
+    end
+  end
+
   it "shows the worst collision first and caps how many it lists" do
     4.times { |i| printable("Clone #{i}", tags: BOILERPLATE) }
     near = printable("Near Miss", tags: BOILERPLATE.first(11) + ["hair salon", "washing hair"])

@@ -66,6 +66,19 @@ module Admin
       "bg-amber-900/60 text-amber-300"
     end
 
+    # The confirm on "Regenerate from topic". Says the destructive part first —
+    # the copy is meant to be hand-edited before publishing, so rebuilding it is
+    # the one action here that can lose work. The second half is the reassurance
+    # an admin needs on a printable that is already listed: this is local.
+    def regenerate_copy_confirm(printable)
+      base = "Rebuild the title, summary, description and tags from the topic? " \
+             "Any hand edits to them are replaced. The price is kept."
+      return base unless printable.etsy_published?
+
+      "#{base} Nothing is sent to Etsy — listing #{printable.etsy_listing_id} keeps its current copy " \
+      "until you push it with the printables CLI."
+    end
+
     # The confirm on "Detach & relist". Says the two things an admin could
     # otherwise get wrong: nothing here touches the draft on Etsy, and the
     # boards stay frozen (protection is keyed on having ever been published, not
