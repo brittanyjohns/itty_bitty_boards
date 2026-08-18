@@ -89,6 +89,29 @@ module Admin
       end
     end
 
+    # Detaches this printable from its Etsy draft so Publish can create a fresh
+    # one. The only way a re-rendered gallery reaches Etsy at all: this app
+    # CREATES listings and has no call that updates one, by design, so an
+    # existing draft can never be brought up to date in place.
+    #
+    # Deliberately does not touch Etsy. The old draft stays there until an
+    # operator deletes it, because deleting it from here would mean adding the
+    # delete call the drafts-only invariant exists to keep out.
+    def relist_on_etsy
+      printable = BoardPrintable.find(params[:id])
+
+      if !printable.etsy_published?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable isn't attached to an Etsy listing, so there's nothing to relist."
+      else
+        previous = printable.etsy_listing_id
+        printable.relist!
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    notice: "Detached from Etsy listing #{previous}. Delete that draft on Etsy, then publish " \
+                            "again to create a new one. The boards it protects stay protected."
+      end
+    end
+
     # Re-runs the whole PDF pipeline on the SAME record so the printable picks
     # up board edits. The tree is re-walked (Generate rewrites board_ids), so a
     # subboard added since the first run is included.
@@ -123,7 +146,9 @@ module Admin
     def waive_protection
       printable = BoardPrintable.find(params[:id])
 
-      if !printable.etsy_published?
+      # `ever_published`, not `published`: a relisted printable has no listing id
+      # while its boards are still frozen, and the waiver has to stay reachable.
+      if !printable.etsy_ever_published?
         redirect_to admin_dashboard_board_printable_path(printable),
                     alert: "This printable was never published to Etsy, so it isn't protecting anything."
       elsif printable.protection_waived?

@@ -354,17 +354,55 @@ class BoardPrintable < ApplicationRecord
     ids.filter_map { |id| by_id[id] }
   end
 
+  # Whether this printable is CURRENTLY linked to a marketplace listing. This is
+  # what stops a second draft being created for the same printable, and it is
+  # the one thing #relist! clears.
   def etsy_published? = etsy_listing_id.present?
+
+  # Whether a draft was EVER created from this printable.
+  #
+  # A UNION of the two columns, and deliberately never narrower than the
+  # `etsy_listing_id` test protection used to use: a row carrying a listing id
+  # but no timestamp (set by hand, or by any path that predates the two being
+  # written together) protected its boards before, and must keep protecting
+  # them. Widening can only over-protect; narrowing unfreezes printed paper.
+  def etsy_ever_published? = etsy_published_at.present? || etsy_listing_id.present?
 
   # Whether this printable freezes the boards it was rendered from.
   #
-  # Keyed on `etsy_listing_id`, NOT on the record existing: generating a
+  # Keyed on `etsy_published_at`, NOT on the record existing: generating a
   # printable to look at it is the normal way to use the admin, and locking a
-  # board every time would make the feature something to avoid. It is also not
-  # keyed on any "is the listing still live" state — the thing protection
-  # defends is a printed sheet with a QR on it, and ending an Etsy listing
-  # doesn't un-print that sheet. Release is the explicit waiver below.
-  def protects_board? = etsy_published? && protection_waived_at.nil?
+  # board every time would make the feature something to avoid.
+  #
+  # It is also not keyed on any "is the listing still live" state, and
+  # deliberately not on `etsy_listing_id` either. The thing protection defends
+  # is a printed sheet with a QR on it: ending an Etsy listing doesn't un-print
+  # that sheet, and neither does relisting. #relist! clears the listing id so a
+  # fresh draft can be created, so keying protection there would silently
+  # unfreeze boards whose printed pages are already in someone's hands — the
+  # exact failure this exists to prevent. Release is the explicit waiver below.
+  def protects_board? = etsy_ever_published? && protection_waived_at.nil?
+
+  # Forget which listing this printable is attached to, so Publish can create a
+  # fresh draft. For replacing a draft whose gallery is out of date: this app
+  # only ever CREATES listings — it has no path that updates one — so a
+  # re-rendered gallery can't reach an existing draft any other way.
+  #
+  # Deliberately does NOT touch `etsy_published_at` (protection reads it) or
+  # `protection_waived_at`. The old draft is left alone on Etsy; deleting it
+  # there is the operator's job, and doing it from here would mean implementing
+  # a delete call this app pointedly does not have.
+  def relist!
+    # Backfilled BEFORE the id is dropped, so a row that somehow carries a
+    # listing id without a timestamp doesn't lose its only remaining evidence of
+    # having been published — which is what protection reads.
+    update!(
+      etsy_published_at: etsy_published_at || Time.current,
+      etsy_listing_id: nil,
+      etsy_listing_url: nil,
+      etsy_error: nil,
+    )
+  end
 
   def protection_waived? = protection_waived_at.present?
 

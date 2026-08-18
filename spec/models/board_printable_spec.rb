@@ -173,4 +173,78 @@ RSpec.describe BoardPrintable do
       expect(printable.etsy_published?).to be true
     end
   end
+
+  describe "relisting" do
+    let(:board) { FactoryBot.create(:board, name: "Core Words") }
+    let(:printable) do
+      described_class.create!(board: board, status: "complete", board_ids: [board.id])
+    end
+
+    before do
+      printable.update!(
+        etsy_listing_id: 987,
+        etsy_listing_url: "https://etsy.test/987",
+        etsy_published_at: 3.days.ago,
+        etsy_error: "something went wrong last time",
+      )
+    end
+
+    it "detaches from the listing so a fresh draft can be created" do
+      printable.relist!
+
+      expect(printable.reload.etsy_listing_id).to be_nil
+      expect(printable.etsy_listing_url).to be_nil
+      expect(printable.etsy_published?).to be false
+      expect(printable.etsy_error).to be_nil
+    end
+
+    # The whole reason protection moved off `etsy_listing_id`. Relisting must
+    # not unfreeze boards whose printed pages are already in someone's hands.
+    it "keeps the boards it protects frozen" do
+      expect { printable.relist! }.not_to change { printable.reload.protects_board? }.from(true)
+      expect(printable.etsy_ever_published?).to be true
+    end
+
+    it "stays protected in the query the board guard actually uses" do
+      printable.relist!
+
+      expect(Boards::MarketplaceProtection.new(board).protected?).to be true
+      expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
+    end
+
+    it "leaves an explicit waiver alone" do
+      printable.waive_protection!(user: FactoryBot.create(:admin_user), reason: "sold out")
+
+      printable.relist!
+
+      expect(printable.reload.protection_waived?).to be true
+      expect(printable.protects_board?).to be false
+    end
+
+    # Protection must never NARROW. A row carrying a listing id but no timestamp
+    # protected its boards before the rekey; relisting it has to keep them
+    # frozen, which means stamping the timestamp on the way past.
+    it "protects, and keeps protecting, a row that has an id but no timestamp" do
+      legacy = described_class.create!(board: board, status: "complete", board_ids: [board.id])
+      legacy.update_columns(etsy_listing_id: 555, etsy_published_at: nil)
+
+      expect(legacy.reload.protects_board?).to be true
+
+      legacy.relist!
+
+      expect(legacy.reload.etsy_listing_id).to be_nil
+      expect(legacy.etsy_published_at).to be_present
+      expect(legacy.protects_board?).to be true
+      expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
+    end
+
+    # A printable that was never published isn't protecting anything, and has no
+    # listing to detach from.
+    it "does not protect a printable that was never published" do
+      fresh = described_class.create!(board: FactoryBot.create(:board), status: "complete")
+
+      expect(fresh.etsy_ever_published?).to be false
+      expect(fresh.protects_board?).to be false
+    end
+  end
 end

@@ -43,12 +43,22 @@ module Admin
     # with it.
     def board_printable_delete_confirm(printable)
       base = "Delete this printable and its PDFs? This can't be undone."
-      return base unless printable.etsy_published?
+      return base unless printable.etsy_ever_published?
 
       # The second sentence is the less obvious consequence: this record is what
       # freezes its boards, so deleting it makes them deletable and renameable
       # again while the listing is still up.
-      "#{base} Etsy draft #{printable.etsy_listing_id} stays on Etsy — remove it there yourself. " \
+      #
+      # A relisted printable has no listing id to name — the draft it was
+      # detached from is still on Etsy, so the warning is if anything more
+      # important there, just less specific.
+      draft = if printable.etsy_published?
+        "Etsy draft #{printable.etsy_listing_id} stays on Etsy — remove it there yourself."
+      else
+        "Any Etsy draft made from this printable stays on Etsy — remove it there yourself."
+      end
+
+      "#{base} #{draft} " \
       "The #{pluralize(printable.protected_board_ids.size, "board")} it protects will no longer be protected."
     end
 
@@ -56,11 +66,25 @@ module Admin
       "bg-amber-900/60 text-amber-300"
     end
 
+    # The confirm on "Detach & relist". Says the two things an admin could
+    # otherwise get wrong: nothing here touches the draft on Etsy, and the
+    # boards stay frozen (protection is keyed on having ever been published, not
+    # on the listing id this clears).
+    def relist_confirm(printable)
+      "Detach this printable from Etsy listing #{printable.etsy_listing_id}? " \
+      "That draft is NOT deleted — remove it on Etsy yourself, or you'll have two. " \
+      "Publishing again creates a new draft with the current images and video. " \
+      "The #{pluralize(count = printable.protected_board_ids.size, "board")} it protects " \
+      "#{count == 1 ? "stays" : "stay"} protected."
+    end
+
     # The confirm on the release button. Names the listing id, because that's
     # the thing an admin should go look at before deciding the paper is dead.
     def waive_protection_confirm(printable)
+      listing = printable.etsy_published? ? "Etsy listing #{printable.etsy_listing_id}" : "The Etsy listing"
+
       "Release protection on #{pluralize(printable.protected_board_ids.size, "board")}? " \
-      "Etsy listing #{printable.etsy_listing_id} may still be live, and printed copies keep pointing at these boards. " \
+      "#{listing} may still be live, and printed copies keep pointing at these boards. " \
       "They become deletable, renameable and unpublishable again."
     end
 

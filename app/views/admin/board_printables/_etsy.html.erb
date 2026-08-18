@@ -1,7 +1,16 @@
 <%# Etsy. This creates a DRAFT and only a draft — there is no code path in the
     app that activates a listing. Going live stays a deliberate click in the
     Etsy seller UI, after a human has checked the category, the photos, and the
-    return policy. %>
+    return policy.
+
+    Two states are tracked separately and must not be collapsed:
+
+      etsy_published?       — attached to a listing RIGHT NOW. Gates publishing,
+                              and is what "Detach & relist" clears.
+      etsy_ever_published?  — a draft was made from this printable at some
+                              point. Gates marketplace PROTECTION, and is never
+                              cleared, because relisting doesn't un-print the
+                              paper already carrying these boards' QR codes. %>
 <div class="admin-card border rounded-xl p-5 mb-6">
   <h2 class="text-sm font-medium text-t1 mb-1">Etsy</h2>
   <p class="text-[11px] text-t3 mb-4">
@@ -32,14 +41,51 @@
     <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(@printable),
           target: "_blank", rel: "noopener",
           class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
-    <p class="text-[11px] text-t3 mt-3">
-      To replace this draft, delete it in Etsy first — the app won't create a second listing for the
-      same printable, because a duplicate in a live shop is easy to miss and hard to undo.
-    </p>
 
-    <%# Protection is turned on by the listing id, so it belongs on this card.
-        Every board in the printed tree is covered, not just the root — each
-        interior page carries its own QR. %>
+    <%# The app CREATES listings and implements no call that updates one, so a
+        re-rendered gallery can never reach this draft in place. Replacing it is
+        a deliberate two-step: detach here, delete the old draft on Etsy
+        yourself, publish again. Nothing here touches Etsy. %>
+    <div class="mt-4 pt-4 border-t border-white/10 flex items-start justify-between gap-4">
+      <p class="text-[11px] text-t3">
+        Re-rendered the images or the video? They <strong>won't</strong> reach this draft — the app
+        only ever creates listings. Detach, delete the old draft on Etsy, then publish again.
+      </p>
+      <%= button_to "Detach & relist", relist_on_etsy_admin_dashboard_board_printable_path(@printable),
+            method: :post,
+            class: "shrink-0 text-xs font-medium px-3 py-2 rounded admin-card-alt text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: relist_confirm(@printable) } } %>
+    </div>
+  <% elsif !@etsy_configured %>
+    <p class="text-xs text-t3">
+      Etsy isn't configured. Set <code>ETSY_KEYSTRING</code>, <code>ETSY_SHARED_SECRET</code>,
+      <code>ETSY_OAUTH_CLIENT_ID</code> and <code>ETSY_SHOP_ID</code>, then seed this app's own
+      refresh token with <code>rake etsy:seed_refresh_token</code>.
+    </p>
+  <% else %>
+    <% if @printable.etsy_ever_published? %>
+      <p class="text-[11px] text-t3 mb-3">
+        <%# The date is when the FIRST draft was made, not when it was detached —
+            nothing records the detach, and dating it wrongly is worse than not
+            dating it. %>
+        Detached from a previous draft<%= " (first published #{@printable.etsy_published_at.strftime('%b %-d, %Y')})" if @printable.etsy_published_at %>.
+        Delete that draft on Etsy if you haven't — publishing here makes a new one, it can't update the old.
+      </p>
+    <% end %>
+    <%= button_to @printable.etsy_ever_published? ? "Create replacement draft" : "Create Etsy draft",
+          publish_to_etsy_admin_dashboard_board_printable_path(@printable),
+          method: :post,
+          class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+          form: { data: { turbo_confirm: "Create a draft Etsy listing for \"#{@listing['title']}\"? " \
+                                         "It will NOT go live — you publish it in Etsy yourself." } } %>
+  <% end %>
+
+  <%# Protection is keyed on having EVER been published, so this block sits
+      outside the branch above — a detached printable still freezes its boards,
+      and hiding the release control there would strand it. Every board in the
+      printed tree is covered, not just the root: each interior page carries its
+      own QR. %>
+  <% if @printable.etsy_ever_published? %>
     <div class="mt-4 pt-4 border-t border-white/10">
       <% if @printable.protection_waived? %>
         <p class="text-[11px] text-t3">
@@ -62,17 +108,5 @@
         </div>
       <% end %>
     </div>
-  <% elsif !@etsy_configured %>
-    <p class="text-xs text-t3">
-      Etsy isn't configured. Set <code>ETSY_KEYSTRING</code>, <code>ETSY_SHARED_SECRET</code>,
-      <code>ETSY_OAUTH_CLIENT_ID</code> and <code>ETSY_SHOP_ID</code>, then seed this app's own
-      refresh token with <code>rake etsy:seed_refresh_token</code>.
-    </p>
-  <% else %>
-    <%= button_to "Create Etsy draft", publish_to_etsy_admin_dashboard_board_printable_path(@printable),
-          method: :post,
-          class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
-          form: { data: { turbo_confirm: "Create a draft Etsy listing for \"#{@listing['title']}\"? " \
-                                         "It will NOT go live — you publish it in Etsy yourself." } } %>
   <% end %>
 </div>
