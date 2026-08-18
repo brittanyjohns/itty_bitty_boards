@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_17_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_18_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -244,6 +244,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_120000) do
     t.datetime "protection_waived_at"
     t.bigint "protection_waived_by_id"
     t.string "protection_waived_reason"
+    t.datetime "etsy_video_pushed_at"
     t.index ["board_id", "status"], name: "index_board_printables_on_board_id_and_status"
     t.index ["board_id"], name: "index_board_printables_on_board_id"
     t.index ["board_ids"], name: "index_board_printables_on_board_ids", using: :gin

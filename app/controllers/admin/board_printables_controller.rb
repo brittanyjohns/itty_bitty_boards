@@ -89,6 +89,34 @@ module Admin
       end
     end
 
+    # Sends an already-rendered video to the listing this printable is attached
+    # to. The one listing mutation this app performs after creation, and it is
+    # additive: Etsy allows one video per listing, none of these listings has
+    # one, and a POST adds it. No state, no delete, no update call — the
+    # drafts-only invariant is untouched. See Etsy::PushListingVideo.
+    def push_video_to_etsy
+      printable = BoardPrintable.find(params[:id])
+
+      if !printable.etsy_published?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable isn't attached to an Etsy listing, so there's nothing to send a video to."
+      elsif !printable.listing_video?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "There's no listing video yet. Render or upload one first."
+      elsif printable.etsy_video_pushed?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "A video has already been sent to listing #{printable.etsy_listing_id}. Etsy allows " \
+                           "one per listing and this app can't replace it — swap it in the Etsy seller UI."
+      elsif !Etsy::Client.configured?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "Etsy isn't configured. Set the ETSY_* env vars and run `rake etsy:seed_refresh_token`."
+      else
+        PushBoardPrintableVideoToEtsyJob.perform_async(printable.id)
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    notice: "Sending the video to listing #{printable.etsy_listing_id}… refresh in a moment."
+      end
+    end
+
     # Detaches this printable from its Etsy draft so Publish can create a fresh
     # one. The only way a re-rendered gallery reaches Etsy at all: this app
     # CREATES listings and has no call that updates one, by design, so an

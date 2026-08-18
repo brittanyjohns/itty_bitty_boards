@@ -607,11 +607,78 @@ no migration; bump `BoardPrintable::VIDEO_SPEC_VERSION` to force a fleet-wide
 re-render. A hand-uploaded clip (`VIDEO_MANUAL`, the admin's "Upload instead"
 field) is never stale — nothing could re-render it.
 
+### Sending a video to a listing that already exists
+
+Publishing carries the video with it, so a listing created before its video was
+rendered can never get one from the publish path again. `POST push_video_to_etsy`
+(`Etsy::PushListingVideo`) is the way in, and it is **not** a hole in the
+drafts-only rule: adding a video to a listing that has none is an additive POST,
+the same class of call as `upload_image` and `upload_file`, which have always run
+against listings. No state, no title, no tags, and still no call anywhere that
+activates a listing or deletes anything from one.
+
+The gallery deliberately does **not** get the same treatment. Replacing photos
+means deleting the ones already on the listing, and a DELETE against a live
+listing is exactly what the drafts-only invariant keeps out — that path stays in
+`speakanyway-printables` (below).
+
+**The hazard is Etsy's one-video-per-listing rule, and the guard is local
+memory.** This app cannot read a listing back — `Etsy::Client` implements no list
+or delete counterpart for videos on purpose — so it can't discover a video that
+is already there, and a second POST has no outcome it could verify.
+`board_printables.etsy_video_pushed_at` is the only thing that makes the second
+push refusable. Three rails hold it:
+
+- **The publish path stamps it too.** A draft born with a video would otherwise
+  be offered another one by the admin control.
+- **A failed upload does not stamp it.** Writing it on failure would lock a
+  listing out of ever getting its video.
+- **`relist!` clears it.** A detached printable is heading for a new listing that
+  has nothing on it; leaving the stamp set would hide the control.
+
+Once a video has gone, replacing it needs Etsy's `video_id` form field — an
+update call this app does not have — so the control retires itself and names the
+seller UI instead.
+
+## Backfilling listings made before the current gallery and video
+
+Two admin rake tasks, for the population of listings that went up before a slide
+or the video slot existed:
+
+- `rake printables:render_listing_videos` — enqueues a flip-through for every
+  complete printable whose `listing_video_current?` is false, which covers both
+  "has none" and "has one from a different version of this printable". A
+  hand-uploaded clip reports current and is skipped: nothing could re-render it.
+  `PUBLISHED_ONLY=1` narrows to printables already attached to a listing. It
+  aborts rather than enqueueing when ffmpeg is missing, because the job checks
+  too and would return immediately — which looks exactly like the task having
+  worked.
+- `rake 'printables:export_listing[<id>]'` — writes a printable's gallery images
+  (in `LISTING_IMAGE_ORDER`, which is what decides Etsy's ranks) plus a
+  `listing.json` of its copy, for `npm run etsy -- update <listingId>
+  ./listing.json --replace-images` in `speakanyway-printables`. Read-only; with
+  no id it exports every listed printable.
+
+**The export is how a LIVE listing's tags and photos get fixed**, and the split
+is deliberate: that repo already owns and tests delete-then-reupload, and
+importing it here would mean adding the delete call this app pointedly lacks.
+
+Two keys are absent from the generated config, and adding either is a behaviour
+change rather than a convenience: **`state`**, because writing `"active"` there
+would be this app activating a listing; and **`files`**, so `--replace-files`
+can't be pointed at an export that never intended it — replacing downloads
+deletes the buyer's files first, and a backfill of marketing assets has no
+business touching them. A printable whose gallery isn't current is refused
+outright rather than warned about: `--replace-images` deletes before it uploads,
+so a partial gallery would take nine good images off and put five back.
+
 ## Replacing a draft — "Detach & relist"
 
 This app **creates** listings and implements no call that updates one. So a
-re-rendered gallery or a newly rendered video **cannot reach an existing draft**
-— there is no code path, by design. `POST relist_on_etsy` is the way round it:
+re-rendered **gallery** cannot reach an existing draft — replacing photos needs a
+delete this app does not have, by design. (A *video* is the one exception, and
+only because adding one is additive rather than an update — see above.)
+`POST relist_on_etsy` is the way round it:
 it clears `etsy_listing_id` / `etsy_listing_url` so `guard_failure` stops
 refusing, and Publish then creates a fresh draft carrying the current images and
 video. It sends **nothing** to Etsy; deleting the superseded draft is the

@@ -78,6 +78,17 @@ module Admin
       "#{count == 1 ? "stays" : "stay"} protected."
     end
 
+    # The confirm on "Send video to the listing". States the precondition the
+    # app cannot check for itself: Etsy allows one video per listing, and
+    # nothing here can read a listing back to find out whether it already has
+    # one. Naming the listing id is what lets an admin go and look.
+    def push_video_confirm(printable)
+      "Send this video to Etsy listing #{printable.etsy_listing_id}? " \
+      "Etsy allows ONE video per listing and this app can't read the listing to check — " \
+      "only continue if that listing has no video yet. It can't be undone from here; " \
+      "replacing a listing's video is a seller-UI job."
+    end
+
     # The confirm on the release button. Names the listing id, because that's
     # the thing an admin should go look at before deciding the paper is dead.
     def waive_protection_confirm(printable)

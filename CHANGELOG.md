@@ -7,6 +7,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A listing video can be sent to a listing that already exists.** Publishing
+  carries the video with it, so a listing created before its video was rendered
+  could never get one without relisting. The video card now offers "Send video
+  to the listing" for a printable already attached to one. It only ADDS a video
+  — Etsy allows one per listing and the app can't read a listing back to check,
+  so the control retires itself once a clip has gone and points at the Etsy
+  seller UI for a swap.
+
+- **Two admin backfill tasks for listings made before the current gallery and
+  video.** `rake printables:render_listing_videos` queues a flip-through for
+  every printable with no video or a stale one (`PUBLISHED_ONLY=1` narrows to
+  listed ones), and `rake 'printables:export_listing[<id>]'` writes a
+  printable's copy and gallery images to disk with a `listing.json` for the
+  `speakanyway-printables` Etsy CLI, so a live listing's tags and photos can be
+  replaced without relisting it.
+
 - **A published printable can be relisted.** The app only ever creates Etsy
   listings — it has no way to update one — so re-rendering a gallery or a video
   could never reach a draft that already existed. "Detach & relist" on the Etsy
