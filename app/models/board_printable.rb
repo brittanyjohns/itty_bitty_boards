@@ -368,6 +368,29 @@ class BoardPrintable < ApplicationRecord
   # them. Widening can only over-protect; narrowing unfreezes printed paper.
   def etsy_ever_published? = etsy_published_at.present? || etsy_listing_id.present?
 
+  # Whether this app has already sent a listing video to the listing this
+  # printable is attached to.
+  #
+  # Etsy allows exactly one video per listing, and Etsy::Client implements no
+  # list or delete counterpart — so the app cannot ask a listing whether it
+  # already has one. A POST against a listing with NO video is the safe,
+  # intended call; a second POST has no outcome this app could verify. This
+  # column is the only memory that makes the second one refusable.
+  def etsy_video_pushed? = etsy_video_pushed_at.present?
+
+  # Whether "Send video to the listing" should be offered at all.
+  #
+  # Note this deliberately does NOT require `listing_video_current?`: a stale
+  # rendered clip is a judgement call the admin makes with the badge in front of
+  # them, exactly as publishing does. What it does require is that a video
+  # exists and that a listing is attached right now — a detached printable has
+  # nothing to push to, and publishing will carry the video anyway.
+  def can_push_listing_video? = etsy_published? && listing_video? && !etsy_video_pushed?
+
+  def mark_etsy_video_pushed!
+    update_columns(etsy_video_pushed_at: Time.current, updated_at: Time.current)
+  end
+
   # Whether this printable freezes the boards it was rendered from.
   #
   # Keyed on `etsy_published_at`, NOT on the record existing: generating a
@@ -401,6 +424,11 @@ class BoardPrintable < ApplicationRecord
       etsy_listing_id: nil,
       etsy_listing_url: nil,
       etsy_error: nil,
+      # Scoped to the listing it was pushed to, so detaching from that listing
+      # retires the fact. The replacement draft has no video until publishing
+      # gives it one, and leaving the stamp set would hide the push control for
+      # a listing that genuinely has nothing on it.
+      etsy_video_pushed_at: nil,
     )
   end
 

@@ -152,6 +152,11 @@ module Etsy
       return if file.blank?
 
       client.upload_video(listing_id, bytes: file.download, filename: file.filename.to_s)
+      # Etsy allows one video per listing and this app can't read back whether
+      # one is there, so the draft having received one has to be remembered
+      # here — otherwise the admin's "Send video to the listing" control would
+      # offer a second POST against a listing that already has one.
+      printable.mark_etsy_video_pushed!
     rescue StandardError => e
       Rails.logger.error("[Etsy::PublishBoardPrintable] printable #{printable.id} video: #{e.class} - #{e.message}")
       printable.update_columns(
