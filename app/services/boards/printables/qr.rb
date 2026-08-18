@@ -24,8 +24,37 @@ module Boards
         "#{CollectPages::QR_BASE_URL}/#{CollectPages.qr_key_for(board)}"
       end
 
-      def self.data_url_for(url)
-        png = RQRCode::QRCode.new(url).as_png(
+      # The marketplace gallery/video QRs carry campaign tags; the PRINTED ones
+      # never do. A tagged /pb/ URL is ~148 chars, a version-12 (65-module)
+      # code — 0.31mm per module at the printed page's 0.8in, half the ~0.5mm
+      # phone-camera floor that already broke the kit tags once (see
+      # .claude-notes/marketing-assets.md). A slide QR is only ever scanned off
+      # a screen at 244px+, where the extra modules cost nothing.
+      LISTING_UTM = {
+        utm_source: "etsy",
+        utm_medium: "listing",
+        utm_campaign: "board_printable",
+      }.freeze
+
+      # `content` names the surface the code was scanned from — a gallery image
+      # or a frame of the listing video.
+      def self.listing_target_url_for(board, content:)
+        query = LISTING_UTM.merge(utm_content: content).to_query
+        "#{target_url_for(board)}?#{query}"
+      end
+
+      # ECC. Print keeps rqrcode's :h default — paper gets creased, folded and
+      # photocopied, and the printed URL is short enough to afford it. A slide
+      # QR encodes the longer tagged URL and is only ever read off a clean
+      # screen, so it trades damage redundancy for modules: :h renders the
+      # tagged URL as a version-12 (65-module) code, ~3.7px per module in the
+      # 244px frame slot, which is thin once Etsy re-encodes the video. :m is
+      # version 8 (49 modules, ~5px).
+      PRINT_ECC = :h
+      SCREEN_ECC = :m
+
+      def self.data_url_for(url, level: PRINT_ECC)
+        png = RQRCode::QRCode.new(url, level: level).as_png(
           bit_depth: 8,
           border_modules: 0,
           color_mode: ChunkyPNG::COLOR_TRUECOLOR,

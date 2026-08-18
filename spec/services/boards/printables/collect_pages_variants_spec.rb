@@ -35,10 +35,11 @@ RSpec.describe Boards::Printables::CollectPages, "#call" do
     expect(by_variant[BoardPrintable::VARIANT_TRIM_READY][:hide_colors]).to be(false)
   end
 
-  # The whole point of the trim-ready variant: the title band goes, the code
-  # stays. `hide_header: true` would take the QR with it and hand a buyer a
-  # sheet with no route to the free audio companion the listing promises.
-  it "gives the trim-ready page a corner QR instead of the full header" do
+  # The whole point of the trim-ready variant: the band goes so the board
+  # prints as large as the sheet allows. It still resolves a target URL —
+  # `hide_header: true` would leave the sheet with no route at all to the free
+  # audio companion the listing promises; url_only prints it as one thin line.
+  it "gives the trim-ready page an address line instead of the full header" do
     result
 
     modes = render_args.map { |kwargs| kwargs[:header_mode] }
@@ -46,7 +47,7 @@ RSpec.describe Boards::Printables::CollectPages, "#call" do
     expect(modes).to eq([
       Boards::RenderAssetData::HEADER_FULL,
       Boards::RenderAssetData::HEADER_FULL,
-      Boards::RenderAssetData::HEADER_QR_ONLY,
+      Boards::RenderAssetData::HEADER_URL_ONLY,
     ])
     expect(render_args.map { |kwargs| kwargs[:include_qr] }).to all(be(true))
   end

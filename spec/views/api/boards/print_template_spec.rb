@@ -100,11 +100,16 @@ RSpec.describe "api/boards/print.html.erb", type: :view do
       expect(Nokogiri::HTML(html).at_css(".qr-small img")["src"]).to eq(qr)
     end
 
-    it "keeps the QR and drops everything else in qr_only mode" do
-      html = render_with(Boards::RenderAssetData::HEADER_QR_ONLY)
+    # The trim-ready page buys board size with everything else on the band,
+    # the QR included — a 0.6in code costs 20mm of sheet and is denser than
+    # that size reliably scans anyway.
+    it "prints the address as one line and nothing else in url_only mode" do
+      html = render_with(Boards::RenderAssetData::HEADER_URL_ONLY)
       doc = Nokogiri::HTML(html)
 
-      expect(doc.at_css(".header-qr-only .qr-small img")["src"]).to eq(qr)
+      expect(doc.at_css(".header-url-only .trim-url").text.strip)
+        .to eq("app.speakanyway.com/pb/core-words")
+      expect(doc.at_css(".header-url-only .qr-small")).to be_nil
       expect(doc.at_css(".board-title")).to be_nil
       expect(doc.at_css(".board-link")).to be_nil
       expect(doc.at_css(".logo")).to be_nil

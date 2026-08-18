@@ -123,7 +123,10 @@ module Boards
       def shared_assigns
         {
           logo: BrandAssets.logo_data_uri,
-          qr_data_url: Qr.data_url_for(Qr.target_url_for(board)),
+          qr_data_url: Qr.data_url_for(
+            Qr.listing_target_url_for(board, content: "listing_image"),
+            level: Qr::SCREEN_ECC,
+          ),
           palette_css: Palette.for(board).css_vars,
         }
       end

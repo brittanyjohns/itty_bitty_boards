@@ -207,9 +207,12 @@ module Boards
 
       def outro_assigns
         shared_assigns.merge(
-          qr_data_url: Qr.data_url_for(Qr.target_url_for(board)),
+          qr_data_url: Qr.data_url_for(
+            Qr.listing_target_url_for(board, content: "listing_video"),
+            level: Qr::SCREEN_ECC,
+          ),
           headline: ::Printables::SlideCopy.video_outro_headline,
-          sub: ::Printables::SlideCopy.video_outro_sub,
+          sub_lines: ::Printables::SlideCopy.video_outro_sub_lines,
           device_data_uri: device_data_uri,
         )
       end

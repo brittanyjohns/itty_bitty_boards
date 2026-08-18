@@ -27,7 +27,11 @@
       <% end %>
     </div>
 
-    <div class="video-sub"><%= @sub %></div>
+    <div class="video-sub">
+      <% Array(@sub_lines).each do |line| %>
+        <span><%= line %></span>
+      <% end %>
+    </div>
     <div class="site-mark"><%= Printables::SlideCopy.site_mark %></div>
   </div>
 </div>

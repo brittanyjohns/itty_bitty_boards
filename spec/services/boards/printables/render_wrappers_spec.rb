@@ -69,7 +69,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render
 
       expect(RQRCode::QRCode).to have_received(:new)
-        .with("https://app.speakanyway.com/pb/core-words")
+        .with("https://app.speakanyway.com/pb/core-words", level: Boards::Printables::Qr::PRINT_ECC)
     end
 
     it "encodes the id when the board has no slug" do
@@ -79,7 +79,7 @@ RSpec.describe Boards::Printables::RenderWrappers do
       render
 
       expect(RQRCode::QRCode).to have_received(:new)
-        .with("https://app.speakanyway.com/pb/#{board.id}")
+        .with("https://app.speakanyway.com/pb/#{board.id}", level: Boards::Printables::Qr::PRINT_ECC)
     end
 
     it "describes a single board" do
@@ -130,15 +130,16 @@ RSpec.describe Boards::Printables::RenderWrappers do
         expect(rendered[:how_to_use_low_ink]).to include("white tile backgrounds")
       end
 
-      # The trim-ready file is the one whose QR moved, so it is the one page
-      # that has to say where the code went — a buyer who can't find it assumes
-      # the header-less print is the one without the audio companion.
-      it "tells the trim-ready file the header is gone and the QR moved" do
+      # The trim-ready file is the one with no code on its board pages, so it is
+      # the one page that has to say where the code went — a buyer who can't
+      # find it assumes this print is the one without the audio companion.
+      it "tells the trim-ready file the header is gone and where the code is" do
         render(board_count: 4)
 
         expect(rendered[:how_to_use_trim_ready]).to include("Printed to the edges")
         expect(rendered[:how_to_use_trim_ready]).to include("drops the page header")
-        expect(rendered[:how_to_use_trim_ready]).to include("QR code moves to the top corner")
+        expect(rendered[:how_to_use_trim_ready]).to include("web address prints as")
+        expect(rendered[:how_to_use_trim_ready]).to include("the scannable code is on the")
       end
 
       it "never mentions the other files from any one of them" do

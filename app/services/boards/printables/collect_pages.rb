@@ -100,10 +100,11 @@ module Boards
       def render_page(target, variant:)
         hide_colors = variant == BoardPrintable::VARIANT_LOW_INK
 
-        # Every board page carries a QR, in one form or another. The trim-ready
-        # variant drops the title band but keeps a corner code (header_mode
-        # qr_only) — a bare `hide_header: true` would take the QR with it and
-        # hand a buyer a sheet with no way back to the talking version.
+        # The trim-ready variant exists so the board prints as large as the
+        # sheet allows, so it drops the QR band for one line of type naming the
+        # board's address (header_mode url_only) rather than spending 20mm on a
+        # 0.6in code. `hide_header: true` is still wrong for it — that would
+        # leave the sheet with no way back to the talking version at all.
         render_data = Boards::RenderAssetData.new(
           board: target,
           screen_size: "lg",
@@ -131,7 +132,7 @@ module Boards
 
       def header_mode_for(variant)
         if variant == BoardPrintable::VARIANT_TRIM_READY
-          Boards::RenderAssetData::HEADER_QR_ONLY
+          Boards::RenderAssetData::HEADER_URL_ONLY
         else
           Boards::RenderAssetData::HEADER_FULL
         end
