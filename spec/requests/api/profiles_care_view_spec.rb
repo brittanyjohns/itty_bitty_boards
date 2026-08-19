@@ -85,6 +85,27 @@ RSpec.describe "MySpeak care sections", type: :request do
       expect(sections["c_7f3a91"]["title"]).to eq("Bedtime")
     end
 
+    # The public page renders each value as a React text node, so the payload
+    # carries the raw character. It used to be STORED escaped, which is what put
+    # the literal text "&amp;" on the page.
+    it "ships a typed ampersand as a plain character" do
+      profile = Profile.create!(
+        profileable: child, username: "sky-amp", slug: "sky-amp",
+        settings: {
+          "care" => {
+            "sections" => {
+              "sensory" => { "values" => { "calming" => "Loves hugs & quiet spaces" } },
+            },
+          },
+        },
+      )
+
+      post "/api/profiles/public/#{profile.slug}/care_view"
+
+      expect(JSON.parse(response.body).dig("settings", "care", "sections", "sensory", "values", "calming"))
+        .to eq("Loves hugs & quiet spaces")
+    end
+
     it "never leaks emergency info through the care endpoint" do
       profile = safety_profile
 

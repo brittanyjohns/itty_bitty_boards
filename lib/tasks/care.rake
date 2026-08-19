@@ -62,4 +62,64 @@ namespace :care do
       "\nDRY RUN — #{changed} profile(s) would change. Re-run with DRY_RUN=false to apply." :
       "\nDone — #{changed} profile(s) updated."
   end
+
+  # Repairing care text that was stored HTML-escaped. See CareTextRepair: the
+  # cleaner used to persist "hugs &amp; quiet" for an ampersand a parent typed,
+  # and a code fix alone leaves every already-saved row wrong until its owner
+  # happens to edit that section again.
+  desc "Report profiles holding HTML-escaped care text (care:unescape_text to fix)"
+  task audit_escaped_text: :environment do
+    counts = Hash.new(0)
+    profiles = 0
+
+    Profile.where.not(settings: nil).find_each do |profile|
+      hits = CareTextRepair.hits_for(profile)
+      next if hits.empty?
+
+      profiles += 1
+      puts "  profile #{profile.id} (#{profile.slug}): #{hits.join(", ")}"
+      hits.each { |hit| counts[hit] += 1 }
+    end
+
+    if counts.empty?
+      puts "No profile holds HTML-escaped care text."
+      next
+    end
+
+    puts "\n#{profiles} profile(s) hold escaped care text, across #{counts.size} field(s)."
+    puts "Run `rake care:unescape_text DRY_RUN=false` to fix them."
+  end
+
+  desc "Unescape HTML-escaped care text in place (DRY_RUN=false to apply)"
+  task unescape_text: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+    scope = Profile.where.not(settings: nil)
+    scope = scope.where(id: ENV["PROFILE_ID"]) if ENV["PROFILE_ID"].present?
+
+    changed = 0
+    scope.find_each do |profile|
+      care = profile.settings["care"]
+      next unless care.is_a?(Hash)
+
+      repaired = CareTextRepair.apply(care)
+      next unless repaired
+
+      changed += 1
+      if dry_run
+        puts "would update profile #{profile.id} (#{profile.slug}): " \
+             "#{CareTextRepair.hits_for(profile).join(", ")}"
+      else
+        # update_column, for the same reason care:remap_options uses it: a
+        # normal save would re-run sanitize_care_settings (harmless, and now
+        # idempotent) but would also fire audio regeneration and safety-card
+        # renders on every row. This task rewrites stored text, nothing else.
+        profile.update_column(:settings, profile.settings.merge("care" => repaired))
+        puts "updated profile #{profile.id} (#{profile.slug})"
+      end
+    end
+
+    puts dry_run ?
+      "\nDRY RUN — #{changed} profile(s) would change. Re-run with DRY_RUN=false to apply." :
+      "\nDone — #{changed} profile(s) updated."
+  end
 end

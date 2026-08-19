@@ -460,6 +460,79 @@ RSpec.describe Profile, type: :model do
         expect(result["sections"]["meals"]["values"]["preferences"]).to eq("alert(1)Likes crunchy food")
       end
 
+      # strip_tags escapes entities on OUTPUT, and the cleaner runs in a
+      # before_save — so a single pass persisted "hugs &amp; quiet spaces" and
+      # published that literal text to the public page and the printed care
+      # plan. Both consumers escape on output, so storing the raw character is
+      # both correct and safe.
+      describe "entities in free text" do
+        it "stores a typed ampersand as a plain character" do
+          result = care(
+            "sensory" => { "values" => { "calming" => "Loves hugs & quiet spaces" } },
+          )
+
+          expect(result["sections"]["sensory"]["values"]["calming"])
+            .to eq("Loves hugs & quiet spaces")
+        end
+
+        it "leaves angle brackets and quotes unescaped too" do
+          result = care(
+            "meals" => { "values" => { "preferences" => %(Cut pieces < 1" & "no crusts") } },
+          )
+
+          expect(result["sections"]["meals"]["values"]["preferences"])
+            .to eq(%(Cut pieces < 1" & "no crusts"))
+        end
+
+        # The reason the cleaner strips a second time. Unescaping is what turns
+        # this input into live markup, so it has to be stripped AFTER the
+        # unescape, not before.
+        it "does not resurrect a tag that arrived escaped" do
+          result = care(
+            "sensory" => { "values" => { "calming" => "&lt;script&gt;alert(1)&lt;/script&gt;quiet" } },
+          )
+
+          stored = result["sections"]["sensory"]["values"]["calming"]
+          expect(stored).not_to include("<script")
+          expect(stored).not_to include("&lt;")
+        end
+
+        it "is stable across re-saves rather than compounding" do
+          care("sensory" => { "values" => { "calming" => "hugs & quiet" } })
+
+          profile.update!(updated_at: Time.current)
+
+          expect(profile.reload.settings.dig("care", "sections", "sensory", "values", "calming"))
+            .to eq("hugs & quiet")
+        end
+
+        it "applies to custom item labels and values, and custom titles" do
+          result = care(
+            "c_7f3a91" => {
+              "custom" => true,
+              "title" => "Snacks & drinks",
+              "items" => [{ "label" => "Cups & straws", "value" => "Green cup & lid only" }],
+            },
+          )
+
+          section = result["sections"]["c_7f3a91"]
+          expect(section["title"]).to eq("Snacks & drinks")
+          expect(section["items"].first).to eq(
+            "label" => "Cups & straws", "value" => "Green cup & lid only",
+          )
+        end
+
+        it "applies to detail lines on a built-in section" do
+          result = care(
+            "meals" => { "items" => [{ "label" => "Cups & lids", "value" => "Green & blue only" }] },
+          )
+
+          expect(result["sections"]["meals"]["items"].first).to eq(
+            "label" => "Cups & lids", "value" => "Green & blue only",
+          )
+        end
+      end
+
       it "truncates over-long free text and caps multi-select length" do
         result = care(
           "meals" => {

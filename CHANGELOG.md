@@ -7,6 +7,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Ampersands in Care & routines save properly.** Typing "&" into any care
+  field — a sensory note, a meal detail line, a custom section title — stored it
+  as the raw text `&amp;`, so the public MySpeak page and the printed care plan
+  both showed that instead of the character. Existing entries can be repaired
+  with `rake care:unescape_text DRY_RUN=false`.
 - **Pasting a word list makes exactly those tiles.** Building a board from a
   pasted word list quietly appended extra AI-generated words to the end, and
   "Start with an empty board" came back full of them. Both happened because the

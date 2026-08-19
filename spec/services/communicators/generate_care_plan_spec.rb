@@ -395,6 +395,40 @@ RSpec.describe Communicators::GenerateCarePlan do
     end
   end
 
+  # An ampersand a parent typed used to be PERSISTED escaped, so the printed
+  # sheet said "hugs &amp; quiet spaces" in the reader's hands. The template
+  # escapes on output like any ERB tag, so the fix is stored text carrying the
+  # raw character — which means the HTML holds exactly one level of escaping.
+  describe "an ampersand in care text" do
+    before do
+      profile.update!(
+        settings: {
+          "care" => {
+            "sections" => {
+              "sensory" => { "values" => { "calming" => "Loves hugs & quiet spaces" } },
+              "c_7f3a91" => {
+                "custom" => true,
+                "title" => "Snacks & drinks",
+                "items" => [{ "label" => "Cups & lids", "value" => "Green & blue only" }],
+              },
+            },
+          },
+        },
+      )
+    end
+
+    it "prints as a literal ampersand, not an entity" do
+      html = render_html(variant: :care_only)
+
+      expect(html).to include("Loves hugs &amp; quiet spaces")
+      expect(html).to include("Snacks &amp; drinks")
+      expect(html).to include("Green &amp; blue only")
+      # The bug's signature: a second level of escaping, which renders as the
+      # visible text "&amp;".
+      expect(html).not_to include("&amp;amp;")
+    end
+  end
+
   it "refuses an unknown variant" do
     expect { described_class.call(profile, variant: :everything) }
       .to raise_error(described_class::UnknownVariant)
