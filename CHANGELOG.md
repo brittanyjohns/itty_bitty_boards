@@ -5,6 +5,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Turn a whole selection into text tiles at once.** The board editor's bulk
+  actions can now render every selected tile's own word as its picture, in one
+  step, instead of opening each tile in turn. Free — no AI credits. Tiles with
+  no word are left alone, as is any tile already showing that exact picture.
+
 ### Fixed
 
 - **Pasting a word list makes exactly those tiles.** Building a board from a
