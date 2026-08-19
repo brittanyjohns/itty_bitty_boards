@@ -63,10 +63,11 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(slide_html.join("\n")).not_to include("as-listing-image")
   end
 
-  # "Also includes a low-ink version" in a bullet is a claim; the same boards
-  # shown printed pale is proof. It has to be the REAL low-ink page, not the
-  # colour one relabelled.
-  it "shows the low-ink pages on their own slide, rendered with the colour off" do
+  # "Also includes a low-ink version" in a bullet is a claim; a page shown
+  # printed pale is proof. It has to be the REAL low-ink page, not the colour
+  # one relabelled — and it sits inside the what's-included slide rather than
+  # taking a slot of its own in a gallery capped at exactly ten.
+  it "insets a real low-ink page into the what's-included slide" do
     allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
 
     described_class.new(printable: printable).call
@@ -74,10 +75,23 @@ RSpec.describe Boards::Printables::RenderListingImages do
     expect(Boards::Printables::RenderPageThumbnails).to have_received(:new)
       .with(hash_including(hide_colors: true, hide_header: true))
 
-    colour = slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)
-    low_ink = slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
-    expect(colour).to include("What&#39;s included")
-    expect(low_ink).to include("Low-ink version included")
+    slide = slide_for(BoardPrintable::IMAGE_WHATS_INCLUDED)
+    expect(slide).to include("What&#39;s included")
+    expect(slide).to include('class="low-ink-proof"')
+    expect(slide).to include(Printables::SlideCopy.low_ink_headline)
+  end
+
+  # The pale pass used to cover every planned board for a whole second slide.
+  # One inset page makes the same claim, and the render budget is the reason it
+  # has to stay one — this job already pays for ~25 Grover renders.
+  it "renders the low-ink page once, not once per board" do
+    printable.update!(board_ids: [board.id, other.id, create(:board, user: owner).id])
+    allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
+
+    described_class.new(printable: printable).call
+
+    expect(Boards::Printables::RenderPageThumbnails).to have_received(:new)
+      .with(hash_including(hide_colors: true)) { |args| expect(args[:boards].size).to eq(1) }
   end
 
   # The page header is where the printed QR lives, and the hero's whole claim is
@@ -97,7 +111,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
   it "sizes every page card from the thumbnail's real dimensions" do
     described_class.new(printable: printable).call
 
-    expect(slide_html.first).to include("aspect-ratio: 600 / 700")
+    expect(slide_for(BoardPrintable::IMAGE_HERO)).to include("aspect-ratio: 600 / 700")
   end
 
   # A shop page of listings that share one colourway reads as the same product
@@ -177,7 +191,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
     # slug, so a full match up to the closing quote can't collide with the
     # logo's or the QR's real base64.
     def hero_board_order
-      slide_html.first.scan(%r{data:image/png;base64,([a-z0-9-]+)"}).flatten
+      slide_for(BoardPrintable::IMAGE_HERO).scan(%r{data:image/png;base64,([a-z0-9-]+)"}).flatten
     end
 
     it "puts the root board in the middle, in front of its subboards" do
@@ -217,7 +231,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
       described_class.new(printable: printable).call
 
-      hero = slide_html.first
+      hero = slide_for(BoardPrintable::IMAGE_HERO)
       width = hero[/--fan-w:\s*([\d.]+)%/, 1].to_f
       overlap = hero[/--fan-overlap:\s*([\d.]+)%/, 1].to_f
       cards = hero.scan(/--rot:\s*(-?[\d.]+)deg/).flatten
@@ -238,13 +252,22 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
       described_class.new(printable: printable).call
 
-      expect(slide_html.first.scan(/--rot:/).size).to eq(2)
+      expect(slide_for(BoardPrintable::IMAGE_HERO).scan(/--rot:/).size).to eq(2)
     end
   end
 
   describe "the flip-book slide" do
-    it "earns rank 2, straight behind the search thumbnail" do
-      expect(BoardPrintable::LISTING_IMAGE_ORDER[1]).to eq(BoardPrintable::IMAGE_FLIP_BOOK)
+    # It carries the one claim no competing AAC printable can make, so it stays
+    # in the first half of the gallery — ahead of what's-included, assemble,
+    # page_index and about, all of which describe a product a buyer has already
+    # decided to look at.
+    it "sits in the first half, ahead of every slide that only describes the product" do
+      order = BoardPrintable::LISTING_IMAGE_ORDER
+      later = [BoardPrintable::IMAGE_WHATS_INCLUDED, BoardPrintable::IMAGE_ASSEMBLE,
+        BoardPrintable::IMAGE_PAGE_INDEX, BoardPrintable::IMAGE_ABOUT]
+
+      expect(order.index(BoardPrintable::IMAGE_FLIP_BOOK)).to be < (order.size / 2)
+      expect(later.map { |v| order.index(v) }).to all(be > order.index(BoardPrintable::IMAGE_FLIP_BOOK))
     end
 
     it "shows the root opening its subpages, each with a way back" do
@@ -329,10 +352,33 @@ RSpec.describe Boards::Printables::RenderListingImages do
     end
   end
 
-  # Etsy caps a listing at ten photos. The video is a separate slot and doesn't
-  # count against it.
-  it "leaves room in Etsy's gallery for something hand-made" do
-    expect(BoardPrintable::LISTING_IMAGE_ORDER.size).to be < 10
+  # Etsy caps a listing at TEN photos, and the gallery now fills it exactly.
+  # The video is a separate slot and doesn't count against it. There is no
+  # spare: anything added from here has to displace something.
+  it "fills Etsy's gallery without overflowing it" do
+    expect(BoardPrintable::LISTING_IMAGE_ORDER.size).to eq(10)
+  end
+
+  # In the shop audit the listings led by a photograph of the product in a real
+  # room rated "Strong" and the ones led by flat board art rated "OK/Weak". The
+  # pipeline orders its own galleries the same way.
+  it "leads with a photoreal mockup, because rank 1 is the search thumbnail" do
+    expect(BoardPrintable::LISTING_IMAGE_ORDER.first).to eq(BoardPrintable::IMAGE_ON_PAPER)
+  end
+
+  # Four consecutive renders of the same boards read as one product
+  # photographed four times; a photograph between each is what keeps a buyer
+  # scrolling. Asserted as "no two mockups adjacent" rather than on the literal
+  # order, so the ranks can be retuned without rewriting this.
+  it "spaces the mockups out rather than stacking them together" do
+    mockups = [
+      BoardPrintable::IMAGE_ON_PAPER, BoardPrintable::IMAGE_ON_PAPER_ALT,
+      BoardPrintable::IMAGE_ON_A_DEVICE, BoardPrintable::IMAGE_ON_A_DEVICE_ALT,
+    ]
+
+    adjacent = BoardPrintable::LISTING_IMAGE_ORDER.each_cons(2).count { |a, b| mockups.include?(a) && mockups.include?(b) }
+
+    expect(adjacent).to eq(0)
   end
 
   describe "the bundle sticker" do
@@ -344,8 +390,8 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
       # Matched on the markup, not the bare class name — the layout inlines all
       # of its CSS, so ".count-sticker" is in every slide's <style> block.
-      expect(slide_html.first).to include('<div class="count-sticker">', ">9<", "LINKED")
-      expect(slide_html.first).to include("COLOUR · LOW-INK · TRIM-READY")
+      expect(slide_for(BoardPrintable::IMAGE_HERO)).to include('<div class="count-sticker">', ">9<", "LINKED")
+      expect(slide_for(BoardPrintable::IMAGE_HERO)).to include("COLOUR · LOW-INK · TRIM-READY")
     end
 
     # "1 LINKED BOARD" undersells a single-page printable and reads as a bug.
@@ -354,7 +400,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
 
       described_class.new(printable: printable).call
 
-      expect(slide_html.first).not_to include('<div class="count-sticker">')
+      expect(slide_for(BoardPrintable::IMAGE_HERO)).not_to include('<div class="count-sticker">')
     end
   end
 
@@ -392,7 +438,7 @@ RSpec.describe Boards::Printables::RenderListingImages do
     described_class.new(printable: printable).call
 
     device = slide_for(BoardPrintable::IMAGE_ON_A_DEVICE)
-    expect(device).to include("matrix3d(", "mockup-screen")
+    expect(device).to include("matrix3d(", "mockup-art kind-tablet")
     expect(device).to include("data:image/jpeg;base64,")
   end
 
@@ -521,6 +567,105 @@ RSpec.describe Boards::Printables::RenderListingImages do
       width: 600,
       height: 700,
     )
+  end
+
+  # Four of the ten slides are photoreal composites: a real render warped onto a
+  # hand-calibrated placeholder in a photographed room. Each pair must stage a
+  # DIFFERENT room, or the second reads as the first duplicated — which is the
+  # only reason the second one exists.
+  describe "the mockup slides" do
+    def scene_photo(slide) = slide[%r{<img class="mockup-photo" src="(data:image/jpeg;base64,[^"]+)"}, 1]
+
+    def warped_art(slide) = slide[%r{<div class="mockup-art[^"]*"[^>]*>\s*<img src="([^"]+)"}m, 1]
+
+    it "renders both paper slides as warped sheets, not flat art" do
+      described_class.new(printable: printable).call
+
+      [BoardPrintable::IMAGE_ON_PAPER, BoardPrintable::IMAGE_ON_PAPER_ALT].each do |variant|
+        slide = slide_for(variant)
+        expect(slide).to include("mockup-art kind-paper"), "#{variant} is not finished as paper"
+        expect(slide).to include("matrix3d("), "#{variant} is not warped"
+        expect(scene_photo(slide)).to be_present, "#{variant} has no room photo"
+      end
+    end
+
+    it "stages the two paper slides in different rooms" do
+      described_class.new(printable: printable).call
+
+      expect(scene_photo(slide_for(BoardPrintable::IMAGE_ON_PAPER)))
+        .not_to eq(scene_photo(slide_for(BoardPrintable::IMAGE_ON_PAPER_ALT)))
+    end
+
+    it "stages the two tablet slides on different tablets" do
+      described_class.new(printable: printable).call
+
+      expect(scene_photo(slide_for(BoardPrintable::IMAGE_ON_A_DEVICE)))
+        .not_to eq(scene_photo(slide_for(BoardPrintable::IMAGE_ON_A_DEVICE_ALT)))
+    end
+
+    # The claim of a paper slide is that the SHEET carries the code, so it warps
+    # the header-shown page the hero renders — not the header-hidden thumbnail
+    # the grids and the tablets use, and not the app chrome.
+    it "warps the printed page onto paper and the app chrome onto glass" do
+      described_class.new(printable: printable).call
+
+      expect(warped_art(slide_for(BoardPrintable::IMAGE_ON_PAPER))).to start_with("data:image/png;base64,")
+      expect(slide_for(BoardPrintable::IMAGE_ON_PAPER)).not_to include("app-chrome")
+    end
+
+    # A set shows a different page in each half of a pair; a single-board
+    # printable falls back to the root for both. The slide never disappears —
+    # LISTING_IMAGE_ORDER is the whole definition of a current gallery.
+    it "shows a second page in the alt slides when the printable has one" do
+      printable.update!(board_ids: [board.id, other.id], include_subboards: true)
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      expect(warped_art(slide_for(BoardPrintable::IMAGE_ON_PAPER)))
+        .not_to eq(warped_art(slide_for(BoardPrintable::IMAGE_ON_PAPER_ALT)))
+      expect(slide_for(BoardPrintable::IMAGE_ON_A_DEVICE_ALT)).to include("Feelings")
+    end
+
+    it "still renders both halves of each pair for a single-board printable" do
+      stub_thumbnail_renders!
+
+      described_class.new(printable: printable).call
+
+      [BoardPrintable::IMAGE_ON_PAPER_ALT, BoardPrintable::IMAGE_ON_A_DEVICE_ALT].each do |variant|
+        expect(slide_for(variant)).to include("mockup-art")
+      end
+    end
+
+    # The badge sits under the title banner on every other slide. Here the
+    # artwork IS the slide and its top edge moves with the scene, so the badge
+    # landed across the printed page's own header — the one thing a paper slide
+    # exists to show — and across the app's board title on the angled tablet.
+    # The footer strip is a solid band, so nothing there can be obscured.
+    it "carries the badge in the footer, where it cannot cover the artwork" do
+      described_class.new(printable: printable).call
+
+      slide = slide_for(BoardPrintable::IMAGE_ON_PAPER)
+      expect(slide).to include("audio-badge in-footer")
+      expect(slide[/<div class="slide-stack.*?<\/div>\s*<\/div>/m]).not_to include("audio-badge")
+    end
+
+    # A homography maps ANY rectangle onto the quad, so a portrait page on a
+    # landscape room does not fail — it silently stretches, which a buyer reads
+    # as a distorted product.
+    it "asks for a portrait room when the printed page is portrait" do
+      allow(Boards::Printables::PaperScene).to receive(:pair_for).and_call_original
+      allow_any_instance_of(Boards::Printables::RenderPageThumbnails).to receive(:call) do
+        {board.id => Boards::Printables::RenderPageThumbnails::Thumbnail.new(
+          board_id: board.id, data_uri: "data:image/png;base64,tall",
+          landscape: false, width: 600, height: 700
+        )}
+      end
+
+      described_class.new(printable: printable).call
+
+      expect(Boards::Printables::PaperScene).to have_received(:pair_for).with(anything, landscape: false)
+    end
   end
 
   # The gallery QR is scanned off a screen, where the extra modules are free —
