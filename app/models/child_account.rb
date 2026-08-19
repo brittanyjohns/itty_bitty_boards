@@ -678,6 +678,12 @@ class ChildAccount < ApplicationRecord
     cached_supervisors = supervisors
     cached_go_to_boards = go_to_boards
     cached_most_used_words = most_clicked_words
+    # Same batching as `api_view` — this serializer shares every board helper
+    # with it, so a vendor with a large library hits the same per-board fanout.
+    cached_available_boards = available_boards_for_user(viewing_user).to_a
+    cached_teams_boards = available_teams_boards.to_a
+    available_word_samples = Board.word_samples_for(cached_available_boards)
+    teams_word_samples = Board.word_samples_for(cached_teams_boards.map(&:board).compact)
 
     {
       id: id,
@@ -776,19 +782,19 @@ class ChildAccount < ApplicationRecord
       can_sign_in: can_sign_in?,
       fallback_mode: fallback_mode?,
       fallback_since: settings&.dig("fallback_since"),
-      available_boards: available_boards_for_user(viewing_user).map do |b|
+      available_boards: cached_available_boards.map do |b|
         {
           id: b.id,
           name: b.name,
           display_image_url: b.display_image_url,
           board_type: b.board_type,
-          word_sample: b.word_sample,
+          word_sample: available_word_samples[b.id],
           predefined: b.predefined,
           user_id: b.user_id,
           is_owner: b.user_id == viewing_user&.id,
         }
       end,
-      teams_boards: available_teams_boards.map do |tb|
+      teams_boards: cached_teams_boards.map do |tb|
         b = tb.board
         {
           id: tb.board_id,
@@ -797,7 +803,7 @@ class ChildAccount < ApplicationRecord
           display_image_url: b.display_image_url,
           added_by: tb.created_by&.display_name,
           added_by_id: tb.created_by&.id,
-          word_sample: b.word_sample,
+          word_sample: teams_word_samples[tb.board_id],
         }
       end,
     }
@@ -922,9 +928,15 @@ class ChildAccount < ApplicationRecord
   #   user.boards.where.not(id: current_boards.pluck(:id)).order(:name)
   # end
 
+  # Every board this returns is serialized through the `available_boards` block
+  # in `api_view`, which reads `display_image_url` and `word_sample` per row.
+  # `display_image_url` is an ActiveStorage lookup (2-3 queries a board), and an
+  # owner can easily have four figures of boards, so without the preload this
+  # single method issued thousands of queries per request. Same fix, same
+  # constant, as `perf(profiles): serialize public page boards as cards` (#667).
   def available_boards
     board_ids = child_boards.select(:board_id)
-    user_boards = user.boards.where.not(id: board_ids).alphabetical
+    user_boards = user.boards.where.not(id: board_ids).alphabetical.includes(*Profile::BOARD_CARD_PRELOADS)
     #  predefined boards too
     # public_boards = Board.public_boards.where.not(id: board_ids)
     # user_boards.or(public_boards).order(:name)
@@ -938,7 +950,7 @@ class ChildAccount < ApplicationRecord
       available_boards
     else
       board_ids = child_boards.select(:board_id)
-      viewing_user.boards.where.not(id: board_ids).order(:name)
+      viewing_user.boards.where.not(id: board_ids).order(:name).includes(*Profile::BOARD_CARD_PRELOADS)
     end
   end
 
@@ -950,7 +962,7 @@ class ChildAccount < ApplicationRecord
 
   def available_teams_boards
     used_ids = child_boards.select(:board_id)
-    TeamBoard.includes(:board, :created_by)
+    TeamBoard.includes(:created_by, board: Profile::BOARD_CARD_PRELOADS)
              .where(team_id: teams.select(:id))
              .where.not(board_id: used_ids)
   end
@@ -1001,18 +1013,30 @@ class ChildAccount < ApplicationRecord
     profile&.bg_color
   end
 
+  # Memoized: `api_view` reaches this twice per request — once through
+  # `most_used_board` and again through `go_to_boards` when the communicator has
+  # no favourites — and each call is an unbounded aggregate over the account's
+  # whole word_event history.
   def boards_by_most_used
-    board_ids = word_events.group(:board_id).count.sort_by { |_k, v| v }.reverse.to_h.keys
-    Board.where(id: board_ids)
+    @boards_by_most_used ||= begin
+      board_ids = word_events.group(:board_id).count.sort_by { |_k, v| v }.reverse.to_h.keys
+      Board.where(id: board_ids)
+    end
   end
 
+  # Polymorphic in RETURN TYPE, not just receiver: `favorite_boards` gives
+  # ChildBoard join rows (which delegate name/slug/display_image_url to :board),
+  # every other branch gives Boards. The cover preload has to follow that —
+  # `includes(board: ...)` on a Board relation raises AssociationNotFoundError.
+  # Same trap `Profile#communication_boards` documents.
   def go_to_boards
-    gt_boards = favorite_boards.any? ? favorite_boards : boards_by_most_used
-    if gt_boards.none?
-      # Handle case where there are no boards to go to
-      gt_boards = Board.public_boards.limit(5)
+    if favorite_boards.any?
+      return favorite_boards.includes(board: Profile::BOARD_CARD_PRELOADS)
     end
-    gt_boards
+
+    gt_boards = boards_by_most_used
+    gt_boards = Board.public_boards.limit(5) if gt_boards.none?
+    gt_boards.includes(*Profile::BOARD_CARD_PRELOADS)
   end
 
   def most_used_board
@@ -1054,9 +1078,30 @@ class ChildAccount < ApplicationRecord
 
   include LocaleResolution
 
+  # Boards THIS communicator used in the last week.
+  #
+  # The previous implementation joined `child_boards -> board -> word_events`,
+  # which is the wrong direction: it matched events recorded by *any* user on a
+  # board this communicator happens to have, so a shared or predefined board
+  # leaked other people's activity into this account's "recently used" strip.
+  # It also instantiated every matched WordEvent just to `.uniq` in Ruby, and
+  # put a raw string condition on an `includes` without `.references`, which
+  # Rails 8 does not treat as a reason to force the join.
+  #
+  # Go through this account's own word_events instead, pull the distinct board
+  # ids in the window, and load just those child boards.
   def recently_used_boards
-    # word_events.includes(:board).where("created_at >= ?", 1.week.ago).order("created_at DESC").map(&:board).uniq
-    child_boards.includes(board: :word_events).where("word_events.created_at >= ?", 1.week.ago).order("word_events.created_at DESC").uniq
+    recent = word_events.where(created_at: 1.week.ago..)
+                        .where.not(board_id: nil)
+                        .group(:board_id)
+                        .maximum(:created_at)
+    return child_boards.none if recent.empty?
+
+    ordered_board_ids = recent.sort_by { |_board_id, last_used| last_used }.reverse.map(&:first)
+    boards_by_id = child_boards.where(board_id: ordered_board_ids)
+                               .includes(board: Profile::BOARD_CARD_PRELOADS)
+                               .index_by(&:board_id)
+    ordered_board_ids.filter_map { |board_id| boards_by_id[board_id] }
   end
 
   def update_board_layout(screen_size)
@@ -1079,6 +1124,12 @@ class ChildAccount < ApplicationRecord
     cached_supporters = supporters
     cached_supervisors = supervisors
     cached_go_to_boards = go_to_boards
+    cached_available_boards = available_boards_for_user(viewing_user).to_a
+    cached_teams_boards = available_teams_boards.to_a
+    # One grouped board_images read for every board still missing a cached
+    # word list, rather than one query per board.
+    available_word_samples = Board.word_samples_for(cached_available_boards)
+    teams_word_samples = Board.word_samples_for(cached_teams_boards.map(&:board).compact)
 
     {
       id: id,
@@ -1129,12 +1180,16 @@ class ChildAccount < ApplicationRecord
           text_color: b.text_color,
         }
       end,
-      heat_map: heat_map,
+      # `heat_map`, `week_chart` and `most_clicked_words` used to be emitted here
+      # and nothing read them: the communicator page renders `stats.heat_map` /
+      # `stats.most_clicked_words` from the range-bounded /api/word_events/stats
+      # instead. `heat_map` in particular was called with no range, so every
+      # load ran an all-time group_by_day over the account's whole event
+      # history. `vendor_api_view` still emits all three — the vendor screen
+      # genuinely reads them — so only this serializer drops them.
       profile: cached_profile&.api_view(viewing_user),
       startup_url: startup_url,
       public_url: public_url,
-      week_chart: week_chart,
-      most_clicked_words: most_clicked_words,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
       settings: settings,
       details: details,
@@ -1158,7 +1213,14 @@ class ChildAccount < ApplicationRecord
       bio_audio_url: cached_profile&.bio_audio_url,
       supporters: cached_supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: cached_supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.includes(:original_board, :board).order(:created_at).map do |cb|
+      # `display_image_url` (both the board's and the original's), `created_by`
+      # and `board.user` are all read per row below — preload or each row costs
+      # a handful of queries.
+      boards: child_boards.includes(
+        :created_by,
+        original_board: Profile::BOARD_CARD_PRELOADS,
+        board: [:user, *Profile::BOARD_CARD_PRELOADS],
+      ).order(:created_at).map do |cb|
         b = cb.board
         og_board = cb.original_board
         {
@@ -1189,19 +1251,19 @@ class ChildAccount < ApplicationRecord
       can_sign_in: can_sign_in?,
       fallback_mode: fallback_mode?,
       fallback_since: settings&.dig("fallback_since"),
-      available_boards: available_boards_for_user(viewing_user).map do |b|
+      available_boards: cached_available_boards.map do |b|
         {
           id: b.id,
           name: b.name,
           display_image_url: b.display_image_url,
           board_type: b.board_type,
-          word_sample: b.word_sample,
+          word_sample: available_word_samples[b.id],
           predefined: b.predefined,
           user_id: b.user_id,
           is_owner: b.user_id == viewing_user&.id,
         }
       end,
-      teams_boards: available_teams_boards.map do |tb|
+      teams_boards: cached_teams_boards.map do |tb|
         b = tb.board
         {
           id: tb.board_id,
@@ -1210,7 +1272,7 @@ class ChildAccount < ApplicationRecord
           display_image_url: b.display_image_url,
           added_by: tb.created_by&.display_name,
           added_by_id: tb.created_by&.id,
-          word_sample: b.word_sample,
+          word_sample: teams_word_samples[tb.board_id],
         }
       end,
     }
