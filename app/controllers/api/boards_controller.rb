@@ -521,14 +521,34 @@ class API::BoardsController < API::ApplicationController
         incoming_published = ActiveModel::Type::Boolean.new.cast(board_params["published"])
         @board.published = incoming_published unless incoming_published.nil?
       end
-      # Renaming a board re-derives this param from the name on the frontend,
-      # so it arrives on ordinary renames. On a PUBLISHED board the change is
-      # dropped by Board#freeze_published_slug — `/pb/<slug>` is printed into
-      # QR codes and paper can't be re-issued (#611). Deliberate renames go
-      # through the internal API's `force_slug` or `boards:rename_slug`.
-      if board_params["slug"].present? && board_params["slug"] != @board.slug
-        new_slug = @board.generate_unique_slug(board_params["slug"])
-        @board.slug = new_slug
+      # A slug is derived from the name ONCE, at creation. Renaming a board must
+      # NOT re-key its URL: `/pb/<slug>` is what a shared link and a printed QR
+      # code point at, and the frontend used to re-derive the slug on every
+      # keystroke of the name field, so an ordinary rename silently moved an
+      # unpublished board's public URL out from under anyone holding the link.
+      #
+      # Changing the slug is now deliberate and admin-only (`:slug` and
+      # `:regenerate_slug` are stripped from board_params for non-admins). The
+      # three ways an admin asks for a change, in order:
+      #
+      #   1. `regenerate_slug: true`  — the "Generate slug from name" toggle
+      #   2. `slug: ""`               — clearing the Slug field in BoardForm
+      #   3. `slug: "something-else"` — typing a slug by hand
+      #
+      # A blank stored slug is backfilled from the name regardless: `validates
+      # :slug, uniqueness: true` does not skip blanks (see #build_obf_placeholder_board).
+      #
+      # On a PUBLISHED board every one of these is still reverted by
+      # Board#freeze_published_slug — printed paper can't be re-issued (#611).
+      # Deliberate published renames go through the internal API's `force_slug`
+      # or the `boards:rename_slug` rake task.
+      regenerate_slug = ActiveModel::Type::Boolean.new.cast(board_params["regenerate_slug"])
+      slug_cleared = board_params.key?("slug") && board_params["slug"].blank?
+
+      if @board.slug.blank? || regenerate_slug || slug_cleared
+        @board.generate_unique_slug(@board.name)
+      elsif board_params["slug"].present? && board_params["slug"] != @board.slug
+        @board.generate_unique_slug(board_params["slug"])
       end
 
       @board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
@@ -1856,6 +1876,7 @@ class API::BoardsController < API::ApplicationController
   def board_params
     permitted = params.require(:board).permit(:name,
                                   :slug,
+                                  :regenerate_slug,
                                   :text_color,
                                   :bg_color,
                                   :parent_id,
@@ -1894,7 +1915,19 @@ class API::BoardsController < API::ApplicationController
     # (check_board_view_edit_permissions + User#can_edit?, which also refuses
     # any predefined board), so the only non-admin who can set it is the person
     # who owns the board.
+    #
+    # `slug` IS curation in the same sense: it is the `/pb/<slug>` key that
+    # shared links, MySpeak tiles and printed QR codes resolve through. It is
+    # issued from the name once at creation and then belongs to the URL, not to
+    # the name — owners rename their boards freely, but re-keying a live URL is
+    # an admin act. `regenerate_slug` is the opt-in that asks for a re-derive,
+    # so it is gated the same way. Stripping both is what makes an ordinary
+    # rename a no-op on the slug (see #update).
     permitted.delete(:predefined) unless current_user&.admin?
+    unless current_user&.admin?
+      permitted.delete(:slug)
+      permitted.delete(:regenerate_slug)
+    end
     permitted
   end
 

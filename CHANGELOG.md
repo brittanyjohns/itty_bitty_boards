@@ -14,6 +14,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Renaming a board no longer changes its share link.** A board's URL
+  (`/pb/<slug>`) used to be re-derived from the name on every rename, so
+  renaming an unpublished board quietly broke any link already shared for it.
+  The URL is now set when the board is created and stays put. Admins can still
+  change it by hand, or ask for a fresh one from the current name.
+- **Copied boards get a clean URL.** Duplicating a board names it "<name> Copy",
+  and that "Copy" was ending up in the board's URL. Copy markers are now
+  stripped from both ends of the name — "Copy of Snack Time" and "Snack Time
+  Copy" both produce `snack-time`. Honest names survive: "Photocopy Board" is
+  left alone.
+
 - **Ampersands in Care & routines save properly.** Typing "&" into any care
   field — a sensory note, a meal detail line, a custom section title — stored it
   as the raw text `&amp;`, so the public MySpeak page and the printed care plan
