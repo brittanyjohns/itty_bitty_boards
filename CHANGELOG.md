@@ -7,6 +7,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Kit landing pages write themselves.** Creating a `/kit/<slug>` lead-magnet
+  page used to mean typing a slug, headline, subhead, call to action and a raw
+  JSON blob by hand. Pick the printable it gives away, press **Autofill the
+  page**, and all of it is written from that printable. It only fills what's
+  blank, so anything already typed survives, and nothing is saved until the
+  usual Save.
+- **Kit landing pages show the printable.** The mockup images already rendered
+  for a printable's marketplace gallery — the printed sheet on a desk, the
+  flip-book, the pages open on a tablet — now appear on its free landing page.
+  The download itself still stays behind the email form.
 - **Turn a whole selection into text tiles at once.** The board editor's bulk
   actions can now render every selected tile's own word as its picture, in one
   step, instead of opening each tile in turn. Free — no AI credits. Tiles with

@@ -26,6 +26,18 @@ class KitPage < ApplicationRecord
   # printable carries one "full" document holding all of them.
   VARIANTS = (BoardPrintable::DOWNLOAD_VARIANTS + [BoardPrintable::VARIANT_FULL]).freeze
 
+  # The mockups a visitor sees, in landing-page order. A curated ALLOWLIST of
+  # the Etsy gallery rather than the whole of it: `about` is shop framing and
+  # `page_index` answers an objection only a buyer has, so both read wrong on a
+  # page that is giving the thing away.
+  KIT_IMAGE_ORDER = [
+    BoardPrintable::IMAGE_HERO,
+    BoardPrintable::IMAGE_ON_PAPER,
+    BoardPrintable::IMAGE_FLIP_BOOK,
+    BoardPrintable::IMAGE_WHATS_INCLUDED,
+    BoardPrintable::IMAGE_ON_A_DEVICE,
+  ].freeze
+
   belongs_to :board_printable, optional: true
   belongs_to :etsy_override_by, class_name: "User", optional: true
 
@@ -78,8 +90,31 @@ class KitPage < ApplicationRecord
     end
   end
 
+  # The mockup renders shown on the page — the printed sheet on a desk, the
+  # flip-book, the same pages open on a tablet.
+  #
+  # These are MARKETING art, not the product, which is why they may sit in the
+  # public read while `download_files` may not. The rule the public payload
+  # keeps is that the PDF a visitor came for is revealed only after an email;
+  # a photograph of it is the thing that persuades them to enter one.
+  #
+  # Reuses BoardPrintable#listing_images_view, which has already dropped blobs
+  # from retired gallery designs, then narrows by ALLOWLIST — never by
+  # excluding what we don't want, so a new image variant has to be opted in
+  # here before it can reach a visitor. `url_for_file` returns nil rather than
+  # raising when a blob can't be resolved, hence the presence guard.
+  def gallery_images
+    return [] unless board_printable&.complete?
+
+    @gallery_images ||= board_printable.listing_images_view
+      .select { |image| KIT_IMAGE_ORDER.include?(image[:variant]) && image[:url].present? }
+      .sort_by { |image| KIT_IMAGE_ORDER.index(image[:variant]) }
+      .map { |image| { variant: image[:variant], url: image[:url] } }
+  end
+
   # The public payload. Deliberately carries no file URL — the URL is revealed
-  # only by the download endpoint, after an email.
+  # only by the download endpoint, after an email. `images` is the exception
+  # that proves it: see #gallery_images.
   def public_view
     {
       slug: slug,
@@ -90,6 +125,7 @@ class KitPage < ApplicationRecord
       cta_label: cta_label,
       cta_path: cta_path,
       downloadable: downloadable?,
+      images: gallery_images,
     }
   end
 

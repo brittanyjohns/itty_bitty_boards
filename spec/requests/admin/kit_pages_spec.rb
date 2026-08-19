@@ -263,6 +263,137 @@ RSpec.describe "Admin kit pages", type: :request do
       end
     end
 
+    describe "POST /admin/kit_pages/autofill" do
+      let(:ai_copy) do
+        {
+          "eyebrow" => "Free classroom kit",
+          "title" => "The at-school communication kit",
+          "subhead" => "Print it once and put it where the talking happens.",
+          "items" => [{ "title" => "Snack time page", "description" => "One page, 36 words." }],
+          "closing" => { "heading" => "Make it yours", "body" => "Build it in the app.",
+                         "cta_label" => "Start free", "cta_path" => "/sign-up" },
+        }.to_json
+      end
+
+      before do
+        allow_any_instance_of(OpenAiClient).to receive(:create_chat)
+          .and_return({ role: "assistant", content: ai_copy })
+      end
+
+      def blank_params(overrides = {})
+        {
+          slug: "", title: "", eyebrow: "", subhead: "", cta_label: "", cta_path: "", content: "",
+          board_printable_id: printable.id, printable_variant: "color",
+        }.merge(overrides)
+      end
+
+      it "fills every blank field from the printable" do
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("The at-school communication kit")
+        expect(response.body).to include("Free classroom kit")
+        expect(response.body).to include("Snack time page")
+      end
+
+      it "derives the slug from the board name" do
+        # A board name that isn't the form's own "at-school" placeholder, or the
+        # assertion would pass without any derivation happening.
+        other = create(:board, user: owner, name: "Playground talk")
+        other_printable = BoardPrintable.create!(board: other, status: "complete", board_ids: [other.id], page_count: 2)
+          .tap { |p| p.attach_pdf!(filename: "p.color.pdf", bytes: "%PDF", variant: "color") }
+
+        post autofill_admin_dashboard_kit_pages_path,
+             params: blank_params(board_printable_id: other_printable.id)
+
+        expect(response.body).to include('value="playground-talk"')
+      end
+
+      it "uniquifies a derived slug that is already taken" do
+        create(:kit_page, slug: "at-school")
+
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params
+
+        expect(response.body).to include('value="at-school-2"')
+      end
+
+      it "never saves" do
+        expect { post autofill_admin_dashboard_kit_pages_path, params: blank_params }
+          .not_to change(KitPage, :count)
+      end
+
+      it "leaves a slug that was already typed alone" do
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params(slug: "my-own-slug")
+
+        expect(response.body).to include("my-own-slug")
+        expect(response.body).not_to include('value="at-school"')
+      end
+
+      it "leaves a title that was already typed alone" do
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params(title: "My own headline")
+
+        expect(response.body).to include("My own headline")
+        expect(response.body).not_to include("The at-school communication kit")
+      end
+
+      it "leaves a hand-written content blob alone" do
+        typed = { "items" => [{ "title" => "Mine", "description" => "Hand written." }] }.to_json
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params(content: typed)
+
+        expect(response.body).to include("Hand written.")
+        expect(response.body).not_to include("Snack time page")
+      end
+
+      it "works with no printable chosen, from the slug alone" do
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params(slug: "at-the-dentist", board_printable_id: "")
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("The at-school communication kit")
+      end
+
+      it "renders an error when there is nothing to work from" do
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params(board_printable_id: "")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("write the copy")
+      end
+
+      it "renders an error when the model answers with nonsense" do
+        allow_any_instance_of(OpenAiClient).to receive(:create_chat)
+          .and_return({ role: "assistant", content: "not json" })
+
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("write the copy")
+      end
+
+      it "autofills an existing page without saving it" do
+        page = create(:kit_page, slug: "at-school", title: "Old title", eyebrow: nil)
+
+        post autofill_admin_dashboard_kit_page_path(page), params: blank_params(slug: "at-school", title: "Old title")
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Old title")
+        expect(response.body).to include("Free classroom kit")
+        expect(page.reload.eyebrow).to be_nil
+      end
+
+      it "redirects when the page is gone" do
+        post autofill_admin_dashboard_kit_page_path(id: 0), params: blank_params
+
+        expect(response).to redirect_to(admin_dashboard_kit_pages_path)
+      end
+
+      # Request specs never run Turbo, so this assertion is the only thing that
+      # catches the button silently becoming a no-op in a browser.
+      it "renders the form with Turbo disabled" do
+        post autofill_admin_dashboard_kit_pages_path, params: blank_params
+
+        expect(response.body).to include('data-turbo="false"')
+      end
+    end
+
     describe "GET /admin/kit_pages/:id/edit" do
       it "renders the stored content as pretty JSON" do
         page = create(:kit_page, slug: "at-school", content: { "items" => [{ "title" => "Poster" }] })
