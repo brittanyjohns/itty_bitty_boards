@@ -94,6 +94,39 @@ RSpec.describe "API kit_pages", type: :request do
       expect(response).to have_http_status(:not_found)
       expect(JSON.parse(response.body)).to eq("error" => "kit_page_not_found")
     end
+    context "the mockup images" do
+      it "returns the curated gallery, in landing-page order" do
+        attach_all_variants
+        printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_ON_PAPER)
+        printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+
+        get "/api/kit_pages/#{page.slug}"
+
+        body = JSON.parse(response.body)
+        expect(body["images"].map { |image| image["variant"] })
+          .to eq([BoardPrintable::IMAGE_HERO, BoardPrintable::IMAGE_ON_PAPER])
+        expect(body["images"].map { |image| image["url"] }).to all(be_present)
+      end
+
+      it "returns an empty list for a page with no printable" do
+        page.update!(board_printable: nil)
+
+        get "/api/kit_pages/#{page.slug}"
+
+        expect(JSON.parse(response.body)["images"]).to eq([])
+      end
+
+      it "reveals a mockup but still no PDF, which stays behind the email" do
+        attach_all_variants
+        printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+
+        get "/api/kit_pages/#{page.slug}"
+
+        expect(JSON.parse(response.body)["images"]).to be_present
+        expect(response.body).not_to include(".pdf")
+      end
+    end
+
   end
 
   describe "POST /api/kit_pages/:slug/download" do

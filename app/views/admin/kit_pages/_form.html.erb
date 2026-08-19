@@ -10,7 +10,12 @@
   </div>
 <% end %>
 
-<%= form_tag url, method: method do %>
+<%# turbo: false is load-bearing. Autofill answers with a rendered 200 rather
+    than a redirect, because it hands the admin's own submission back to them
+    with the blanks filled. Turbo Drive refuses a 2xx form response that isn't a
+    redirect, throws, and leaves the page untouched — so with Turbo on, the
+    autofill button is a no-op. %>
+<%= form_tag url, method: method, data: { turbo: false } do %>
   <div class="admin-card border rounded-xl p-5 mb-6">
     <h2 class="text-sm font-medium text-t1 mb-4">Page</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -46,8 +51,23 @@
     <h2 class="text-sm font-medium text-t1 mb-1">Download</h2>
     <p class="text-[11px] text-t3 mb-4">
       Only finished printables that actually carry a PDF are listed. The visitor gets this exact document
-      after entering an email.
+      after entering an email. Its mockup images are shown on the page automatically.
     </p>
+
+    <%# formaction, not a second form: the copy is written from the printable
+        chosen here plus anything already typed above, so the whole form has to
+        travel. formnovalidate because slug and title are required fields and
+        filling them in is the point of the button. %>
+    <div class="flex items-center gap-3 mb-4">
+      <button type="submit" formaction="<%= autofill_path(@kit_page) %>" formnovalidate
+              class="text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap">
+        Autofill the page
+      </button>
+      <span class="text-[11px] text-t3">
+        Writes the slug, headline, subhead, what's-inside list and call to action from the printable.
+        Only fills what's blank — nothing you've typed is replaced.
+      </span>
+    </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
@@ -92,6 +112,7 @@
     <h2 class="text-sm font-medium text-t1 mb-1">Content</h2>
     <p class="text-[11px] text-t3 mb-4">
       JSON. <code>items</code> is the "what's inside" list; <code>closing</code> is the block under it.
+      Autofill writes this only when it's empty — clear it and autofill again to have it rewritten.
     </p>
     <%= text_area_tag :content, @content_raw || (@kit_page.content.presence && JSON.pretty_generate(@kit_page.content)),
           id: "content", rows: 14, spellcheck: false,

@@ -253,11 +253,62 @@ changing the model or the contract.
 - **No `destroy` action.** Unpublish is the way to take a page down; the row is
   the only record of which leads came from where.
 
+## Autofill (`POST /admin/kit_pages/autofill`)
+
+The v1 screen was a raw data-entry form: slug, title, eyebrow, subhead, two CTA
+fields, and a JSON blob typed into a monospace textarea. **Autofill the page**
+writes all of it from the printable the page gives away.
+
+- `KitPages::CopySuggester` is one OpenAI JSON-mode call returning
+  `{eyebrow, title, subhead, items, closing}`, built the same way as
+  `Boards::AdminBuilder::MetadataSuggester` (same `GenerationError`, same
+  `instance_variable_set(:@model, …)` idiom, same hard clamps on every field).
+- **It never feeds `listing_copy["description"]` to the model.** That is Etsy
+  checkout prose — "instant download", "no sign-in required" — and reads as a
+  sales pitch on a page that is giving the thing away. `summary` and `tags` are
+  the clean borrow. A spec asserts the description never reaches the prompt.
+- **Blanks only, and it never saves.** Same rule as
+  `Admin::BoardBuildsController#suggest_context`: anything typed survives,
+  including a hand-written content blob (clear the textarea and autofill again
+  to have it rewritten). The action renders; it does not persist.
+- The slug is derived from the board name **only into a blank field**, and
+  uniquified with a `-2` suffix. Re-deriving a slug that already exists would
+  move a live `/kit/<slug>` URL — the same rule boards got in #727.
+- `mailchimp_tag` is deliberately left blank: `resolved_mailchimp_tag` already
+  derives one, so filling it would freeze a value that currently follows a slug
+  correction.
+- Routed on **both** the collection and a member, because one form partial
+  serves `new` and `edit`; `autofill_path(@kit_page)` picks. The button is a
+  `formaction` submit with `formnovalidate` (slug and title are `required`, and
+  filling them is the point), and the form carries `data: { turbo: false }` —
+  without it Turbo Drive refuses the rendered 200 and the button is a silent
+  no-op. A request spec asserts that attribute for exactly that reason.
+
+## Mockup images on the public page
+
+`KitPage#gallery_images` puts the printable's rendered marketplace mockups into
+`public_view` as `images: [{variant, url}]`, first one first.
+
+- It is a curated **allowlist**, `KitPage::KIT_IMAGE_ORDER` — hero, on_paper,
+  flip_book, whats_included, on_a_device. `about` and `page_index` are Etsy shop
+  framing and read wrong on a free page. Narrowing by allowlist rather than by
+  exclusion is the same discipline `BoardPrintable#pdf_files` keeps: a new image
+  variant has to be opted in before it can reach a visitor.
+- It reuses `BoardPrintable#listing_images_view`, which has already dropped
+  blobs from retired gallery designs, and drops any entry whose `url` came back
+  nil (`url_for_file` returns nil rather than raising).
+- **This does not weaken the no-file-URL rule.** That rule is about the
+  *product* — the PDF, which is still revealed only by the download endpoint
+  after a `DownloadLead` is written. These are marketing renders on the same
+  public CDN, and they are what persuades a visitor to enter an email at all.
+
 ### Files
 
 - `db/migrate/20260819120000_create_kit_pages.rb`, `app/models/kit_page.rb`
 - `app/controllers/api/kit_pages_controller.rb` (public read + download)
 - `app/controllers/admin/kit_pages_controller.rb`, `app/views/admin/kit_pages/`
+- `app/services/kit_pages/copy_suggester.rb` (autofill), plus
+  `spec/services/kit_pages/copy_suggester_spec.rb`
 - `app/sidekiq/mailchimp_upsert_lead_job.rb` (the `kit_` tag fallback)
 - Specs: `spec/models/kit_page_spec.rb`, `spec/requests/api/kit_pages_spec.rb`,
   `spec/requests/api/download_leads_kit_pages_regression_spec.rb`,

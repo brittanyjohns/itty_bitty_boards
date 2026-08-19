@@ -45,7 +45,102 @@ module Admin
       redirect_to admin_dashboard_kit_pages_path, notice: "“#{@kit_page.title}” is no longer public."
     end
 
+    # Writes the page from the printable it gives away, so launching a campaign
+    # is a dropdown and a button rather than an afternoon of copywriting.
+    #
+    # Populates the form and NOTHING ELSE — it never saves, so a suggestion that
+    # reads badly is discarded by navigating away. Because it answers with a
+    # rendered 200 rather than a redirect, the form carries `data-turbo="false"`;
+    # without it Turbo Drive refuses the response and the button does nothing.
+    def autofill
+      @kit_page = params[:id].present? ? KitPage.find_by(id: params[:id]) : KitPage.new
+      return redirect_to(admin_dashboard_kit_pages_path, alert: "Kit page not found.") unless @kit_page
+
+      assign_form_attributes(@kit_page)
+      @content_raw = params[:content].to_s.strip
+
+      @error = apply_autofill(@kit_page)
+      return render_form(status: :unprocessable_entity) if @error
+
+      flash.now[:notice] = autofill_notice
+      render_form
+    end
+
     private
+
+    # `new` posts to the collection route, `edit` to the member one.
+    def autofill_path(page)
+      if page.persisted?
+        autofill_admin_dashboard_kit_page_path(page)
+      else
+        autofill_admin_dashboard_kit_pages_path
+      end
+    end
+
+    def render_form(status: :ok)
+      render(@kit_page.persisted? ? :edit : :new, status: status)
+    end
+
+    # Only the blanks are filled — anything already typed survives, including a
+    # hand-written content blob. Returns an error string, or nil on success.
+    def apply_autofill(page)
+      copy = KitPages::CopySuggester.new(
+        slug: page.slug, title: page.title, printable: page.board_printable,
+      ).call
+
+      page.slug = page.slug.presence || derived_slug(page)
+      page.title = page.title.presence || copy[:title]
+      page.eyebrow = page.eyebrow.presence || copy[:eyebrow]
+      page.subhead = page.subhead.presence || copy[:subhead]
+      page.cta_label = page.cta_label.presence || copy.dig(:closing, "cta_label")
+      page.cta_path = page.cta_path.presence || copy.dig(:closing, "cta_path")
+
+      # mailchimp_tag is left alone on purpose: `resolved_mailchimp_tag` already
+      # derives one from the slug, so filling it in would only freeze a value
+      # that currently follows a slug correction.
+      fill_content(page, copy)
+      nil
+    rescue KitPages::CopySuggester::GenerationError => e
+      "Couldn't write the copy: #{e.message}"
+    end
+
+    def fill_content(page, copy)
+      @content_filled = false
+      return if @content_raw.present?
+
+      content = {}
+      content["items"] = copy[:items] if copy[:items].any?
+      content["closing"] = copy[:closing] if copy[:closing].present?
+      return if content.empty?
+
+      page.content = content
+      @content_raw = JSON.pretty_generate(content)
+      @content_filled = true
+    end
+
+    def autofill_notice
+      if @content_filled
+        "Filled in what was blank — read it over, then save."
+      else
+        "Filled in what was blank. Left the content JSON alone — clear it and autofill again to rewrite it."
+      end
+    end
+
+    # Derived from the board's name, and only ever into a BLANK field: the slug
+    # is the /kit/<slug> URL a campaign link points at, so re-deriving one that
+    # already exists would move a live page.
+    def derived_slug(page)
+      base = page.board_printable&.board&.name.to_s.parameterize.first(60)
+      return nil if base.blank?
+
+      candidate = base
+      suffix = 1
+      while KitPage.where(slug: candidate).where.not(id: page.id).exists?
+        suffix += 1
+        candidate = "#{base}-#{suffix}"
+      end
+      candidate
+    end
 
     def set_kit_page
       @kit_page = KitPage.find_by(id: params[:id])
@@ -53,7 +148,9 @@ module Admin
     end
 
     # Flat params, matching the rest of the admin (form_tag + *_tag helpers).
-    def assign_and_save(page)
+    # Split out of the save so `autofill` can rebuild the whole form from what
+    # was submitted without persisting any of it.
+    def assign_form_attributes(page)
       page.assign_attributes(
         slug: params[:slug].to_s.strip,
         title: params[:title].to_s.strip,
@@ -66,6 +163,10 @@ module Admin
         cta_path: params[:cta_path].to_s.strip.presence,
         published: ActiveModel::Type::Boolean.new.cast(params[:published]) || false,
       )
+    end
+
+    def assign_and_save(page)
+      assign_form_attributes(page)
 
       return false unless assign_content(page)
       return false unless resolve_etsy_override(page)
@@ -127,7 +228,7 @@ module Admin
       ActiveModel::Type::Boolean.new.cast(params[:etsy_override]) || false
     end
 
-    helper_method :selectable_printables, :kit_preview_url
+    helper_method :selectable_printables, :kit_preview_url, :autofill_path
 
     # Only printables an admin could actually hand to a visitor: finished, and
     # carrying at least one PDF (a printable holding only listing images would

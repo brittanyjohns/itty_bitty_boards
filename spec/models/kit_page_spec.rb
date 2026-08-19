@@ -124,9 +124,77 @@ RSpec.describe KitPage, type: :model do
       page = create(:kit_page, board_printable: printable)
 
       expect(page.public_view.keys).to match_array(
-        %i[slug title eyebrow subhead content cta_label cta_path downloadable]
+        %i[slug title eyebrow subhead content cta_label cta_path downloadable images]
       )
       expect(page.public_view[:downloadable]).to eq(true)
+      expect(page.public_view.values_at(:slug, :title)).to all(be_present)
+    end
+
+    it "still carries no PDF URL once the mockups are in the payload" do
+      printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF", variant: "color")
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      page = create(:kit_page, board_printable: printable)
+
+      urls = page.public_view[:images].map { |image| image[:url] }
+      expect(urls).to be_present
+      expect(urls.join).not_to include(".pdf")
+    end
+  end
+
+  describe "#gallery_images" do
+    it "returns the curated variants, in landing-page order" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_ON_A_DEVICE)
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_ON_PAPER)
+      page = create(:kit_page, board_printable: printable)
+
+      expect(page.gallery_images.map { |image| image[:variant] })
+        .to eq([BoardPrintable::IMAGE_HERO, BoardPrintable::IMAGE_ON_PAPER, BoardPrintable::IMAGE_ON_A_DEVICE])
+    end
+
+    it "leaves out gallery images that are Etsy shop framing" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_ABOUT)
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_PAGE_INDEX)
+      page = create(:kit_page, board_printable: printable)
+
+      expect(page.gallery_images.map { |image| image[:variant] }).to eq([BoardPrintable::IMAGE_HERO])
+    end
+
+    it "carries only the variant and the URL" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      page = create(:kit_page, board_printable: printable)
+
+      expect(page.gallery_images.first.keys).to match_array(%i[variant url])
+    end
+
+    it "is empty with no printable" do
+      expect(create(:kit_page, board_printable: nil).gallery_images).to eq([])
+    end
+
+    it "is empty while the printable is still generating" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      printable.update!(status: "pending")
+
+      expect(create(:kit_page, board_printable: printable.reload).gallery_images).to eq([])
+    end
+
+    it "is empty when the printable carries only PDFs" do
+      printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF", variant: "color")
+
+      expect(create(:kit_page, board_printable: printable).gallery_images).to eq([])
+    end
+
+    it "drops an image whose URL can't be resolved" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_ON_PAPER)
+      page = create(:kit_page, board_printable: printable)
+      allow(page.board_printable).to receive(:listing_images_view).and_return([
+        { variant: BoardPrintable::IMAGE_HERO, url: nil },
+        { variant: BoardPrintable::IMAGE_ON_PAPER, url: "https://cdn.example/on-paper.png" },
+      ])
+
+      expect(page.gallery_images).to eq([{ variant: BoardPrintable::IMAGE_ON_PAPER, url: "https://cdn.example/on-paper.png" }])
     end
   end
 

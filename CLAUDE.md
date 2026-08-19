@@ -591,6 +591,26 @@ an explicit decision, not a drive-by edit.
   to the default tag rather than strand the lead. And the download always comes
   from `BoardPrintable#files_view`, the PDF ALLOWLIST, so a listing image or the
   listing video can never be handed to a visitor as the product.
+- **The PRODUCT is gated; a PICTURE of it is not.** `public_view` also carries
+  `images`, the printable's rendered marketplace mockups, and that is not a hole
+  in the bullet above — a lead magnet no one can see converts nothing, and these
+  renders are marketing art on the same public CDN, not the document. The line
+  is drawn by `KitPage::KIT_IMAGE_ORDER`, a curated ALLOWLIST over
+  `BoardPrintable#listing_images_view` (which has already dropped retired
+  gallery designs). Narrow by allowlist, exactly as `pdf_files` does: a new
+  image variant must be opted in before a visitor can see it, and `about` /
+  `page_index` stay out because they are Etsy shop framing. Never widen this by
+  excluding what you don't want.
+- **Kit-page autofill populates the form and nothing else.**
+  `KitPages::CopySuggester` writes a whole page from the printable it gives
+  away; `Admin::KitPagesController#autofill` merges it BLANKS-ONLY and never
+  saves, so nothing typed is lost and a bad suggestion is discarded by
+  navigating away. Two rails: the slug is derived only into a blank field (it is
+  the `/kit/<slug>` URL a campaign links to — same rule boards got for renames),
+  and `listing_copy["description"]` is never fed to the model, because Etsy
+  checkout prose reads as a sales pitch on a page giving the thing away. The
+  form needs `data: { turbo: false }` — the action renders a 200 instead of
+  redirecting, and Turbo Drive silently no-ops such a response.
 
 ## Subsystem map (read the spoke before working in the area)
 

@@ -107,6 +107,12 @@ Rails.application.routes.draw do
       member do
         post :publish
         post :unpublish
+        # Autofill is on both the collection and a member because the same form
+        # partial serves `new` and `edit`.
+        post :autofill
+      end
+      collection do
+        post :autofill
       end
     end
     get "feedback", to: "feedback#index", as: :dashboard_feedback
