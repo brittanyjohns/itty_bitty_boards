@@ -126,6 +126,8 @@
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/video_boards") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Board Builds", admin_dashboard_board_builds_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/board_builds") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+          <%= link_to "Kit Pages", admin_dashboard_kit_pages_path,
+                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/kit_pages") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Feedback", admin_dashboard_feedback_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/feedback") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Word Events", admin_dashboard_word_events_path,

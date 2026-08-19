@@ -1,0 +1,283 @@
+require "rails_helper"
+
+RSpec.describe "Admin kit pages", type: :request do
+  include Devise::Test::IntegrationHelpers
+
+  let(:admin) { create(:admin_user) }
+  let(:owner) { create(:user) }
+  let(:board) { create(:board, user: owner, name: "At school") }
+
+  before do
+    allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:stylesheet_link_tag).and_return("")
+    allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:javascript_include_tag).and_return("")
+  end
+
+  let(:printable) do
+    BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], page_count: 6)
+      .tap { |p| p.attach_pdf!(filename: "at-school.color.pdf", bytes: "%PDF c", variant: "color") }
+  end
+
+  def base_params(overrides = {})
+    {
+      slug: "at-school",
+      title: "The at-school kit",
+      eyebrow: "Free classroom kit",
+      subhead: "Everything for the first week.",
+      board_printable_id: printable.id,
+      printable_variant: "color",
+      cta_label: "Start free",
+      cta_path: "/sign-up",
+      content: { items: [{ title: "Poster", description: "One page." }] }.to_json,
+    }.merge(overrides)
+  end
+
+  describe "authorization" do
+    it "redirects a signed-out visitor away from the index" do
+      get admin_dashboard_kit_pages_path
+      expect(response).to have_http_status(:redirect)
+    end
+
+    it "redirects a non-admin away from the index" do
+      sign_in owner
+      get admin_dashboard_kit_pages_path
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "refuses a non-admin's create" do
+      sign_in owner
+      expect { post admin_dashboard_kit_pages_path, params: base_params }
+        .not_to change(KitPage, :count)
+      expect(response).to redirect_to(root_path)
+    end
+  end
+
+  context "as an admin" do
+    before { sign_in admin }
+
+    describe "GET /admin/kit_pages" do
+      it "lists the pages with their slug, tag and status" do
+        create(:kit_page, slug: "at-school", title: "The at-school kit", published: false)
+
+        get admin_dashboard_kit_pages_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("The at-school kit", "/kit/at-school", "AtSchoolLead", "draft")
+      end
+
+      it "renders an empty state" do
+        get admin_dashboard_kit_pages_path
+        expect(response.body).to include("No kit pages yet")
+      end
+    end
+
+    describe "GET /admin/kit_pages/new" do
+      it "offers only complete printables that carry a PDF" do
+        printable
+        no_pdf = BoardPrintable.create!(
+          board: create(:board, user: owner, name: "Nothing attached"),
+          status: "complete", board_ids: [board.id],
+        )
+        pending = BoardPrintable.create!(
+          board: create(:board, user: owner, name: "Still cooking"),
+          status: "generating", board_ids: [board.id],
+        )
+
+        get new_admin_dashboard_kit_page_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("At school")
+        expect(response.body).not_to include("Nothing attached")
+        expect(response.body).not_to include("Still cooking")
+        expect(no_pdf.pdf_files).to be_empty
+        expect(pending).not_to be_complete
+      end
+    end
+
+    describe "POST /admin/kit_pages" do
+      it "creates the page from flat params" do
+        expect { post admin_dashboard_kit_pages_path, params: base_params(published: "1") }
+          .to change(KitPage, :count).by(1)
+
+        page = KitPage.last
+        expect(page.slug).to eq("at-school")
+        expect(page.title).to eq("The at-school kit")
+        expect(page.eyebrow).to eq("Free classroom kit")
+        expect(page.board_printable).to eq(printable)
+        expect(page.printable_variant).to eq("color")
+        expect(page.content["items"].first["title"]).to eq("Poster")
+        expect(page).to be_published
+        expect(response).to redirect_to(edit_admin_dashboard_kit_page_path(page))
+      end
+
+      it "creates an unpublished draft when the box isn't ticked" do
+        post admin_dashboard_kit_pages_path, params: base_params
+
+        expect(KitPage.last).not_to be_published
+      end
+
+      it "re-renders with an error and saves nothing on a bad slug" do
+        expect { post admin_dashboard_kit_pages_path, params: base_params(slug: "At School") }
+          .not_to change(KitPage, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Slug")
+      end
+
+      it "re-renders with a parse error and keeps what was typed when the content isn't JSON" do
+        expect { post admin_dashboard_kit_pages_path, params: base_params(content: "{ nope") }
+          .not_to change(KitPage, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("isn&#39;t valid JSON").or include("isn't valid JSON")
+        expect(response.body).to include("{ nope")
+      end
+
+      it "rejects a content blob that isn't a JSON object" do
+        expect { post admin_dashboard_kit_pages_path, params: base_params(content: "[1, 2]") }
+          .not_to change(KitPage, :count)
+
+        expect(response.body).to include("must be a JSON object")
+      end
+
+      it "treats a blank content box as an empty object" do
+        post admin_dashboard_kit_pages_path, params: base_params(content: "")
+
+        expect(KitPage.last.content).to eq({})
+      end
+    end
+
+    # Giving away a printable that is sold on Etsy is a two-step on purpose.
+    describe "the Etsy give-away guard" do
+      let(:sold) do
+        BoardPrintable.create!(
+          board: board, status: "complete", board_ids: [board.id],
+          etsy_published_at: 1.week.ago, etsy_listing_id: 4_242_424_242,
+        ).tap { |p| p.attach_pdf!(filename: "sold.color.pdf", bytes: "%PDF s", variant: "color") }
+      end
+
+      it "blocks the save and explains why, with no record written" do
+        expect { post admin_dashboard_kit_pages_path, params: base_params(board_printable_id: sold.id) }
+          .not_to change(KitPage, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("published on Etsy")
+        expect(response.body).to include("Give this away for free anyway")
+      end
+
+      it "saves and stamps the override when it is explicitly confirmed" do
+        post admin_dashboard_kit_pages_path,
+             params: base_params(board_printable_id: sold.id, etsy_override: "1")
+
+        page = KitPage.last
+        expect(page.board_printable).to eq(sold)
+        expect(page.etsy_override_at).to be_present
+        expect(page.etsy_override_by).to eq(admin)
+      end
+
+      it "does not ask again on an unrelated edit of the same page" do
+        post admin_dashboard_kit_pages_path,
+             params: base_params(board_printable_id: sold.id, etsy_override: "1")
+        page = KitPage.last
+        stamped_at = page.etsy_override_at
+
+        patch admin_dashboard_kit_page_path(page),
+              params: base_params(board_printable_id: sold.id, title: "Renamed")
+
+        expect(response).to redirect_to(edit_admin_dashboard_kit_page_path(page))
+        expect(page.reload.title).to eq("Renamed")
+        expect(page.etsy_override_at).to be_within(1.second).of(stamped_at)
+      end
+
+      it "asks again when a DIFFERENT sold printable is swapped in" do
+        post admin_dashboard_kit_pages_path,
+             params: base_params(board_printable_id: sold.id, etsy_override: "1")
+        page = KitPage.last
+
+        other_sold = BoardPrintable.create!(
+          board: create(:board, user: owner, name: "Also sold"), status: "complete",
+          board_ids: [board.id], etsy_published_at: 1.day.ago, etsy_listing_id: 99,
+        ).tap { |p| p.attach_pdf!(filename: "other.color.pdf", bytes: "%PDF o", variant: "color") }
+
+        patch admin_dashboard_kit_page_path(page),
+              params: base_params(board_printable_id: other_sold.id)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(page.reload.board_printable).to eq(sold)
+      end
+
+      it "clears a stale override when the page moves to an unprotected printable" do
+        post admin_dashboard_kit_pages_path,
+             params: base_params(board_printable_id: sold.id, etsy_override: "1")
+        page = KitPage.last
+
+        patch admin_dashboard_kit_page_path(page), params: base_params(board_printable_id: printable.id)
+
+        expect(page.reload.board_printable).to eq(printable)
+        expect(page.etsy_override_at).to be_nil
+        expect(page.etsy_override_by).to be_nil
+      end
+
+      it "lets a waived printable through without the checkbox" do
+        sold.update!(protection_waived_at: Time.current, protection_waived_by: admin)
+
+        expect { post admin_dashboard_kit_pages_path, params: base_params(board_printable_id: sold.id) }
+          .to change(KitPage, :count).by(1)
+      end
+    end
+
+    describe "PATCH /admin/kit_pages/:id" do
+      let!(:page) { create(:kit_page, slug: "at-school", title: "Old", published: false) }
+
+      it "updates the page" do
+        patch admin_dashboard_kit_page_path(page), params: base_params(title: "New title")
+
+        expect(page.reload.title).to eq("New title")
+        expect(response).to redirect_to(edit_admin_dashboard_kit_page_path(page))
+      end
+
+      it "blanks an emptied optional field rather than keeping the old value" do
+        page.update!(eyebrow: "Old eyebrow")
+
+        patch admin_dashboard_kit_page_path(page), params: base_params(eyebrow: "")
+
+        expect(page.reload.eyebrow).to be_nil
+      end
+    end
+
+    describe "publish / unpublish" do
+      let!(:page) { create(:kit_page, slug: "at-school", published: false) }
+
+      it "publishes" do
+        post publish_admin_dashboard_kit_page_path(page)
+
+        expect(page.reload).to be_published
+        expect(response).to redirect_to(admin_dashboard_kit_pages_path)
+      end
+
+      it "unpublishes" do
+        page.update!(published: true)
+
+        post unpublish_admin_dashboard_kit_page_path(page)
+
+        expect(page.reload).not_to be_published
+      end
+    end
+
+    describe "GET /admin/kit_pages/:id/edit" do
+      it "renders the stored content as pretty JSON" do
+        page = create(:kit_page, slug: "at-school", content: { "items" => [{ "title" => "Poster" }] })
+
+        get edit_admin_dashboard_kit_page_path(page)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Poster")
+      end
+
+      it "redirects when the page is gone" do
+        get edit_admin_dashboard_kit_page_path(id: 0)
+
+        expect(response).to redirect_to(admin_dashboard_kit_pages_path)
+      end
+    end
+  end
+end

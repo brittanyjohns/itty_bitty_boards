@@ -1,0 +1,11 @@
+<% content_for :page_title, "New Kit Page" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">New Kit Page</h1>
+    <p class="text-sm text-t3 mt-0.5">Nothing is public until "Published" is ticked.</p>
+  </div>
+  <%= link_to "← All kit pages", admin_dashboard_kit_pages_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<%= render "form", url: admin_dashboard_kit_pages_path, method: :post, submit_label: "Create kit page" %>

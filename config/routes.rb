@@ -102,6 +102,13 @@ Rails.application.routes.draw do
         post :finish
       end
     end
+    # Lead-magnet landing pages served at /kit/:slug on the frontend.
+    resources :kit_pages, only: [:index, :new, :create, :edit, :update], as: :dashboard_kit_pages do
+      member do
+        post :publish
+        post :unpublish
+      end
+    end
     get "feedback", to: "feedback#index", as: :dashboard_feedback
     get "word_events", to: "word_events#index", as: :dashboard_word_events
     resources :board_printables, only: [:index, :show, :create, :destroy], as: :dashboard_board_printables do
@@ -186,6 +193,16 @@ Rails.application.routes.draw do
     # Anonymous free-board-download lead capture (both public / no-auth).
     get "free_download_boards", to: "boards#free_download_boards"
     post "download_leads", to: "download_leads#create"
+
+    # Reusable lead-magnet landing pages (/kit/:slug on the frontend). Public
+    # by design — #show carries no file URL, and #download reveals one only
+    # after capturing a DownloadLead. Sits with the other public routes, NOT in
+    # an authenticated block.
+    resources :kit_pages, only: [:show], param: :slug do
+      member do
+        post :download
+      end
+    end
     post "google_images", to: "google_search_results#image_search"
     post "youtube_search", to: "youtube_search#search"
 

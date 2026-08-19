@@ -35,6 +35,12 @@ FactoryBot.define do
     source { "free_download" }
   end
 
+  factory :kit_page do
+    sequence(:slug) { |n| "kit-page-#{n}" }
+    title { "Free AAC kit" }
+    published { true }
+  end
+
   factory :event do
     name { FFaker::Name.name }
     slug { FFaker::Internet.slug }
