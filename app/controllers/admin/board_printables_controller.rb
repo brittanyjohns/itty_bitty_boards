@@ -402,21 +402,18 @@ module Admin
       ids.filter_map { |id| by_id[id] }
     end
 
-    # The boards worth offering a one-click printable for. `public_boards` is
-    # the catalogue; Board Builder boards are the other half — published and
-    # authored for print, but deliberately not `predefined`, so the catalogue
-    # scope can't see them (see Boards::AdminBuilder::Build#new_board).
+    # The boards worth offering a one-click printable for: every admin-owned
+    # published board, not just the curated catalogue (`predefined: true`).
+    # This is deliberately wider than `Board.public_boards` — it also picks up
+    # Board Builder roots and any other admin-owned board that was published
+    # without ever being flagged predefined (see Boards::AdminBuilder::Build#new_board).
     #
-    # Builder CHILD pages are excluded: a printable walks the tree from its
-    # root, so listing every folder page as its own row would bury the board
-    # they belong to. They're still reachable through the search box below.
+    # Builder CHILD pages are excluded (via `Board.admin_owned_boards`): a
+    # printable walks the tree from its root, so listing every folder page as
+    # its own row would bury the board they belong to. They're still
+    # reachable through the search box below.
     def printable_boards
-      @printable_boards ||= Board.where(id: Board.public_boards.select(:id))
-                                 .or(Board.where(id: builder_root_boards.select(:id)))
-    end
-
-    def builder_root_boards
-      AdminBoardBuild.builder_boards.published.not_builder_child
+      @printable_boards ||= Board.admin_owned_boards
     end
 
     # @board_sort / @board_dir are whitelisted above, so they are safe to

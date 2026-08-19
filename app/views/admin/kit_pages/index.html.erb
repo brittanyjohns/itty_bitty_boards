@@ -1,0 +1,79 @@
+<% content_for :page_title, "Kit Pages" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Kit Pages</h1>
+    <p class="text-sm text-t3 mt-0.5">Lead-magnet landing pages at /kit/:slug. New pages start as drafts.</p>
+  </div>
+  <%= link_to "New kit page", new_admin_dashboard_kit_page_path,
+        class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition-colors" %>
+</div>
+
+<div class="admin-card border rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Page", "Download", "Mailchimp tag", "Status", "Created", "Actions"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @kit_pages.each do |page| %>
+        <tr class="admin-hover-row transition-colors align-top" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3">
+            <%= link_to page.title, edit_admin_dashboard_kit_page_path(page),
+                  class: "text-xs text-t1 hover:text-accent transition-colors font-medium" %>
+            <div class="text-[10px] text-t3 font-mono">/kit/<%= page.slug %></div>
+          </td>
+          <td class="px-5 py-3 text-xs text-t2">
+            <% if page.board_printable %>
+              <div><%= page.board_printable.board&.name || "Board ##{page.board_printable.board_id}" %></div>
+              <div class="text-[10px] text-t3"><%= page.printable_variant %></div>
+              <% unless page.downloadable? %>
+                <div class="text-[10px] text-amber-500">no PDF yet</div>
+              <% end %>
+              <% if page.etsy_override? %>
+                <div class="text-[10px] text-amber-500">Etsy override</div>
+              <% end %>
+            <% else %>
+              <span class="text-t3">none picked</span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t2 font-mono"><%= page.resolved_mailchimp_tag %></td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <% if page.published? %>
+              <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">published</span>
+            <% else %>
+              <span class="admin-card-alt text-t2 inline-block text-xs rounded px-2 py-0.5">draft</span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap"><%= page.created_at.strftime("%b %-d, %Y") %></td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <div class="flex items-center gap-2">
+              <%= link_to "Edit", edit_admin_dashboard_kit_page_path(page),
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+              <%= link_to "Preview", kit_preview_url(page), target: "_blank", rel: "noopener",
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+              <% if page.published? %>
+                <%= button_to "Unpublish", unpublish_admin_dashboard_kit_page_path(page), method: :post,
+                      class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                      form: { data: { turbo_confirm: "Unpublish “#{page.title}”? /kit/#{page.slug} will stop working." } } %>
+              <% else %>
+                <%= button_to "Publish", publish_admin_dashboard_kit_page_path(page), method: :post,
+                      class: "text-xs font-medium px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+                      form: { data: { turbo_confirm: "Publish “#{page.title}”? It goes live at /kit/#{page.slug}." } } %>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @kit_pages.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-t3">
+      No kit pages yet. <%= link_to "Create one", new_admin_dashboard_kit_page_path, class: "text-accent hover:underline" %>.
+    </div>
+  <% end %>
+</div>

@@ -40,7 +40,11 @@ RSpec.describe Printables::SlideCopy do
     it "keeps every bullet inside the length the layout can hold" do
       bullets = described_class.why_choose_bullets +
                 described_class.hero_footer_bullets +
-                described_class.how_it_works_steps.map { |s| s[:body] }
+                described_class.assemble_steps.map { |s| s[:body] } +
+                described_class.on_a_device_bullets +
+                described_class.on_paper_bullets +
+                [1, 2].flat_map { |n| described_class.on_a_device_alt_bullets(board_count: n) } +
+                [1, 2].flat_map { |n| described_class.on_paper_alt_bullets(board_count: n) }
 
       expect(bullets.map(&:length)).to all(be <= described_class::MAX_BULLET_LENGTH)
     end
@@ -50,11 +54,24 @@ RSpec.describe Printables::SlideCopy do
       expect(described_class.hero_footer_bullets.size).to be <= 3
     end
 
-    it "ships exactly four how-it-works steps, one per card in the strip" do
-      steps = described_class.how_it_works_steps
+    it "ships exactly four assemble steps, one per card in the strip" do
+      steps = described_class.assemble_steps
 
       expect(steps.size).to eq(4)
       expect(steps.map { |s| s[:title] }).to all(be_present)
+    end
+
+    # Each mockup slide gets one badge line inside a fixed pill and three
+    # bullets in the footer strip, exactly like the slides they sit between.
+    it "keeps every mockup slide to three footer bullets" do
+      lists = [
+        described_class.on_a_device_bullets,
+        described_class.on_paper_bullets,
+        *[1, 2].map { |n| described_class.on_a_device_alt_bullets(board_count: n) },
+        *[1, 2].map { |n| described_class.on_paper_alt_bullets(board_count: n) },
+      ]
+
+      expect(lists.map(&:size)).to all(eq(3))
     end
   end
 
@@ -66,7 +83,7 @@ RSpec.describe Printables::SlideCopy do
       copy = [
         described_class.audio_companion_badge,
         described_class.audio_companion_headline,
-        described_class.how_it_works_headline,
+        described_class.on_paper_headline,
         *described_class.hero_footer_bullets,
         *described_class.why_choose_bullets,
       ].join(" ")
@@ -75,9 +92,11 @@ RSpec.describe Printables::SlideCopy do
       expect(copy).to match(/audio companion/i)
     end
 
-    it "titles the two what's-included slides apart" do
+    # One slide now, with the low-ink page inset into it — so the title names
+    # the whole download and the proof card carries the low-ink claim.
+    it "titles the one what's-included slide, and captions the low-ink proof" do
       expect(described_class.whats_included_title).to eq("What's included")
-      expect(described_class.whats_included_title(low_ink: true)).to eq("Low-ink version included")
+      expect(described_class.low_ink_headline).to match(/low-ink/i)
     end
   end
 
@@ -106,7 +125,13 @@ RSpec.describe Printables::SlideCopy do
       *described_class.founder_paragraphs,
       *described_class.why_choose_bullets,
       *described_class.hero_footer_bullets,
-      *described_class.how_it_works_steps.flat_map { |s| [s[:title], s[:body]] },
+      *described_class.assemble_steps.flat_map { |s| [s[:title], s[:body]] },
+      described_class.on_a_device_badge,
+      described_class.on_a_device_alt_badge,
+      described_class.on_paper_badge,
+      described_class.on_paper_alt_badge,
+      *described_class.on_paper_bullets,
+      *described_class.on_a_device_bullets,
     ].join(" ")
 
     expect(all_copy).not_to match(/[\u{1F000}-\u{1FAFF}\u{2190}-\u{27BF}\u{FE0F}]/)

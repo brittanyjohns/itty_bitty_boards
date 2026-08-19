@@ -67,16 +67,17 @@ RSpec.describe Etsy::PublishBoardPrintable do
       publish
     end
 
-    # Rank 1 is the search thumbnail, and the hero is the only slide that shows
-    # the actual boards — so it has to lead.
-    it "uploads every slide in listing rank order, hero first" do
+    # Rank 1 is the search thumbnail, and it is the photoreal in-use mockup —
+    # the listings the shop audit rated "Strong" all led with a photograph of
+    # the product in a real room, not with flat board art.
+    it "uploads every slide in listing rank order, the paper mockup first" do
       ranks = []
       allow(client).to receive(:upload_image) { |_id, opts| ranks << [opts[:rank], opts[:filename]] }
 
       publish
 
       expect(ranks.map(&:first)).to eq((1..BoardPrintable::LISTING_IMAGE_ORDER.size).to_a)
-      expect(ranks.first.last).to start_with("hero-")
+      expect(ranks.first.last).to start_with("#{BoardPrintable::LISTING_IMAGE_ORDER.first.dasherize}-")
     end
 
     it "uploads every PDF variant as a download file" do

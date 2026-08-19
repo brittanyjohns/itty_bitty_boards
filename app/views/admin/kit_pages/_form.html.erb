@@ -1,0 +1,131 @@
+<% input_class = "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+
+<% if @error.present? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm"><%= @error %></div>
+<% end %>
+
+<% if @kit_page.errors.any? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm">
+    <%= @kit_page.errors.full_messages.to_sentence %>
+  </div>
+<% end %>
+
+<%= form_tag url, method: method do %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-4">Page</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="slug">Slug</label>
+        <%= text_field_tag :slug, @kit_page.slug, id: "slug", required: true,
+              placeholder: "at-school", class: input_class %>
+        <p class="text-[11px] text-t3 mt-1">Lowercase and hyphens only. The page lives at /kit/&lt;slug&gt;.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="title">Title <span class="text-t3">(the h1)</span></label>
+        <%= text_field_tag :title, @kit_page.title, id: "title", required: true, class: input_class %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="eyebrow">Eyebrow <span class="text-t3">(pill above the h1)</span></label>
+        <%= text_field_tag :eyebrow, @kit_page.eyebrow, id: "eyebrow", placeholder: "Free classroom kit", class: input_class %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="mailchimp_tag">Mailchimp tag</label>
+        <%= text_field_tag :mailchimp_tag, @kit_page.mailchimp_tag, id: "mailchimp_tag",
+              placeholder: @kit_page.slug.present? ? @kit_page.resolved_mailchimp_tag : "derived from the slug",
+              class: input_class %>
+        <p class="text-[11px] text-t3 mt-1">Leave blank to derive it from the slug.</p>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-t2 mb-1" for="subhead">Subhead</label>
+        <%= text_area_tag :subhead, @kit_page.subhead, id: "subhead", rows: 2, class: input_class %>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Download</h2>
+    <p class="text-[11px] text-t3 mb-4">
+      Only finished printables that actually carry a PDF are listed. The visitor gets this exact document
+      after entering an email.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="board_printable_id">Printable</label>
+        <%= select_tag :board_printable_id,
+              options_for_select(
+                selectable_printables.map { |p|
+                  [
+                    "#{p.board&.name || "Board ##{p.board_id}"} — #{p.page_count.to_i} pages#{p.protects_board? ? " · SOLD ON ETSY" : ""}",
+                    p.id,
+                  ]
+                },
+                @kit_page.board_printable_id
+              ),
+              include_blank: "— none yet —", id: "board_printable_id", class: input_class %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="printable_variant">Variant</label>
+        <%= select_tag :printable_variant,
+              options_for_select(KitPage::VARIANTS, @kit_page.printable_variant), id: "printable_variant", class: input_class %>
+        <p class="text-[11px] text-t3 mt-1">Falls back to every PDF on the printable when the chosen variant isn't there.</p>
+      </div>
+    </div>
+
+    <% if @kit_page.gives_away_protected_printable? || @kit_page.etsy_override? %>
+      <label class="flex items-start gap-2 mt-4 text-xs text-t1 cursor-pointer">
+        <%= check_box_tag :etsy_override, "1", @kit_page.etsy_override?, class: "mt-0.5" %>
+        <span>
+          Give this away for free anyway
+          <span class="block text-[11px] text-t3">
+            This printable is published on Etsy. Ticking this records who chose to hand it out free, and when.
+            <% if @kit_page.etsy_override? %>
+              Currently overridden <%= @kit_page.etsy_override_at&.strftime("%b %-d, %Y") %><%= " by #{@kit_page.etsy_override_by.email}" if @kit_page.etsy_override_by %>.
+            <% end %>
+          </span>
+        </span>
+      </label>
+    <% end %>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Content</h2>
+    <p class="text-[11px] text-t3 mb-4">
+      JSON. <code>items</code> is the "what's inside" list; <code>closing</code> is the block under it.
+    </p>
+    <%= text_area_tag :content, @content_raw || (@kit_page.content.presence && JSON.pretty_generate(@kit_page.content)),
+          id: "content", rows: 14, spellcheck: false,
+          placeholder: JSON.pretty_generate(
+            "items" => [{ "title" => "Core word poster", "description" => "One page, 36 words." }],
+            "closing" => { "heading" => "Make it personal", "body" => "…", "cta_label" => "Start free", "cta_path" => "/sign-up" }
+          ),
+          class: "#{input_class} font-mono text-xs" %>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-4">Call to action</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="cta_label">CTA label</label>
+        <%= text_field_tag :cta_label, @kit_page.cta_label, id: "cta_label", placeholder: "Start free", class: input_class %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="cta_path">CTA path</label>
+        <%= text_field_tag :cta_path, @kit_page.cta_path, id: "cta_path", placeholder: "/sign-up", class: input_class %>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-4">
+    <%= submit_tag submit_label,
+          class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>
+    <label class="flex items-center gap-2 text-xs text-t1 cursor-pointer">
+      <%= check_box_tag :published, "1", @kit_page.published? %>
+      Published
+    </label>
+    <% if @kit_page.persisted? %>
+      <%= link_to "Preview", kit_preview_url(@kit_page), target: "_blank", rel: "noopener",
+            class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+    <% end %>
+  </div>
+<% end %>

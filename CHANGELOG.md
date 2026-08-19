@@ -12,6 +12,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   as the raw text `&amp;`, so the public MySpeak page and the printed care plan
   both showed that instead of the character. Existing entries can be repaired
   with `rake care:unescape_text DRY_RUN=false`.
+- **Pasting a word list makes exactly those tiles.** Building a board from a
+  pasted word list quietly appended extra AI-generated words to the end, and
+  "Start with an empty board" came back full of them. Both happened because the
+  board's own name was being used as an AI topic whenever no topic was typed.
+  Words are now generated only when you ask for them — a situation in the story
+  field, or the "Generate words" button.
+- **No more duplicate tiles from mixed capitalization.** A word list containing
+  both "Dog" and "dog" produced two tiles showing the same picture.
+
 - **Menu boards keep their menu photo.** Renaming a board built from a menu —
   or changing its color, or saving its words — used to disconnect it from the
   menu it was made from, so the "View Menu" button vanished from the board page
@@ -19,6 +28,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Boards already disconnected can be reconnected with `rake menu_boards:relink`.
 ### Changed
 
+- **Etsy listing galleries now lead with a photo of the printable in use.**
+  A board printable's gallery gains four photoreal mockups — the printed sheet
+  staged in two rooms (a classroom easel, a kid table with crayons, a fridge
+  door, a therapy clipboard, a binder) and the board running in the app on two
+  tablets. The room and the tablet are picked from the board, so no two
+  listings look alike. Rank 1 — the image that competes in Etsy's search grid —
+  is now one of those photos rather than flat board art. Two slides made room
+  for them: "how it works" duplicated the assemble steps, and the separate
+  low-ink slide is now a single pale page inset into "what's included". The
+  gallery fills Etsy's ten-photo cap exactly, and nothing needs adding by hand
+  in the seller UI any more. Existing printables show a "rendered with an older
+  gallery" badge in the admin until regenerated.
 - **The trim-ready pages print bigger.** That variant exists so the board fills
   the sheet, but it was still reserving 20mm for a QR code — about 15% of the
   board's printed area on a landscape page, for a code small enough that phones
@@ -35,6 +56,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   companion. / No app, no sign-in." no longer wraps mid-phrase.
 
 ### Added
+
+- **Free-kit landing pages can be built without a deploy.** A new admin screen
+  (`/admin/kit_pages`) creates a lead-magnet page served at `/kit/<slug>`: its
+  headline, blurb, "what's inside" list and call to action are edited in the
+  admin, and the download is one of your existing board printables. A visitor
+  enters an email and gets the PDF; the email lands in Mailchimp under a tag
+  named for the page, so each campaign is its own segment. Pages start as
+  drafts and go live when you publish them. `/classroom` and `/ctg` are
+  untouched — they're printed on QR codes and keep working exactly as before.
+  Picking a printable that's for sale on Etsy is refused until you tick a
+  separate "give this away for free anyway" box, which records who chose it.
 
 - **A printable's topic can be edited after it's created, and the listing copy
   rebuilt from it.** The topic is the only part of a listing that describes the

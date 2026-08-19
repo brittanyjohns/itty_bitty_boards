@@ -386,7 +386,13 @@ class API::BoardsController < API::ApplicationController
           # both paths share the same job args. age_range is optional —
           # GenerateBoardJob falls back to its own default when it's blank.
           word_list = params[:word_list]&.compact
-          topic     = params[:topic] || params[:prompt] || @board.name
+          # Only "scenario" implies "generate words about this". A "default"
+          # board (pasted word list, or start-blank) gets AI words ONLY when
+          # the caller sent an explicit topic/prompt. Falling back to the
+          # always-present board name here turned every create into an AI
+          # generation, silently appending words nobody asked for (68a5fe35).
+          topic     = params[:topic].presence || params[:prompt].presence
+          topic     = @board.name if topic.blank? && creation_type == "scenario"
           age_range = params[:ageRange].presence || params[:age_range].presence
 
           job_args = {

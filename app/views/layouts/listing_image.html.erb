@@ -366,6 +366,19 @@
 
       .footer-strip .footer-bullets { flex: 1; min-width: 0; }
 
+      /* The mockup slides carry their badge down here rather than under the
+         title banner, so it has to sit on a band instead of floating over a
+         photo: smaller, tighter, and stacked above the footer title. */
+      .footer-strip .audio-badge.in-footer {
+        padding: 10px 20px;
+        gap: 10px;
+        font-size: 22px;
+        margin-bottom: 12px;
+        box-shadow: none;
+      }
+
+      .footer-strip .audio-badge.in-footer svg { width: 26px; height: 26px; }
+
       /* Small on purpose: it is a signature, not a call to action, and the QR
          beside it is what a buyer is meant to act on. */
       .footer-strip .site-mark {
@@ -1010,13 +1023,50 @@
         color: var(--navy);
       }
 
-      .included-panel {
+      /* The download panel and the low-ink proof share the bottom band. The
+         proof is a fixed track and the panel takes what is left, so a listing
+         whose pale render failed loses the card and the panel simply widens —
+         rather than the row collapsing to a different layout. */
+      .included-footer {
+        display: flex;
+        align-items: stretch;
+        gap: 18px;
         width: 100%;
+      }
+
+      .included-panel {
+        flex: 1 1 auto;
+        min-width: 0;
         background: var(--ink);
         color: var(--white);
         border-radius: 18px;
         padding: 24px 30px;
         box-shadow: var(--shadow-card);
+      }
+
+      /* Proof, not a second contents grid: ONE page printed pale, captioned.
+         Narrow on purpose — at the width of the black panel beside it, it would
+         read as another product rather than as a variant of this one. */
+      .low-ink-proof {
+        flex: 0 0 244px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 18px;
+        box-shadow: var(--shadow-card);
+      }
+
+      .low-ink-proof .paper { width: 100%; }
+
+      .low-ink-proof .proof-label {
+        color: var(--navy);
+        font-size: 19px;
+        font-weight: 800;
+        line-height: 1.25;
+        text-align: center;
       }
 
       .included-panel .included-title {
@@ -1027,7 +1077,7 @@
 
       .included-panel ul { font-size: 22px; line-height: 1.5; }
 
-      /* ── How it works ─────────────────────────────────────────────────── */
+      /* ── Assemble ─────────────────────────────────────────────────────── */
       /* Capped, then centred by the auto margins — the same trick as .tile-grid
          and for the same reason. Left to stretch the full slide, the four cards
          are 700px tall with two lines of text marooned at the top of each; left
@@ -1098,10 +1148,11 @@
         color: #333;
       }
 
-      /* ── On a device ──────────────────────────────────────────────────── */
+      /* ── Mockups: on a device, on paper ───────────────────────────────── */
       /* The stage lays out in the scene photo's own pixel space and is scaled
-         and offset to cover the slide as one unit, so the screen quad in
-         TabletScene stays in lockstep with where the photo actually is. */
+         and offset to cover the slide as one unit, so the placeholder quad in
+         TabletScene / PaperScene stays in lockstep with where the photo
+         actually is. */
       .mockup-stage {
         position: absolute;
         top: 0;
@@ -1118,10 +1169,15 @@
         display: block;
       }
 
-      /* Warped onto the tablet's glass by the inline matrix3d. transform-origin
+      /* Warped onto the placeholder by the inline matrix3d. transform-origin
          must be 0 0 — the homography maps the element's own top-left corner to
-         the quad's, and a centred origin silently offsets the whole solve. */
-      .mockup-screen {
+         the quad's, and a centred origin silently offsets the whole solve.
+
+         The white fill is load-bearing on BOTH kinds. It backs the letterbox
+         bars below, and on a paper scene the placeholder in the photo is itself
+         a blank white sheet, so a bar reads as that sheet's own margin instead
+         of as a gap where the mockup shows through. */
+      .mockup-art {
         position: absolute;
         top: 0;
         left: 0;
@@ -1130,10 +1186,12 @@
         overflow: hidden;
       }
 
-      /* contain, so a board of any shape sits on the screen letterboxed rather
-         than stretched to fill it — a squashed board reads as a distorted
-         product, which is the opposite of what this slide is for. */
-      .mockup-screen img {
+      /* contain, so a board of any shape sits letterboxed rather than stretched
+         to fill the quad — a squashed board reads as a distorted product, which
+         is the opposite of what these slides are for. MockupScene sizes the
+         element to the quad's own proportions first, so this only ever has a
+         little work left to do. */
+      .mockup-art img {
         display: block;
         width: 100%;
         height: 100%;
@@ -1142,8 +1200,9 @@
       }
 
       /* Faint diagonal glare, so the board reads as a lit display rather than
-         as a picture pasted onto the glass. */
-      .mockup-screen::after {
+         as a picture pasted onto the glass. Screens only — on paper it reads as
+         a crease. */
+      .mockup-art.kind-tablet::after {
         content: "";
         position: absolute;
         inset: 0;
@@ -1155,15 +1214,24 @@
         );
       }
 
+      /* A sheet sitting ON something, rather than printed into the photo. The
+         filter is applied before the transform, so the shadow warps into the
+         page's own plane — which is where a real one would fall. Value copied
+         from the pipeline's mockup-composite.css so a listing from either
+         source finishes its paper the same way. */
+      .mockup-art.kind-paper {
+        filter: drop-shadow(0 6px 18px rgba(19, 38, 55, 0.28));
+      }
+
       /* These room photos are dim and warm; the scrim is what keeps the navy
          title and the footer readable over them. Top and bottom only, so the
          tablet in the middle stays untouched.
 
          The top half is deliberately light and fades out early: the title
          banner and the audio badge carry their own solid fills, so they don't
-         need the scrim to be legible — and the tablet's own screen starts at
-         ~23% of the slide, where a heavier gradient washes out the app chrome
-         and makes the screenshot read as dim rather than lit. */
+         need the scrim to be legible — and the artwork starts at ~23% of the
+         slide, where a heavier gradient washes out the app chrome (or the
+         printed page) and makes it read as dim rather than lit. */
       .mockup-scrim {
         position: absolute;
         inset: 0;

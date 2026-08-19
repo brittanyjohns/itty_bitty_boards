@@ -49,12 +49,12 @@ RSpec.describe Boards::Printables::RenderDeviceScreen do
   describe "sizing itself for the tablet it will be warped onto" do
     Boards::Printables::TabletScene::SCENES.each do |values|
       it "matches #{values[:slug]}'s screen proportions" do
-        scene = Boards::Printables::TabletScene.new(values)
+        scene = Boards::Printables::MockupScene.new(values)
         described_class.new(title: "Core Words", thumbnail: thumbnail, scene: scene).call
 
         viewport = rendered_opts.first[:viewport]
         expect(viewport[:width].to_f / viewport[:height])
-          .to be_within(0.02).of(scene.screen_width.to_f / scene.screen_height)
+          .to be_within(0.02).of(scene.target_width.to_f / scene.target_height)
       end
     end
 
@@ -63,7 +63,7 @@ RSpec.describe Boards::Printables::RenderDeviceScreen do
     it "keeps the render roughly the same size whatever the shape" do
       shell = described_class.new(
         title: "x", thumbnail: thumbnail,
-        scene: Boards::Printables::TabletScene.new(Boards::Printables::TabletScene::SCENES.last),
+        scene: Boards::Printables::MockupScene.new(Boards::Printables::TabletScene::SCENES.last),
       )
 
       expect(shell.shell_width * shell.shell_height)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_18_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_19_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -590,6 +590,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_18_140000) do
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"
+  end
+
+  create_table "kit_pages", force: :cascade do |t|
+    t.string "slug", null: false
+    t.string "title", null: false
+    t.string "eyebrow"
+    t.text "subhead"
+    t.jsonb "content", default: {}, null: false
+    t.bigint "board_printable_id"
+    t.string "printable_variant", default: "color", null: false
+    t.string "mailchimp_tag"
+    t.string "cta_label"
+    t.string "cta_path"
+    t.boolean "published", default: false, null: false
+    t.datetime "etsy_override_at"
+    t.bigint "etsy_override_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_printable_id"], name: "index_kit_pages_on_board_printable_id"
+    t.index ["etsy_override_by_id"], name: "index_kit_pages_on_etsy_override_by_id"
+    t.index ["slug"], name: "index_kit_pages_on_slug", unique: true
   end
 
   create_table "marketing_assets", force: :cascade do |t|
@@ -1188,6 +1209,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_18_140000) do
   add_foreign_key "contest_entries", "events"
   add_foreign_key "credit_transactions", "users"
   add_foreign_key "feedback_items", "users"
+  add_foreign_key "kit_pages", "board_printables"
+  add_foreign_key "kit_pages", "users", column: "etsy_override_by_id"
   add_foreign_key "menus", "users"
   add_foreign_key "openai_prompts", "users"
   add_foreign_key "order_items", "orders"

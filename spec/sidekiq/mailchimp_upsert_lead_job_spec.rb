@@ -93,6 +93,45 @@ RSpec.describe MailchimpUpsertLeadJob, type: :job do
       expect(lead.reload.mailchimp_status).to eq("failed")
     end
 
+    # A kit_<slug> source reads its tag off the KitPage row rather than
+    # SOURCE_TAGS, which is what lets a new landing page ship without a deploy.
+    context "with a kit landing-page source" do
+      it "uses the tag derived from the page's slug" do
+        create(:kit_page, slug: "at-school")
+        kit_lead = create(:download_lead, email: "teacher@example.com", name: "Rae", source: "kit_at-school")
+
+        expect(mailchimp).to receive(:record_lead).with(
+          email: "teacher@example.com",
+          name: "Rae",
+          tags: ["AtSchoolLead"],
+        )
+
+        job.perform(kit_lead.id)
+
+        expect(kit_lead.reload.mailchimp_status).to eq("synced")
+      end
+
+      it "uses an explicitly configured tag when the page carries one" do
+        create(:kit_page, slug: "at-school", mailchimp_tag: "BackToSchool2026")
+        kit_lead = create(:download_lead, email: "teacher@example.com", name: "Rae", source: "kit_at-school")
+
+        expect(mailchimp).to receive(:record_lead)
+          .with(hash_including(tags: ["BackToSchool2026"]))
+
+        job.perform(kit_lead.id)
+      end
+
+      it "falls back to the default tag when the page has been deleted, without raising" do
+        kit_lead = create(:download_lead, email: "teacher@example.com", name: "Rae", source: "kit_gone")
+
+        expect(mailchimp).to receive(:record_lead)
+          .with(hash_including(tags: ["BoardDownloadLead"]))
+
+        expect { job.perform(kit_lead.id) }.not_to raise_error
+        expect(kit_lead.reload.mailchimp_status).to eq("synced")
+      end
+    end
+
     it "no-ops for an unknown lead id" do
       expect(mailchimp).not_to receive(:record_lead)
       expect { job.perform(-1) }.not_to raise_error
