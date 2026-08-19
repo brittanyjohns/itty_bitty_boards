@@ -263,24 +263,55 @@ asks for.
 
 ## Gallery images
 
-`Boards::Printables::RenderListingImages` renders **nine** square 2560px slides
+`Boards::Printables::RenderListingImages` renders **ten** square 2560px slides
 through `layouts/listing_image.html.erb` — a marketing canvas of its own, not
 the print sheet. `LISTING_IMAGE_ORDER` is the Etsy rank order, and rank 1 is the
-search thumbnail. Etsy caps a listing at ten photos, so nine leaves one slot for
-something hand-made uploaded in the seller UI; the listing VIDEO is a separate
-slot and does not count against the ten.
+search thumbnail.
 
-| Slide | Board-specific? | Ported from (`speakanyway-printables`) |
-|---|---|---|
-| `hero` | yes — real page thumbnails fanned on a room background, with the bundle sticker | `previews/hero-board.*` |
-| `flip_book` | yes — the root page opening two subpages, each with its back marker | — |
-| `on_a_device` | yes — the root board, in the app's chrome, warped onto a photographed tablet | step 14 + `previews/content-mock-app.*` |
-| `whats_included` | yes — capped thumbnail grid of the colour pages | `previews/whats-included.*` |
-| `whats_included_low_ink` | yes — the same grid rendered `hide_colors` | — |
-| `assemble` | no — print, trim, hole-punch & ring, scan | — |
-| `page_index` | yes — every board named, in tree order | — |
-| `how_it_works` | no | `plugins/aac/.../about-saw.*` (steps half) |
-| `about` | no | `plugins/aac/.../about-saw.*` (founder half) |
+| Rank | Slide | Board-specific? | Ported from (`speakanyway-printables`) |
+|---|---|---|---|
+| 1 | `on_paper` | yes — the printed page warped onto a photographed room | step 14 (`kind: "paper"` scenes) |
+| 2 | `hero` | yes — real page thumbnails fanned on a room background, with the bundle sticker | `previews/hero-board.*` |
+| 3 | `on_a_device` | yes — the root board, in the app's chrome, warped onto a photographed tablet | step 14 + `previews/content-mock-app.*` |
+| 4 | `flip_book` | yes — the root page opening two subpages, each with its back marker | — |
+| 5 | `whats_included` | yes — capped thumbnail grid of the colour pages, with a low-ink page inset | `previews/whats-included.*` |
+| 6 | `on_paper_alt` | yes — a second room, a second page | step 14 |
+| 7 | `assemble` | no — print, trim, hole-punch & ring, scan | — |
+| 8 | `on_a_device_alt` | yes — a second tablet, a page that isn't the front one | step 14 |
+| 9 | `page_index` | yes — every board named, in tree order | — |
+| 10 | `about` | no | `plugins/aac/.../about-saw.*` (founder half) |
+
+### Ten is Etsy's cap, so the gallery is full
+
+This list used to be nine, leaving a slot free for something hand-made uploaded
+in the seller UI. That slot is deliberately spent on the second paper mockup.
+**Anything added from here has to displace something**, and the two things
+displaced so far are worth recording because both were removed for the same
+reason — a buyer flicking through was shown the same slide twice:
+
+- `how_it_works` — a four-step strip that shared three of its four inline-SVG
+  icons (print / cut / scan-to-hear) with `assemble`.
+- `whats_included_low_ink` — the identical thumbnail grid rendered a second time
+  with `hide_colors`. The claim it existed to prove ("there's a low-ink version")
+  is now **one** pale page inset into the colour slide, which costs one Grover
+  render instead of up to eight.
+
+Both survive as constants on `BoardPrintable` beside `IMAGE_COVER`, purely so
+the strings stay searchable. Nothing matches on them: `purge_legacy_listing_images!`,
+`listing_images_view` and `listing_images_current?` all test "not in
+`LISTING_IMAGE_ORDER`", so a variant retired later is caught with no code change.
+
+The listing VIDEO is a separate slot and does not count against the ten.
+
+### Rank 1 is a photograph, not board art
+
+In the shop's 2026-06-08 audit the listings led by a photograph of the product in
+a real room rated "Strong" and the ones led by flat board art rated "OK/Weak" —
+which is why the pipeline puts a mockup at rank 1 and why Rails now does too.
+Mockups and content slides alternate the whole way down for the same reason:
+four consecutive renders of the same boards read as one product photographed four
+times. `render_listing_images_spec.rb` asserts no two mockups are adjacent rather
+than pinning the literal order, so the ranks can be retuned without rewriting it.
 
 ### No slide may be conditional on board count
 
@@ -290,7 +321,8 @@ permanently stale, permanently badged in the admin, and re-rendering its whole
 gallery on every publish. Where a slide means something different for one board,
 its **copy** varies (`Printables::SlideCopy`) and the variant is still rendered:
 `flip_book` becomes "one page — and the QR turns it into a talking board",
-`page_index` becomes "what's on this board".
+`page_index` becomes "what's on this board", and the `_alt` mockups fall back to
+the root page rather than disappearing.
 
 Adding to that constant makes every existing printable stale. That is the point:
 it is what surfaces the admin badge and forces a re-render before publishing.
@@ -301,102 +333,133 @@ The three slides added in Aug 2026 (`flip_book`, `assemble`, `page_index`) all
 serve one claim: **a printable is a bundle of LINKED pages**. Folder tiles open
 sub-pages and every sub-page carries a way back — `Boards::BackTileStamper`
 guarantees it, every page carries its own QR, and none of it was said anywhere a
-buyer looks. `flip_book` earns rank 2 because it is the one claim no competing
-AAC printable on the marketplace can make.
+buyer looks. `flip_book` stays in the gallery's first half, ahead of every slide
+that merely describes a product the buyer has already decided to look at,
+because it is the one claim no competing AAC printable can make.
 
 **Rails is authoritative for listings the Rails admin originates**; the pipeline
 is authoritative for the ones its own steps 11/13/14 originate. Same rule, and
 the same drift hazard, as `Etsy::CopyRules` above.
 
-### The horizontal safe zone — square is not what every view shows
+### The mockups
 
-Etsy does **not** letterbox a square photo. The listing page frames it 4:5 and
-cover-crops, taking **10% off each side**, and the seller-side "Adjust
-thumbnail" dialog crops again for the search grid. So the canvas stays square —
-that is the search grid's shape, and the one every slide and video frame
-shares — and the
-layout keeps everything that carries meaning inside `--safe-x` (160px of the
-1280px canvas, 12.5%, against the 10% Etsy takes).
+Four of the ten slides are photoreal composites, and all four render the same
+template (`listing/mockup.html.erb`) through the same maths. A composite is an
+AI-generated photograph containing a **blank white placeholder**, with a real
+render warped onto that placeholder's four hand-clicked corners. Nothing is fed
+to an image model at render time and nothing is composited pixel-wise: the warp
+is a CSS `matrix3d` and the screenshot is the same Grover call every other slide
+makes.
 
-Only **content** moves in: the title banner, the headline, the audio badge, the
-footer bullets, the QR, the site mark, the logo corner. Backgrounds and band
-fills still bleed to the edge — a cropped colour band reads as intentional; a
-beheaded board name does not. Any new side inset written as a literal px value
-reintroduces the bug, which is why `render_listing_images_spec.rb` asserts each
-of those rules reads the token rather than a number.
+The scene library is vendored from `speakanyway-printables`
+(`src/plugins/aac/templates/assets/mockup-scenes/`), which is where the photos
+were generated and where the quads were clicked out in that repo's
+`calibrate-mockup-scene.html`. Rails carries the eight `category: "board"`
+scenes — four `kind: "tablet"` and six `kind: "paper"` — and none of the eleven
+that stage products this app doesn't make (ID cards, device tags, stickers,
+tattoos).
 
-At the old flat 56px inset this cost every live listing the first letter of its
-board name and better than half its QR code.
+`Boards::Printables::MockupScene` is the geometry (cover placement, the
+letterbox rectangle, the homography); `TabletScene` and `PaperScene` are only the
+lists. `Boards::Printables::Homography` is a straight port of that repo's
+`homography.ts` (Gaussian elimination, then the 3x3 embedded column-major into a
+CSS `matrix3d`). Unlike the copy rules, this one is fixed maths — a divergence
+here is a bug, not a decision.
 
-### The tablet mockup
+**The quads are copied, not re-measured.** Re-deriving them by eye puts the
+render a few pixels off the glass, or off the paper. The two Canva-exported
+tablet scenes are the exception and were fitted here — by WARPING A BLOCK ONTO
+THE PHOTO AND LOOKING, never by drawing the quad flat on it. The warp composes
+the quad with the slide's cover-placement transform, so an error invisible on the
+flat photo is 20–40px of someone else's wallpaper showing along an edge once the
+board is on the glass. Both fitted quads land at 4:3, which is the check that the
+numbers are right — that is a real iPad screen.
 
-`on_a_device` is a narrow port of that repo's step 14. Rails does **not** have
-its scene library or its calibration tool, and doesn't need them: two of its
-nineteen scenes are `kind: "tablet"` board stagings, and those two photos plus
-their hand-clicked screen corners are vendored into
-`Boards::Printables::TabletScene`. The other seventeen stage products this app
-doesn't make (ID cards, device tags, stickers, tattoos) or warp a printed sheet
-onto furniture — that compositing is still that repo's job.
+**Both tablet quads sit a few pixels proud of the glass on purpose.** Each
+photo's screen already shows something, and a flush quad leaves a sliver of it
+visible, which reads as a rendering fault; bleeding onto the bezel reads as the
+screen's edge.
 
-Two more scenes (`desk-tablet-tap`, `table-tablet-talk`) are photographs of real
-tablets, exported from Canva mockups and calibrated here. **Calibrate by warping
-a block onto the photo and looking, not by drawing the quad flat on it.** The
-warp composes the quad with the slide's cover-placement transform, so an error
-invisible on the flat photo is 20–40px of someone else's wallpaper showing along
-an edge once the board is on the glass. Both fitted quads land at 4:3, which is
-the check that the numbers are right — that is a real iPad screen.
+**Each pair stages a different scene, and where it can, a different page.**
+`StablePick.top` returns a ranked slice rather than just the winner, so the two
+picks are deterministic and distinct — rendezvous hashing ranks as well as
+maximises, so appending a scene still moves the minimum rather than reshuffling
+what already resolved. The salts (`"tablet"`, `"paper"`, and the separate ones
+for `BrandAssets::SCENES` and `Palette::PALETTES`) must stay independent:
+hashing the same key twice would pair scene 1 with palette 1 forever and collapse
+the rotation. **The slug is the load-bearing thing** — renaming one re-skins the
+boards that had picked it; reordering the list does nothing.
 
-Both sit a few pixels **proud** of the glass on purpose. Each photo's screen
-already shows something, and a flush quad leaves a sliver of it visible, which
-reads as a rendering fault; bleeding onto the bezel reads as the screen's edge.
+**Paper scenes are filtered by ORIENTATION before anything is picked.** A
+homography maps *any* rectangle onto the quad, so a landscape page handed to the
+portrait clipboard does not fail — it silently stretches, which a buyer reads as
+a distorted product. The landscape pool is four and the portrait pool is two, and
+`PaperScene::MIN_POOL` is asserted against both so deleting a scene can't quietly
+leave a pool too small for two distinct picks. The pools are disjoint, which is
+what lets a mixed-orientation set take its second pick from the other pool
+without either knowing what the first one took. `paper_scene_spec.rb` also checks
+each quad's own aspect agrees with the orientation it declares — a scene filed
+under the wrong one is a filter that lies.
 
-**What sits on the glass is the app, not a sheet of paper.**
+**The artwork element fills the whole quad in white, and the render is
+letterboxed inside it.** On a tablet that white is the shell's own background; on
+paper it is doing real work, because the placeholder in the photo *is* a blank
+white sheet — so a letterbox bar reads as that sheet's own margin rather than as
+a gap where the mockup shows through. That is what lets a 1.97-aspect quad like
+`kid-table-crayons` carry a 1.29-aspect Letter page without either stretching it
+or exposing the placeholder.
+
+**What sits on the glass is the app; what sits on the paper is the printed page.**
 `Boards::Printables::RenderDeviceScreen` wraps the board in SpeakAnyWay's own
 chrome — board name, nav, empty speech bar, play/clear/download — and *that*
-screenshot is what gets warped. A bare printed page there reads as a photograph
-of a printout taped to a tablet, and carries nothing saying the thing on screen
-talks; the print header would put a scan-me band and a second QR on the glass.
-Ported from that repo's `renderContentAppPage`, chrome and all, so a listing
-from either source shows one app. Two constraints:
+screenshot is what the tablets warp. A bare printed page there reads as a
+photograph of a printout taped to a tablet, and carries nothing saying the thing
+on screen talks; the print header would put a scan-me band and a second QR on the
+glass. The paper slides want the exact opposite and take the **header-shown**
+thumbnail the hero already rendered, because their whole claim is that the sheet
+itself carries the code. That also keeps the QR honest for free: those thumbnails
+encode the bare `/pb/<slug>` the printed page does, never the UTM-tagged listing
+URL. Never route a paper mockup through `listing_target_url_for`.
 
-- **The shell is sized from the scene**, at a constant total area
+Two constraints on the shell:
+
+- **It is sized from the scene**, at a constant total area
   (`RenderDeviceScreen::SHELL_AREA`). The homography stretches the artwork onto
   the quad whatever shape it is, so a shell at another aspect arrives visibly
   squashed. It used to be a fixed 1100x720 (~1.528) — the mean of the only two
   scenes that existed — and the photographed scenes added since are 4:3, so a
   fixed shell was one scene away from being wrong for most of the library.
 - **The board image is the header-less thumbnail** the what's-included grid
-  already rendered, so the slide costs one extra Grover render, not two. A
-  board too tall for the shell is top-anchored and clipped — that's what a real
-  screen with more board below the fold looks like — and a short wide one is
-  centred.
+  already rendered, so the slide costs one extra Grover render, not two. A board
+  too tall for the shell is top-anchored and clipped — that's what a real screen
+  with more board below the fold looks like — and a short wide one is centred.
 
-Three things hold the warp together:
+**Everything inside `.mockup-stage` lays out in the scene's own pixels**, and the
+stage as a whole is scaled and offset to cover the slide. `object-fit: cover` on
+the photo would move it without telling anything where the corners went, which is
+why `MockupScene#cover_placement` computes the placement itself.
 
-- **The quads are copied, not re-measured.** For the two ported scenes they are
-  the corners someone clicked in that repo's `calibrate-mockup-scene.html`, in
-  the scene JPG's own pixel space. Re-deriving them by eye puts the board a few
-  pixels off the glass.
-- **Scene lists are picked by rendezvous hash, not modulo.**
-  `Boards::Printables::StablePick` scores each entry by its own slug, so
-  `TabletScene::SCENES`, `BrandAssets::SCENES` and `Palette::PALETTES` can all
-  be reordered and appended to. Under the old `% list.size` pick, adding one
-  photo re-skinned every printable in the shop, which is why those files used to
-  warn that their order was load-bearing. **The slug is now the load-bearing
-  thing** — renaming one re-skins the boards that had picked it.
-- **Everything inside `.mockup-stage` lays out in those same scene pixels**, and
-  the stage as a whole is scaled and offset to cover the slide. `object-fit:
-  cover` on the photo would move it without telling anything where the corners
-  went, which is why `TabletScene#cover_placement` computes the placement itself.
-- **The board is letterboxed into a rectangle of the quad's own proportions
-  before it is warped.** A homography maps *any* rectangle onto the quad, so
-  handing it a portrait board doesn't fail — it silently stretches the board on
-  the glass, which reads as a distorted product.
+**That placement centres the QUAD, not the photo.** Every scene is a landscape
+photo and the slide is square, so cover throws away a quarter of the width — and
+no placeholder is centred in its own frame. Centring the scene sliced the left
+edge off the fridge sheet and ran the desk tablet off the right, both of which
+read as a rendering fault rather than as a crop. The offsets are then clamped so
+the photo still reaches both edges, and a quad too wide to fit even centred
+(`kid-table-crayons`) is cropped evenly on both sides, which reads as a
+deliberate close-up. The scene specs assert the evenness rather than the
+offsets, so a scene added later is checked by the same rule.
 
-`Boards::Printables::Homography` is a straight port of that repo's
-`homography.ts` (Gaussian elimination, then the 3x3 embedded column-major into a
-CSS `matrix3d`). Unlike the copy rules, this one is fixed maths — a divergence
-here is a bug, not a decision.
+**The mockup slides carry their audio badge in the FOOTER**, not under the title
+banner where every other slide puts it. On these four the artwork is the whole
+slide and its top edge moves with the scene, so the badge landed across the
+printed page's own header — the single thing a paper slide exists to show — and
+across the app's board title on the angled tablet. The footer strip is a solid
+band, so nothing placed there can be obscured whatever the scene does.
+
+The only thing that differs by kind is the finish: `.mockup-art.kind-tablet` gets
+a faint diagonal glare so the board reads as a lit display, and
+`.mockup-art.kind-paper` gets the pipeline's own drop-shadow value so the sheet
+reads as an object sitting on something. On paper the glare reads as a crease.
 
 Rules that hold across the slides:
 
@@ -427,12 +490,13 @@ Rules that hold across the slides:
   `CollectPages` prints from. The old note here said page thumbnails would need
   poppler/ImageMagick, which the deploy image lacks — they don't, and that is
   what unlocked showing real boards in the gallery.
-- **The hero keeps the page header; the grids and the tablet don't.** The
-  printed QR lives inside that header (`api/boards/print.html.erb`), and the
-  hero's claim is that the sheet itself carries the code. On a grid tile at a
-  sixth the size the header is just the slide's own title band again, so
-  `hide_header: true` gives the board the whole tile; on the tablet it is the
-  tell that the screen is really a photographed printout.
+- **The hero and the paper mockups keep the page header; the grids and the
+  tablets don't.** The printed QR lives inside that header
+  (`api/boards/print.html.erb`), and both those slides claim that the sheet
+  itself carries the code. On a grid tile at a sixth the size the header is just
+  the slide's own title band again, so `hide_header: true` gives the board the
+  whole tile; on the tablet it would be the tell that the screen is really a
+  photographed printout.
 - **The root board sits in the MIDDLE of the hero fan, not first.**
   `.hero-stage.fan` draws the middle card in front and unrotated, so the middle
   slot — not the first — is what a buyer sees in the Etsy search grid. Board ids
@@ -450,24 +514,15 @@ Rules that hold across the slides:
   row instead.
 - **Each page variant renders once.** Planning (`ContentTilePlan`, capped at
   `MAX_TILES`) happens first so Grover is only paid for tiles that get shown,
-  and the three passes are memoized: colour-with-header for the hero, colour and
-  low-ink without a header for the two grids. Budget:
-  `min(boards, 3) + min(boards, 8) * 2 + 6` — up to 25 renders (~40s) for an
-  eight-board set, which is why this is a Sidekiq job and never a request
-  thread. A fourth pass means a slide is re-rendering pixels it already had —
-  `on_a_device` deliberately reuses the root board's header-hidden grid
-  thumbnail rather than rendering its own.
-- **No emoji, no decorative glyphs.** The render box's Chrome has no guaranteed
-  colour-emoji font. Step icons are inline SVG and list bullets are CSS-drawn
-  shapes; the source templates use emoji and would have shipped tofu boxes.
-- **Chrome is hermetic, board art is not.** Fonts, logo, founder photo, room
-  scenes and QR are all base64 (`BrandAssets`, `Fonts`). Board symbol art inside
-  a thumbnail loads from the CDN, exactly as it does when the product PDF is
-  printed — the one documented exception, and why the hermeticity spec asserts
-  on slide HTML only.
-- **The room scene is picked by hashing the board.** A listing is already live
-  by the time anyone regenerates it; a random pick would re-skin it each time.
-  Reordering `BrandAssets::SCENES` re-skins every existing listing.
+  and the passes are memoized: colour-with-header for the hero and both paper
+  mockups, colour without a header for the grid and both tablets, and ONE page
+  in low-ink for the what's-included inset. Budget:
+  `min(boards, 3) + min(boards, 8) + 1` page renders plus ten slides and two
+  device screens — which is fewer than the nine-slide gallery cost, because the
+  low-ink pass shrank from a whole second grid to a single page. Still tens of
+  seconds for an eight-board set, which is why this is a Sidekiq job and never a
+  request thread. A further pass means a slide is re-rendering pixels it already
+  had — every mockup deliberately reuses a thumbnail some other slide paid for.
 
 Etsy will create a listing with no photos but won't let it go live without one,
 so `PublishBoardPrintable` renders them when they aren't current.
@@ -723,7 +778,7 @@ can't be pointed at an export that never intended it — replacing downloads
 deletes the buyer's files first, and a backfill of marketing assets has no
 business touching them. A printable whose gallery isn't current is refused
 outright rather than warned about: `--replace-images` deletes before it uploads,
-so a partial gallery would take nine good images off and put five back.
+so a partial gallery would take ten good images off and put five back.
 
 ## Replacing a draft — "Detach & relist"
 

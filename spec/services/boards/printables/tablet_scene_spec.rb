@@ -19,6 +19,30 @@ RSpec.describe Boards::Printables::TabletScene do
     expect(slugs.uniq).to match_array(described_class::SCENES.map { |s| s[:slug] })
   end
 
+  # The gallery stages a board on a tablet TWICE, and two identical photographs
+  # read as one screenshot pasted twice — which is the whole reason the second
+  # slide exists.
+  describe ".pair_for" do
+    it "hands back two different tablets" do
+      pair = described_class.pair_for(board("core-words"))
+
+      expect(pair.size).to eq(2)
+      expect(pair.map(&:slug).uniq.size).to eq(2)
+    end
+
+    it "leads with the same tablet .for picks, so the pair is an extension of it" do
+      b = board("core-words")
+
+      expect(described_class.pair_for(b).first.slug).to eq(described_class.for(b).slug)
+    end
+
+    it "picks the same pair every time" do
+      pairs = Array.new(5) { described_class.pair_for(board("core-words")).map(&:slug) }
+
+      expect(pairs.uniq.size).to eq(1)
+    end
+  end
+
   # A third thing hashed off the board, so it needs its own salt for the same
   # reason the palette does — otherwise scene, palette and tablet move together
   # and the rotation collapses.
@@ -38,7 +62,7 @@ RSpec.describe Boards::Printables::TabletScene do
   describe "every vendored scene" do
     described_class::SCENES.each do |values|
       context values[:slug] do
-        subject(:scene) { described_class.new(values) }
+        subject(:scene) { Boards::Printables::MockupScene.new(values) }
 
         it "has its photo on disk" do
           expect(scene.data_uri).to start_with("data:image/jpeg;base64,")
@@ -61,8 +85,21 @@ RSpec.describe Boards::Printables::TabletScene do
         # RenderDeviceScreen sizes itself from the scene, so what has to hold is
         # that the two agree, and that the quad is a plausible landscape tablet
         # rather than a mis-clicked sliver.
+        # Every scene is a landscape photo and the slide is square, so cover
+        # throws away a quarter of the width — and no placeholder is centred in
+        # its own photo. Centring the SCENE sliced the left edge off the fridge
+        # sheet and ran the desk tablet off the right. Whatever is left outside
+        # has to be left outside evenly, which reads as a close crop instead.
+        it "keeps its placeholder centred in the square crop" do
+          placement = scene.cover_placement(1280)
+          xs = scene.quad.map { |x, _| (x * placement[:scale]) + placement[:offset_x] }
+
+          expect([-xs.min, 0].max).to be_within(1).of([xs.max - 1280, 0].max)
+          expect(xs.max - xs.min).to be > 0
+        end
+
         it "gets an app shell shaped like its own screen" do
-          screen = scene.screen_width.to_f / scene.screen_height
+          screen = scene.target_width.to_f / scene.target_height
           shell = Boards::Printables::RenderDeviceScreen.new(title: "x", thumbnail: nil, scene: scene)
 
           expect(screen).to be_between(1.2, 1.8)
@@ -85,20 +122,20 @@ RSpec.describe Boards::Printables::TabletScene do
     # would squash the board by exactly the amount the tablet is rotated.
     it "sizes the flat rectangle to the quad's own edges, not its extents" do
       described_class::SCENES.each do |values|
-        scene = described_class.new(values)
+        scene = Boards::Printables::MockupScene.new(values)
         tl, tr, br, bl = scene.quad
         edge = ->(a, b) { Math.hypot(b[0] - a[0], b[1] - a[1]) }
 
-        expect(scene.screen_width).to be_within(1).of((edge.call(tl, tr) + edge.call(bl, br)) / 2)
-        expect(scene.screen_height).to be_within(1).of((edge.call(tl, bl) + edge.call(tr, br)) / 2)
+        expect(scene.target_width).to be_within(1).of((edge.call(tl, tr) + edge.call(bl, br)) / 2)
+        expect(scene.target_height).to be_within(1).of((edge.call(tl, bl) + edge.call(tr, br)) / 2)
       end
     end
 
     it "measures a rotated tablet's screen larger than its bounding box" do
-      rotated = described_class.new(described_class::SCENES.find { |s| s[:slug] == "desk-tablet-tap" })
+      rotated = Boards::Printables::MockupScene.new(described_class::SCENES.find { |s| s[:slug] == "desk-tablet-tap" })
       tl, tr, = rotated.quad
 
-      expect(rotated.screen_width).to be > (tr[0] - tl[0])
+      expect(rotated.target_width).to be > (tr[0] - tl[0])
     end
 
     it "warps that rectangle, not some other one" do
@@ -127,8 +164,8 @@ RSpec.describe Boards::Printables::TabletScene do
   end
 
   it "renders without a photo rather than raising when the file is missing" do
-    scene = described_class.new(slug: "nope", width: 100, height: 100,
-                                quad: [[0, 0], [10, 0], [10, 10], [0, 10]])
+    scene = Boards::Printables::MockupScene.new(slug: "nope", width: 100, height: 100,
+      quad: [[0, 0], [10, 0], [10, 10], [0, 10]])
 
     expect(scene.data_uri).to be_nil
   end

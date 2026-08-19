@@ -57,25 +57,32 @@ class BoardPrintable < ApplicationRecord
   IMAGE_HERO = "hero".freeze
   IMAGE_FLIP_BOOK = "flip_book".freeze
   IMAGE_ON_A_DEVICE = "on_a_device".freeze
+  IMAGE_ON_A_DEVICE_ALT = "on_a_device_alt".freeze
+  IMAGE_ON_PAPER = "on_paper".freeze
+  IMAGE_ON_PAPER_ALT = "on_paper_alt".freeze
   IMAGE_WHATS_INCLUDED = "whats_included".freeze
-  IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
   IMAGE_ASSEMBLE = "assemble".freeze
   IMAGE_PAGE_INDEX = "page_index".freeze
-  IMAGE_HOW_IT_WORKS = "how_it_works".freeze
   IMAGE_ABOUT = "about".freeze
 
   # Etsy shows gallery photos in listing order, and the first is the search
-  # thumbnail — so the hero, which is the only one that shows the actual boards,
-  # earns rank 1. The low-ink slide sits straight after the colour one so the
-  # two read as a pair rather than as two different products.
+  # thumbnail. Rank 1 is a PHOTOREAL IN-USE MOCKUP, not the hero: in the shop
+  # audit the listings led by a photograph of the product in a real room rated
+  # "Strong" while the ones led by flat board art rated "OK/Weak". The pipeline
+  # orders its own galleries the same way, for the same reason.
+  #
+  # Mockups and content slides alternate the whole way down. Four consecutive
+  # renders of the same boards read as one product photographed four times; a
+  # photo between each is what makes a buyer keep scrolling.
   #
   # This constant is the whole definition of a current gallery: adding a variant
   # here makes every previously-rendered printable stale, which is what surfaces
   # the admin badge and forces a re-render before publishing.
   #
-  # Nine, against Etsy's cap of ten photos — the tenth is left free for
-  # something hand-made uploaded in the seller UI. A listing VIDEO occupies its
-  # own slot and does not count against this.
+  # TEN, which is Etsy's cap exactly. The spare slot this list used to leave for
+  # a hand-made upload in the seller UI is deliberately spent on the second
+  # paper mockup. A listing VIDEO occupies its own slot and does not count
+  # against this. Anything added here from now on has to displace something.
   #
   # No slide here may be conditional on board count. #listing_images_current?
   # requires EVERY variant in this list, so "only render page_index for a set"
@@ -84,26 +91,32 @@ class BoardPrintable < ApplicationRecord
   # Where a slide means something different for one board, its COPY varies —
   # see Printables::SlideCopy — and the variant is still rendered.
   LISTING_IMAGE_ORDER = [
+    # The printed sheet, in a room, at the size a buyer will actually use it.
+    # This is the search thumbnail.
+    IMAGE_ON_PAPER,
     IMAGE_HERO,
-    # Rank 2: the thesis. A buyer can see a stack of pages in the thumbnail;
-    # what they cannot see is that the pages are LINKED — folder tiles open
-    # sub-pages and every sub-page carries a way back. It is the one claim no
-    # competing AAC printable can make, so it goes straight behind the
-    # thumbnail.
-    IMAGE_FLIP_BOOK,
-    # Then the claim a buyer is least likely to believe from text alone: that
-    # this printable also opens on a screen and talks.
+    # The claim a buyer is least likely to believe from text alone: that this
+    # printable also opens on a screen and talks.
     IMAGE_ON_A_DEVICE,
+    # The thesis. A buyer can see a stack of pages in the thumbnail; what they
+    # cannot see is that the pages are LINKED — folder tiles open sub-pages and
+    # every sub-page carries a way back. It is the one claim no competing AAC
+    # printable can make.
+    IMAGE_FLIP_BOOK,
     IMAGE_WHATS_INCLUDED,
-    IMAGE_WHATS_INCLUDED_LOW_INK,
+    # A second room, a second page. The pair says "this is a thing you own",
+    # where one photo alone says "this is a thing that was photographed".
+    IMAGE_ON_PAPER_ALT,
     # Answers the objection the hero's count sticker creates: "so what do I do
     # with all these sheets?"
     IMAGE_ASSEMBLE,
+    # A second tablet, showing a page that is NOT the front one — the answer to
+    # "fine, but only the first page does that".
+    IMAGE_ON_A_DEVICE_ALT,
     # The only slide on which a large set is fully legible — whats_included
     # shows thumbnails capped at ContentTilePlan::MAX_TILES and then gives up
     # with "+17 more pages".
     IMAGE_PAGE_INDEX,
-    IMAGE_HOW_IT_WORKS,
     IMAGE_ABOUT,
   ].freeze
 
@@ -124,13 +137,21 @@ class BoardPrintable < ApplicationRecord
   VIDEO_MIN_SECONDS = 5.0
   VIDEO_MAX_SECONDS = 15.0
 
-  # The gallery used to be a scaled-down print sheet: a "cover" plus a
-  # what's-included slide. Nothing renders a cover any more, but printables
-  # generated before the redesign still carry the blob, and it must not reach a
-  # live listing — hence the name survives here and nowhere else. Everything
-  # that guards against it tests "not in LISTING_IMAGE_ORDER" rather than
-  # matching this, so a variant retired later is caught without a code change.
+  # Retired variants. Nothing renders these any more, but printables generated
+  # before each was dropped still carry the blob, and none must reach a live
+  # listing. Everything that guards against them tests "not in
+  # LISTING_IMAGE_ORDER" rather than matching these names, so a variant retired
+  # later is caught without a code change — the constants survive only so the
+  # strings are searchable and so this list records what the gallery used to be.
+  #
+  #   cover                  — the gallery was once a scaled-down print sheet.
+  #   how_it_works           — a four-step strip sharing three of its four icons
+  #                            with `assemble`; a buyer saw the same slide twice.
+  #   whats_included_low_ink — the colour grid rendered a second time in full,
+  #                            now a single pale page inset into that same slide.
   IMAGE_COVER = "cover".freeze
+  IMAGE_HOW_IT_WORKS = "how_it_works".freeze
+  IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
 
   belongs_to :board
   belongs_to :created_by, class_name: "User", optional: true

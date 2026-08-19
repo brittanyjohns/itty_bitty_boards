@@ -49,6 +49,21 @@ module Boards
           entries.max_by { |entry| score(salt, slug_for.call(entry), key) }
         end
 
+        # The top `count` entries, best first. `from` is `top(..., 1).first`.
+        #
+        # Rendezvous hashing RANKS as well as maximises, so a ranked slice keeps
+        # both properties above: deterministic, and appending an entry moves the
+        # minimum rather than reshuffling what already resolved. That is what
+        # lets the gallery ask for two DISTINCT scenes — a board photographed
+        # twice in the same room reads as one screenshot pasted twice.
+        #
+        # A pool shorter than `count` returns what there is rather than raising:
+        # a gallery that repeats a scene beats a printable that cannot render.
+        def top(entries, count, salt:, board:, slug_for: :itself.to_proc)
+          key = board_key(board)
+          entries.sort_by { |entry| score(salt, slug_for.call(entry), key) }.reverse.first(count)
+        end
+
         def board_key(board)
           board.try(:slug).presence || board.try(:id).to_s
         end

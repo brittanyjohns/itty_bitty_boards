@@ -23,6 +23,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Boards already disconnected can be reconnected with `rake menu_boards:relink`.
 ### Changed
 
+- **Etsy listing galleries now lead with a photo of the printable in use.**
+  A board printable's gallery gains four photoreal mockups — the printed sheet
+  staged in two rooms (a classroom easel, a kid table with crayons, a fridge
+  door, a therapy clipboard, a binder) and the board running in the app on two
+  tablets. The room and the tablet are picked from the board, so no two
+  listings look alike. Rank 1 — the image that competes in Etsy's search grid —
+  is now one of those photos rather than flat board art. Two slides made room
+  for them: "how it works" duplicated the assemble steps, and the separate
+  low-ink slide is now a single pale page inset into "what's included". The
+  gallery fills Etsy's ten-photo cap exactly, and nothing needs adding by hand
+  in the seller UI any more. Existing printables show a "rendered with an older
+  gallery" badge in the admin until regenerated.
 - **The trim-ready pages print bigger.** That variant exists so the board fills
   the sheet, but it was still reserving 20mm for a QR code — about 15% of the
   board's printed area on a landscape page, for a code small enough that phones

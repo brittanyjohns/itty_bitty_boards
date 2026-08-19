@@ -108,7 +108,7 @@ module Boards
       def aspect
         return DEFAULT_ASPECT if scene.nil?
 
-        ratio = scene.screen_width.to_f / scene.screen_height
+        ratio = scene.target_width.to_f / scene.target_height
         ratio.positive? && ratio.finite? ? ratio : DEFAULT_ASPECT
       end
 

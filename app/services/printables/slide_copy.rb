@@ -67,6 +67,14 @@ module Printables
     # The "on a device" slide. A buyer looking at a printable doesn't know the
     # same board opens on the tablet already on their kitchen table; this is the
     # one slide that shows it rather than saying it.
+    # ── The mockup slides ──────────────────────────────────────────────────
+    #
+    # Four slides share one template and differ only in their copy: two showing
+    # the board on a tablet, two showing the printed sheet in a room. Each pair
+    # must say a DIFFERENT thing about the same photo — a buyer scrolling past
+    # two tablets with one caption between them reads it as the same picture
+    # twice, which is exactly the impression the second scene exists to avoid.
+
     def on_a_device_badge = "THE SAME BOARD · ON ANY TABLET"
 
     def on_a_device_headline = "Print it, or open it on a screen"
@@ -79,32 +87,77 @@ module Printables
       ]
     end
 
+    # The second tablet answers the objection the first one creates: "fine, but
+    # that's the front page". It is a different room AND a different page.
+    def on_a_device_alt_badge = "EVERY PAGE · NOT JUST THE FIRST"
+
+    def on_a_device_alt_headline(board_count:)
+      return "Every page opens the same way" if board_count > 1
+
+      "Open it anywhere you already are"
+    end
+
+    def on_a_device_alt_bullets(board_count:)
+      return [
+        "Each page carries its own QR code",
+        "Folder tiles open sub-pages, and every one comes back",
+        "No sign-in, no app, no dedicated device",
+      ] if board_count > 1
+
+      [
+        "One code, one tap, the whole board talks",
+        "Works on the tablet the family already owns",
+        "No sign-in, no app, no dedicated device",
+      ]
+    end
+
+    # The paper slides are the ones that show the product a buyer actually
+    # receives. The first stages it, the second says how long it lasts.
+    def on_paper_badge = "PRINT IT TODAY · USE IT TOMORROW"
+
+    def on_paper_headline = "A real board, on real paper"
+
+    def on_paper_bullets
+      [
+        "Prints on plain Letter paper at home",
+        "Full colour, low-ink or trim-ready",
+        "The QR on the sheet opens it online, free",
+      ]
+    end
+
+    def on_paper_alt_badge = "LAMINATE IT · IT LASTS THE YEAR"
+
+    def on_paper_alt_headline(board_count:)
+      return "Print the set, ring it, hand it over" if board_count > 1
+
+      "Print it, laminate it, hand it over"
+    end
+
+    def on_paper_alt_bullets(board_count:)
+      return [
+        "Trim-ready pages cut down clean for laminating",
+        "Hole-punch and ring the set into a book that flips",
+        "Reprint any page, any time — it's yours to keep",
+      ] if board_count > 1
+
+      [
+        "The trim-ready version cuts down clean for laminating",
+        "Survives a school year on a classroom table",
+        "Reprint it any time — it's yours to keep",
+      ]
+    end
+
     # Small, on every footer strip. A gallery image outlives the listing — it
     # gets pinned, screenshotted and reshared — so it should say where it came
     # from without an Etsy page around it.
     def site_mark = "speakanyway.com"
 
-    def whats_included_title(low_ink: false)
-      low_ink ? "Low-ink version included" : "What's included"
-    end
+    def whats_included_title = "What's included"
 
-    def low_ink_headline = "Every page again in low-ink — saves your printer"
-
-    def how_it_works_title = "How it works"
-
-    def how_it_works_headline = "Every printable comes with a free audio companion"
-
-    # Four steps, not the pipeline's three: "print" and "cut or laminate" are
-    # separate jobs for a buyer deciding whether this fits their week, and the
-    # laminate step is what makes a board survive a classroom.
-    def how_it_works_steps
-      [
-        {title: "Download", body: "Instant PDF. No waiting, no shipping."},
-        {title: "Print", body: "Full colour, low-ink or trim-ready. Plain Letter paper."},
-        {title: "Cut & laminate", body: "Optional — laminate to make it last a school year."},
-        {title: "Scan to hear it", body: "The QR opens the same board online — tap a word, it talks."},
-      ]
-    end
+    # The caption on the low-ink proof card. That slide used to be rendered a
+    # second time in full to make this point; one page printed pale beside the
+    # colour grid makes it just as well, for one Grover render instead of eight.
+    def low_ink_headline = "Also in low-ink — saves your printer"
 
     # ── The flip-book slides ───────────────────────────────────────────────
     #

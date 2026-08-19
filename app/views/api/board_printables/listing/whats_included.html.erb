@@ -1,10 +1,11 @@
 <%# The slide a buyer uses to judge how much they're getting before reading a
     word of the description.
 
-    Rendered TWICE — once for the colour pages and once for the low-ink ones —
-    because "also includes a low-ink version" asserted in a bullet is a claim,
-    and the same boards shown printed pale is proof. The low-ink pass is the
-    same grid with hide_colors, so the two slides read as a pair.
+    "Also includes a low-ink version" asserted in a bullet is a claim; one page
+    shown printed pale beside the colour grid is proof. That proof used to be a
+    whole second slide — the identical grid rendered again with hide_colors —
+    which cost up to eight extra Grover renders and spent a slot in a gallery
+    now capped at exactly ten. One inset card makes the same point.
 
     Names the boards rather than quoting a page count: for a set, "People,
     Feelings, Food, Play" is most of the reason to buy, and a page number tells
@@ -16,11 +17,7 @@
   <% end %>
 
   <div class="slide-stack">
-    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title(low_ink: @low_ink) %></div>
-
-    <% if @low_ink %>
-      <div class="headline-callout"><%= Printables::SlideCopy.low_ink_headline %></div>
-    <% end %>
+    <div class="title-banner"><%= Printables::SlideCopy.whats_included_title %></div>
 
     <%# Tile captions only earn their space when there is more than one board to
         tell apart — on a single-board printable the label just repeats the
@@ -54,13 +51,28 @@
       <% end %>
     </div>
 
-    <div class="included-panel">
-      <div class="included-title">In your download</div>
-      <ul class="bullets on-dark">
-        <% @items.each do |item| %>
-          <li><%= item %></li>
-        <% end %>
-      </ul>
+    <div class="included-footer">
+      <div class="included-panel">
+        <div class="included-title">In your download</div>
+        <ul class="bullets on-dark">
+          <% @items.each do |item| %>
+            <li><%= item %></li>
+          <% end %>
+        </ul>
+      </div>
+
+      <%# The aspect is written inline from the render's REAL dimensions, never
+          left to `height: auto` inside a flex item — that percentage resolves
+          against an indefinite height, is ignored, and silently slices the
+          bottom off the page. Same rule as the grid's cards. %>
+      <% if @low_ink_proof %>
+        <div class="low-ink-proof">
+          <div class="paper" style="aspect-ratio: <%= @low_ink_proof[:width] %> / <%= @low_ink_proof[:height] %>;">
+            <img src="<%= @low_ink_proof[:data_uri] %>" alt="<%= Printables::SlideCopy.low_ink_headline %>" />
+          </div>
+          <div class="proof-label"><%= Printables::SlideCopy.low_ink_headline %></div>
+        </div>
+      <% end %>
     </div>
   </div>
 </div>

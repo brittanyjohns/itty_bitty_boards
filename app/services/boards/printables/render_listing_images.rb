@@ -1,6 +1,5 @@
-# Renders the six marketplace gallery slides for a printable: the hero, the
-# board on a tablet, what's included in colour, the same in low-ink, how it
-# works, and about.
+# Renders the ten marketplace gallery slides for a printable — BoardPrintable::
+# LISTING_IMAGE_ORDER is the list, and the order in which Etsy ranks them.
 #
 # Etsy will create a listing with no photos but won't let it go live without
 # one, so these are the minimum a draft needs to be finishable — but they're
@@ -9,10 +8,11 @@
 # page scaled down onto a mat, which is what this rendered before: honest, and
 # invisible next to the competition.
 #
-# Ported from the speakanyway-printables pipeline's step 11. That repo still
-# owns the richer gallery — lifestyle mockups composited into photographed room
-# scenes (its steps 13/14) — which needs a calibrated scene library and a
-# homography solve, and is a different project.
+# Four of the ten are photoreal MOCKUPS — two tablets and two printed sheets,
+# each a real render warped onto a calibrated placeholder in a photographed room
+# (MockupScene, TabletScene, PaperScene, Homography). Ported from the
+# speakanyway-printables pipeline's steps 11/13/14, whose scene library and
+# hand-clicked quads these reuse verbatim.
 #
 # Grover work, so it belongs on Sidekiq, never a request thread.
 module Boards
@@ -33,14 +33,15 @@ module Boards
 
       # => BoardPrintable::LISTING_IMAGE_ORDER
       def call
+        printable.attach_image!(bytes: render("mockup", assigns: paper_assigns(0)), variant: BoardPrintable::IMAGE_ON_PAPER)
         printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO)
+        printable.attach_image!(bytes: render("mockup", assigns: device_assigns(0)), variant: BoardPrintable::IMAGE_ON_A_DEVICE)
         printable.attach_image!(bytes: render("flip_book", assigns: flip_book_assigns), variant: BoardPrintable::IMAGE_FLIP_BOOK)
-        printable.attach_image!(bytes: render("on_a_device", assigns: on_a_device_assigns), variant: BoardPrintable::IMAGE_ON_A_DEVICE)
-        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: false)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
-        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns(low_ink: true)), variant: BoardPrintable::IMAGE_WHATS_INCLUDED_LOW_INK)
+        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
+        printable.attach_image!(bytes: render("mockup", assigns: paper_assigns(1)), variant: BoardPrintable::IMAGE_ON_PAPER_ALT)
         printable.attach_image!(bytes: render("assemble", assigns: shared_assigns), variant: BoardPrintable::IMAGE_ASSEMBLE)
+        printable.attach_image!(bytes: render("mockup", assigns: device_assigns(1)), variant: BoardPrintable::IMAGE_ON_A_DEVICE_ALT)
         printable.attach_image!(bytes: render("page_index", assigns: page_index_assigns), variant: BoardPrintable::IMAGE_PAGE_INDEX)
-        printable.attach_image!(bytes: render("how_it_works", assigns: shared_assigns), variant: BoardPrintable::IMAGE_HOW_IT_WORKS)
         printable.attach_image!(bytes: render("about", assigns: about_assigns), variant: BoardPrintable::IMAGE_ABOUT)
 
         # Last, and only once every slide is attached: a render that raises
@@ -77,29 +78,45 @@ module Boards
       # Three passes over the boards, each memoized, because the slides need
       # genuinely different pages — not the same pixels twice:
       #
-      #   hero  — colour, page header SHOWN. The printed QR lives inside that
-      #           header, and the hero's whole claim is that the sheet itself
-      #           carries the code.
-      #   grid  — colour and low-ink, header HIDDEN. At a sixth of the slide the
-      #           header is just the slide's own title band again, and hiding it
-      #           gives the board the whole tile.
+      #   hero      — colour, page header SHOWN. The printed QR lives inside
+      #               that header, and both the hero and the PAPER mockups
+      #               depend on the sheet visibly carrying the code.
+      #   grid      — colour, header HIDDEN. At a sixth of the slide the header
+      #               is just the slide's own title band again, and hiding it
+      #               gives the board the whole tile. Also what the tablets warp
+      #               onto the glass, inside the app shell.
+      #   low_ink   — ONE page, header hidden, printed pale. The proof card on
+      #               the what's-included slide.
       #
-      # Budget: min(boards, HERO_TILES) + min(boards, 8) * 2 renders, plus the
-      # slides themselves and the one device screen. That is why this runs on
-      # Sidekiq and never on a request thread.
+      # Budget: min(boards, HERO_TILES) + min(boards, 8) + 1 renders, plus the
+      # ten slides and two device screens. The low-ink pass used to cover every
+      # planned board for a whole second slide of its own; a single inset page
+      # makes the same claim for one render instead of eight.
+      #
+      # That is still why this runs on Sidekiq and never on a request thread.
       def hero_thumbnails
         @hero_thumbnails ||= RenderPageThumbnails.new(
           boards: plan.boards.first(HERO_TILES),
         ).call
       end
 
-      def grid_thumbnails(low_ink:)
-        @grid_thumbnails ||= {}
-        @grid_thumbnails[low_ink] ||= RenderPageThumbnails.new(
+      def grid_thumbnails
+        @grid_thumbnails ||= RenderPageThumbnails.new(
           boards: plan.boards,
-          hide_colors: low_ink,
+          hide_colors: false,
           hide_header: true,
         ).call
+      end
+
+      def low_ink_thumbnail
+        return @low_ink_thumbnail if defined?(@low_ink_thumbnail)
+
+        root = plan.boards.first
+        @low_ink_thumbnail = root && RenderPageThumbnails.new(
+          boards: [root],
+          hide_colors: true,
+          hide_header: true,
+        ).call[root.id]
       end
 
       # Tiles that actually have a rendered thumbnail behind them — a board
@@ -213,41 +230,148 @@ module Boards
         )
       end
 
-      def whats_included_assigns(low_ink:)
+      def whats_included_assigns
+        proof = low_ink_thumbnail
+
         shared_assigns.merge(
-          low_ink: low_ink,
-          tiles: tiles_from(grid_thumbnails(low_ink: low_ink)),
+          tiles: tiles_from(grid_thumbnails),
           columns: plan.columns,
           rows: plan.rows,
           tile_max_px: plan.tile_max_px,
           overflow_note: plan.overflow_note,
           items: included_items,
+          # nil when the pale render failed — the slide drops the proof card
+          # rather than showing an empty one, exactly as tiles_from drops a
+          # board whose page didn't render.
+          low_ink_proof: proof && {
+            data_uri: proof.data_uri,
+            width: proof.width,
+            height: proof.height,
+          },
         )
       end
+
+      # ── The four mockup slides ────────────────────────────────────────────
+      #
+      # All four render `listing/mockup.html.erb`; they differ in which photo
+      # they stage, which render they warp onto it, and their copy. Index 0 is
+      # the first of a pair and index 1 the second, and the second is ALWAYS a
+      # different scene and, where the printable has one, a different page —
+      # otherwise the pair reads as one photograph duplicated.
+
+      # The pages the mockups stage: the root, then the next in tree order. A
+      # single-board printable falls back to the root for both, because the
+      # slide's copy may vary but the slide itself must never disappear — see
+      # BoardPrintable::LISTING_IMAGE_ORDER.
+      def mockup_pages
+        @mockup_pages ||= begin
+          boards = plan.boards
+          root = boards.find { |b| b.id == board.id } || boards.first
+          [root, boards.reject { |b| b == root }.first || root].compact
+        end
+      end
+
+      def mockup_page(index) = mockup_pages[index] || mockup_pages.first
 
       # The tablet shows the board inside the APP's chrome, not a bare printed
       # page: a Letter sheet warped onto the glass reads as a photograph of
       # paper taped to a screen, and carries nothing that says the thing on it
-      # talks. RenderDeviceScreen wraps the root board's already-rendered
-      # header-less thumbnail in that chrome — one extra Grover render for the
-      # slide whose whole job is "this also opens on the tablet you own".
-      def on_a_device_assigns
-        scene = TabletScene.for(board)
-        title = Boards::AssetRendering.board_title_for(board)
+      # talks. RenderDeviceScreen wraps an already-rendered header-less
+      # thumbnail in that chrome — one extra Grover render per tablet slide.
+      def device_assigns(index)
+        page = mockup_page(index)
+        scene = tablet_scenes[index] || tablet_scenes.first
+        title = page ? Boards::AssetRendering.board_title_for(page) : nil
 
-        shared_assigns.merge(
-          title: title,
+        mockup_assigns(
           scene: scene,
-          scene_data_uri: scene.data_uri,
+          title: title,
+          badge: index.zero? ? ::Printables::SlideCopy.on_a_device_badge : ::Printables::SlideCopy.on_a_device_alt_badge,
+          headline: index.zero? ? ::Printables::SlideCopy.on_a_device_headline : ::Printables::SlideCopy.on_a_device_alt_headline(board_count: board_count),
+          bullets: index.zero? ? ::Printables::SlideCopy.on_a_device_bullets : ::Printables::SlideCopy.on_a_device_alt_bullets(board_count: board_count),
           # The scene is handed over so the app shell is rendered at THIS
           # tablet's proportions — the homography will stretch whatever it is
           # given onto the glass, and a mismatched shell ships a squashed board.
-          board_data_uri: RenderDeviceScreen.new(
+          art_data_uri: page && scene && RenderDeviceScreen.new(
             title: title,
-            thumbnail: grid_thumbnails(low_ink: false)[board.id],
+            thumbnail: grid_thumbnails[page.id],
             scene: scene,
           ).call,
         )
+      end
+
+      # The paper mockups warp the HEADER-SHOWN page — the sheet a buyer prints,
+      # carrying its own logo, title and QR. That is the whole claim of the
+      # slide, and it also keeps the QR honest for free: hero_thumbnails encode
+      # the bare /pb/<slug> the printed page does, never the UTM-tagged listing
+      # URL. Do not "improve" this by tagging it — see Boards::Printables::Qr.
+      def paper_assigns(index)
+        tile = paper_tiles[index] || paper_tiles.first
+        scene = paper_scene_for(index, tile: tile)
+
+        mockup_assigns(
+          scene: scene,
+          title: tile ? tile[:label].presence || board_title : board_title,
+          badge: index.zero? ? ::Printables::SlideCopy.on_paper_badge : ::Printables::SlideCopy.on_paper_alt_badge,
+          headline: index.zero? ? ::Printables::SlideCopy.on_paper_headline : ::Printables::SlideCopy.on_paper_alt_headline(board_count: board_count),
+          bullets: index.zero? ? ::Printables::SlideCopy.on_paper_bullets : ::Printables::SlideCopy.on_paper_alt_bullets(board_count: board_count),
+          art_data_uri: tile && tile[:data_uri],
+        )
+      end
+
+      def mockup_assigns(scene:, title:, badge:, headline:, bullets:, art_data_uri:)
+        shared_assigns.merge(
+          title: title,
+          scene: scene,
+          scene_data_uri: scene&.data_uri,
+          art_data_uri: art_data_uri,
+          badge: badge,
+          headline: headline,
+          bullets: bullets,
+        )
+      end
+
+      def board_title = Boards::AssetRendering.board_title_for(board)
+
+      def tablet_scenes
+        @tablet_scenes ||= TabletScene.pair_for(board)
+      end
+
+      # The root page first, then the next one — same pairing as mockup_pages,
+      # but read off the hero pass because these slides need the header.
+      def paper_tiles
+        @paper_tiles ||= begin
+          tiles = tiles_from(hero_thumbnails)
+          root = tiles.find { |tile| tile[:board_id] == board.id } || tiles.first
+          [root, tiles.reject { |tile| tile.equal?(root) }.first || root].compact
+        end
+      end
+
+      # A scene whose placeholder is portrait cannot carry a landscape page: the
+      # homography maps ANY rectangle onto the quad, so a mismatch does not fail
+      # — it silently stretches, which a buyer reads as a distorted product. So
+      # the pool is filtered by the page's own orientation first.
+      #
+      # The pair is drawn from the ROOT page's pool in one ranked pick, which is
+      # what makes the two scenes distinct. A page of the other orientation —
+      # rare, but a set can mix — takes its own pick from the other pool, and is
+      # distinct by construction because the pools are disjoint.
+      def paper_scene_for(index, tile:)
+        landscape = tile.nil? || tile[:landscape] != false
+        return paper_scenes[index] || paper_scenes.first if landscape == root_page_landscape
+
+        PaperScene.for(board, landscape: landscape)
+      end
+
+      def paper_scenes
+        @paper_scenes ||= PaperScene.pair_for(board, landscape: root_page_landscape)
+      end
+
+      def root_page_landscape
+        return @root_page_landscape if defined?(@root_page_landscape)
+
+        root = paper_tiles.first
+        @root_page_landscape = root.nil? || root[:landscape] != false
       end
 
       def about_assigns

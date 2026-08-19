@@ -34,14 +34,26 @@ RSpec.describe BoardPrintable do
                 described_class::IMAGE_ABOUT])
     end
 
-    # A blob from the retired two-image gallery would otherwise sort to the end
-    # of listing_images_view and get uploaded to Etsy as a real listing photo.
-    describe "images left over from the retired gallery design" do
-      before { printable.attach_image!(bytes: "old", variant: described_class::IMAGE_COVER) }
+    # A blob from any retired gallery design would otherwise sort to the end of
+    # listing_images_view and get uploaded to Etsy as a real listing photo. All
+    # three are covered, not just the oldest: `how_it_works` and
+    # `whats_included_low_ink` were dropped when the gallery grew its photoreal
+    # mockups and hit Etsy's ten-photo cap exactly.
+    describe "images left over from a retired gallery design" do
+      let(:retired) do
+        [described_class::IMAGE_COVER, described_class::IMAGE_HOW_IT_WORKS,
+          described_class::IMAGE_WHATS_INCLUDED_LOW_INK]
+      end
+
+      before { retired.each { |variant| printable.attach_image!(bytes: "old", variant: variant) } }
+
+      it "is not one of the variants the gallery still renders" do
+        expect(described_class::LISTING_IMAGE_ORDER & retired).to be_empty
+      end
 
       it "are hidden from the gallery view" do
         expect(printable.reload.listing_images_view.map { |i| i[:variant] })
-          .not_to include(described_class::IMAGE_COVER)
+          .not_to include(*retired)
       end
 
       it "make the printable read as not current, so publishing re-renders" do
