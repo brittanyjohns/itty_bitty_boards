@@ -1364,16 +1364,27 @@ RSpec.describe Board, type: :model do
       expect(ids).to include(catalogue_board.id, wizard_board.id)
     end
 
-    it "excludes an unpublished board, a Menu extraction, an OBF import, and a Board Builder child page" do
+    it "excludes an unpublished board, a Menu extraction, an imported set's page, and a Board Builder child page" do
       unpublished = FactoryBot.create(:board, user: admin_user, predefined: false, published: false)
       menu_board = FactoryBot.create(:board, user: admin_user, predefined: false, published: true, parent_type: "Menu")
-      obf_board = FactoryBot.create(:board, user: admin_user, predefined: false, published: true, obf_id: "abc123")
+      # An import is no longer excluded wholesale — only its interior pages are
+      # (see spec/models/board_imported_set_visibility_spec.rb). update_column:
+      # check_is_sub_board re-derives the flag from who links in on every save.
+      obf_page = FactoryBot.create(:board, user: admin_user, predefined: false, published: true, obf_id: "abc123")
+      obf_page.update_column(:sub_board, true)
       builder_child = FactoryBot.create(:board, user: admin_user, predefined: false, published: true,
                                                  settings: { "builder_child" => true })
 
       ids = described_class.admin_owned_boards.pluck(:id)
 
-      expect(ids).not_to include(unpublished.id, menu_board.id, obf_board.id, builder_child.id)
+      expect(ids).not_to include(unpublished.id, menu_board.id, obf_page.id, builder_child.id)
+    end
+
+    it "includes an imported set's root board" do
+      root = FactoryBot.create(:board, user: admin_user, predefined: false, published: true,
+                                       obf_id: "abc123-root", board_type: "dynamic")
+
+      expect(described_class.admin_owned_boards.pluck(:id)).to include(root.id)
     end
 
     it "excludes a published board owned by a regular user" do

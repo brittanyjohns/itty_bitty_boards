@@ -52,7 +52,6 @@ class API::BoardsController < API::ApplicationController
     unless current_user
       static_scope = Board.public_boards
       static_scope = static_scope.with_all_tags(selected_tags) if selected_tags.present?
-      static_scope = static_scope.where(obf_id: nil)
       static_scope = static_scope.search_by_name(query) if query.present?
 
       last_modified = static_scope.maximum(:updated_at) || Time.zone.at(0)
@@ -133,13 +132,13 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     # 3. NORMAL MODE (no search)
     # ---------------------------
-    # NOTE: deliberately no `where(obf_id: nil)` here. That filter belongs
-    # on cross-user discovery scopes (Board.searchable, Board.public_boards)
-    # — it keeps a user's imports out of OTHER users' search results. On a
-    # user's OWN index, we have to show their imports too; otherwise
-    # `boards.count` (which exposes board_count in api_view) reports 6 while
-    # this listing renders 4, and imported boards become unreachable from
-    # the boards page.
+    # NOTE: deliberately no obf filter here. A user's OWN index shows their
+    # imports, pages included; otherwise `boards.count` (which exposes
+    # board_count in api_view) reports 6 while this listing renders 4. The
+    # interior pages of an import are `sub_board: true`
+    # (Boards::ImportedSetClassifier), so the default "Main Boards" filter
+    # already collapses each imported set to its root — no obf-specific rule
+    # needed on any of these listings.
     base_scope = current_user.boards
     filtered_scope = apply_filter(base_scope, filter)
     filtered_scope = filtered_scope.with_any_tags(selected_tags) if selected_tags.present?

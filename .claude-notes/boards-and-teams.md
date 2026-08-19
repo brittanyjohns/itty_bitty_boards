@@ -376,6 +376,48 @@ Two rails keep a malformed file from producing a monster tile:
 A file with neither repeated ids nor `ext_` fields imports exactly as it did
 before — every tile 1x1 — so this is additive for every OBF already in use.
 
+## OBF/OBZ import — an imported set is ONE board in a listing
+
+An imported set is represented everywhere by its **root**; the interior pages
+are sub-boards. This used to be enforced with a blanket `where(obf_id: nil)` on
+`Board.searchable` and `Board.admin_owned_boards`, which hid the root too — an
+import was unreachable from anywhere but the BoardGroup it arrived in, while a
+user's own index (no such filter) showed all thirty pages at once.
+
+`Boards::ImportedSetClassifier` is what makes `sub_board` trustworthy enough to
+carry that rule instead:
+
+- **root** → `sub_board: false` plus `settings["main_board"]`
+  (`Board::MAIN_BOARD_PIN`). The pin is not optional: every page of a set
+  carries a way home, so `parent_boards` always finds tiles pointing at the
+  root and the next save for any unrelated reason would demote it. Same job
+  `builder_root` does for a Board Builder tree; `check_is_sub_board` honours
+  both.
+- **pages** → `sub_board: true`, tagged `sub-board`.
+
+Import can't get this right on its own — `ObzImporter` links the tiles with
+`update_columns` (callbacks skipped) and only once every board in the package
+exists, so `check_is_sub_board` never sees the finished graph. Run the
+classifier AFTER `Boards::BackTileStamper`: without membership it walks the set
+with `Boards::ReachableBoardIds(skip_back_tiles: true)`, and an unflagged way
+home would walk it straight out of the set. A `.obz` import passes
+`member_ids:` (the BoardGroup's boards — every member but the root is a page,
+including one nothing links to); a seeded robust set has no BoardGroup and is
+walked from its `board_builder_robust` root.
+
+Scopes read `Board.without_imported_pages`
+(`obf_id IS NULL OR NOT sub_board`). Backfill for anything imported before the
+classifier existed: `bin/rails obf_import:classify_sets` (`DRY_RUN=false` to
+apply).
+
+**Board Builder seed material is excluded by name, not by accident.** The
+robust-set roots (Core 60/84) and the fringe page templates are admin-owned,
+`predefined` and `published` so the builder can clone them — they were kept out
+of the public catalogue only as a side effect of the OBF filter. That is now
+`Board.not_builder_seed`, keyed on `Boards::RobustSets::ROOT_MARKER` and
+`Boards::FringeTemplates::TEMPLATE_MARKER`. Dropping it publishes a dozen
+builder building blocks into the public board gallery.
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently

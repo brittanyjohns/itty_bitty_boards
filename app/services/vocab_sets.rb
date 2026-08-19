@@ -106,6 +106,14 @@ module VocabSets
     dedupe_tiles!(boards_by_obf_id)
     repair_layout!(slug, boards_by_obf_id)
 
+    # LAST, so it classifies the set that actually survived the prune passes.
+    # A seeded set has no BoardGroup, so the classifier walks it from the root:
+    # the root stays a main board, every page under it becomes a sub-board.
+    # Without this the set's ~30 interior pages are all main boards, and since
+    # the seeder marks them predefined + published they land in the public
+    # gallery and in every user's board search.
+    Boards::ImportedSetClassifier.new(root.reload).call
+
     root
   end
 
