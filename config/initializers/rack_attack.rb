@@ -94,7 +94,9 @@ class Rack::Attack
   AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images].freeze
 
   # Free in-house text-tile rendering. Not in AI_GEN_SUFFIXES on purpose.
-  TEXT_IMAGE_PATHS = %r{\A/api/board_images/\d+/create_text_image\z}
+  # The bulk form is here too: one request, but it fans out to a render per
+  # selected tile, so it is exactly the traffic this throttle exists to bound.
+  TEXT_IMAGE_PATHS = %r{\A/api/board_images/(\d+/create_text_image|create_text_images)\z}
 
   # POST export-package surfaces: single board (+ linked set) and Board Set.
   EXPORT_PACKAGE_PATHS = %r{\A/api/(boards/\d+|board_groups/\d+)/export_package(\.\w+)?\z}
