@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Pasting a word list makes exactly those tiles.** Building a board from a
+  pasted word list quietly appended extra AI-generated words to the end, and
+  "Start with an empty board" came back full of them. Both happened because the
+  board's own name was being used as an AI topic whenever no topic was typed.
+  Words are now generated only when you ask for them — a situation in the story
+  field, or the "Generate words" button.
+- **No more duplicate tiles from mixed capitalization.** A word list containing
+  both "Dog" and "dog" produced two tiles showing the same picture.
+
 - **Menu boards keep their menu photo.** Renaming a board built from a menu —
   or changing its color, or saving its words — used to disconnect it from the
   menu it was made from, so the "View Menu" button vanished from the board page

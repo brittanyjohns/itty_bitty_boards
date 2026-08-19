@@ -5,7 +5,9 @@ class GenerateBoardJob
   def perform(board_id, board_creation_type, options = {})
     word_count = options["word_count"].presence || options["wordCount"].presence.to_i || 12
     board = Board.find_by(id: board_id)
-    Rails.logger.debug "Starting GenerateBoardJob for Board ID #{board_id} with creation type #{board_creation_type} and options: #{options.inspect}"
+    # info, not debug: production runs at :info, so this pipeline was
+    # invisible in the journal when we had to trace a bad board.
+    Rails.logger.info "GenerateBoardJob start board=#{board_id} creation_type=#{board_creation_type} topic_present=#{options["topic"].to_s.strip.present?} word_count=#{word_count} seed_count=#{(options["word_list"] || options["wordList"] || []).compact.size}"
     if board
       words = []
       begin
@@ -37,7 +39,11 @@ class GenerateBoardJob
             end
             generated = board.get_words_for_scenario(topic, age_range, word_count, profile: profile) || []
           end
-          words = (seed_words + generated).uniq
+          # Case-insensitive: Image.by_label matches on LOWER(label), so
+          # "Dog" and "dog" resolve to one Image but a plain .uniq would
+          # still create two tiles showing the same picture.
+          words = (seed_words + generated).uniq { |w| w.to_s.strip.downcase }
+          Rails.logger.info "GenerateBoardJob words board=#{board.id} seed=#{seed_words.size} generated=#{generated.size} final=#{words.size}"
         when "menu"
           # Placeholder for future menu-based word generation logic
           words = []

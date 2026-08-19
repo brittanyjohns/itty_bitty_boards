@@ -1032,6 +1032,46 @@ collections of boards. CRUD is open to any signed-in user;
     bounded; enumerating simple paths over one is factorial (~1.08e8 here) and
     froze the map page.
 
+## Board creation — `board_creation_type` and the AI topic
+
+`POST /api/boards` (`API::BoardsController#create`) enqueues `GenerateBoardJob`
+for every create. What the job does depends entirely on whether it receives a
+**topic**:
+
+- `topic` present → `Board#get_words_for_scenario` calls OpenAI and the
+  generated words are appended to any seed `word_list`.
+- `topic` blank → the board gets exactly the seed `word_list`, or nothing at
+  all (the job short-circuits to status `complete`).
+
+**Invariant: the board name is never an implicit AI topic.** `name` is a
+required column, so any `topic ||= @board.name` fallback makes *every* create an
+AI generation. Commit `68a5fe35` introduced exactly that when it merged the
+`"default"` and `"scenario"` branches, and the result shipped for ~2.5 months:
+pasting a word list silently appended AI words to the end of the board, and
+"Start with an empty board" came back full. Fixed by scoping the name fallback
+to `creation_type == "scenario"`.
+
+The three fill modes on `/boards/new` map like this:
+
+| UI mode | `board_creation_type` | sends `prompt`? | AI words? |
+|---|---|---|---|
+| Describe a situation | `scenario` | yes (name is a valid fallback) | yes |
+| List specific words | `default` | no | **no** |
+| Start blank | `default` | no | **no** |
+
+AI top-up in word-list mode is available, but only explicitly — the
+"Generate words" button (`GET /api/boards/words`) merges suggestions into the
+list *before* create, so the user reviews them first.
+
+Seed and generated words are merged with a **case-insensitive** uniq
+(`GenerateBoardJob`). `Image.by_label` matches on `LOWER(images.label)`, so
+"Dog" and "dog" resolve to one `Image`; a case-sensitive uniq left two tiles
+showing the same picture.
+
+`GenerateBoardJob` logs its start and its `seed=/generated=/final=` counts at
+`info` so the pipeline is traceable in the production journal
+(`bin/prod-logs worker`). Don't demote these to `debug` — prod runs at `info`.
+
 ## Responsive board layouts (sm/md derived from lg)
 
 A board stores a per-tile `layout` for each screen size (`lg`/`md`/`sm`, plus

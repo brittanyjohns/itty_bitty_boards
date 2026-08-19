@@ -175,5 +175,23 @@ RSpec.describe GenerateBoardJob, type: :job do
 
       expect(captured).to eq(%w[apple banana])
     end
+
+    # Image.by_label matches on LOWER(label), so "Dog" and "dog" resolve to
+    # one Image — a case-sensitive uniq left two tiles showing one picture.
+    it "dedupes seeds against generated words case-insensitively" do
+      allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
+      allow(board).to receive(:get_words_for_scenario).and_return(%w[dog Bus])
+
+      captured = nil
+      allow(board).to receive(:find_or_create_images_from_word_list) { |w| captured = w }
+
+      described_class.new.perform(
+        board.id,
+        "default",
+        { "topic" => "pets", "word_list" => %w[Dog cat], "word_count" => 5 },
+      )
+
+      expect(captured).to eq(%w[Dog cat Bus])
+    end
   end
 end

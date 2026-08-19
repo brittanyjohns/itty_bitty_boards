@@ -263,6 +263,76 @@ RSpec.describe "API::Boards", type: :request do
             expect(opts["age_range"]).to be_nil
           end
         end
+
+        # The board name must never become an implicit AI topic. It is a
+        # required column, so falling back to it made every "default" create
+        # an AI generation — pasting a word list silently appended extra
+        # words, and "start blank" came back full. Regression from 68a5fe35.
+        it "sends no topic for a default board with a word list and no prompt" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Riding The School Bus" },
+                 board_creation_type: "default",
+                 word_list: %w[bus driver seat],
+                 wordCount: 48,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, type, opts|
+            expect(type).to eq("default")
+            expect(opts["topic"]).to be_blank
+            expect(opts["word_list"]).to eq(%w[bus driver seat])
+          end
+        end
+
+        it "sends no topic for a default board with neither word list nor prompt" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Empty Board" },
+                 board_creation_type: "default",
+                 wordCount: 48,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts["topic"]).to be_blank
+            expect(opts["word_list"]).to be_nil
+          end
+        end
+
+        it "uses an explicit prompt as the topic for a default board" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Board Name Not Used" },
+                 board_creation_type: "default",
+                 prompt: "getting ready for bed",
+                 word_list: %w[pajamas],
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts["topic"]).to eq("getting ready for bed")
+          end
+        end
+
+        it "still falls back to the board name as the topic for scenario creation" do
+          post "/api/boards",
+               params: {
+                 board: { name: "A Trip To The Zoo" },
+                 board_creation_type: "scenario",
+                 wordCount: 12,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, type, opts|
+            expect(type).to eq("scenario")
+            expect(opts["topic"]).to eq("A Trip To The Zoo")
+          end
+        end
       end
     end
   end
