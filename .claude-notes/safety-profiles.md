@@ -166,6 +166,22 @@ the free-text bio.
   **drops rather than rejects** — a stale frontend must not be able to 422 a
   parent out of saving. If nothing survives, the key is deleted so
   `has_care_info?` stays honest.
+- **The text cleaner strips markup and stores it UNESCAPED — `CareText.clean` is
+  the single rule.** The trap is that `strip_tags` escapes entities on *output*,
+  and the cleaner runs in a `before_save`, so a lone `strip_tags` PERSISTS
+  "hugs &amp; quiet spaces" — the escaped string is what lands in the column and
+  what both consumers then print verbatim (the public page renders each value as
+  a React text node, the care plan ERB uses plain output tags; neither uses
+  `raw`). So `CareText` strips, unescapes, and does it **twice**: the second
+  strip removes markup the first unescape can reveal (`&lt;script&gt;` as typed
+  input), and the second unescape undoes that strip's own re-escaping. Stopping
+  after one unescape leaves the ampersand escaped, which is the whole bug —
+  adding a "safety" `strip_tags` at the end reintroduces it. The rule is
+  idempotent, so re-saving can't compound the escaping. `CareTextRepair` +
+  `rake care:audit_escaped_text` / `care:unescape_text` fix rows written before
+  this existed; the repair reuses `CareText` rather than a bare
+  `CGI.unescapeHTML`, because unescaping a legacy escaped tag without stripping
+  would write live markup back into the column.
 - **The registry is SERVED, not duplicated** — `GET /api/care_sections`
   (`API::CareSectionsController`, unauthenticated like `preset_colors`; it is a
   static schema with no user data in it). `Profile.care_registry_view` emits the

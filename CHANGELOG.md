@@ -7,6 +7,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Ampersands in Care & routines save properly.** Typing "&" into any care
+  field — a sensory note, a meal detail line, a custom section title — stored it
+  as the raw text `&amp;`, so the public MySpeak page and the printed care plan
+  both showed that instead of the character. Existing entries can be repaired
+  with `rake care:unescape_text DRY_RUN=false`.
 - **Menu boards keep their menu photo.** Renaming a board built from a menu —
   or changing its color, or saving its words — used to disconnect it from the
   menu it was made from, so the "View Menu" button vanished from the board page
