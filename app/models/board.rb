@@ -145,7 +145,16 @@ class Board < ApplicationRecord
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :reverse_alphabetical, -> { order(Arel.sql("LOWER(name) DESC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
-  scope :searchable, -> { where.not(board_type: "menu").where(obf_id: nil) }
+  # An imported (.obz) set is ONE entry in a listing: its ROOT board. The set's
+  # interior pages are sub-boards, and a 30-page core set would otherwise bury
+  # every other board in search and in the public gallery. That is what the
+  # blanket `where(obf_id: nil)` used to buy — at the cost of hiding the root
+  # too, which made an import unreachable from anywhere but its own group.
+  # `Boards::ImportedSetClassifier` is what makes `sub_board` trustworthy here:
+  # import links the tiles with `update_columns`, so `check_is_sub_board` never
+  # sees the finished graph on its own.
+  scope :without_imported_pages, -> { where("boards.obf_id IS NULL OR NOT COALESCE(boards.sub_board, false)") }
+  scope :searchable, -> { where.not(board_type: "menu").without_imported_pages }
   scope :menus, -> { where(board_type: "menu").or(where(parent_type: "Menu")) }
   scope :non_menus, -> { where.not(board_type: "menu").where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -171,13 +180,23 @@ class Board < ApplicationRecord
 
   scope :including_images, -> { includes(board_images: :image) }
   # Every admin-owned board eligible to be treated as public: published, not a
-  # Menu extraction, not an OBF import, and not a Board Builder child page (the
-  # whole tree counts as its root). `public_boards` narrows this to the
-  # curated catalogue (`predefined: true`); the admin printables dashboard
-  # wants this wider set — predefined or not — so a Board Builder root or any
-  # other admin-owned published board is offered without needing the
-  # catalogue flag.
-  scope :admin_owned_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, published: true).where.not(parent_type: "Menu").where(obf_id: nil).not_builder_child }
+  # Menu extraction, not an interior page of an imported set, and not a Board
+  # Builder child page (the whole tree counts as its root). `public_boards`
+  # narrows this to the curated catalogue (`predefined: true`); the admin
+  # printables dashboard wants this wider set — predefined or not — so a Board
+  # Builder root or any other admin-owned published board is offered without
+  # needing the catalogue flag.
+  # Board Builder's seed material — the robust vocab-set roots (Core 60/84) and
+  # the fringe page templates — is admin-owned, predefined and published so the
+  # builder can clone it, not because it belongs in the public catalogue. It
+  # used to be kept out of `admin_owned_boards` as a side effect of the blanket
+  # OBF filter (all of it is seeded from .obf). Name the exclusion instead, or
+  # lifting that filter silently publishes a dozen builder building blocks.
+  scope :not_builder_seed, -> {
+    where("boards.settings->>'#{Boards::FringeTemplates::TEMPLATE_MARKER}' IS NULL")
+      .where("NOT COALESCE((boards.settings->>'#{Boards::RobustSets::ROOT_MARKER}')::boolean, false)")
+  }
+  scope :admin_owned_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, published: true).where.not(parent_type: "Menu").without_imported_pages.not_builder_seed.not_builder_child }
   scope :public_boards, -> { admin_owned_boards.where(predefined: true) }
   scope :public_menu_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true, parent_type: "Menu") }
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
@@ -280,6 +299,42 @@ class Board < ApplicationRecord
   # and marks settings["builder_root"] (see BoardTreeBuilder/SeededSetCloner).
   def builder_root?
     settings.is_a?(Hash) && !!settings["builder_root"]
+  end
+
+  # settings["main_board"] — "this board is the top of its own set; never demote
+  # it." An imported set's root needs it for the same reason a Board Builder
+  # root does: every page of a set carries a way home, so `parent_boards` always
+  # finds tiles pointing AT the root, and the next save for any unrelated reason
+  # would flip it to a sub-board and drop it out of `main_boards`.
+  MAIN_BOARD_PIN = "main_board".freeze
+
+  def pinned_main_board?
+    settings.is_a?(Hash) && !!settings[MAIN_BOARD_PIN]
+  end
+
+  # Pin + demote are derived state, written with update_columns on purpose: a
+  # full save re-runs the whole before_save chain (layout, parent, voice, cover
+  # render) on a board nobody asked us to edit, and would re-derive the very
+  # flag we are setting.
+  def pin_as_main_board!
+    return false if pinned_main_board? && sub_board == false
+
+    remove_tag(IS_SUB_BOARD_TAG)
+    update_columns(
+      settings: (settings || {}).merge(MAIN_BOARD_PIN => true),
+      sub_board: false,
+      tags: tags,
+      updated_at: Time.current,
+    )
+    true
+  end
+
+  def mark_as_sub_board!
+    return false if sub_board? && Array(tags).include?(self.class.normalize_tag_value(IS_SUB_BOARD_TAG))
+
+    add_tag(IS_SUB_BOARD_TAG)
+    update_columns(sub_board: true, tags: tags, updated_at: Time.current)
+    true
   end
 
   # The builder BoardGroup that owns this root's built tree (issue #407).
@@ -933,8 +988,10 @@ class Board < ApplicationRecord
     # the root. Those back-links would otherwise make the root look like a
     # sub-board (it has "parent" boards) and drop it out of the main_boards scope
     # / the communicator's dashboard. Pin it as a main board regardless of who
-    # links to it.
-    if builder_root?
+    # links to it. `MAIN_BOARD_PIN` is the same pin for an imported set's root
+    # (Boards::ImportedSetClassifier) — every page of an .obz carries a way
+    # home, so its root has inbound links from the moment it finishes importing.
+    if builder_root? || pinned_main_board?
       self.sub_board = false
       remove_tag(IS_SUB_BOARD_TAG)
       return

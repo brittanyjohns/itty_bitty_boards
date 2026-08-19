@@ -97,6 +97,8 @@ class ObzImporter
 
     stamp_back_tiles!
 
+    classify_set!(root_board)
+
     persist_import_audit!
 
     { boards: boards_by_obf_id, root_board: root_board, dynamic_data: dynamic_data_rows }
@@ -181,6 +183,23 @@ class ObzImporter
     Boards::BackTileStamper.new(@board_group.reload).call
   rescue StandardError => e
     Rails.logger.warn "[ObzImporter] Failed to flag back tiles: #{e.message}"
+  end
+
+  # An imported set is ONE board in every listing: its root. Until this runs the
+  # links were written with update_columns, so Board#check_is_sub_board never
+  # saw them and all 30 pages of a core set sat in `main_boards`. Runs AFTER
+  # stamp_back_tiles! — the classifier reads direction off those flags when it
+  # has to walk the set. Never fatal: an unclassified set still imported fine,
+  # and `obf_import:classify_sets` can settle it later.
+  def classify_set!(root_board)
+    return unless root_board
+
+    Boards::ImportedSetClassifier.new(
+      root_board,
+      member_ids: @board_group&.reload&.board_ids,
+    ).call
+  rescue StandardError => e
+    Rails.logger.warn "[ObzImporter] Failed to classify imported set: #{e.message}"
   end
 
   def resolve_link_target(dynamic_board, boards_by_obf_id, obf_id_by_path)

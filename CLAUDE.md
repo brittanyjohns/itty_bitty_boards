@@ -302,6 +302,22 @@ an explicit decision, not a drive-by edit.
   `board_type: "predictive"`. `#authored_tile_text?` widens that to every tile
   whose text isn't a word — doors plus keyboard keys ("A", "Space"), which
   carry a `data["tile_type"]`.
+- **An imported board set is ONE board in a listing: its root.** The interior
+  pages are sub-boards. That rule used to be a blanket `where(obf_id: nil)` on
+  `Board.searchable` / `Board.admin_owned_boards`, which hid the root too — an
+  import was unreachable from anywhere but the BoardGroup it arrived in, while
+  the user's own index (no such filter) listed all thirty pages. The scopes now
+  read `Board.without_imported_pages` (`obf_id IS NULL OR NOT sub_board`), and
+  `Boards::ImportedSetClassifier` is what makes `sub_board` true enough to carry
+  it: import links tiles with `update_columns` and only after every board
+  exists, so `check_is_sub_board` never sees the finished graph. The root is
+  PINNED (`settings["main_board"]`, alongside `builder_root`) because every page
+  carries a way home — without the pin the next unrelated save demotes it.
+  Run the classifier after `Boards::BackTileStamper`; the walk it falls back to
+  skips back tiles, and an unflagged way home walks straight out of the set.
+  Board Builder seed material (robust-set roots, fringe templates) stays out of
+  the public catalogue by name — `Board.not_builder_seed` — not as a side effect
+  of the OBF filter. Details: `.claude-notes/boards-and-teams.md`.
 - **`data["back_tile"]` is the navigation-DIRECTION signal; `mute_name` is not.**
   Folder links run both ways in practice — every page in a set carries a way
   home stored as an ordinary folder tile — so a walk over `predictive_board_id`

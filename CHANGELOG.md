@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Imported boards show up on the boards page like any other board.** A board
+  set imported from a `.obf`/`.obz` file was filtered out of board search and
+  out of the public board library, so the only way back to it was the group it
+  came in with. Imports now behave like everything else: the set's home board
+  appears under the "Main Boards" filter and in search, and its interior pages
+  sit under it as sub-boards instead of burying the rest of the list. Existing
+  imports are settled by `bin/rails obf_import:classify_sets`.
+
 ### Added
 
 - **Turn a whole selection into text tiles at once.** The board editor's bulk
