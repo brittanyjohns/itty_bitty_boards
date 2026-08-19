@@ -1402,11 +1402,10 @@ class Profile < ApplicationRecord
 
   # Care values render as text on an unauthenticated page, so markup is stripped
   # rather than escaped — there is no field here where a tag is meaningful.
+  # CareText is the rule itself; it is shared with the repair task so the two
+  # can't disagree about what a cleaned value looks like.
   def care_text(value, limit)
-    text = ActionController::Base.helpers.strip_tags(value.to_s).squish
-    return nil if text.blank?
-
-    text[0, limit]
+    CareText.clean(value, limit)
   end
 
   # Enabled unless the owner explicitly turned the section off. A section that

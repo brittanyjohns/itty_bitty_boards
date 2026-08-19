@@ -49,6 +49,19 @@ RSpec.describe Communicators::CarePlanDocument do
       expect(field.values).to eq(["hates anything cold"])
     end
 
+    # Care text reaches the presenter unescaped — the template escapes on
+    # output, so anything already escaped here prints as a visible entity.
+    it "carries a typed ampersand through as a plain character" do
+      doc = with_care(
+        "sections" => {
+          "sensory" => { "values" => { "calming" => "Loves hugs & quiet spaces" } },
+        },
+      )
+
+      expect(doc.care_sections.first.fields.first.values)
+        .to eq(["Loves hugs & quiet spaces"])
+    end
+
     it "follows the stored order" do
       doc = with_care(
         "order" => %w[mobility communication],

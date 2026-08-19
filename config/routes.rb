@@ -395,6 +395,7 @@ Rails.application.routes.draw do
       collection do
         put "update", to: "board_images#update_multiple"
         delete "remove", to: "board_images#remove_multiple"
+        post "create_text_images", to: "board_images#create_text_images"
       end
     end
     resources :scenarios do

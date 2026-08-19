@@ -2,7 +2,7 @@ class API::BoardImagesController < API::ApplicationController
   respond_to :json
   before_action :set_board_image, only: %i[ show ]
   before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit create_text_image set_current_audio attach_youtube_video upload_video clear_video ]
-  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation create_text_image upload_audio reset_audio move destroy attach_youtube_video upload_video clear_video ]
+  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation create_text_image create_text_images upload_audio reset_audio move destroy attach_youtube_video upload_video clear_video ]
 
   # Extension used for the stored blob, keyed by the uploaded content type.
   # Only covers types in BoardImage.accepted_video_content_types — anything
@@ -302,7 +302,7 @@ class API::BoardImagesController < API::ApplicationController
     # Nothing about the picture changed and we still have it — skip the Chrome
     # fork. Tweaking a colour back and forth is cheap to do and expensive to
     # serve, so the no-op case must not cost a render.
-    if unchanged_render?(stored, options)
+    if unchanged_render?(@board_image, stored, options)
       @board_image.save!
       render json: @board_image.api_view(current_user)
       return
@@ -313,6 +313,81 @@ class API::BoardImagesController < API::ApplicationController
     RenderTextTileJob.perform_async(@board_image.id, options.to_h)
 
     render json: @board_image.api_view(current_user)
+  end
+
+  # POST /api/board_images/create_text_images
+  #
+  # The bulk drawer's "Set text image": every selected tile gets ITS OWN label
+  # rendered as its picture. There is deliberately no form on this path — one
+  # shared string would paint every tile the same picture, and the whole point
+  # of the bulk action is skipping the per-tile editor. So nothing here may
+  # depend on a preview to come out right, which is why the two colours are
+  # derived rather than defaulted:
+  #
+  #   * the background is TRANSPARENT, not the tile's colour. A baked-in colour
+  #     goes stale the moment the tile is recoloured, while a transparent PNG
+  #     keeps following it — the same reason generate_placeholder_image is
+  #     transparent, so screen and print keep agreeing.
+  #   * the text colour is derived from the tile's own background. Options'
+  #     near-black default is unreadable on a dark tile, and with no preview
+  #     nobody would see it happen.
+  #
+  # Free, like its single-tile sibling create_text_image — deliberately NO
+  # check_credits!. Ownership comes from scoping to @board.board_images plus
+  # check_board_image_editable!, as on update_multiple.
+  def create_text_images
+    # Rack encodes an empty array as a single empty element, so a selection of
+    # nothing arrives as [""] rather than [] — reject blanks before the guard
+    # or it reads as a real selection and answers 200 having done nothing.
+    board_image_ids = Array(params[:board_image_ids]).reject(&:blank?)
+    @board = Board.includes(:board_images).find_by(id: params[:board_id])
+    if @board.nil?
+      render json: { error: "Board not found" }, status: :unprocessable_content
+      return
+    end
+    if board_image_ids.empty?
+      render json: { error: "No board image IDs provided" }, status: :unprocessable_content
+      return
+    end
+
+    queued = 0
+    unlabeled = 0
+    unchanged = 0
+
+    @board.board_images.where(id: board_image_ids).each do |board_image|
+      options = default_text_tile_options_for(board_image)
+
+      # A picture-only tile has no text to render. Skip it rather than failing
+      # the batch: one of them in a select-all must not cost the other twenty-nine.
+      unless options.valid?
+        unlabeled += 1
+        next
+      end
+
+      stored = board_image.data&.dig("text_image")
+      board_image.data = (board_image.data || {}).merge("text_image" => options.to_h)
+      board_image.data["hide_label"] = options.hide_label
+
+      # Already showing exactly this render — don't pay for another Chrome fork.
+      if unchanged_render?(board_image, stored, options)
+        board_image.save!
+        unchanged += 1
+        next
+      end
+
+      board_image.status = "generating"
+      board_image.save!
+      RenderTextTileJob.perform_async(board_image.id, options.to_h)
+      queued += 1
+    end
+
+    @board.broadcast_board_update!
+    render json: {
+      board: @board.api_view_with_predictive_images(current_user, true),
+      queued: queued,
+      unlabeled: unlabeled,
+      unchanged: unchanged,
+    }
   end
 
   def create_image_variation
@@ -507,13 +582,25 @@ class API::BoardImagesController < API::ApplicationController
 
   private
 
+  # The bulk path's option set: defaults, seeded from the tile itself. See
+  # create_text_images for why the two colours are derived rather than left to
+  # Options' defaults.
+  def default_text_tile_options_for(board_image)
+    Images::TextTile::Options.new(
+      text: board_image.display_label.presence || board_image.label,
+      bg_color: Images::TextTile::Options::TRANSPARENT,
+      text_color: ColorHelper.text_hex_for(board_image.bg_hex),
+      hide_label: true,
+    )
+  end
+
   # Would this text-tile request paint exactly what the tile already shows?
   # Compares only the pixel-affecting options (Options#render_digest drops
   # hide_label), and insists the doc it produced is still there and still the
   # picture on screen — a stale config with a deleted doc must re-render.
-  def unchanged_render?(stored, options)
+  def unchanged_render?(board_image, stored, options)
     return false if stored.blank?
-    return false if @board_image.display_image_url.blank?
+    return false if board_image.display_image_url.blank?
 
     doc_id = stored["doc_id"]
     return false if doc_id.blank?
