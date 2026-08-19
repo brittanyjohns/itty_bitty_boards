@@ -170,7 +170,15 @@ class Board < ApplicationRecord
   scope :not_builder_child, -> { where("NOT COALESCE((settings->>'builder_child')::boolean, false)") }
 
   scope :including_images, -> { includes(board_images: :image) }
-  scope :public_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true).where.not(parent_type: "Menu").where(obf_id: nil) }
+  # Every admin-owned board eligible to be treated as public: published, not a
+  # Menu extraction, not an OBF import, and not a Board Builder child page (the
+  # whole tree counts as its root). `public_boards` narrows this to the
+  # curated catalogue (`predefined: true`); the admin printables dashboard
+  # wants this wider set — predefined or not — so a Board Builder root or any
+  # other admin-owned published board is offered without needing the
+  # catalogue flag.
+  scope :admin_owned_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, published: true).where.not(parent_type: "Menu").where(obf_id: nil).not_builder_child }
+  scope :public_boards, -> { admin_owned_boards.where(predefined: true) }
   scope :public_menu_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true, parent_type: "Menu") }
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
