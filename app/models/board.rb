@@ -1622,15 +1622,42 @@ class Board < ApplicationRecord
     self.save!
   end
 
+  # Copy markers a duplicated board carries in its NAME but must not carry in
+  # its slug. Both ends matter: the admin/API path names clones "Copy of X",
+  # while CloneBoardModal (frontend) pre-fills "X Copy" — the trailing form was
+  # missed for a long time, so copied boards got `snack-time-copy` URLs.
+  #
+  # The trailing pattern requires at least one separator before "copy"
+  # (`[\s_(\[-]+`) so an honest name ending in the letters -copy survives:
+  # "Photocopy Board" must not slugify to "photo-board".
+  COPY_MARKERS = [
+    /\Acopy[\s_-]+of[\s_-]+/i,                    # "Copy of X", "copy-of-X"
+    /[\s_(\[-]+[(\[]?copy[)\]]?[\s_-]*\d*\z/i,     # "X Copy", "X - copy", "X (Copy)", "X copy 2"
+  ].freeze
+
   def self.create_slug(name_to_use)
-    cleaned_name = name_to_use.gsub(/(copy[- ]of[\s_-]*)/i, "").squeeze(" ").strip
-    cleaned_name = cleaned_name.parameterize
-    cleaned_name
+    cleaned_name = name_to_use.to_s.squeeze(" ").strip
+
+    # Applied until stable so a twice-duplicated "X Copy Copy" collapses to "x".
+    loop do
+      before = cleaned_name
+      COPY_MARKERS.each { |marker| cleaned_name = cleaned_name.gsub(marker, "") }
+      cleaned_name = cleaned_name.squeeze(" ").strip
+      break if cleaned_name == before
+    end
+
+    slug = cleaned_name.parameterize
+    # A board genuinely named "Copy" strips to nothing. An empty slug is not a
+    # safe fallback: `slug` is `default: ""` with a non-allow_blank uniqueness
+    # validation, so a blank slug collides with the first slug-less row and the
+    # save fails. Keep the un-stripped name instead.
+    slug = name_to_use.to_s.parameterize if slug.blank?
+    slug
   end
 
   def generate_unique_slug(initial_slug = nil)
     name_to_use = initial_slug || name
-    # Remove both "Copy of " and "copy-of-" (case-insensitive)
+    # Strips "Copy of X" / "X Copy" markers — see COPY_MARKERS.
     cleaned_name = Board.create_slug(name_to_use)
     slug = cleaned_name
     # counter = 1

@@ -2,10 +2,16 @@ require "rails_helper"
 
 # A published board's slug is permanent: `/pb/<slug>` is what the QR codes on
 # printed board printables encode, and printed paper can't be re-issued (#611).
-# The change is IGNORED rather than rejected — the frontend re-derives the slug
-# from the name on every rename, so a 422 would break ordinary board renaming.
+# The change is IGNORED rather than rejected, so a 422 can never break an
+# ordinary board update that happens to carry a slug.
+#
+# This is the STRICTER of the two slug rules. The general one — a rename never
+# re-keys the slug on any board, published or not, and only an admin may change
+# it — lives in boards_slug_rename_spec.rb. An admin is used here so the slug
+# param actually reaches the model; the freeze, not the param strip, is what
+# must hold it.
 RSpec.describe "API::Boards published slug freeze", type: :request do
-  let(:user) { create(:user) }
+  let(:user) { create(:admin_user) }
 
   def update_board(board, params)
     put "/api/boards/#{board.id}", params: params, headers: auth_headers(user)
@@ -56,7 +62,10 @@ RSpec.describe "API::Boards published slug freeze", type: :request do
 
     before { board.generate_unique_slug && board.save! }
 
-    it "still renames the slug — nothing shareable has been handed out" do
+    # The freeze does not apply, so an admin's deliberate slug change lands.
+    # A rename on its own still would not — that is the general rule, covered
+    # in boards_slug_rename_spec.rb.
+    it "lets an admin set the slug — nothing shareable has been handed out" do
       update_board(board, board: { name: "Second Draft", slug: "second-draft" })
 
       expect(response).to have_http_status(:ok)

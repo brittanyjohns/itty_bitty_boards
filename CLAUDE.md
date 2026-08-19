@@ -320,11 +320,31 @@ an explicit decision, not a drive-by edit.
   paths used to do, one line after `set_labels` had folded it) makes every seed
   board's casing permanent in every board built from it: that is what kept the
   Board Builder emitting Title Case after the creation paths were fixed.
-- **A published board's slug is frozen.** `/pb/<slug>` is printed into QR codes
-  and pasted into IEPs, with no redirect behind it. `Board#freeze_published_slug`
-  silently reverts a slug change on a published board (reverts, never raises —
-  the frontend re-derives the slug on every rename). Deliberate renames go
-  through `Board#rename_slug!`.
+- **A slug is derived from the name once, at creation, and a rename never
+  changes it.** `slug` is the `/pb/<slug>` key that a shared link, a MySpeak
+  tile and a printed QR code all resolve through; the name is just a label.
+  BoardForm used to re-derive the slug on every keystroke of the name field, so
+  renaming an unpublished board silently moved its public URL. `Api::BoardsController#update`
+  now leaves the slug alone unless the caller asks for a change:
+  `regenerate_slug: true` (the "Generate slug from name" toggle), a blank
+  `slug` (clearing the field), or an explicit new `slug`. A blank *stored* slug
+  is always backfilled — `validates :slug, uniqueness: true` does not skip
+  blanks and the column is `default: ""`, so two slug-less rows collide.
+- **`slug` and `regenerate_slug` are admin-only params**, stripped from
+  `board_params` for non-admins exactly like `predefined`. Owners rename their
+  boards freely; re-keying a live URL is an admin act.
+- **`Board.create_slug` strips copy markers from both ends.** `COPY_MARKERS`
+  handles "Copy of X" (the API clone path) and "X Copy" / "X (copy)" / "X copy 2"
+  (what CloneBoardModal pre-fills). The trailing pattern requires a separator
+  before "copy" so "Photocopy Board" survives, and a name that strips to nothing
+  ("Copy") falls back to the un-stripped name rather than a blank slug.
+- **A published board's slug is frozen** — the stricter rule on top of all of
+  that. `/pb/<slug>` is printed into QR codes and pasted into IEPs, with no
+  redirect behind it. `Board#freeze_published_slug` silently reverts any slug
+  change on a published board (reverts, never raises, so a slug in the payload
+  can't 422 an otherwise-valid update). Deliberate renames go through
+  `Board#rename_slug!` — the internal API's `force_slug` or the
+  `boards:rename_slug` rake task.
 - **A board that backs a marketplace listing can't be deleted, unpublished or
   renamed.** Same reason as the frozen slug, one step further: the board's
   content was sold as a PDF and every printed page carries a QR pointing at its
