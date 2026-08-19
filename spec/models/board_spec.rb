@@ -1352,6 +1352,37 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe ".admin_owned_boards" do
+    let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+
+    it "includes an admin-owned published board regardless of the predefined flag" do
+      catalogue_board = FactoryBot.create(:board, user: admin_user, predefined: true, published: true)
+      wizard_board = FactoryBot.create(:board, user: admin_user, predefined: false, published: true)
+
+      ids = described_class.admin_owned_boards.pluck(:id)
+
+      expect(ids).to include(catalogue_board.id, wizard_board.id)
+    end
+
+    it "excludes an unpublished board, a Menu extraction, an OBF import, and a Board Builder child page" do
+      unpublished = FactoryBot.create(:board, user: admin_user, predefined: false, published: false)
+      menu_board = FactoryBot.create(:board, user: admin_user, predefined: false, published: true, parent_type: "Menu")
+      obf_board = FactoryBot.create(:board, user: admin_user, predefined: false, published: true, obf_id: "abc123")
+      builder_child = FactoryBot.create(:board, user: admin_user, predefined: false, published: true,
+                                                 settings: { "builder_child" => true })
+
+      ids = described_class.admin_owned_boards.pluck(:id)
+
+      expect(ids).not_to include(unpublished.id, menu_board.id, obf_board.id, builder_child.id)
+    end
+
+    it "excludes a published board owned by a regular user" do
+      user_board = FactoryBot.create(:board, user: FactoryBot.create(:user), predefined: false, published: true)
+
+      expect(described_class.admin_owned_boards.pluck(:id)).not_to include(user_board.id)
+    end
+  end
+
   describe "#public_card_view / .public_board_cards" do
     let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
     let!(:public_board) do

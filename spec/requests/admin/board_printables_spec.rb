@@ -76,6 +76,31 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       expect(response.body).to include("value=\"#{builder_board.id}\"")
     end
 
+    # The list isn't limited to the curated catalogue or the Board Builder
+    # wizard — any admin-owned published board qualifies, predefined or not.
+    it "lists a published admin-owned board that was never marked predefined or built via the wizard" do
+      sign_in admin
+      backup_voice = create(:board, user: default_admin, predefined: false, published: true,
+                                    name: "My Backup Voice")
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).to include("My Backup Voice")
+      expect(response.body).to include("value=\"#{backup_voice.id}\"")
+    end
+
+    # Widening past `predefined` must not widen past ownership — a regular
+    # user's own published board (e.g. a personal safety board) still isn't
+    # the admin's catalogue to offer printables from.
+    it "leaves a published board owned by a regular user out of the list" do
+      sign_in admin
+      create(:board, user: owner, predefined: false, published: true, name: "Owner's Safety Board")
+
+      get admin_dashboard_board_printables_path
+
+      expect(response.body).not_to include("Owner's Safety Board")
+    end
+
     # A printable walks the tree from its root, so a folder page listed as its
     # own row would bury the board it belongs to.
     it "leaves builder child pages and unpublished builder boards out of the list" do
