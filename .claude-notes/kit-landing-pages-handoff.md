@@ -1,0 +1,265 @@
+# Handoff: Dynamic kit landing pages (backend)
+
+**Date:** 2026-08-19 · **Status:** built — see "As built" at the foot of this doc
+**Full plan:** `../drafts/kit-landing-pages-plan.md` (this doc is self-contained; the plan adds context)
+**Counterpart:** `../itty-bitty-frontend/.claude-notes/kit-landing-pages-handoff.md` (blocked on this PR)
+**Issue:** none filed
+**Related spokes:** `.claude-notes/board-printables-etsy.md`, `.claude-notes/marketing-integrations.md`,
+`.claude-notes/classroom-lead-tag-handoff.md`
+
+## Goal
+
+Back a reusable lead-magnet landing page at `app.speakanyway.com/kit/:slug`. Brittany creates and edits
+these pages in `/admin`, picks one of her existing `BoardPrintable` records as the download, and the
+page goes live with no deploy.
+
+## Decisions (already made — don't re-litigate)
+
+- Config lives in the **database**, not a frontend config file. New `KitPage` model.
+- The download is an existing **`BoardPrintable`** plus a chosen PDF variant. Not `MarketingAsset`,
+  not a live `/boards/:id/pdf` render.
+- URLs are `/kit/:slug`. `/classroom` and `/ctg` are **not** migrated and must keep working exactly
+  as they do now — they're printed on QR codes and campaign emails.
+- Leads reuse `DownloadLead` with `source = "kit_<slug>"`. No new lead model, no new table for leads.
+- The email gate is soft by design (see "Known constraint" below). Don't try to harden it in this PR.
+
+## Current state
+
+**`DownloadLead`** — `app/models/download_lead.rb`, table at `db/schema.rb:510-521`
+(`email`, `name`, `board_id`, `source`, `mailchimp_status`, `data` jsonb). Created anonymously via
+`POST /api/download_leads` (`app/controllers/api/download_leads_controller.rb:11` skips auth;
+`config/routes.rb:188`). Sources in use: `free_download`, `classroom_kit`, `ctg`, `playground_nomination`.
+The model header (lines 6-11) documents that new sources should ride the `data` jsonb rather than add columns.
+
+**Mailchimp tagging** — `app/sidekiq/mailchimp_upsert_lead_job.rb:13-21`:
+
+```ruby
+SOURCE_TAGS = {
+  "classroom_kit" => "ClassroomKitLead",
+  "ctg" => "ctg-2026",
+  "playground_nomination" => "PlaygroundNomination",
+}.freeze # fallback DEFAULT_LEAD_TAG = "BoardDownloadLead"
+```
+
+This frozen hash is the only reason a new landing page currently needs a code change. Work item 4 fixes that.
+
+**`BoardPrintable`** — `app/models/board_printable.rb`, table at `db/schema.rb:227-254`.
+- `has_many_attached :files` (line 139); blobs are distinguished by **blob metadata**, not separate
+  attachments. `metadata["kind"]` ∈ `"pdf"` / `"image"` / `"video"`, with **nil meaning legacy PDF**.
+  `KIND_DOWNLOADABLE = [nil, KIND_PDF]` (line 55) is a deliberate allowlist — read the comment there
+  before touching selection logic.
+- PDF variants: `DOWNLOAD_VARIANTS` (line 33) = `color`, `low_ink`, `trim_ready`; single-board docs use `full`.
+- `files_view` (line 268) returns `[{variant, filename, url, byte_size}]` for PDFs only, and its comment
+  states both the admin download buttons and `/api/board_printables/:id/download_url` read it. **Reuse it.**
+- `status` is a plain string, not an enum: `STATUSES = %w[pending generating complete failed]` (line 12);
+  `complete?` at line 145.
+- `protects_board?` (line 407) = `etsy_ever_published? && protection_waived_at.nil?`.
+
+**Existing admin** — `Admin::BoardPrintablesController` (`app/controllers/admin/board_printables_controller.rb`,
+routes at `config/routes.rb:107-120`). `Admin::ApplicationController:3` sets `layout "admin"` and
+requires `authenticate_user!` + `require_admin!`.
+
+**No CMS model exists.** `app/models/page.rb` is `Page < Profile` (MySpeak), not a content page — don't
+confuse the two when naming.
+
+### Known constraint — the gate is soft, don't over-build
+
+`config/storage.yml:9-15` configures the `amazon` service with `public: true`, and
+`config/environments/production.rb:54` uses it. `has_many_attached :files` names no service, so every
+printable file already sits behind a permanent, unsigned `CDN_HOST/board_printables/<id>/<hex>/<file>.pdf`
+URL. The hex path segment is the only protection. Requiring an email before revealing the URL is exactly
+what `/classroom` does today and is the intended behavior here. Do **not** move printables to
+`amazon_private` or add presigned URLs in this PR.
+
+## Work items
+
+### 1. `KitPage` model + migration
+
+```ruby
+create_table :kit_pages do |t|
+  t.string  :slug, null: false                 # kebab-case, unique index
+  t.string  :title, null: false                # h1
+  t.string  :eyebrow                           # pill above the h1, e.g. "Free classroom kit"
+  t.text    :subhead
+  t.jsonb   :content, null: false, default: {} # see shape below
+  t.references :board_printable, foreign_key: true   # nullable until a printable is picked
+  t.string  :printable_variant, null: false, default: "color"
+  t.string  :mailchimp_tag                     # nil => derived default
+  t.string  :cta_label
+  t.string  :cta_path
+  t.boolean :published, null: false, default: false
+  t.datetime :etsy_override_at                 # see item 5
+  t.references :etsy_override_by, foreign_key: { to_table: :users }
+  t.timestamps
+end
+add_index :kit_pages, :slug, unique: true
+```
+
+`content` jsonb shape — keep it small and validated loosely; this is what the frontend renders:
+
+```json
+{
+  "items": [{ "title": "Core word poster", "description": "..." }],
+  "closing": { "heading": "Make it personal", "body": "...", "cta_label": "...", "cta_path": "/sign-up" }
+}
+```
+
+Model requirements:
+- Slug validated against a kebab format — copy `MarketingAsset::SLUG_FORMAT` (`app/models/marketing_asset.rb`).
+- `printable_variant` inclusion in `BoardPrintable::DOWNLOAD_VARIANTS + ["full"]`.
+- `lead_source` → `"kit_#{slug}"`.
+- `resolved_mailchimp_tag` → `mailchimp_tag.presence || "#{slug.camelize}Lead"` (so `at-school` → `AtSchoolLead`).
+- `downloadable?` → `board_printable&.complete? && board_printable.files.attached?`.
+- `download_files` → `board_printable.files_view.select { _1[:variant] == printable_variant }`,
+  falling back to all of `files_view` if that variant isn't present (a printable may only have `full`).
+- Scope `published`.
+
+### 2. Public read endpoint
+
+`GET /api/kit_pages/:slug` → `Api::KitPagesController#show`, `skip_before_action :authenticate_token!`.
+Look up by slug among `published`; 404 `{ error: "kit_page_not_found" }` otherwise.
+
+Response — **never include a file URL here**:
+
+```json
+{
+  "slug": "at-school", "title": "...", "eyebrow": "...", "subhead": "...",
+  "content": { ... }, "cta_label": "...", "cta_path": "...",
+  "downloadable": true
+}
+```
+
+`downloadable: false` tells the frontend to hide the form rather than render a broken gate.
+
+### 3. Public download endpoint
+
+`POST /api/kit_pages/:slug/download` → `Api::KitPagesController#download`, auth skipped.
+
+Params: `{ email:, name?, data?: {} }` (`data` carries UTM, same as `/classroom`).
+
+Behavior:
+1. Find the published page; 404 if missing.
+2. 422 `{ error: "not_available" }` unless `downloadable?`.
+3. Create a `DownloadLead` with `source: page.lead_source`, `email`, `name`, `data` merged with
+   `{ "kit_slug" => page.slug }`. On validation failure return `422 { errors: [...] }` matching the shape
+   `Api::DownloadLeadsController` already returns — the frontend surfaces `errors[0]` inline.
+4. Return `200 { files: page.download_files }`.
+
+Routes, inside `namespace :api` alongside the other public routes near `config/routes.rb:183-188`:
+
+```ruby
+resources :kit_pages, only: [:show], param: :slug do
+  member { post :download }
+end
+```
+
+Watch route ordering — put these with the other `public_*` flat routes, not inside an authenticated block.
+
+### 4. Dynamic Mailchimp tag (the "no deploy per page" piece)
+
+In `app/sidekiq/mailchimp_upsert_lead_job.rb`, keep `SOURCE_TAGS` as the explicit map for the existing
+three sources, then add a fallback: when `source` starts with `kit_`, look up
+`KitPage.find_by(slug: source.delete_prefix("kit_"))` and use `resolved_mailchimp_tag`; if the page is
+gone, fall back to `DEFAULT_LEAD_TAG`. Never raise — a missing page must not fail the job and lose the lead.
+
+Do not add a Customer Journey trigger. Per issue #640 the classroom flow deliberately does not promise
+an emailed kit because no journey fires on the tag; the same is true here.
+
+### 5. Admin CRUD — `/admin/kit_pages`
+
+`Admin::KitPagesController` with `index`, `new`, `create`, `edit`, `update`, plus a `publish` /
+`unpublish` member. Follow `app/views/admin/video_boards/` for structure — it's the closest plain-CRUD
+screen. Conventions in `app/views/layouts/admin.html.erb`: `content_for :page_title`, `admin-card` /
+`admin-input` / `admin-hover-row` / `admin-badge` helper classes, `text-t1/t2/t3`, flash rendered by the
+layout so controllers just `redirect_to ..., notice:`. Forms use plain `form_tag` +
+`text_field_tag`/`text_area_tag` and controllers read flat `params[:foo]` — match that, don't introduce
+`form_with`. **Add the nav link** to the hardcoded list in the layout (lines ~113-138); active state is
+`request.path.start_with?("/admin/kit_pages")`.
+
+Form fields: slug, title, eyebrow, subhead, content items (a repeatable title/description pair is fine;
+a raw JSON textarea is acceptable for v1 if it validates and shows parse errors), printable select,
+variant select, mailchimp tag, CTA label/path, published checkbox.
+
+**Printable select rules:**
+- Only offer `BoardPrintable.where(status: "complete")` with files attached, labeled with the board name
+  and page count.
+- If the selected printable's `protects_board?` is true, **block the save** and re-render with an
+  `admin-flash-err` explaining that this printable is published on Etsy, plus an explicit
+  "Give this away for free anyway" checkbox that, when checked, stamps `etsy_override_at` /
+  `etsy_override_by_id`. Two-step on purpose — selling a printable on Etsy and giving it away from a
+  landing page should never happen by accidentally picking the wrong dropdown row.
+- Show a live "Preview" link to `#{ENV['FRONT_END_URL']}/kit/#{slug}` on the index and edit screens.
+
+## Testing
+
+Run `bundle exec rspec` for the files you touch.
+
+| Case | Expected |
+|---|---|
+| `GET /api/kit_pages/:slug`, published, no token | 200, no file URL in the body |
+| `GET /api/kit_pages/:slug`, unpublished | 404 `kit_page_not_found` |
+| `GET /api/kit_pages/:slug`, unknown slug | 404 |
+| `POST .../download`, valid email | 200 with `files[]`; a `DownloadLead` exists with `source == "kit_<slug>"` |
+| `POST .../download`, blank/invalid email | 422 with `errors[]` |
+| `POST .../download`, page has no printable | 422 `not_available` |
+| `POST .../download` | enqueues `MailchimpUpsertLeadJob` |
+| `MailchimpUpsertLeadJob` with `kit_at-school` | tags `AtSchoolLead` |
+| Same, page deleted | tags `BoardDownloadLead`, does not raise |
+| Variant selection | only the chosen variant is returned when present; falls back to all PDFs when absent |
+| Admin save with an Etsy-published printable, no override | rejected, no record change |
+| Same, with override checked | saved, `etsy_override_at` stamped |
+| Admin routes without an admin session | redirected / rejected |
+
+Also add a regression spec asserting `POST /api/download_leads` still behaves as before — `/classroom`
+and `/ctg` depend on it and must not change.
+
+## Deploy notes
+
+- One migration: `create_kit_pages`. No backfill.
+- No new ENV vars. The preview link uses the existing `FRONT_END_URL`.
+- Ships safely on its own; nothing user-visible until the frontend PR lands.
+- After deploy, create one page in `/admin/kit_pages` so the frontend has something to point at, and
+  put its slug in the frontend PR description.
+
+## Wrap-up
+
+Follow this repo's CLAUDE.md for git workflow and conventions. Open the PR and stop — never merge.
+Commit this doc in the PR so it survives the session. Add a short entry pointing at it from the
+`.claude-notes/` spoke table in CLAUDE.md if the model outlives this feature.
+
+## As built
+
+Shipped as written, with these deliberate deviations — read them before
+changing the model or the contract.
+
+- **`downloadable?` is stricter than the sketch.** It requires a real PDF
+  (`download_files.any?`), not merely `files.attached?`. A printable carrying
+  only listing images or the listing video is "attached" but has nothing a
+  visitor can be handed, and rendering the email gate for it means a form that
+  can only ever 422. Same reason the admin's printable dropdown filters on
+  `pdf_files.any?` rather than on `files.attached?`.
+- **`resolved_mailchimp_tag` underscores before camelizing.** `"at-school".camelize`
+  is `"At-school"`, which is not a usable tag — the slug's hyphens are converted
+  first, so `at-school` → `AtSchoolLead` as specified.
+- **Admin route helpers are `*_dashboard_kit_page(s)`**, matching every other
+  controller in the `admin` namespace. The PATH is still `/admin/kit_pages`, so
+  the nav's `request.path.start_with?` active state is as described.
+- **Content is a raw JSON textarea** (the v1 the doc allows). A parse failure
+  re-renders the form with what was typed, not with the last saved value.
+- **The Etsy override is scoped to the printable it was granted for.** A stamped
+  override lets later edits of the same page through, but swapping in a
+  *different* protected printable asks again, and moving to an unprotected one
+  clears the stamp — a stale grant must not silently authorize the next swap.
+- **No `destroy` action.** Unpublish is the way to take a page down; the row is
+  the only record of which leads came from where.
+
+### Files
+
+- `db/migrate/20260819120000_create_kit_pages.rb`, `app/models/kit_page.rb`
+- `app/controllers/api/kit_pages_controller.rb` (public read + download)
+- `app/controllers/admin/kit_pages_controller.rb`, `app/views/admin/kit_pages/`
+- `app/sidekiq/mailchimp_upsert_lead_job.rb` (the `kit_` tag fallback)
+- Specs: `spec/models/kit_page_spec.rb`, `spec/requests/api/kit_pages_spec.rb`,
+  `spec/requests/api/download_leads_kit_pages_regression_spec.rb`,
+  `spec/requests/admin/kit_pages_spec.rb`, plus additions to
+  `spec/sidekiq/mailchimp_upsert_lead_job_spec.rb`

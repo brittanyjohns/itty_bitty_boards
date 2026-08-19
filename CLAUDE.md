@@ -539,6 +539,23 @@ an explicit decision, not a drive-by edit.
   correct, larger, and — the part that matters — never `""`, the marker for
   "this tile has no picture".
 
+- **A kit landing page's public read carries no file URL.** `/kit/:slug` is a
+  lead magnet: `KitPage#public_view` publishes copy plus a `downloadable`
+  boolean, and the printable's URL is revealed only by `POST
+  /api/kit_pages/:slug/download`, after a `DownloadLead` is written with
+  `source = "kit_<slug>"`. That gate is SOFT on purpose and must not be
+  "hardened" in place — production S3 is `public: true`, so every
+  `board_printables` blob already sits behind a permanent unsigned CDN URL whose
+  hex path segment is the only protection; making it real means moving
+  printables to a private service, not adding a check to this controller. Two
+  things ride on the `kit_` source prefix. `MailchimpUpsertLeadJob` resolves the
+  tag from the `KitPage` row rather than from its frozen `SOURCE_TAGS` hash —
+  that lookup is the whole reason a new landing page needs no deploy, and it may
+  never raise, since a page deleted after its leads were captured must fall back
+  to the default tag rather than strand the lead. And the download always comes
+  from `BoardPrintable#files_view`, the PDF ALLOWLIST, so a listing image or the
+  listing video can never be handed to a visitor as the product.
+
 ## Subsystem map (read the spoke before working in the area)
 
 | Spoke | Covers |
@@ -555,6 +572,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/image-generation.md` | AI tile art: `Images::PromptBuilder` (the single prompt source of truth, always-wrap rule), symbol vs illustrated style resolution, part-of-speech homograph disambiguation, transparency/quality API params + model fallback, refusal retry, variations via the edit endpoint, prompt provenance on docs |
 | `.claude-notes/board-printables-etsy.md` | Publishing a board printable to a marketplace: the drafts-only rule, Etsy's rotating refresh token + why Rails holds a separate grant, the ported Etsy v3 API quirks, listing-copy rules (and their Ruby↔TypeScript drift), Grover-rendered gallery images, the TPT paste sheet |
 | `.claude-notes/writing-suggestions.md` | Contextual writing suggestions (`POST /api/suggestions`): field registry + context allow-list, the no-safety-keys privacy invariant, OpenAI generator + fixtures, free/no-credit contract, user opt-out toggle |
+| `.claude-notes/kit-landing-pages-handoff.md` | Kit landing pages (`/kit/:slug`): the `KitPage` model, the public read/download contract, the `kit_<slug>` lead source and its dynamic Mailchimp tag, the `/admin/kit_pages` CRUD and its Etsy give-away guard |
 
 Related tracked docs: `docs/rds-migration-runbook.md`, `docs/stripe-setup.md`,
 `docs/credits-handoff.md`, `.claude-notes/artifact-generation-services.md`,

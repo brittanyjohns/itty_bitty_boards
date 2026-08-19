@@ -52,6 +52,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Free-kit landing pages can be built without a deploy.** A new admin screen
+  (`/admin/kit_pages`) creates a lead-magnet page served at `/kit/<slug>`: its
+  headline, blurb, "what's inside" list and call to action are edited in the
+  admin, and the download is one of your existing board printables. A visitor
+  enters an email and gets the PDF; the email lands in Mailchimp under a tag
+  named for the page, so each campaign is its own segment. Pages start as
+  drafts and go live when you publish them. `/classroom` and `/ctg` are
+  untouched — they're printed on QR codes and keep working exactly as before.
+  Picking a printable that's for sale on Etsy is refused until you tick a
+  separate "give this away for free anyway" box, which records who chose it.
+
 - **A printable's topic can be edited after it's created, and the listing copy
   rebuilt from it.** The topic is the only part of a listing that describes the
   product — without one, the generic tag pools fill all 13 of Etsy's slots and
