@@ -888,6 +888,120 @@ RSpec.describe "API::Boards", type: :request do
     end
   end
 
+  # "Link a board" — the third tab of the frontend's Add-tiles modal. One
+  # request both creates the tile and points it at an existing board, so there
+  # is never a half-made unlinked tile, and the whole thing stays behind
+  # add_image's existing editable / marketplace guards.
+  describe "POST /api/boards/:id/add_image with predictive_board_id" do
+    # A paid owner on purpose: the Free plan's board_limit of 1 makes every
+    # board but the designated one read-only, and these examples need two
+    # boards at once — a hub and something to link it to.
+    let(:owner) { create(:user, plan_type: "pro", plan_status: "active") }
+    let(:hub_board) { create(:board, user: owner, name: "Hub") }
+    let(:target_board) { create(:board, user: owner, name: "Big Feelings") }
+
+    def tile_for(label)
+      image = Image.by_label(label).first
+      hub_board.reload.board_images.find_by(image_id: image&.id)
+    end
+
+    it "links the new tile to the chosen board and mutes it" do
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: { image: { label: "feelings link" }, predictive_board_id: target_board.id },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+
+      tile = tile_for("feelings link")
+      expect(tile.predictive_board_id).to eq(target_board.id)
+      # mute_name is not decoration: it is what makes door_tile? true, which is
+      # what the board-set map reads to draw the folder edge.
+      expect(tile.data["mute_name"]).to be(true)
+      expect(tile.is_dynamic?).to be(true)
+
+      # The frontend's folder badge keys off the serialized `dynamic` flag, not
+      # off predictive_board_id, so the response has to carry it or the tile
+      # navigates while looking like an ordinary word tile.
+      rendered = JSON.parse(response.body)["images"].find { |i| i["label"] == "feelings link" }
+      expect(rendered["dynamic"]).to be(true)
+      expect(rendered["predictive_board_id"]).to eq(target_board.id)
+      expect(rendered["predictive_board_name"]).to eq("Big Feelings")
+    end
+
+    it "lets a user link to a board from the public library" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      public_board = create(:board, user: admin, name: "Core 24", published: true, predefined: true)
+      expect(Board.public_boards).to include(public_board)
+
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: { image: { label: "core link" }, predictive_board_id: public_board.id },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(tile_for("core link").predictive_board_id).to eq(public_board.id)
+    end
+
+    it "ignores another user's board and still creates the tile" do
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: { image: { label: "foreign link" }, predictive_board_id: other_board.id },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      tile = tile_for("foreign link")
+      expect(tile).to be_present
+      expect(tile.predictive_board_id).to be_nil
+      expect(tile.data).not_to have_key("mute_name")
+    end
+
+    it "ignores a self-link, which would render as a plain tile anyway" do
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: { image: { label: "self link" }, predictive_board_id: hub_board.id },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(tile_for("self link").predictive_board_id).to be_nil
+    end
+
+    it "falls back to the linked board's cover when the image brings no art" do
+      target_board.update!(display_image_url: "https://cdn.example.com/cover.png")
+
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: { image: { label: "artless link" }, predictive_board_id: target_board.id },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(tile_for("artless link").display_image_url).to eq("https://cdn.example.com/cover.png")
+    end
+
+    it "does not overwrite an uploaded picture with the linked board's cover" do
+      target_board.update!(display_image_url: "https://cdn.example.com/cover.png")
+      upload = Rack::Test::UploadedFile.new(Rails.root.join("public", "logo_bubble.png"), "image/png")
+
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: {
+             image: { label: "uploaded link", docs: { image: upload } },
+             predictive_board_id: target_board.id,
+           },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      tile = tile_for("uploaded link")
+      expect(tile.predictive_board_id).to eq(target_board.id)
+      expect(tile.display_image_url).not_to eq("https://cdn.example.com/cover.png")
+    end
+
+    it "leaves the tile unlinked when the param is absent" do
+      post "/api/boards/#{hub_board.id}/add_image",
+           params: { image: { label: "unlinked word" } },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      tile = tile_for("unlinked word")
+      expect(tile.predictive_board_id).to be_nil
+      expect(tile.data).not_to have_key("mute_name")
+    end
+  end
+
   # Mailchimp "hit_limit" Customer Journey trigger (issue #291, journey #3).
   # Enqueued from check_board_create_permissions when a Free user trips the
   # board cap on create / clone / create_from_template. Deduped 14d via
