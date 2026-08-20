@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_19_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_20_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -222,6 +222,31 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_19_120000) do
     t.index ["image_id"], name: "index_board_images_on_image_id"
     t.index ["label"], name: "index_board_images_on_label"
     t.index ["predictive_board_id"], name: "index_board_images_on_predictive_board_id"
+  end
+
+  create_table "board_printable_listings", force: :cascade do |t|
+    t.bigint "board_printable_id", null: false
+    t.bigint "etsy_listing_id"
+    t.string "etsy_listing_url"
+    t.string "state", default: "pending", null: false
+    t.string "purpose", default: "standalone", null: false
+    t.string "label"
+    t.jsonb "listing_copy", default: {}, null: false
+    t.string "topic_override"
+    t.jsonb "image_variants", default: [], null: false
+    t.jsonb "pdf_keys", default: [], null: false
+    t.datetime "published_at"
+    t.datetime "assets_uploaded_at"
+    t.datetime "superseded_at"
+    t.datetime "video_pushed_at"
+    t.datetime "video_push_claimed_at"
+    t.datetime "claimed_at"
+    t.text "error"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_printable_id", "state"], name: "index_board_printable_listings_on_board_printable_id_and_state"
+    t.index ["etsy_listing_id"], name: "index_board_printable_listings_on_etsy_listing_id", unique: true, where: "(etsy_listing_id IS NOT NULL)"
   end
 
   create_table "board_printables", force: :cascade do |t|
@@ -1191,6 +1216,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_19_120000) do
   add_foreign_key "board_groups", "boards", column: "root_board_id"
   add_foreign_key "board_images", "boards"
   add_foreign_key "board_images", "images"
+  add_foreign_key "board_printable_listings", "board_printables"
+  add_foreign_key "board_printable_listings", "users", column: "created_by_id"
   add_foreign_key "board_printables", "boards"
   add_foreign_key "board_printables", "users", column: "created_by_id"
   add_foreign_key "board_printables", "users", column: "protection_waived_by_id"

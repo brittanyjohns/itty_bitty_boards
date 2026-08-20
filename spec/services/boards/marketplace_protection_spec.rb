@@ -117,4 +117,49 @@ RSpec.describe Boards::MarketplaceProtection do
       expect(described_class.new(unrelated).summary).to be_nil
     end
   end
+
+  # A printable can carry several Etsy listings. Protection reads every one of
+  # them and is never filtered on which are live: the paper a superseded listing
+  # sold is still on someone's fridge.
+  describe "with listing rows" do
+    # The shape everything will look like once the scalar columns are gone.
+    def listing_only_printable(**listing_attrs)
+      printable = BoardPrintable.create!(
+        board: root, status: "complete", board_ids: [root.id, page.id],
+      )
+      printable.etsy_listings.create!(**listing_attrs)
+      printable
+    end
+
+    it "protects from a listing row alone, with no scalar columns set" do
+      listing_only_printable(etsy_listing_id: 1234567890, state: "published",
+                             published_at: 1.day.ago)
+
+      expect(described_class.new(root).protected?).to be true
+      expect(described_class.new(page).protected?).to be true
+    end
+
+    # Detaching is not a release. Release is the audited waiver, and nothing
+    # else.
+    it "keeps protecting after every listing is superseded" do
+      listing_only_printable(etsy_listing_id: 1234567890, state: "superseded",
+                             published_at: 2.days.ago, superseded_at: 1.day.ago)
+
+      expect(described_class.new(root).protected?).to be true
+    end
+
+    # Allocating a row touches nothing external, so it must lock nothing —
+    # otherwise drafting a second listing you never publish freezes the boards.
+    it "does not protect from a pending row that never reached Etsy" do
+      listing_only_printable(state: "pending")
+
+      expect(described_class.new(root).protected?).to be false
+    end
+
+    it "does not protect from a failed row that never reached Etsy" do
+      listing_only_printable(state: "failed", error: "Etsy said no")
+
+      expect(described_class.new(root).protected?).to be false
+    end
+  end
 end

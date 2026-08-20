@@ -157,6 +157,13 @@ class BoardPrintable < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :protection_waived_by, class_name: "User", optional: true
 
+  # The Etsy listings made from this printable — a standalone and a bundle, say.
+  # `dependent: :destroy` matches the record's existing semantics: deleting a
+  # printable already leaves its Etsy drafts alone (this app implements no
+  # delete call), and the confirm dialog is what warns about them.
+  has_many :etsy_listings, -> { ordered },
+           class_name: "BoardPrintableListing", dependent: :destroy
+
   has_many_attached :files
 
   validates :status, inclusion: { in: STATUSES }
