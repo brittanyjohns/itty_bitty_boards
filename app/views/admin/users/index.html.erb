@@ -26,6 +26,9 @@
       <option value="trial" <%= "selected" if @filter == "trial" %>>Trial</option>
       <option value="demo" <%= "selected" if @filter == "demo" %>>Demo accounts</option>
       <option value="locked" <%= "selected" if @filter == "locked" %>>Locked</option>
+      <option value="ios" <%= "selected" if @filter == "ios" %>>Signed up on iOS</option>
+      <option value="android" <%= "selected" if @filter == "android" %>>Signed up on Android</option>
+      <option value="web" <%= "selected" if @filter == "web" %>>Signed up on web</option>
     </select>
 
     <input type="hidden" name="sort" value="<%= @sort %>">
@@ -63,6 +66,7 @@
             ["Email",      "email"],
             ["Name",       "name"],
             ["Plan",       "plan_type"],
+            ["Source",     "signup_platform"],
             ["Boards",     "boards"],
             ["Sign-ins",   "sign_in_count"],
             ["Last login", "current_sign_in_at"],
@@ -111,6 +115,12 @@
                 <%= pilot[:label] %>
               </span>
             <% end %>
+          </td>
+          <td class="px-5 py-3">
+            <% platform = signup_platform(user) %>
+            <span class="<%= signup_platform_badge_class(platform) %> inline-block text-xs rounded px-2 py-0.5">
+              <%= platform == "ios" ? "iOS" : platform %>
+            </span>
           </td>
           <td class="px-5 py-3 text-xs text-t2 text-center">
             <%= user.boards.size %>

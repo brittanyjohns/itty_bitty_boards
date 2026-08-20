@@ -145,6 +145,30 @@ RSpec.describe "API::Admin::Users", type: :request do
     end
   end
 
+  describe "DELETE /api/admin/users/destroy_users" do
+    it "deletes the selected users, including NULL-role accounts" do
+      nil_role = create(:user, email: "nilrole@example.com", role: nil)
+
+      delete "/api/admin/users/destroy_users",
+             params: { user_ids: [nil_role.id] },
+             headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(nil_role.reload.soft_deleted?).to be(true)
+    end
+
+    it "never deletes an admin" do
+      other_admin = create(:admin_user, email: "other-admin@example.com")
+
+      delete "/api/admin/users/destroy_users",
+             params: { user_ids: [other_admin.id] },
+             headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(other_admin.reload.soft_deleted?).to be(false)
+    end
+  end
+
   describe "DELETE /api/admin/users/cleanup_demo" do
     let!(:demo1) { create(:user, email: "bhannajohns+one@gmail.com") }
     let!(:demo2) { create(:user, email: "bhannajohns+two@gmail.com") }
@@ -211,6 +235,18 @@ RSpec.describe "API::Admin::Users", type: :request do
 
         expect(User.exists?(user.id)).to be true
         expect(User.exists?(admin.id)).to be true
+      end
+
+      # The factory sets an explicit role; every real signup's is NULL, and a
+      # plain `where.not(role: "admin")` treats NULL as "not a match".
+      it "includes a demo user whose role is NULL" do
+        nil_role = create(:user, email: "bhannajohns+nilrole@gmail.com", role: nil)
+
+        delete "/api/admin/users/cleanup_demo",
+               params: { keep_count: 0 },
+               headers: auth_headers(admin)
+
+        expect(User.exists?(nil_role.id)).to be false
       end
     end
   end

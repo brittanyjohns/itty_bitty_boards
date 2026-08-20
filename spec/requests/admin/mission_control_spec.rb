@@ -104,6 +104,16 @@ RSpec.describe "Admin::MissionControl", type: :request do
       expect(User.exists?(admin_demo.id)).to be true
     end
 
+    # The factory sets an explicit role; every real signup's is NULL, and a
+    # plain `where.not(role: "admin")` treats NULL as "not a match".
+    it "deletes a demo user whose role is NULL" do
+      nil_role = create(:user, email: "bhannajohns+nilrole@gmail.com", role: nil)
+
+      post cleanup_demo_admin_mission_control_path, params: { keep_count: 0 }
+
+      expect(User.exists?(nil_role.id)).to be false
+    end
+
     it "never deletes non-demo users" do
       post cleanup_demo_admin_mission_control_path, params: { keep_count: 0 }
 

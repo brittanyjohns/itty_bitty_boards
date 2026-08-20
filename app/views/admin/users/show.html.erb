@@ -363,6 +363,8 @@
         ["Stripe sub",       @user.stripe_subscription_id.present? ?
           link_to(@user.stripe_subscription_id, "https://dashboard.stripe.com/subscriptions/#{@user.stripe_subscription_id}",
                   target: "_blank", rel: "noopener", class: "text-accent hover:underline") : "—"],
+        ["Signup source",    signup_platform(@user) == "ios" ? "iOS" : signup_platform(@user)],
+        ["Signup method",    @user.settings&.dig("signup_method").presence || "—"],
         ["Signup ref",       @user.settings&.dig("signup_ref").presence || "—"],
         ["Created",          @user.created_at.strftime("%b %-d, %Y %H:%M %Z")],
         ["Last sign-in",     @user.last_sign_in_at&.strftime("%b %-d, %Y %H:%M %Z") || "Never"],

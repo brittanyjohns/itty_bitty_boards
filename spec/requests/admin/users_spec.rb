@@ -37,6 +37,34 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response.body).not_to include("bob@example.com")
     end
 
+    it "shows each user's signup source" do
+      create(:user, email: "ios-signup@example.com", settings: { "signup_platform" => "ios" })
+
+      get admin_dashboard_users_path
+
+      expect(response.body).to include("Source")
+      expect(response.body).to include("iOS")
+    end
+
+    it "filters by signup platform" do
+      create(:user, email: "ios-only@example.com", settings: { "signup_platform" => "ios" })
+      create(:user, email: "web-only@example.com", settings: { "signup_platform" => "web" })
+
+      get admin_dashboard_users_path(filter: "ios")
+
+      expect(response.body).to include("ios-only@example.com")
+      expect(response.body).not_to include("web-only@example.com")
+    end
+
+    it "sorts by signup platform" do
+      create(:user, email: "ios-sorted@example.com", settings: { "signup_platform" => "ios" })
+
+      get admin_dashboard_users_path(sort: "signup_platform", dir: "asc")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("ios-sorted@example.com")
+    end
+
     it "sorts by column" do
       get admin_dashboard_users_path(sort: "email", dir: "asc")
       expect(response).to have_http_status(:ok)
@@ -557,6 +585,28 @@ RSpec.describe "Admin::Users", type: :request do
       expect(user1.reload.soft_deleted?).to be(false)
       expect(flash[:notice]).to include("Deleted 2 demo account")
       expect(flash[:notice]).to include("Skipped 1")
+    end
+
+    # Every real signup has a NULL role — nothing defaults the column — so the
+    # factory's explicit `role: "user"` hides the exact case the bulk delete
+    # used to drop on the floor.
+    it "deletes a demo account whose role is NULL" do
+      demo = create(:user, email: "bhannajohns+nilrole@gmail.com", role: nil)
+
+      post destroy_users_admin_dashboard_users_path, params: { user_ids: [demo.id] }
+
+      expect(demo.reload.soft_deleted?).to be(true)
+      expect(flash[:notice]).to include("Deleted 1 demo account")
+      expect(flash[:notice]).not_to include("Skipped")
+    end
+
+    it "still refuses an admin with a demo-pattern email" do
+      demo_admin = create(:admin_user, email: "bhannajohns+bulkadmin@gmail.com")
+
+      post destroy_users_admin_dashboard_users_path, params: { user_ids: [demo_admin.id] }
+
+      expect(demo_admin.reload.soft_deleted?).to be(false)
+      expect(flash[:notice]).to include("Deleted 0 demo account")
     end
 
     it "alerts when nothing is selected" do

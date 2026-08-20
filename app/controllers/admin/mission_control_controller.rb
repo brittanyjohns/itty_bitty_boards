@@ -24,7 +24,10 @@ module Admin
 
       demo_users = User.demo_accounts.includes(:boards)
       excluded = demo_users.where(id: exclude_ids)
-      candidates = demo_users.where.not(id: exclude_ids).where.not(role: "admin")
+      # No `.where.not(role: "admin")` — `demo_accounts` already excludes admins
+      # NULL-safely via `non_admin`, and stacking the plain form drops every
+      # ordinary signup, whose role is NULL. See Admin::UsersController#destroy_users.
+      candidates = demo_users.where.not(id: exclude_ids)
 
       ranked = candidates.sort_by { |u| -u.boards.size }
       kept = ranked.first(keep_count)
