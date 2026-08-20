@@ -32,20 +32,25 @@ RSpec.describe Etsy::ListingCopy do
     end
 
     # The defect the 2026-08-20 analysis found: every zero-view listing opened
-    # on a niche noun nobody searches, with the phrase buyers actually type
-    # pushed past the fold. The board name is the qualifier now, always.
-    it "leads with the head term and makes the board name the qualifier" do
+    # on a niche noun nobody searches. Leading with the head term and demoting
+    # the board name to a trailing qualifier fixed that but broke the shop
+    # grid instead — Etsy truncates a title around 34 characters there, and
+    # "AAC Communication Board Printable, " alone is 35, so every non-core
+    # listing rendered identically while browsing. The board name now folds
+    # into the head, right after "AAC", so both the head term and the thing
+    # that varies land inside that window.
+    it "leads with the head term and folds the board name in right after it" do
       niche = create(:board, user: owner, name: "Recess")
       title = described_class.new(
         BoardPrintable.create!(board: niche, status: "complete", board_ids: [niche.id]),
       ).build["title"]
 
-      expect(title).to start_with("AAC Communication Board Printable,")
-      expect(title).to include("Recess")
+      expect(title).to start_with("AAC Recess Communication Board Printable")
+      expect(title[0, 34]).to include("Recess")
     end
 
     # The one exception: a board whose name already names the product folds
-    # INTO the head rather than being repeated after it.
+    # INTO the head without the product phrase repeated after it.
     it "folds a board name that already names the product into the head" do
       named = create(:board, user: owner, name: "Core Words Board")
       title = described_class.new(
@@ -53,11 +58,11 @@ RSpec.describe Etsy::ListingCopy do
       ).build["title"]
 
       expect(title).to start_with("AAC Core Words Board")
-      expect(title).not_to include("AAC Communication Board Printable")
+      expect(title).not_to include("Communication Board")
     end
 
     it "names the product when the board's own name doesn't" do
-      expect(build["title"]).to start_with("AAC Communication Board Printable")
+      expect(build["title"]).to start_with("AAC Core Words Communication Board Printable")
     end
 
     # A blank topic used to collapse the title ladder onto its bare
@@ -78,11 +83,14 @@ RSpec.describe Etsy::ListingCopy do
 
       # A shipped listing once ended "… Printable for Speech The (Digital
       # Download)": every rung overflowed and the suffix step cut mid-word.
-      # Ending on the complete tail is the proof it took a rung that fits —
-      # `not_to include("for Speech The")` was no proof at all, since every
-      # untruncated title contains it inside "for Speech Therapy".
+      # A board name this long overflows even the bare head, so every rung
+      # that embeds it overflows too — the guaranteed-fitting rung is the
+      # generic head with no board name at all, which is the proof it took a
+      # rung that fits rather than truncating mid-word.
       expect(title.length).to be <= Etsy::CopyRules::TITLE_MAX
-      expect(title).to end_with("for Speech Therapy & Autism (Digital Download)")
+      expect(title).to start_with("AAC Communication Board Printable")
+      expect(title).not_to include("Snack Time Snack Time")
+      expect(title).to end_with("(Digital Download)")
     end
   end
 

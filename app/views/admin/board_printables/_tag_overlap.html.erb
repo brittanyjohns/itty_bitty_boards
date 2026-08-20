@@ -34,6 +34,33 @@
   </div>
 <% end %>
 
+<%# Same contract as the tag-overlap card above, one field over: the title's
+    shop-grid-truncation prefix instead of the tag set. %>
+<% if @title_prefix_overlap&.any? %>
+  <div class="admin-card border rounded-xl p-5 mb-6" style="border-color: #b45309;">
+    <h2 class="text-sm font-medium mb-1" style="color: #f59e0b;">
+      This title's first <%= Etsy::TitlePrefixOverlap::PREFIX_LENGTH %> characters match
+      <%= pluralize(@title_prefix_overlap.matches.size, "other listing") %>
+    </h2>
+    <p class="text-[11px] text-t3 mb-3">
+      Etsy's shop grid truncates a title around this length, so listings sharing this prefix look
+      identical while browsing and compete with each other instead of reaching a buyer searching
+      for either one specifically. Move what makes this listing distinct earlier in the title.
+    </p>
+
+    <div class="space-y-2">
+      <% @title_prefix_overlap.matches.each do |match| %>
+        <div class="text-xs text-t1">
+          <%= link_to admin_dashboard_board_printable_path(match.printable), class: "hover:text-accent transition-colors" do %>
+            <%= match.label %>
+            <span class="text-t3">(printable #<%= match.printable.id %>)</span>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
 <%# Same panel, same contract: advisory only, never a gate. Each of these is a
     slot or a search term the listing is leaving on the table, and each has a
     legitimate exception only an admin can judge. %>

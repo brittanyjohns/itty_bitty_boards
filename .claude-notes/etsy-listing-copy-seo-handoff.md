@@ -23,9 +23,15 @@ every defect. That is what this work fixes.
 
 ## Decisions (already made — don't re-litigate)
 
-1. Titles **always** lead with the head term. Board name is always the qualifier. No
-   conditional branch — this was explicitly chosen over a "merge when the board name
-   already contains a head term" variant.
+1. Titles **always** lead with the head term ("AAC"). **Superseded 2026-08-20, later the
+   same day:** the board name does NOT trail as a qualifier — it folds into the head
+   itself, right after "AAC", because Etsy's shop grid truncates a title around 34
+   characters and "AAC Communication Board Printable, " alone is already 35. A trailing
+   qualifier put every non-core listing's distinguishing word past the cut, so they read
+   as identical while browsing — the same defect `Etsy::TagOverlap` exists to catch, one
+   field over. `Etsy::TitlePrefixOverlap` now warns when two printables share their first
+   34 characters, same contract as `TagOverlap`. The "fold into the head when the board
+   name already names the product" branch is unaffected — that was never a qualifier.
 2. Single-word tags are blocked in `normalize_tag` **and** removed from the pools.
    Rule-level enforcement was explicitly chosen so a future pool edit cannot
    reintroduce them.
@@ -146,27 +152,39 @@ and `"classroom visuals"` if you moved them into `AUDIENCE_TAGS`.
 Every tag must be ≤20 characters. `"pecs alternative"` is 16, `"nonverbal child"` is 15,
 `"communication board"` is 19.
 
-### 3. Head-term-first titles
+### 3. Head-term-first titles, board name folded into the head (implemented, corrected)
 
-`app/services/etsy/listing_copy.rb#title`. The product phrase leads; the board name
-becomes part of the qualifier:
-
-```ruby
-head = "AAC #{CopyRules.title_case_words(PRODUCT_HUMAN)} Printable"
-```
-
-with the special case that when the board name already contains a head-term word
-(`names_product` at L146-147 computes this), the board name folds into the head instead
-of being repeated:
+`app/services/etsy/listing_copy.rb#title`. This shipped in PR #737 with the board name
+as a trailing qualifier (`"AAC Communication Board Printable, #{base}, …"`), which turned
+out to break the shop grid: Etsy truncates a title around 34 characters there, and the
+fixed head alone already eats 35, so every non-core listing rendered identically while
+browsing. Corrected the same day — the board name now goes INSIDE the head, at
+character 4:
 
 ```ruby
-head = "AAC #{CopyRules.title_case_words(base)}"   # "AAC Core Communication Board"
+head = if names_product
+  "AAC #{base}"                                                          # unchanged
+else
+  "AAC #{base} #{CopyRules.title_case_words(PRODUCT_HUMAN)} Printable"   # "AAC Recess Communication Board Printable"
+end
 ```
 
-Then the qualifier clause carries `base` (when not already folded in), `size_phrase`,
-and `topic_phrase`. Keep the widest-first ladder and keep a guaranteed-fitting last
-rung — `pick_fitting_title` truncates mid-word if every rung overflows, which has
-already shipped a listing titled `"… Printable for Speech The (Digital Download)"`.
+`subject` is gone — the board name is always inside `head` now, in both branches, so it
+is never repeated in the qualifier clause below. The qualifier clause carries only
+`size_phrase` and `topic_phrase`. Keep the widest-first ladder and keep a
+guaranteed-fitting last rung (`generic_head`, unchanged — the fixed phrase with no board
+name at all) — `pick_fitting_title` truncates mid-word if every rung overflows, which has
+already shipped a listing titled `"… Printable for Speech The (Digital Download)"`. A
+board name long enough to overflow even the bare `head` falls all the way to
+`generic_head`, which drops the board name and the tail — that's an accepted trade-off,
+not a bug: a title that can't fit the board name at all is better generic than truncated
+mid-word.
+
+`app/services/etsy/title_prefix_overlap.rb` is the admin advisory that would have caught
+the trailing-qualifier defect: it warns when two printables' titles share their first 34
+characters, same WARN-never-block contract as `Etsy::TagOverlap`. Wired into
+`Admin::BoardPrintablesController#show` as `@title_prefix_overlap` and rendered in
+`_tag_overlap.html.erb` alongside the tag-overlap card.
 
 Watch the ampersand: `tail` is `"for Speech Therapy & Autism"` and Etsy 400s on a second
 `&`. `enforce_title_rules` rewrites later ones to "and", so this is handled — but if you

@@ -71,8 +71,9 @@ module Etsy
       Advisory.new(
         key: :buried_head_term,
         message: "The title's first #{HEAD_TERM_WINDOW} characters don't say \"AAC\".",
-        detail: "Lead with the phrase buyers search (\"AAC Communication Board Printable\") " \
-                "and make the board name the qualifier that follows it.",
+        detail: "Lead with \"AAC\" and fold the board name in right after it — the shop grid " \
+                "truncates around 34 characters, so the head term and the board name both need " \
+                "to land inside that window.",
       )
     end
   end

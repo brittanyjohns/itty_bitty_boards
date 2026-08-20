@@ -150,31 +150,40 @@ module Etsy
 
     TITLE_TAIL = "for Speech Therapy & Autism".freeze
 
-    # Keyword-forward title, and the head term ALWAYS leads.
+    # Keyword-forward title, and the head term ALWAYS leads — but the board
+    # name folds INTO the head, at character 4, rather than trailing it as a
+    # qualifier.
     #
-    # It used to lead with the board's own name, on the reasoning that buyers
-    # search "core words board" rather than "SpeakAnyWay". That holds only when
-    # the board name is itself a search term. Every zero-view listing in the
-    # 2026-08-20 analysis was a niche noun — "Recess", "Haircut", "Potty" — put
-    # in front of the phrase buyers actually type, so the title opened on a word
-    # nobody searches. The board name is now always the QUALIFIER; the product
-    # phrase is always the head.
+    # It used to lead with the board's own name outright, on the reasoning
+    # that buyers search "core words board" rather than "SpeakAnyWay". That
+    # held only when the board name was itself a search term. Every zero-view
+    # listing in the 2026-08-20 analysis was a niche noun — "Recess",
+    # "Haircut", "Potty" — opening the title on a word nobody searches, so the
+    # rule flipped to head-term-first with the board name demoted to a
+    # trailing qualifier. That in turn broke the shop grid: Etsy truncates a
+    # listing's title around 34 characters there, and "AAC Communication Board
+    # Printable, " alone is 35 — every non-core listing rendered identically
+    # while browsing, competing with itself in search instead of the board
+    # name distinguishing it. Folding the board name straight after "AAC "
+    # keeps the head term leading AND puts the one thing that varies between
+    # listings inside the truncation window.
     #
     # The one exception is a board whose name already names the product ("Core
-    # Words Board"): repeating the product phrase reads badly and eats the
-    # 140-char budget, so the name folds INTO the head instead of following it —
-    # "AAC Core Words Board", never "AAC Communication Board Printable, Core
-    # Words Board".
+    # Words Board"): the product phrase would otherwise repeat right after it
+    # ("AAC Core Words Board Communication Board Printable"), so the head is
+    # just "AAC #{base}" and nothing is appended.
     def title
       @title ||= begin
         base = CopyRules.title_case_words(board_name)
 
         type_words = PRODUCT_HUMAN.downcase.split(/\s+/).select { |w| w.length > 3 }
         names_product = type_words.any? { |w| base.downcase.include?(w) }
-        head = names_product ? "AAC #{base}" : generic_head
+        head = if names_product
+          "AAC #{base}"
+        else
+          "AAC #{base} #{CopyRules.title_case_words(PRODUCT_HUMAN)} Printable"
+        end
 
-        # Already folded into the head, so it must not be repeated below.
-        subject = names_product ? nil : base
         size_phrase = set? ? "#{board_count}-Board Set" : nil
         topic_phrase = CopyRules.distinct_topic_phrase(
           title: base, topic: topic_source, product_human: PRODUCT_HUMAN,
@@ -186,13 +195,11 @@ module Etsy
         # `ensure_digital_download_suffix` truncates mid-word, which is how a
         # listing shipped titled "… Printable for Speech The (Digital Download)".
         composed = CopyRules.pick_fitting_title([
-          compose_title(head, [subject, size_phrase, topic_phrase], TITLE_TAIL),
-          compose_title(head, [subject, topic_phrase], TITLE_TAIL),
-          compose_title(head, [subject, size_phrase], TITLE_TAIL),
-          compose_title(head, [subject], TITLE_TAIL),
-          compose_title(head, [subject, topic_phrase], nil),
-          compose_title(head, [subject], nil),
+          compose_title(head, [size_phrase, topic_phrase], TITLE_TAIL),
+          compose_title(head, [topic_phrase], TITLE_TAIL),
+          compose_title(head, [size_phrase], TITLE_TAIL),
           compose_title(head, [], TITLE_TAIL),
+          compose_title(head, [topic_phrase], nil),
           head,
           # Fixed length whatever the board is called — the rung that cannot
           # overflow, even when `head` itself folded in a 140-char board name.

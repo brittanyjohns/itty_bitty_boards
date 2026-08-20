@@ -46,6 +46,7 @@ module Admin
       @tree_boards = tree_boards(@printable)
       @etsy_listings = @printable.etsy_listings.to_a
       @tag_overlap = Etsy::TagOverlap.new(@printable, tags: @listing["tags"])
+      @title_prefix_overlap = Etsy::TitlePrefixOverlap.new(@printable, title: @listing["title"])
       @copy_advisories = Etsy::CopyAdvisories.new(@listing)
       @etsy_configured = Etsy::Client.configured?
       # The listing-video card offers a render button only where the binaries
