@@ -1114,6 +1114,38 @@ class API::BoardsController < API::ApplicationController
         board_image&.update(data: (board_image.data || {}).merge(gestalt))
       end
 
+      # "Link a board" (the Add-tiles modal's third tab): make the tile we just
+      # created open one of the caller's existing boards. Top-level param, not
+      # part of image_params — it describes the tile, not the Image. Absent
+      # means a plain word tile, which is the pre-existing behaviour.
+      if params[:predictive_board_id].present? && @board
+        board_image ||= @board.board_images.find_by(image_id: @image.id)
+        target = linkable_board(params[:predictive_board_id])
+        # A tile pointing at its own board is not a link. BoardImage#is_dynamic?
+        # rejects the self-case and api_view_with_predictive_images forces
+        # dynamic=false for a tile aimed at the root board, so it would render
+        # as an ordinary tile with no folder badge and no navigation. Drop it
+        # rather than storing a link that silently does nothing.
+        target = nil if target && target.id == @board.id
+        if board_image && target
+          board_image.predictive_board_id = target.id
+          # mute_name is not merely "don't speak": it is what makes
+          # BoardImage#door_tile? true, which is what the board-set map reads to
+          # draw the folder edge. Merge — the gestalt block above writes the
+          # same jsonb blob.
+          board_image.data = (board_image.data || {}).merge("mute_name" => true)
+          # Fall back to the linked board's cover only when the resolved Image
+          # brought no art of its own. A blank string is the deliberate
+          # "no picture" marker, so this must never assign "".
+          if board_image.display_image_url.blank? &&
+             @image.display_image_url(current_user).blank? &&
+             target.display_image_url.present?
+            board_image.display_image_url = target.display_image_url
+          end
+          board_image.save
+        end
+      end
+
       screen_size = params[:screen_size] || "lg"
       # @board.calculate_grid_layout_for_screen_size(screen_size)
       @board.reload
@@ -1851,6 +1883,18 @@ class API::BoardsController < API::ApplicationController
           .permit(:gestalt_source, :utterance_function)
           .to_h
           .reject { |_k, v| v.blank? }
+  end
+
+  # A board the caller may point a tile at: one of their own, or one from the
+  # public library. Deliberately mirrors what the frontend's board picker
+  # offers (GET boards/list + GET public_boards) and the IDOR scoping in
+  # #associate_image. An id outside that set resolves to nil and is ignored —
+  # the tile is still created, just unlinked — rather than 404ing a request
+  # whose main job (add a tile) succeeded.
+  def linkable_board(id)
+    return Board.find_by(id: id) if current_user.admin?
+
+    current_user.boards.find_by(id: id) || Board.public_boards.find_by(id: id)
   end
 
   # Optional communicator-profile fields passed by the frontend's

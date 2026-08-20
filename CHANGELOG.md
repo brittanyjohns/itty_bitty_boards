@@ -7,6 +7,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A tile can be pointed at an existing board as it is created.**
+  `POST /api/boards/:id/add_image` now accepts an optional `predictive_board_id`
+  and links the tile it creates in the same request, so the frontend's new
+  "Link a board" tab never leaves a half-made unlinked tile behind. The id is
+  resolved against the caller's own boards plus the public library — anything
+  else is ignored and the tile arrives unlinked rather than erroring — and a
+  self-link is dropped, since the API already renders those as ordinary tiles.
+  The tile is marked `mute_name`, which is what makes it count as a folder tile
+  in the board-set map, and falls back to the linked board's cover picture when
+  its own image has no art.
+
 - **Care plan downloads can be narrowed to the sections you want.** The care
   plan endpoint takes a `sections` allowlist, so a sheet for a bus driver
   doesn't have to carry the meals and personal-care pages. Sending no
