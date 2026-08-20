@@ -397,11 +397,32 @@ an explicit decision, not a drive-by edit.
   own `/pb/<slug>`. `Boards::MarketplaceProtection` is the single authority and
   covers the whole printed tree (`board_printables.board_ids`), not just the
   printable's root — deleting an interior page breaks the product just as badly.
-  It keys on `etsy_listing_id`, never on a hand-maintained listing state: ending
-  an Etsy listing doesn't un-print paper, and such a column would only ever
-  drift in the unsafe direction. Release is the audited
+  It keys on having EVER reached Etsy, never on a hand-maintained listing state:
+  ending an Etsy listing doesn't un-print paper, and such a column would only
+  ever drift in the unsafe direction. Since a printable can carry SEVERAL
+  listings, the predicate is a union — the `etsy_published_at` watermark, the
+  legacy scalar id, OR any `board_printable_listings` row that reached Etsy —
+  and it is deliberately not filtered on `superseded_at`, because a detached
+  listing's paper is still on someone's fridge. Widening can only over-protect;
+  narrowing is unrecoverable. Release is the audited
   `BoardPrintable#waive_protection!`. Details:
   `.claude-notes/board-printables-etsy.md`.
+- **A printable can carry several Etsy listings, and the ROW is the publish
+  token.** `board_printable_listings` holds one row per listing — its own copy
+  overrides, gallery selection (`image_variants`), download subset
+  (`pdf_variants`), clip and `video_pushed_at` — so a standalone and a bundle
+  can sell the same document. Three rails. The row is created `pending` BEFORE
+  anything touches Etsy and claimed by a compare-and-set on `state` in the
+  request thread, so a double-click enqueues exactly one job; `retry: 0` still
+  stays, because the claim gates the enqueue and not the non-transactional
+  window around `create_listing`. The listing id is persisted the INSTANT Etsy
+  returns it, before any upload, so a draft whose gallery failed partway is
+  `#assets_incomplete?` rather than an orphan nobody can name. And detaching
+  SUPERSEDES the row, keeping the id — the app implements no delete call, so the
+  row is the only record that a draft exists in a real shop, and a row that
+  reached Etsy is never deletable from the admin. Every per-listing asset is an
+  ALLOWLIST over the printable's shared set (empty = all), never an exclusion —
+  the same rule `pdf_files` holds.
 - **Downgrades retain, never delete.** Over-limit boards become read-only;
   over-limit communicators enter fallback mode (public MySpeak page stays
   up). No plan change destroys user content.

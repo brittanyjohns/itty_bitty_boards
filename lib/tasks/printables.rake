@@ -46,7 +46,9 @@ namespace :printables do
     end
 
     scope = BoardPrintable.where(status: "complete")
-    scope = scope.where.not(etsy_listing_id: nil) if ENV["PUBLISHED_ONLY"] == "1"
+    if ENV["PUBLISHED_ONLY"] == "1"
+      scope = scope.where(id: BoardPrintableListing.reached_etsy.select(:board_printable_id))
+    end
     pending = scope.reject(&:listing_video_current?)
 
     if pending.empty?
@@ -91,46 +93,51 @@ namespace :printables do
   task :export_listing, [:printable_id] => :environment do |_t, args|
     out_root = Pathname.new(ENV["OUT_DIR"].presence || Rails.root.join("tmp", "etsy_exports").to_s)
 
-    printables =
+    # One export per LISTING, not per printable: each listing has its own copy,
+    # its own gallery selection and its own Etsy id, so a printable carrying a
+    # standalone and a bundle needs two folders and two CLI lines.
+    listings =
       if args[:printable_id].present?
-        [BoardPrintable.find(args[:printable_id])]
+        BoardPrintable.find(args[:printable_id]).etsy_listings.select(&:attached?)
       else
-        BoardPrintable.where(status: "complete").where.not(etsy_listing_id: nil).order(:id).to_a
+        BoardPrintableListing
+          .where(board_printable_id: BoardPrintable.where(status: "complete").select(:id))
+          .order(:board_printable_id, :id)
+          .select(&:attached?)
       end
 
-    if printables.empty?
+    if listings.empty?
       puts "Nothing to export."
       next
     end
 
     exported = []
-    printables.each do |printable|
-      label = "##{printable.id} #{printable.board&.name.inspect}"
+    listings.each do |listing|
+      printable = listing.board_printable
+      label = "##{printable.id} #{printable.board&.name.inspect} → listing #{listing.etsy_listing_id}"
 
       # Refused rather than warned: the whole point of the export is to replace
       # a live listing's photos, and a partial gallery would delete nine good
       # images and put five back.
-      unless printable.listing_images_current?
+      unless listing.listing_images_current?
         puts "  SKIP #{label} — gallery isn't current. Run printables:refresh_listing_images and wait for Sidekiq."
         next
       end
 
-      copy = printable.listing_copy_or_default
+      copy = listing.resolved_copy
       if copy["title"].blank? || copy["description"].blank?
         puts "  SKIP #{label} — listing copy has no title or description."
         next
       end
 
-      dir = out_root.join(printable.id.to_s)
+      dir = out_root.join(printable.id.to_s, listing.etsy_listing_id.to_s)
       FileUtils.mkdir_p(dir)
 
       # Written in LISTING_IMAGE_ORDER: the CLI uploads the array in order and
       # ranks them 1..N, and rank 1 is Etsy's search thumbnail. The numeric
       # filename prefix is for the human reviewing the folder — the ORDER of the
       # array is what actually decides the ranks.
-      image_names = printable.current_image_files
-                             .sort_by { |f| BoardPrintable::LISTING_IMAGE_ORDER.index(f.metadata["variant"]) }
-                             .each_with_index.map do |file, index|
+      image_names = listing.image_files.each_with_index.map do |file, index|
         name = format("%02d-%s.png", index + 1, file.metadata["variant"].to_s.dasherize)
         File.binwrite(dir.join(name), file.download)
         name
@@ -146,7 +153,7 @@ namespace :printables do
       File.write(dir.join("listing.json"), JSON.pretty_generate(config) + "\n")
 
       puts "  #{label} → #{dir} (#{image_names.size} images, #{config['tags'].size} tags)"
-      exported << [printable, dir]
+      exported << [listing, dir]
     end
 
     if exported.empty?
@@ -156,11 +163,68 @@ namespace :printables do
 
     puts
     puts "Review the tags in each listing.json, then from the speakanyway-printables repo:"
-    exported.each do |printable, dir|
-      puts "  npm run etsy -- update #{printable.etsy_listing_id} #{dir}/listing.json --replace-images"
+    exported.each do |listing, dir|
+      puts "  npm run etsy -- update #{listing.etsy_listing_id} #{dir}/listing.json --replace-images"
     end
     puts
     puts "Do ONE first and check it in the seller UI: --replace-images deletes the listing's existing"
     puts "photos before uploading these. The listing VIDEO is a separate slot and is untouched by this."
+  end
+
+  desc "List every Etsy listing made from a printable — the shop reconciliation view"
+  task listings: :environment do
+    rows = BoardPrintableListing.includes(board_printable: :board).order(:board_printable_id, :id)
+
+    if rows.empty?
+      puts "No listings yet."
+      next
+    end
+
+    rows.each do |listing|
+      printable = listing.board_printable
+      puts format(
+        "  printable #%-6s %-30s listing %-12s %-11s %-10s %s",
+        printable.id,
+        (printable.board&.name || "Board ##{printable.board_id}").truncate(30),
+        listing.etsy_listing_id || "—",
+        listing.state,
+        listing.purpose,
+        listing.label,
+      )
+    end
+
+    puts
+    puts "#{rows.size} listing(s). Compare against the shop: this app cannot read Etsy back, so a"
+    puts "draft deleted there still shows here, and a draft made there is invisible to this."
+  end
+
+  desc "Unstick a listing row wedged in `publishing` (CONFIRMED_SHOP_CHECKED=1 required)"
+  task :reset_stuck_listing, [:listing_id] => :environment do |_t, args|
+    listing = BoardPrintableListing.find(args[:listing_id])
+
+    puts "  printable ##{listing.board_printable_id}, listing row ##{listing.id}"
+    puts "  state:        #{listing.state}"
+    puts "  claimed at:   #{listing.claimed_at || "—"}"
+    puts "  etsy listing: #{listing.etsy_listing_id || "—"}"
+    puts
+
+    unless listing.state == "publishing"
+      abort("That row isn't stuck — it's #{listing.state}. Nothing to reset.")
+    end
+
+    # Deliberately gated rather than automatic. A row stuck in `publishing`
+    # means a job was dispatched against a REAL shop and this app does not know
+    # what it did; resetting it on a timer is a duplicate-draft generator, and
+    # the app implements no call that could read the listing back and check.
+    unless ENV["CONFIRMED_SHOP_CHECKED"] == "1"
+      abort(
+        "Open the Etsy seller UI and check whether a draft was created for this printable first.\n" \
+        "If one WAS created, do not reset — record its id by hand instead, or you will publish twice.\n" \
+        "If none was, re-run with CONFIRMED_SHOP_CHECKED=1.",
+      )
+    end
+
+    listing.update!(state: "failed", error: "Publish was reset by hand after the shop was checked.")
+    puts "Reset to `failed`. \"Retry Etsy draft\" on its card will publish it."
   end
 end
