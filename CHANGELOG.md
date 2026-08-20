@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Etsy listing copy leads with the terms buyers search.** Generated tags are
+  now always phrases — `aac`, `printable`, `slp`, `classroom` and `nonspeaking`
+  were burning five of every listing's thirteen slots and don't rank, so
+  single-word tags are refused outright and the pools were rebuilt around
+  `printable aac`, `communication board`, `low tech aac`, `slp resources`,
+  `classroom visuals`, `pecs alternative` and `nonverbal child`. Titles now lead
+  with the product phrase and make the board name the qualifier
+  ("AAC Communication Board Printable, Recess …" rather than "Recess AAC …"),
+  except where the board name already names the product, which folds into the
+  head ("AAC Core Words Board"). The admin printable page gained an advisory
+  panel for unused tag slots, leftover single-word tags, and a title that buries
+  the head term. Applies to newly generated copy only — existing listings are
+  untouched until regenerated.
+
 ### Added
 
 - **A tile can be pointed at an existing board as it is created.**

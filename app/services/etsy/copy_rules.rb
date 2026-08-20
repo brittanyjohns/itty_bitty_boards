@@ -67,6 +67,14 @@ module Etsy
       cleaned = phrase.to_s.downcase.gsub(/[^a-z0-9 \-']/, " ").gsub(/\s+/, " ").strip
       return nil if cleaned.empty? || cleaned.length > TAG_LEN_MAX
       return nil if cleaned.split(" ").all? { |w| SMALL_WORDS.include?(w) }
+      # A one-word tag competes with the entire marketplace and measurably does
+      # not rank: on 2026-08-20 every live listing was spending five of its
+      # thirteen slots on "aac", "printable", "slp", "classroom" and
+      # "nonspeaking", and the listings earning views were found by phrases.
+      # Enforced HERE rather than by curating the pools, so a future pool edit
+      # (or a one-word tag typed into the admin form, which reaches this via
+      # Etsy::Client#normalize_tags) cannot put the slots back.
+      return nil if cleaned.split(" ").length < 2
 
       cleaned
     end

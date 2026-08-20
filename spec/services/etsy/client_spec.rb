@@ -75,19 +75,22 @@ RSpec.describe Etsy::Client do
     it "sends tags as ONE comma-separated value" do
       # Repeated `tags` params are not merged by Etsy — it keeps only the last
       # and silently drops the rest.
-      create!(tags: ["aac", "printable", "slp"])
+      create!(tags: ["printable aac", "aac board", "slp resources"])
 
       expect(a_request(:post, "#{api}/shops/42/listings").with { |req|
         req.body.scan(/(?:^|&)tags=/).length == 1 &&
-          Rack::Utils.parse_nested_query(req.body)["tags"] == "aac,printable,slp"
+          Rack::Utils.parse_nested_query(req.body)["tags"] == "printable aac,aac board,slp resources"
       }).to have_been_made
     end
 
     it "drops tags Etsy would silently reject" do
-      create!(tags: ["aac", "talking communication board", "for the"])
+      # Over 20 chars, all small words, and a single word — the last of these
+      # reaches here too, so a one-word tag typed into the admin form is
+      # dropped on save rather than shipped.
+      create!(tags: ["aac board", "talking communication board", "for the", "aac"])
 
       expect(a_request(:post, "#{api}/shops/42/listings").with { |req|
-        Rack::Utils.parse_nested_query(req.body)["tags"] == "aac"
+        Rack::Utils.parse_nested_query(req.body)["tags"] == "aac board"
       }).to have_been_made
     end
 
