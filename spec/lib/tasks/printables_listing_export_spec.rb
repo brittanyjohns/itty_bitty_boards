@@ -15,6 +15,15 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
     BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], **attrs)
   end
 
+  # A printable that reached Etsy is one carrying an attached listing row.
+  def listed_printable(listing_id:, **attrs)
+    complete_printable(**attrs).tap do |printable|
+      printable.etsy_listings.create!(
+        etsy_listing_id: listing_id, state: "published", published_at: 1.day.ago,
+      )
+    end
+  end
+
   def with_current_gallery(printable)
     BoardPrintable::LISTING_IMAGE_ORDER.each { |v| printable.attach_image!(bytes: "png-#{v}", variant: v) }
     printable
@@ -61,7 +70,7 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
 
     it "narrows to listed printables under PUBLISHED_ONLY" do
       complete_printable
-      listed = complete_printable(etsy_listing_id: 987, etsy_published_at: 1.day.ago)
+      listed = listed_printable(listing_id: 987)
       ENV["PUBLISHED_ONLY"] = "1"
 
       expect { run_task }.to change(RenderBoardPrintableListingVideoJob.jobs, :size).by(1)
@@ -97,7 +106,7 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
     end
 
     let(:printable) do
-      p = complete_printable(etsy_listing_id: 987, etsy_published_at: 1.day.ago)
+      p = listed_printable(listing_id: 987)
       p.update!(listing_copy: {
         "title" => "Core Words Communication Board",
         "description" => "A printable communication board.",
@@ -107,7 +116,11 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
       with_current_gallery(p)
     end
 
-    def config_for(p) = JSON.parse(File.read(out_dir.join(p.id.to_s, "listing.json")))
+    # One folder per LISTING: a printable carrying a standalone and a bundle
+    # exports two configs and two CLI lines.
+    def listing_dir(p) = out_dir.join(p.id.to_s, p.etsy_listings.first.etsy_listing_id.to_s)
+
+    def config_for(p) = JSON.parse(File.read(listing_dir(p).join("listing.json")))
 
     it "writes a config the printables CLI can read, with every gallery image in rank order" do
       run_task(printable.id.to_s)
@@ -125,7 +138,7 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
       expect(config["images"].map { |n| n.sub(/\A\d+-/, "").sub(/\.png\z/, "") }).to eq(expected)
 
       config["images"].each do |name|
-        expect(File).to exist(out_dir.join(printable.id.to_s, name))
+        expect(File).to exist(listing_dir(printable).join(name))
       end
     end
 
@@ -144,13 +157,13 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
     # --replace-images DELETES the listing's photos before uploading, so a
     # partial gallery would take nine good images off and put five back.
     it "refuses a printable whose gallery isn't current" do
-      stale = complete_printable(etsy_listing_id: 55, etsy_published_at: 1.day.ago)
+      stale = listed_printable(listing_id: 55)
       stale.update!(listing_copy: { "title" => "T", "description" => "D", "tags" => [], "price_cents" => 500 })
       stale.attach_image!(bytes: "png", variant: BoardPrintable::LISTING_IMAGE_ORDER.first)
 
       run_task(stale.id.to_s)
 
-      expect(File).not_to exist(out_dir.join(stale.id.to_s, "listing.json"))
+      expect(File).not_to exist(listing_dir(stale).join("listing.json"))
     end
 
     it "exports every listed printable when given no id" do
@@ -160,15 +173,77 @@ RSpec.describe "printables listing backfill rake tasks", type: :task do
 
       run_task
 
-      expect(File).to exist(out_dir.join(printable.id.to_s, "listing.json"))
+      expect(File).to exist(listing_dir(printable).join("listing.json"))
       # Nothing to push to, so nothing to export.
-      expect(File).not_to exist(out_dir.join(unlisted.id.to_s, "listing.json"))
+      expect(Dir.glob(out_dir.join(unlisted.id.to_s, "**", "listing.json"))).to be_empty
+    end
+
+    # The reason the export is keyed on the listing rather than the printable.
+    it "exports a folder and a CLI line per listing on the same printable" do
+      printable.etsy_listings.create!(
+        etsy_listing_id: 988, state: "published", published_at: 1.day.ago,
+        purpose: "bundle", listing_copy: { "title" => "Core Words Bundle", "price_cents" => 1299 },
+      )
+
+      run_task(printable.id.to_s)
+
+      bundle = JSON.parse(File.read(out_dir.join(printable.id.to_s, "988", "listing.json")))
+      expect(bundle["title"]).to eq("Core Words Bundle")
+      expect(bundle["price"]).to eq(12.99)
+      expect(File).to exist(out_dir.join(printable.id.to_s, "987", "listing.json"))
     end
 
     it "writes nothing to the database" do
       printable
 
       expect { run_task(printable.id.to_s) }.not_to change { printable.reload.attributes }
+    end
+  end
+
+  # The escape hatch for a row wedged in `publishing` — a worker killed between
+  # the claim and any write. Deliberately not automatic: a timeout-based reset
+  # is a duplicate-draft generator, because this app cannot read a listing back
+  # and find out whether the draft was created.
+  describe "printables:reset_stuck_listing" do
+    let(:task) { Rake::Task["printables:reset_stuck_listing"] }
+    let(:printable) { complete_printable }
+    let(:stuck) { printable.etsy_listings.create!(state: "publishing", claimed_at: 1.hour.ago) }
+
+    def run_task(id)
+      task.reenable
+      task.invoke(id.to_s)
+    end
+
+    around do |example|
+      original = ENV["CONFIRMED_SHOP_CHECKED"]
+      example.run
+      ENV["CONFIRMED_SHOP_CHECKED"] = original
+    end
+
+    it "refuses until the operator confirms they looked at the shop" do
+      ENV["CONFIRMED_SHOP_CHECKED"] = nil
+
+      expect { run_task(stuck.id) }.to raise_error(SystemExit)
+      expect(stuck.reload.state).to eq("publishing")
+    end
+
+    it "resets to failed once confirmed, so Retry can publish it" do
+      ENV["CONFIRMED_SHOP_CHECKED"] = "1"
+
+      run_task(stuck.id)
+
+      expect(stuck.reload.state).to eq("failed")
+      expect(stuck.error).to include("reset by hand")
+    end
+
+    it "refuses a row that isn't stuck" do
+      ENV["CONFIRMED_SHOP_CHECKED"] = "1"
+      row = printable.etsy_listings.create!(
+        etsy_listing_id: 987, state: "published", published_at: 1.day.ago,
+      )
+
+      expect { run_task(row.id) }.to raise_error(SystemExit)
+      expect(row.reload.state).to eq("published")
     end
   end
 end

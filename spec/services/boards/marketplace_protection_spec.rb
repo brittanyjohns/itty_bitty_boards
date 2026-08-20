@@ -117,4 +117,90 @@ RSpec.describe Boards::MarketplaceProtection do
       expect(described_class.new(unrelated).summary).to be_nil
     end
   end
+
+  # A printable can carry several Etsy listings. Protection reads every one of
+  # them and is never filtered on which are live: the paper a superseded listing
+  # sold is still on someone's fridge.
+  describe "with listing rows" do
+    # The shape everything will look like once the scalar columns are gone.
+    def listing_only_printable(**listing_attrs)
+      printable = BoardPrintable.create!(
+        board: root, status: "complete", board_ids: [root.id, page.id],
+      )
+      printable.etsy_listings.create!(**listing_attrs)
+      printable
+    end
+
+    it "protects from a listing row alone, with no scalar columns set" do
+      listing_only_printable(etsy_listing_id: 1234567890, state: "published",
+                             published_at: 1.day.ago)
+
+      expect(described_class.new(root).protected?).to be true
+      expect(described_class.new(page).protected?).to be true
+    end
+
+    # Detaching is not a release. Release is the audited waiver, and nothing
+    # else.
+    it "keeps protecting after every listing is superseded" do
+      listing_only_printable(etsy_listing_id: 1234567890, state: "superseded",
+                             published_at: 2.days.ago, superseded_at: 1.day.ago)
+
+      expect(described_class.new(root).protected?).to be true
+    end
+
+    # Allocating a row touches nothing external, so it must lock nothing —
+    # otherwise drafting a second listing you never publish freezes the boards.
+    it "does not protect from a pending row that never reached Etsy" do
+      listing_only_printable(state: "pending")
+
+      expect(described_class.new(root).protected?).to be false
+    end
+
+    it "does not protect from a failed row that never reached Etsy" do
+      listing_only_printable(state: "failed", error: "Etsy said no")
+
+      expect(described_class.new(root).protected?).to be false
+    end
+
+    # The frontend reads `etsy_listing_id` / `etsy_listing_url` off each
+    # printable (MarketplacePrintable in src/data/marketplaceProtection.ts).
+    # Those keys keep their meaning; the array is additive.
+    describe "#summary with several listings" do
+      it "reports the attached listing as the primary and carries them all" do
+        printable = BoardPrintable.create!(
+          board: root, status: "complete", board_ids: [root.id, page.id],
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 111, etsy_listing_url: "https://www.etsy.com/listing/111",
+          state: "superseded", published_at: 3.days.ago, superseded_at: 2.days.ago,
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 222, etsy_listing_url: "https://www.etsy.com/listing/222",
+          state: "published", published_at: 1.day.ago, purpose: "bundle", label: "holiday",
+        )
+
+        summary = described_class.new(root).summary[:printables].sole
+
+        expect(summary[:etsy_listing_id]).to eq(222)
+        expect(summary[:etsy_listing_url]).to eq("https://www.etsy.com/listing/222")
+        expect(summary[:etsy_listings].map { |l| l[:etsy_listing_id] }).to contain_exactly(111, 222)
+        expect(summary[:etsy_listings].find { |l| l[:etsy_listing_id] == 111 }[:superseded]).to be true
+        expect(summary[:etsy_listings].find { |l| l[:etsy_listing_id] == 222 }[:purpose]).to eq("bundle")
+      end
+
+      # Nothing live to point at, but the paper still exists — the primary falls
+      # back to the detached listing rather than reporting nothing.
+      it "falls back to a superseded listing when none is attached" do
+        printable = BoardPrintable.create!(
+          board: root, status: "complete", board_ids: [root.id],
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 333, state: "superseded",
+          published_at: 3.days.ago, superseded_at: 1.day.ago,
+        )
+
+        expect(described_class.new(root).summary[:printables].sole[:etsy_listing_id]).to eq(333)
+      end
+    end
+  end
 end

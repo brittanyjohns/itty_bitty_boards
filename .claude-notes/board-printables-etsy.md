@@ -81,7 +81,7 @@ Each of these was a live failure, not a theory:
   keeps the first and turns later ones into "and".
 - Price does not stick through the listing create/PATCH payload. The inventory
   endpoint (`GET` + `PUT /listings/:id/inventory`, a full replace) is the only
-  writer. `Etsy::PublishBoardPrintable` sets it there explicitly even though
+  writer. `Etsy::PublishBoardPrintableListing` sets it there explicitly even though
   create also carried it.
 - **`taxonomy_id` is not validated by Etsy.** An unknown id returns 200 and the
   listing is filed under an arbitrary category — invisible in the response and
@@ -557,7 +557,7 @@ re-walks the tree and rewrites `board_ids`, so a sub-board added since the first
 run is included. It resets `status` to `pending` and clears `error_message`, and
 is refused while the record is already `pending`/`generating`.
 
-What it deliberately does NOT touch: `listing_copy`, `etsy_listing_id`, and the
+What it deliberately does NOT touch: `listing_copy`, the listing rows, and the
 gallery images. Clearing reviewed copy, or the pointer to a live Etsy draft,
 would be a worse surprise than stale marketing images — which the existing
 **Regenerate** button on the listing-images card re-renders. The redirect notice
@@ -588,8 +588,8 @@ record is what freezes them (below).
 
 ## Listed boards are protected
 
-Once a printable has an `etsy_listing_id`, every board it was rendered from is
-frozen: **deleting, unpublishing and renaming are refused; structural tile edits
+Once a printable has reached Etsy — any listing row of its own, current or
+superseded — every board it was rendered from is frozen: **deleting, unpublishing and renaming are refused; structural tile edits
 need an explicit confirm.** `Boards::MarketplaceProtection` is the single
 authority; `Board#marketplace_protected?` delegates to it.
 
@@ -603,7 +603,7 @@ before `Generate` wrote `board_ids`. Note the ids are **integers** — a string 
 that array silently matches nothing and every interior page quietly loses its
 protection.
 
-**Why `etsy_listing_id` and not a listing state.** The obvious design is a
+**Why "ever reached Etsy" and not a listing state.** The obvious design is a
 `draft / active / ended` column so an ended listing releases its boards. It
 models the wrong fact. What protection defends is a printed sheet with a QR on
 it, and ending an Etsy listing doesn't recall a laminated board off a fridge.
@@ -718,8 +718,8 @@ field) is never stale — nothing could re-render it.
 ### Sending a video to a listing that already exists
 
 Publishing carries the video with it, so a listing created before its video was
-rendered can never get one from the publish path again. `POST push_video_to_etsy`
-(`Etsy::PushListingVideo`) is the way in, and it is **not** a hole in the
+rendered can never get one from the publish path again. `POST push_video` on
+that listing's row (`Etsy::PushListingVideo`) is the way in, and it is **not** a hole in the
 drafts-only rule: adding a video to a listing that has none is an additive POST,
 the same class of call as `upload_image` and `upload_file`, which have always run
 against listings. No state, no title, no tags, and still no call anywhere that
@@ -734,15 +734,18 @@ listing is exactly what the drafts-only invariant keeps out — that path stays 
 memory.** This app cannot read a listing back — `Etsy::Client` implements no list
 or delete counterpart for videos on purpose — so it can't discover a video that
 is already there, and a second POST has no outcome it could verify.
-`board_printables.etsy_video_pushed_at` is the only thing that makes the second
-push refusable. Three rails hold it:
+`board_printable_listings.video_pushed_at` is the only thing that makes the
+second push refusable. It is **per row** because Etsy's rule is per listing: the
+same clip going to a printable's standalone AND its bundle is correct, and the
+old printable-wide stamp refused the second. Three rails hold it:
 
 - **The publish path stamps it too.** A draft born with a video would otherwise
   be offered another one by the admin control.
 - **A failed upload does not stamp it.** Writing it on failure would lock a
   listing out of ever getting its video.
-- **`relist!` clears it.** A detached printable is heading for a new listing that
-  has nothing on it; leaving the stamp set would hide the control.
+- **Nothing clears it.** A replacement is a *different row* whose stamp is nil
+  by construction, and the superseded row keeps the true record of what its own
+  draft received.
 
 Once a video has gone, replacing it needs Etsy's `video_id` form field — an
 update call this app does not have — so the control retires itself and names the
@@ -757,15 +760,17 @@ or the video slot existed:
   complete printable whose `listing_video_current?` is false, which covers both
   "has none" and "has one from a different version of this printable". A
   hand-uploaded clip reports current and is skipped: nothing could re-render it.
-  `PUBLISHED_ONLY=1` narrows to printables already attached to a listing. It
+  `PUBLISHED_ONLY=1` narrows to printables that have a listing row which reached
+  Etsy. It
   aborts rather than enqueueing when ffmpeg is missing, because the job checks
   too and would return immediately — which looks exactly like the task having
   worked.
-- `rake 'printables:export_listing[<id>]'` — writes a printable's gallery images
-  (in `LISTING_IMAGE_ORDER`, which is what decides Etsy's ranks) plus a
-  `listing.json` of its copy, for `npm run etsy -- update <listingId>
-  ./listing.json --replace-images` in `speakanyway-printables`. Read-only; with
-  no id it exports every listed printable.
+- `rake 'printables:export_listing[<id>]'` — writes one folder **per attached
+  listing** (`<out>/<printable_id>/<etsy_listing_id>/`), holding that listing's
+  gallery images (in `LISTING_IMAGE_ORDER`, which is what decides Etsy's ranks)
+  plus a `listing.json` of its resolved copy, for `npm run etsy -- update
+  <listingId> ./listing.json --replace-images` in `speakanyway-printables`.
+  Read-only; with no id it exports every attached listing.
 
 **The export is how a LIVE listing's tags and photos get fixed**, and the split
 is deliberate: that repo already owns and tests delete-then-reupload, and
@@ -780,55 +785,152 @@ business touching them. A printable whose gallery isn't current is refused
 outright rather than warned about: `--replace-images` deletes before it uploads,
 so a partial gallery would take ten good images off and put five back.
 
-## Replacing a draft — "Detach & relist"
+## Several listings per printable
 
-This app **creates** listings and implements no call that updates one. So a
-re-rendered **gallery** cannot reach an existing draft — replacing photos needs a
-delete this app does not have, by design. (A *video* is the one exception, and
-only because adding one is additive rather than an update — see above.)
-`POST relist_on_etsy` is the way round it:
-it clears `etsy_listing_id` / `etsy_listing_url` so `guard_failure` stops
-refusing, and Publish then creates a fresh draft carrying the current images and
-video. It sends **nothing** to Etsy; deleting the superseded draft is the
-operator's job, because doing it here would mean adding the delete call the
-drafts-only invariant exists to keep out.
+A printable carries **`board_printable_listings`** rows — one per Etsy listing.
+A standalone listing and a bundle listing can sell the same rendered document
+with different copy, a different gallery selection, a different subset of the
+PDFs and their own clip. Before this table the listing WAS four scalar columns
+on `board_printables`, so a printable could hold one listing at a time.
 
-**Two published-states, and they must not be collapsed:**
+The row is three things at once, and each one matters:
 
-| Predicate | Column | Means | Cleared by relist? |
+**A publish token.** The admin allocates a row (`state: "pending"`) before
+anything touches Etsy. `Admin::BoardPrintableListingsController#publish` then
+compare-and-sets it:
+
+```ruby
+BoardPrintableListing
+  .where(id: listing.id, state: %w[pending failed], etsy_listing_id: nil)
+  .update_all(state: "publishing", claimed_at: Time.current, ...)
+```
+
+`update_all` returns the affected row count and Postgres orders it under the row
+lock, so a double-click has exactly one winner and only the winner enqueues.
+The claim lives in the **request thread** on purpose: Sidekiq guarantees no
+ordering, so two enqueued jobs could both read `pending` before either wrote.
+The job re-checks `state == "publishing"` — that gates the WORK, where the claim
+gates the ENQUEUE, and both are needed for different races. Neither closes the
+non-transactional window between `create_listing` returning and the id landing
+in Postgres; only `retry: 0` does, and it stays.
+
+**A record of a draft in a real shop.** `Etsy::PublishBoardPrintableListing`
+persists `etsy_listing_id` the INSTANT Etsy hands it back — before the price,
+the images, the files or the video. The old code wrote it only after every
+upload succeeded, so an exception in `upload_images` left a real draft in a real
+shop with nothing pointing at it. A half-uploaded draft is now
+`#assets_incomplete?` (`published_at` set, `assets_uploaded_at` nil) and says so
+on its card. That state is deliberately **not** retryable from the admin: a
+re-run would upload against a draft that already has some of them.
+
+**Permanent.** Detaching calls `#supersede!`, which sets `superseded_at` and
+**keeps** the listing id. The app implements no delete call, so the row is the
+only record of which draft an operator has to go and remove — the old
+`#relist!` NULLed it and left the draft unfindable. A row that reached Etsy is
+therefore never deletable from the admin; only a `pending` or `failed` one is.
+"Replace" is the one-click version of what "Detach & relist" used to be:
+supersede, then create a fresh row carrying the same purpose, label and
+overrides.
+
+Replacing a **gallery** still needs a new listing, for the original reason —
+this app creates listings and implements no call that updates one, so photos
+cannot be swapped in place. A **video** remains the exception, because adding
+one is additive rather than an update.
+
+### Two published-states, and they must not be collapsed
+
+| Predicate | Reads | Means | Cleared by detaching? |
 |---|---|---|---|
-| `etsy_published?` | `etsy_listing_id` | attached to a listing right now | **yes** |
-| `etsy_ever_published?` | `etsy_published_at` **OR** `etsy_listing_id` | a draft was made at some point | never |
+| `BoardPrintableListing#attached?` | `etsy_listing_id` && no `superseded_at` | that row has a draft right now | **yes** |
+| `BoardPrintableListing#reached_etsy?` | `etsy_listing_id` **OR** `published_at` | that row made a draft at some point | never |
+| `BoardPrintable#etsy_ever_published?` | the watermark, the legacy id, **OR** any row that reached Etsy | this printable was sold at least once | never |
 
-`etsy_ever_published?` is a **union**, and that is not belt-and-braces for its
-own sake: protection must never end up narrower than the `etsy_listing_id` test
-it replaced. A row carrying a listing id but no timestamp — set by hand, or by
-anything predating the two being written together — protected its boards before
-and has to keep doing so. `#relist!` stamps `etsy_published_at` before it drops
-the id, so such a row doesn't lose its only remaining evidence on the way past.
-Widening can only over-protect; narrowing unfreezes printed paper.
+`etsy_published_at` survives as a **write-once watermark** and is never moved by
+a later listing. It is not a fact about a listing; it is "these boards have been
+printed and sold", which is what protection defends. Keeping it makes the
+protection predicate strictly wider than the one it replaced, so a backfill that
+missed a row cannot unfreeze printed paper.
 
-**Marketplace protection keys on `etsy_ever_published?`.** It used to key on
-`etsy_listing_id`, which was fine while that column only ever went from nil to
-set. Relisting clears it, so leaving protection there would silently unfreeze
-boards whose printed pages already carry their QR codes — the precise failure
-protection exists to prevent. `Boards::MarketplaceProtection`'s SQL scope and
-`BoardPrintable#protects_board?` read the same column and must not diverge; the
-model spec asserts a relisted printable still protects.
+### Marketplace protection reads every listing, ever
 
-Everything protection-facing follows the same rule — the waiver action, the
-delete confirm, the release confirm, and the protection block in `_etsy` — since
-a detached printable still freezes its boards and would otherwise lose the only
-control that releases them.
+`Boards::MarketplaceProtection::PROTECTING_SQL` is the watermark, OR the legacy
+scalar id, OR an `EXISTS` over listing rows that reached Etsy. Four deliberate
+omissions, each commented in the file:
+
+- **no `superseded_at` filter** — a detached listing still protects; replacing a
+  draft doesn't un-print paper;
+- **no `state` filter** — a `pending` or `failed` row has neither an id nor a
+  `published_at`, so allocating a listing you never publish locks nothing;
+- **the watermark half stays**, so this can only over-protect;
+- **no new index** — `[board_printable_id, state]`'s prefix serves the subquery.
+
+`PROTECTING_SQL` and `BoardPrintable#etsy_ever_published?` ask the same question
+of many rows and one row, and must not diverge. Everything protection-facing —
+the waiver, the delete confirm, the release confirm, the protection block in
+`_etsy` — sits outside the attached/detached branch, since a printable with no
+live listing still freezes its boards and would otherwise lose the control that
+releases them.
+
+The API payload keeps `etsy_listing_id` / `etsy_listing_url` per printable (the
+frontend's `MarketplacePrintable` contract) reporting the **primary** listing,
+and adds an `etsy_listings` array beside them.
+
+### Per-listing assets are allowlists
+
+Every partition is an **allowlist over the printable's shared set**, empty
+meaning "all of them" — never an exclusion. Same rule `pdf_files` holds, and for
+the same reason: selecting by "not the thing I don't want" was correct only
+while there were two kinds of blob.
+
+| Column | Over | Note |
+|---|---|---|
+| `listing_copy` | the printable's `listing_copy` | overrides only; blanks dropped so a cleared field falls back rather than publishing an empty title |
+| `image_variants` | `LISTING_IMAGE_ORDER` | rank 1 is Etsy's search thumbnail, so order is fixed regardless of selection |
+| `pdf_variants` | `BoardPrintable#pdf_files` | **intersected**, never a fresh selection over `files` — that is what keeps a gallery image or the video out of a buyer's download. Variants, not ActiveStorage keys: a key is versioned per run, so a key allowlist empties itself on the first Regenerate |
+
+Blobs rendered for one listing are stamped `listing_id` in metadata; a blob with
+no `listing_id` is the shared set every listing inherits. The purges in
+`#attach_image!` / `#attach_video!` are scoped the same way — they used to match
+on variant alone, which would have meant rendering one listing's hero deleted
+the shared one.
+
+`RenderListingImages` builds every slide from the **boards and the topic**,
+never from `listing_copy`, so two listings with the same topic render identical
+images. `topic_override` is therefore the only lever that makes a per-listing
+gallery mean anything, and a listing carrying one is treated as **stale** until
+it has slides of its own — otherwise it would inherit the shared gallery and the
+override would silently do nothing.
+
+`etsy.video_pushed_at` moved onto the row because **Etsy's one-video rule is per
+listing**: the same clip going to a printable's standalone AND its bundle is
+correct, and the old printable-wide stamp refused the second. The row-scoped
+stamp still refuses a second POST at the same listing, which is the thing this
+app genuinely cannot verify.
+
+`Etsy::TagOverlap` compares sibling listings on the same printable as well as
+other printables — two listings for one product share every tag but the topic
+ones by construction, and Etsy caps how many of one shop's results appear per
+query, so a bundle can bury its own standalone.
 
 ## Publishing is never retried
 
-`PublishBoardPrintableToEtsyJob` is `retry: 0`. A retry after a partial success
+`PublishBoardPrintableListingJob` is `retry: 0`. A retry after a partial success
 creates a **second draft in a real shop**, and nothing downstream would notice.
-A failure records itself on `board_printables.etsy_error`, shows on the page,
-and waits for a human — a half-built draft is easy to delete, a duplicate is
-easy to miss. For the same reason, a printable that already has an
-`etsy_listing_id` refuses to publish again.
+A failure records itself on `board_printable_listings.error`, shows on the
+listing's card, and waits for a human — a half-built draft is easy to delete, a
+duplicate is easy to miss. For the same reason, a listing row that already has
+an `etsy_listing_id` refuses to publish again. The claim makes this *look* safe
+to retry; it is not.
+
+A row wedged in `publishing` (a worker killed between the claim and any write)
+is **not** auto-recovered — a timeout-based reset is a duplicate-draft
+generator, and this app cannot read a listing back to find out what happened.
+The card shows `claimed_at`, and
+`rake 'printables:reset_stuck_listing[<row_id>]'` refuses unless
+`CONFIRMED_SHOP_CHECKED=1`.
+
+`rake printables:listings` is the read-only inventory to reconcile against the
+shop.
 
 ## Teachers Pay Teachers
 

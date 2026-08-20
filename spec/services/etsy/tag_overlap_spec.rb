@@ -135,4 +135,37 @@ RSpec.describe Etsy::TagOverlap do
     expect(matches.map(&:count)).to eq(matches.map(&:count).sort.reverse)
     expect(matches.map(&:printable)).not_to include(near)
   end
+
+  # The collision most worth catching, and the one the printable-level check
+  # could not see: two listings for the SAME product share everything but their
+  # topic tags by construction, and Etsy caps how many of one shop's results
+  # appear per query — so a bundle listed beside its standalone can bury it.
+  describe "sibling listings on the same printable" do
+    it "warns when a second listing shares the tag set" do
+      board = create(:board, name: "Core Words")
+      printable = BoardPrintable.create!(
+        board: board, status: "complete",
+        listing_copy: { "title" => "T", "tags" => Etsy::CopyRules::TAG_MAX.times.map { |i| "tag#{i}" } },
+      )
+      printable.etsy_listings.create!(purpose: "standalone")
+      bundle = printable.etsy_listings.create!(purpose: "bundle", label: "holiday")
+
+      overlap = described_class.new(bundle)
+
+      expect(overlap.any?).to be true
+      expect(overlap.matches.first.label).to include("holiday").or include("standalone")
+      expect(overlap.matches.first.printable).to eq(printable)
+    end
+
+    it "does not warn about itself" do
+      board = create(:board, name: "Core Words")
+      printable = BoardPrintable.create!(
+        board: board, status: "complete",
+        listing_copy: { "title" => "T", "tags" => Etsy::CopyRules::TAG_MAX.times.map { |i| "tag#{i}" } },
+      )
+      only = printable.etsy_listings.create!
+
+      expect(described_class.new(only).any?).to be false
+    end
+  end
 end

@@ -1,12 +1,15 @@
 require "rails_helper"
 
-RSpec.describe Etsy::PublishBoardPrintable do
+RSpec.describe Etsy::PublishBoardPrintableListing do
   let(:owner) { create(:user) }
   let(:board) { create(:board, user: owner, name: "Core Words") }
 
   let(:printable) do
     BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], page_count: 6)
   end
+
+  # Allocated before anything touches Etsy: the row IS the publish token.
+  let(:listing) { printable.etsy_listings.create!(state: "publishing") }
 
   let(:client) { instance_double(Etsy::Client) }
 
@@ -21,16 +24,22 @@ RSpec.describe Etsy::PublishBoardPrintable do
     allow(client).to receive(:upload_image).and_return(true)
     allow(client).to receive(:upload_file).and_return(true)
 
-    # Grover renders the gallery slides; the bytes themselves are irrelevant here.
-    allow_any_instance_of(Boards::Printables::RenderListingImages).to receive(:call) do
-      BoardPrintable::LISTING_IMAGE_ORDER.each do |variant|
-        printable.attach_image!(bytes: "png", variant: variant)
+    # Grover renders the slides; the bytes are irrelevant here. Honours the
+    # `listing:` kwarg so a per-listing render is distinguishable from a shared
+    # one, which is the whole thing the topic override buys.
+    allow(Boards::Printables::RenderListingImages).to receive(:new) do |printable:, listing: nil|
+      instance_double(Boards::Printables::RenderListingImages).tap do |renderer|
+        allow(renderer).to receive(:call) do
+          BoardPrintable::LISTING_IMAGE_ORDER.each do |variant|
+            printable.attach_image!(bytes: "png", variant: variant, listing: listing)
+          end
+          printable.purge_legacy_listing_images!
+        end
       end
-      printable.purge_legacy_listing_images!
     end
   end
 
-  def publish = described_class.new(printable.reload, client: client).call
+  def publish = described_class.new(listing.tap { printable.reload }, client: client).call
 
   describe "the drafts-only invariant" do
     it "creates the listing as a draft and never asks the client to activate it" do
@@ -43,6 +52,98 @@ RSpec.describe Etsy::PublishBoardPrintable do
       # There is no activate/update path on the client at all — the absence is
       # the guarantee, so assert it rather than trusting the call list.
       expect(Etsy::Client.instance_methods).not_to include(:activate_listing, :update_listing)
+    end
+  end
+
+  describe "the listing row" do
+    it "records the draft on the row it was published for" do
+      publish
+
+      expect(listing.reload).to have_attributes(
+        etsy_listing_id: 987,
+        etsy_listing_url: "https://etsy.test/987",
+        state: "published",
+      )
+      expect(listing.published_at).to be_present
+      expect(listing.assets_uploaded_at).to be_present
+    end
+
+    # THE orphan fix. The id is persisted the instant Etsy returns it, before
+    # the price, the images or the files — so a draft whose uploads then blew up
+    # is still findable instead of sitting unnamed in a real shop.
+    it "keeps the listing id when the uploads fail partway" do
+      allow(client).to receive(:upload_image).and_raise(Etsy::Client::Error, "Etsy POST 500")
+
+      result = publish
+
+      expect(result.ok?).to be true
+      expect(listing.reload).to have_attributes(etsy_listing_id: 987, state: "published")
+      expect(listing.assets_incomplete?).to be true
+      expect(listing.error).to include("images or files failed to upload")
+    end
+
+    # A printable carrying two listings is the whole point. What is refused is
+    # publishing the SAME row twice.
+    it "creates a genuinely second draft for a second listing on the same printable" do
+      printable.etsy_listings.create!(
+        etsy_listing_id: 555, state: "published", published_at: 1.day.ago,
+      )
+      listing.update!(listing_copy: { "title" => "Core Words Bundle", "price_cents" => 1299 },
+                      purpose: "bundle")
+
+      expect(client).to receive(:create_listing)
+        .with(hash_including(title: "Core Words Bundle", price: 12.99))
+        .and_return({ listing_id: 988, url: "https://etsy.test/988" })
+
+      expect(publish.ok?).to be true
+      expect(printable.etsy_listings.reload.filter_map(&:etsy_listing_id)).to contain_exactly(555, 988)
+    end
+
+    # It is the marketplace-protection watermark, not a per-listing fact.
+    it "stamps etsy_published_at once and never moves it" do
+      first = 5.days.ago.change(usec: 0)
+      printable.update_columns(etsy_published_at: first)
+
+      publish
+
+      expect(printable.reload.etsy_published_at).to be_within(1.second).of(first)
+    end
+  end
+
+  # The PDFs are shared; the gallery, the file subset and the video are per
+  # listing. That is what lets a bundle sit beside a standalone in one shop.
+  describe "per-listing assets" do
+    it "uploads only the PDF variants this listing selected" do
+      printable.attach_pdf!(filename: "core.low-ink.pdf", bytes: "b", variant: BoardPrintable::VARIANT_LOW_INK)
+      listing.update!(pdf_variants: [BoardPrintable::VARIANT_LOW_INK])
+
+      expect(client).to receive(:upload_file).once
+        .with(987, hash_including(filename: "core.low-ink.pdf", rank: 1))
+
+      expect(publish.ok?).to be true
+    end
+
+    it "uploads only the gallery slides this listing selected, in rank order" do
+      listing.update!(image_variants: [BoardPrintable::IMAGE_HERO, BoardPrintable::IMAGE_ON_PAPER])
+      ranks = []
+      allow(client).to receive(:upload_image) { |_id, opts| ranks << [opts[:rank], opts[:filename]] }
+
+      publish
+
+      expect(ranks.map(&:first)).to eq([1, 2])
+      expect(ranks.first.last).to start_with("#{BoardPrintable::IMAGE_ON_PAPER.dasherize}-")
+    end
+
+    # The renderer builds its slides from the boards and the topic, never from
+    # listing copy — so a topic override is the only thing that makes two
+    # listings of one printable render different images.
+    it "renders its own gallery when it carries a topic override" do
+      listing.update!(topic_override: "school morning")
+
+      publish
+
+      own = printable.reload.all_image_files.select { |f| f.metadata["listing_id"] == listing.id }
+      expect(own.map { |f| f.metadata["variant"] }).to match_array(BoardPrintable::LISTING_IMAGE_ORDER)
     end
   end
 
@@ -119,12 +220,12 @@ RSpec.describe Etsy::PublishBoardPrintable do
       expect(client).not_to have_received(:create_listing)
     end
 
-    it "refuses to create a second listing for the same printable" do
-      printable.update!(etsy_listing_id: 111)
+    it "refuses to publish the same listing row twice" do
+      listing.update!(etsy_listing_id: 111, state: "published", published_at: 1.day.ago)
 
       result = publish
 
-      expect(result.error).to match(/Already on Etsy as listing 111/)
+      expect(result.error).to match(/already has Etsy draft 111/)
       expect(client).not_to have_received(:create_listing)
     end
 
@@ -163,14 +264,15 @@ RSpec.describe Etsy::PublishBoardPrintable do
   end
 
   describe "failure handling" do
-    it "records the error on the printable so it shows up in the admin" do
+    it "records the error on the row so it shows up in the admin, and marks it retryable" do
       allow(client).to receive(:create_listing).and_raise(Etsy::Client::Error, "Etsy POST 400: bad tags")
 
       result = publish
 
       expect(result.ok?).to be false
-      expect(printable.reload.etsy_error).to eq("Etsy POST 400: bad tags")
-      expect(printable.etsy_listing_id).to be_nil
+      expect(listing.reload).to have_attributes(
+        error: "Etsy POST 400: bad tags", state: "failed", etsy_listing_id: nil,
+      )
     end
 
     it "leaves the printable's generation status untouched" do
@@ -196,9 +298,10 @@ RSpec.describe Etsy::PublishBoardPrintable do
       expect(client).to receive(:upload_video).with(987, hash_including(bytes: "mp4-bytes"))
 
       expect(publish.ok?).to be true
+      expect(listing.reload.video_pushed_at).to be_present
     end
 
-    # A printable is published exactly once, so a draft never already has a
+    # A listing row is published exactly once, so its draft never already has a
     # video and Etsy's one-per-listing rule can't be hit.
     it "is skipped entirely when nothing has been rendered" do
       expect(client).not_to receive(:upload_video)
@@ -218,8 +321,8 @@ RSpec.describe Etsy::PublishBoardPrintable do
 
       expect(result.ok?).to be true
       expect(result.listing_id).to eq(987)
-      expect(printable.reload.etsy_listing_id).to eq(987)
-      expect(printable.etsy_error).to include("listing video failed to upload")
+      expect(listing.reload.etsy_listing_id).to eq(987)
+      expect(listing.error).to include("listing video failed to upload")
     end
 
     # The gallery is auto-rendered at publish because Etsy won't let a listing

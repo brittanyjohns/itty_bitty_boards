@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-# Sends an already-rendered listing video to the Etsy listing a BoardPrintable
-# is ALREADY attached to.
+# Sends an already-rendered listing video to the Etsy listing a
+# BoardPrintableListing is ALREADY attached to.
 #
-# Why this exists as its own path: Etsy::PublishBoardPrintable uploads the video
+# Why this exists as its own path: Etsy::PublishBoardPrintableListing uploads it
 # as part of creating a draft, and this app implements no call that updates a
 # listing — so a video rendered after the draft was made could not reach it at
 # all. The usual answer to that is "Detach & relist", which is right for a
@@ -18,20 +18,25 @@
 #
 # The hazard it DOES have to hold is Etsy's one-video-per-listing rule. The app
 # cannot read a listing back, so it can't discover an existing video; a second
-# POST has no outcome it could verify. `BoardPrintable#etsy_video_pushed_at` is
-# the local memory that makes the second one refusable, and it is stamped by
+# POST has no outcome it could verify. `board_printable_listings.video_pushed_at`
+# is the local memory that makes the second one refusable, and it is stamped by
 # the publish path too — a draft that was born with a video must not be offered
 # another.
 #
-# Never retried (see PushBoardPrintableVideoToEtsyJob), for the same reason
+# The stamp is per ROW because Etsy's rule is per LISTING: the same rendered
+# clip going to a printable's standalone listing AND its bundle listing is
+# correct, and the old printable-wide stamp would have refused the second.
+#
+# Never retried (see PushBoardPrintableListingVideoJob), for the same reason
 # publishing isn't: a retry after a partial success is a second video against a
 # listing that may already have taken the first.
 module Etsy
   class PushListingVideo
     Result = Struct.new(:ok?, :error, keyword_init: true)
 
-    def initialize(printable, client: nil)
-      @printable = printable
+    def initialize(listing, client: nil)
+      @listing = listing
+      @printable = listing.board_printable
       @client = client
     end
 
@@ -39,36 +44,36 @@ module Etsy
       guard = guard_failure
       return failure(guard) if guard
 
-      file = printable.video_file
-      client.upload_video(printable.etsy_listing_id, bytes: file.download, filename: file.filename.to_s)
+      file = listing.video_file
+      client.upload_video(listing.etsy_listing_id, bytes: file.download, filename: file.filename.to_s)
 
       # Stamped only after Etsy accepted it. A failed upload must leave the
       # control available, or a transient error would lock the listing out of
       # ever getting its video.
-      printable.mark_etsy_video_pushed!
-      printable.update_columns(etsy_error: nil, updated_at: Time.current)
+      listing.mark_video_pushed!
+      listing.update_columns(error: nil, updated_at: Time.current)
 
       Result.new(ok?: true)
     rescue StandardError => e
-      Rails.logger.error("[Etsy::PushListingVideo] printable #{printable.id}: #{e.class} - #{e.message}")
+      Rails.logger.error("[Etsy::PushListingVideo] listing #{listing.id}: #{e.class} - #{e.message}")
       failure("The listing video failed to upload: #{e.message}")
     end
 
     private
 
-    attr_reader :printable
+    attr_reader :listing, :printable
 
     def client = @client ||= Client.new
 
     def guard_failure
-      return "This printable isn't attached to an Etsy listing." unless printable.etsy_published?
-      return "This printable has no listing video. Render or upload one first." unless printable.listing_video?
+      return "This listing isn't attached to an Etsy draft." unless listing.attached?
+      return "This listing has no video. Render or upload one first." unless listing.listing_video?
 
-      if printable.etsy_video_pushed?
+      if listing.video_pushed_at.present?
         # Naming the way out matters, and the way out is NOT another POST from
         # here: replacing a listing's video needs Etsy's `video_id` field, which
         # is the update call this app pointedly does not implement.
-        return "A video has already been sent to listing #{printable.etsy_listing_id}. Etsy allows one per " \
+        return "A video has already been sent to listing #{listing.etsy_listing_id}. Etsy allows one per " \
                "listing, and this app can't replace it — swap it in the Etsy seller UI."
       end
 
@@ -76,7 +81,7 @@ module Etsy
     end
 
     def failure(message)
-      printable.update_columns(etsy_error: message.to_s.truncate(1000), updated_at: Time.current)
+      listing.update_columns(error: message.to_s.truncate(1000), updated_at: Time.current)
       Result.new(ok?: false, error: message)
     end
   end

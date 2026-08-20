@@ -121,14 +121,25 @@ Rails.application.routes.draw do
       member do
         patch :update_listing
         post :regenerate_listing_copy
-        post :publish_to_etsy
-        post :relist_on_etsy
-        post :push_video_to_etsy
         post :regenerate_listing_images
         post :regenerate_listing_video
         post :upload_listing_video
         post :regenerate
         post :waive_protection
+      end
+
+      # A printable can carry several Etsy listings, so publishing, detaching
+      # and sending a video are all per-LISTING and live on their own rows.
+      # `publish` also serves Retry: on a row with no Etsy id they are the same
+      # operation, re-entering the same one-shot claim.
+      resources :listings, only: %i[create update destroy],
+                controller: "board_printable_listings" do
+        member do
+          post :publish
+          post :supersede
+          post :replace
+          post :push_video
+        end
       end
     end
   end

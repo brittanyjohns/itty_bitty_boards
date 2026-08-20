@@ -157,6 +157,13 @@ class BoardPrintable < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :protection_waived_by, class_name: "User", optional: true
 
+  # The Etsy listings made from this printable — a standalone and a bundle, say.
+  # `dependent: :destroy` matches the record's existing semantics: deleting a
+  # printable already leaves its Etsy drafts alone (this app implements no
+  # delete call), and the confirm dialog is what warns about them.
+  has_many :etsy_listings, -> { ordered },
+           class_name: "BoardPrintableListing", dependent: :destroy
+
   has_many_attached :files
 
   validates :status, inclusion: { in: STATUSES }
@@ -208,8 +215,18 @@ class BoardPrintable < ApplicationRecord
   # looking at the previous render and wondering why "Regenerate" did nothing.
   # Same lesson as Boards::GeneratePreviewAssets. Any earlier render of this
   # variant is purged first so the versioned keys can't pile up.
-  def attach_image!(bytes:, variant:)
-    image_files.select { |f| f.metadata["variant"] == variant }.each(&:purge)
+  # `listing` stamps the blob as belonging to one BoardPrintableListing. A blob
+  # with no `listing_id` is the SHARED gallery every listing inherits; one with
+  # a listing_id belongs to that listing alone.
+  #
+  # The purge is scoped the same way. It used to drop "any earlier render of
+  # this variant", which the moment a listing had its own gallery would have
+  # meant rendering a listing's hero deleted the shared hero — and rendering the
+  # shared one deleted every listing's.
+  def attach_image!(bytes:, variant:, listing: nil)
+    image_files
+      .select { |f| f.metadata["variant"] == variant && f.metadata["listing_id"] == listing&.id }
+      .each(&:purge)
     reload_files_association
 
     filename = "#{variant.dasherize}-#{SecureRandom.hex(4)}.png"
@@ -218,7 +235,7 @@ class BoardPrintable < ApplicationRecord
       filename: filename,
       bytes: bytes,
       content_type: "image/png",
-      metadata: { "variant" => variant, "kind" => KIND_IMAGE },
+      metadata: { "variant" => variant, "kind" => KIND_IMAGE, "listing_id" => listing&.id },
     )
   end
 
@@ -226,8 +243,11 @@ class BoardPrintable < ApplicationRecord
   # `source` distinguishes a rendered flip-through from a clip an operator
   # uploaded by hand: a hand-made clip must never be marked stale by a spec
   # bump, because nothing can re-render it.
-  def attach_video!(bytes:, duration:, source: VIDEO_FLIP_THROUGH)
-    video_files.each(&:purge)
+  # `listing` scopes the clip to one listing, as it does for images — and the
+  # purge is scoped with it, or attaching a listing's own clip would delete the
+  # shared one every other listing inherits.
+  def attach_video!(bytes:, duration:, source: VIDEO_FLIP_THROUGH, listing: nil)
+    video_files.select { |f| f.metadata["listing_id"] == listing&.id }.each(&:purge)
     reload_files_association
 
     filename = "#{source.dasherize}-#{SecureRandom.hex(4)}.mp4"
@@ -238,6 +258,7 @@ class BoardPrintable < ApplicationRecord
       content_type: VideoTranscoder::OUTPUT_CONTENT_TYPE,
       metadata: {
         "kind" => KIND_VIDEO,
+        "listing_id" => listing&.id,
         "variant" => source,
         "spec_version" => VIDEO_SPEC_VERSION,
         "duration" => duration.to_f.round(2),
@@ -246,11 +267,16 @@ class BoardPrintable < ApplicationRecord
     )
   end
 
-  def video_files
+  # Every video blob, shared and listing-scoped alike. Callers almost always
+  # want #video_files (the shared ones) or BoardPrintableListing#video_file.
+  def all_video_files
     return [] unless files.attached?
 
     files.select { |f| f.metadata["kind"] == KIND_VIDEO }
   end
+
+  # The SHARED clip — the one a listing inherits when it has none of its own.
+  def video_files = all_video_files.select { |f| f.metadata["listing_id"].nil? }
 
   def video_file = video_files.first
 
@@ -304,11 +330,16 @@ class BoardPrintable < ApplicationRecord
     files.select { |f| KIND_DOWNLOADABLE.include?(f.metadata["kind"].presence) }
   end
 
-  def image_files
+  # Every image blob, shared and listing-scoped alike.
+  def all_image_files
     return [] unless files.attached?
 
     files.select { |f| f.metadata["kind"] == KIND_IMAGE }
   end
+
+  # The SHARED gallery. `listing_id` absent means "every listing inherits this",
+  # which is what a printable that has never had a per-listing gallery carries.
+  def image_files = all_image_files.select { |f| f.metadata["listing_id"].nil? }
 
   def listing_images? = image_files.any?
 
@@ -345,7 +376,7 @@ class BoardPrintable < ApplicationRecord
   # before it, so a render that fails leaves the old images in place instead of
   # emptying the gallery.
   def purge_legacy_listing_images!
-    stale = image_files.reject { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
+    stale = all_image_files.reject { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
     return if stale.empty?
 
     stale.each(&:purge)
@@ -375,10 +406,26 @@ class BoardPrintable < ApplicationRecord
     ids.filter_map { |id| by_id[id] }
   end
 
-  # Whether this printable is CURRENTLY linked to a marketplace listing. This is
-  # what stops a second draft being created for the same printable, and it is
-  # the one thing #relist! clears.
-  def etsy_published? = etsy_listing_id.present?
+  # Whether this printable is CURRENTLY linked to at least one marketplace
+  # listing.
+  #
+  # A DISPLAY predicate, not a guard. It used to be what refused a second draft
+  # for the same printable; that duty now belongs to
+  # BoardPrintableListing#reached_etsy?, one row at a time, because carrying two
+  # listings is the point.
+  #
+  # The `etsy_listing_id` half covers a row published after the backfill ran but
+  # before publishing started writing listing rows. It goes with the column.
+  def etsy_published? = etsy_listing_id.present? || etsy_listings.any?(&:attached?)
+
+  # The listing the printable-level API contract reports as "the" listing:
+  # whichever is attached, else the first that ever reached Etsy. Every
+  # printable that existed before this table has exactly one, so nothing
+  # observable moves.
+  def primary_etsy_listing
+    reached = etsy_listings.select(&:reached_etsy?)
+    reached.find(&:attached?) || reached.first
+  end
 
   # Whether a draft was EVER created from this printable.
   #
@@ -387,29 +434,10 @@ class BoardPrintable < ApplicationRecord
   # but no timestamp (set by hand, or by any path that predates the two being
   # written together) protected its boards before, and must keep protecting
   # them. Widening can only over-protect; narrowing unfreezes printed paper.
-  def etsy_ever_published? = etsy_published_at.present? || etsy_listing_id.present?
-
-  # Whether this app has already sent a listing video to the listing this
-  # printable is attached to.
-  #
-  # Etsy allows exactly one video per listing, and Etsy::Client implements no
-  # list or delete counterpart — so the app cannot ask a listing whether it
-  # already has one. A POST against a listing with NO video is the safe,
-  # intended call; a second POST has no outcome this app could verify. This
-  # column is the only memory that makes the second one refusable.
-  def etsy_video_pushed? = etsy_video_pushed_at.present?
-
-  # Whether "Send video to the listing" should be offered at all.
-  #
-  # Note this deliberately does NOT require `listing_video_current?`: a stale
-  # rendered clip is a judgement call the admin makes with the badge in front of
-  # them, exactly as publishing does. What it does require is that a video
-  # exists and that a listing is attached right now — a detached printable has
-  # nothing to push to, and publishing will carry the video anyway.
-  def can_push_listing_video? = etsy_published? && listing_video? && !etsy_video_pushed?
-
-  def mark_etsy_video_pushed!
-    update_columns(etsy_video_pushed_at: Time.current, updated_at: Time.current)
+  # Must agree exactly with Boards::MarketplaceProtection::PROTECTING_SQL, which
+  # asks the same question of many printables at once.
+  def etsy_ever_published?
+    etsy_published_at.present? || etsy_listing_id.present? || etsy_listings.any?(&:reached_etsy?)
   end
 
   # Whether this printable freezes the boards it was rendered from.
@@ -419,39 +447,13 @@ class BoardPrintable < ApplicationRecord
   # board every time would make the feature something to avoid.
   #
   # It is also not keyed on any "is the listing still live" state, and
-  # deliberately not on `etsy_listing_id` either. The thing protection defends
-  # is a printed sheet with a QR on it: ending an Etsy listing doesn't un-print
-  # that sheet, and neither does relisting. #relist! clears the listing id so a
-  # fresh draft can be created, so keying protection there would silently
-  # unfreeze boards whose printed pages are already in someone's hands — the
-  # exact failure this exists to prevent. Release is the explicit waiver below.
+  # deliberately not on whether a listing is attached RIGHT NOW. The thing
+  # protection defends is a printed sheet with a QR on it: ending an Etsy
+  # listing doesn't un-print that sheet, and neither does detaching from it. A
+  # superseded row still protects, or replacing a draft would silently unfreeze
+  # boards whose printed pages are already in someone's hands — the exact
+  # failure this exists to prevent. Release is the explicit waiver below.
   def protects_board? = etsy_ever_published? && protection_waived_at.nil?
-
-  # Forget which listing this printable is attached to, so Publish can create a
-  # fresh draft. For replacing a draft whose gallery is out of date: this app
-  # only ever CREATES listings — it has no path that updates one — so a
-  # re-rendered gallery can't reach an existing draft any other way.
-  #
-  # Deliberately does NOT touch `etsy_published_at` (protection reads it) or
-  # `protection_waived_at`. The old draft is left alone on Etsy; deleting it
-  # there is the operator's job, and doing it from here would mean implementing
-  # a delete call this app pointedly does not have.
-  def relist!
-    # Backfilled BEFORE the id is dropped, so a row that somehow carries a
-    # listing id without a timestamp doesn't lose its only remaining evidence of
-    # having been published — which is what protection reads.
-    update!(
-      etsy_published_at: etsy_published_at || Time.current,
-      etsy_listing_id: nil,
-      etsy_listing_url: nil,
-      etsy_error: nil,
-      # Scoped to the listing it was pushed to, so detaching from that listing
-      # retires the fact. The replacement draft has no video until publishing
-      # gives it one, and leaving the stamp set would hide the push control for
-      # a listing that genuinely has nothing on it.
-      etsy_video_pushed_at: nil,
-    )
-  end
 
   def protection_waived? = protection_waived_at.present?
 

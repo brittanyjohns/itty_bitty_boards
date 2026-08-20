@@ -1,0 +1,206 @@
+<%# One Etsy listing made from this printable.
+
+    A row that has reached Etsy is NEVER deletable from here. It is the only
+    record that a draft exists in a real shop — this app implements no delete
+    call, so losing the row loses the draft. Detaching supersedes the row and
+    keeps its id for exactly that reason. %>
+<div class="admin-card-alt border rounded-lg p-4">
+  <div class="flex items-start justify-between gap-3 mb-3">
+    <div>
+      <div class="text-xs font-medium text-t1">
+        <%= etsy_listing.purpose.humanize %><%= " — #{etsy_listing.label}" if etsy_listing.label.present? %>
+      </div>
+      <div class="text-[11px] text-t3">
+        <%= etsy_listing.resolved_copy["title"] %>
+      </div>
+    </div>
+    <span class="shrink-0 text-[11px] px-1.5 py-0.5 rounded font-medium <%= etsy_listing_state_badge(etsy_listing) %>">
+      <%= etsy_listing.state %>
+    </span>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs mb-3">
+    <div>
+      <div class="text-t2 mb-0.5">Listing</div>
+      <div class="text-t1"><%= etsy_listing.etsy_listing_id || "—" %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Draft created</div>
+      <div class="text-t1"><%= etsy_listing.published_at&.strftime("%b %-d, %Y %l:%M %p") || "—" %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Video sent</div>
+      <div class="text-t1"><%= etsy_listing.video_pushed_at&.strftime("%b %-d, %Y") || "—" %></div>
+    </div>
+  </div>
+
+  <%# The id is persisted the instant Etsy returns it, before any upload — so a
+      draft whose gallery or files failed partway is still findable here rather
+      than being an orphan in the shop. %>
+  <% if etsy_listing.assets_incomplete? %>
+    <p class="text-[11px] text-amber-300 mb-3">
+      Draft <%= etsy_listing.etsy_listing_id %> exists but its images or files didn't all upload.
+      Check it in the seller UI before doing anything else here.
+    </p>
+  <% end %>
+
+  <% if etsy_listing.error.present? %>
+    <p class="text-[11px] text-t3 mb-3"><%= etsy_listing.error %></p>
+  <% end %>
+
+  <%# Overrides only. A blank field means "use the printable's copy", never
+      "publish an empty one" — so regenerating the base copy above can't clobber
+      a bundle's hand-typed title, and clearing a field falls back rather than
+      shipping a listing with no title. %>
+  <details class="mb-3">
+    <summary class="text-[11px] text-t2 cursor-pointer">Overrides for this listing</summary>
+    <%= form_with url: admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+                  method: :patch, class: "mt-3 space-y-3", data: { turbo: false } do %>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] text-t2 mb-1">Kind</label>
+          <%= select_tag "board_printable_listing[purpose]",
+                options_for_select(BoardPrintableListing::PURPOSES.map { |p| [p.humanize, p] },
+                                   etsy_listing.purpose),
+                class: "w-full text-xs rounded admin-input px-2 py-2" %>
+        </div>
+        <div>
+          <label class="block text-[11px] text-t2 mb-1">Label</label>
+          <%= text_field_tag "board_printable_listing[label]", etsy_listing.label,
+                class: "w-full text-xs rounded admin-input px-2 py-2" %>
+        </div>
+        <div>
+          <label class="block text-[11px] text-t2 mb-1">Title</label>
+          <%= text_field_tag "board_printable_listing[title]", etsy_listing.listing_copy["title"],
+                placeholder: @printable.listing_copy_or_default["title"],
+                class: "w-full text-xs rounded admin-input px-2 py-2" %>
+        </div>
+        <div>
+          <label class="block text-[11px] text-t2 mb-1">Price (cents)</label>
+          <%= number_field_tag "board_printable_listing[price_cents]", etsy_listing.listing_copy["price_cents"],
+                placeholder: @printable.listing_copy_or_default["price_cents"],
+                class: "w-full text-xs rounded admin-input px-2 py-2" %>
+        </div>
+        <div>
+          <label class="block text-[11px] text-t2 mb-1">Tags (comma separated)</label>
+          <%= text_field_tag "board_printable_listing[tags]", Array(etsy_listing.listing_copy["tags"]).join(", "),
+                class: "w-full text-xs rounded admin-input px-2 py-2" %>
+        </div>
+        <div>
+          <%# The ONLY lever that makes two listings render different gallery
+              slides: the renderer builds them from the boards and the topic,
+              never from listing copy. %>
+          <label class="block text-[11px] text-t2 mb-1">Topic override (re-renders this listing's gallery)</label>
+          <%= text_field_tag "board_printable_listing[topic_override]", etsy_listing.topic_override,
+                placeholder: @printable.topic,
+                class: "w-full text-xs rounded admin-input px-2 py-2" %>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[11px] text-t2 mb-1">Summary</label>
+        <%= text_area_tag "board_printable_listing[summary]", etsy_listing.listing_copy["summary"], rows: 2,
+              placeholder: @printable.listing_copy_or_default["summary"],
+              class: "w-full text-xs rounded admin-input px-2 py-2" %>
+      </div>
+      <div>
+        <label class="block text-[11px] text-t2 mb-1">Description</label>
+        <%= text_area_tag "board_printable_listing[description]", etsy_listing.listing_copy["description"], rows: 4,
+              placeholder: "Falls back to the printable's description",
+              class: "w-full text-xs rounded admin-input px-2 py-2" %>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <%# Empty means "all of them". Rank 1 is Etsy's search thumbnail and
+              belongs to a photoreal mockup, so the order here is fixed. %>
+          <label class="block text-[11px] text-t2 mb-1">Gallery slides (none ticked = all)</label>
+          <div class="space-y-1">
+            <% BoardPrintable::LISTING_IMAGE_ORDER.each do |variant| %>
+              <label class="flex items-center gap-2 text-[11px] text-t2">
+                <%= check_box_tag "board_printable_listing[image_variants][]", variant,
+                      etsy_listing.selected_image_variants.include?(variant) %>
+                <%= variant.humanize %>
+              </label>
+            <% end %>
+          </div>
+        </div>
+        <div>
+          <%# Intersected with the printable's PDFs — never a fresh selection
+              over its blobs, which is what keeps a gallery image or the video
+              out of a buyer's download. %>
+          <label class="block text-[11px] text-t2 mb-1">Download files (none ticked = all)</label>
+          <div class="space-y-1">
+            <% BoardPrintableListing::PDF_VARIANTS.each do |variant| %>
+              <label class="flex items-center gap-2 text-[11px] text-t2">
+                <%= check_box_tag "board_printable_listing[pdf_variants][]", variant,
+                      etsy_listing.selected_pdf_variants.include?(variant) %>
+                <%= variant.humanize %>
+              </label>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <%= submit_tag "Save this listing",
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer" %>
+    <% end %>
+  </details>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <% if etsy_listing.superseded? %>
+      <p class="text-[11px] text-t3">
+        Detached <%= etsy_listing.superseded_at.strftime("%b %-d, %Y") %>. Draft
+        <%= etsy_listing.etsy_listing_id || "(id not recorded)" %> is still on Etsy unless you removed it there.
+      </p>
+    <% elsif etsy_listing.attached? %>
+      <%# The SELLER's listing editor, not the public listing page — a draft has
+          no public page. Built from the numeric id, never the stored URL string;
+          see etsy_listing_url_for. %>
+      <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(etsy_listing),
+            target: "_blank", rel: "noopener",
+            class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+
+      <% if etsy_listing.can_push_video? && @printable.listing_video? %>
+        <%= button_to "Send video", push_video_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+              method: :post,
+              class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+              form: { data: { turbo_confirm: push_video_confirm(etsy_listing) } } %>
+      <% end %>
+
+      <%# The app CREATES listings and implements no call that UPDATES one, so a
+          re-rendered gallery can never reach this draft in place. Replacing it
+          is detach here, delete the old draft on Etsy yourself, publish the
+          replacement. Nothing here touches Etsy. %>
+      <%= button_to "Replace", replace_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: replace_listing_confirm(etsy_listing) } } %>
+      <%= button_to "Detach", supersede_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: supersede_listing_confirm(etsy_listing) } } %>
+    <% elsif etsy_listing.state == "publishing" %>
+      <%# Deliberately no reset button. A stuck row means a job was dispatched
+          against a real shop and we do not know what it did; a one-click reset
+          is a duplicate-draft generator. `rake printables:reset_stuck_listing`
+          exists and makes you confirm you looked. %>
+      <p class="text-[11px] text-t3">
+        Publishing since <%= etsy_listing.claimed_at&.strftime("%b %-d, %Y %l:%M %p") || "—" %>.
+        If it's been stuck more than a few minutes, check the shop before resetting it.
+      </p>
+    <% else %>
+      <%= button_to etsy_listing.state == "failed" ? "Retry Etsy draft" : "Create Etsy draft",
+            publish_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+            form: { data: { turbo_confirm: publish_listing_confirm(etsy_listing) } } %>
+      <%# Only a row that never reached Etsy. A row carrying a listing id is the
+          only record that a draft exists in a real shop. %>
+      <%= button_to "Remove", admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :delete,
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: "Remove this listing? Nothing has been sent to Etsy for it." } } %>
+    <% end %>
+  </div>
+</div>

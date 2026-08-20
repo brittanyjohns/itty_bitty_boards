@@ -29,7 +29,7 @@
 #     boards move is deterministic rather than a full reshuffle.
 #
 # What this does NOT give you is a frozen assignment for an ALREADY-PUBLISHED
-# printable. That is deliberate and currently harmless: Etsy::PublishBoardPrintable
+# printable. That is deliberate and currently harmless: the publish service
 # refuses to publish a printable that is already on Etsy, so a live listing's
 # gallery is frozen the moment its draft is created, and a re-render can only
 # change what the admin previews. If that ever stops being true, the fix is to

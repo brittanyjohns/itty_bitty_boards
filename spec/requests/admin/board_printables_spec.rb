@@ -418,9 +418,6 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         patch update_listing_admin_dashboard_board_printable_path(printable), params: { title: "x" }
         expect(response).to redirect_to(root_path)
 
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-        expect(response).to redirect_to(root_path)
-
         post regenerate_listing_images_admin_dashboard_board_printable_path(printable)
         expect(response).to redirect_to(root_path)
 
@@ -436,7 +433,7 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         get admin_dashboard_board_printable_path(printable)
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to include("Listing copy", "Teachers Pay Teachers", "Create Etsy draft")
+        expect(response.body).to include("Listing copy", "Teachers Pay Teachers", "Add a listing")
         # The link back to the board the printable was built from.
         expect(response.body).to include("Open board ##{board.id}")
       end
@@ -471,7 +468,10 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         # from the bigint id so a string column can never reach an href. It
         # points at the seller editor because a draft has no public page — the
         # public URL Etsy returns is a dead end until someone activates it.
-        printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://www.etsy.com/listing/987/core-words")
+        printable.etsy_listings.create!(
+          etsy_listing_id: 987, etsy_listing_url: "https://www.etsy.com/listing/987/core-words",
+          state: "published", published_at: 1.day.ago,
+        )
 
         get admin_dashboard_board_printable_path(printable)
 
@@ -480,6 +480,27 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         )
         expect(response.body).not_to include("core-words\"")
         expect(response.body).not_to include("Create Etsy draft")
+      end
+
+      # The record the scalar columns could not keep: a detached listing still
+      # names the draft an operator has to go and delete.
+      it "shows a card per listing, superseded ones included" do
+        sign_in admin
+        printable.etsy_listings.create!(
+          etsy_listing_id: 111, state: "superseded",
+          published_at: 3.days.ago, superseded_at: 2.days.ago,
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 222, state: "published", published_at: 1.day.ago,
+          purpose: "bundle", label: "holiday",
+        )
+
+        get admin_dashboard_board_printable_path(printable)
+
+        expect(response.body).to include("111")
+        expect(response.body).to include("222")
+        expect(response.body).to include("holiday")
+        expect(response.body).to include("superseded")
       end
 
       it "says Etsy is unconfigured instead of offering a button that would fail" do
@@ -513,65 +534,10 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
 
       it "does not touch Etsy" do
         sign_in admin
-        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
+        expect(PublishBoardPrintableListingJob).not_to receive(:perform_async)
 
         patch update_listing_admin_dashboard_board_printable_path(printable),
               params: { title: "T", description: "D" }
-      end
-    end
-
-    describe "POST publish_to_etsy" do
-      before { allow(Etsy::Client).to receive(:configured?).and_return(true) }
-
-      it "enqueues the publish job and clears a stale error" do
-        sign_in admin
-        printable.update_columns(etsy_error: "an old failure")
-
-        expect(PublishBoardPrintableToEtsyJob).to receive(:perform_async).with(printable.id)
-
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
-        expect(printable.reload.etsy_error).to be_nil
-      end
-
-      it "saves the generated copy first, so the draft matches what the page showed" do
-        sign_in admin
-        allow(PublishBoardPrintableToEtsyJob).to receive(:perform_async)
-
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(printable.reload.listing_copy["title"]).to be_present
-      end
-
-      it "refuses a printable that is still generating" do
-        sign_in admin
-        printable.update_columns(status: "generating")
-
-        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
-
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-        expect(flash[:alert]).to match(/isn't finished generating/)
-      end
-
-      it "refuses to create a second listing for the same printable" do
-        sign_in admin
-        printable.update!(etsy_listing_id: 555)
-
-        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
-
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-        expect(flash[:alert]).to match(/Already on Etsy as listing 555/)
-      end
-
-      it "refuses when Etsy isn't configured" do
-        sign_in admin
-        allow(Etsy::Client).to receive(:configured?).and_return(false)
-
-        expect(PublishBoardPrintableToEtsyJob).not_to receive(:perform_async)
-
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-        expect(flash[:alert]).to match(/isn't configured/)
       end
     end
 
@@ -792,157 +758,6 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         post regenerate_listing_copy_admin_dashboard_board_printable_path(printable)
 
         expect(response).to redirect_to(root_path)
-      end
-    end
-
-    describe "POST push_video_to_etsy" do
-      before do
-        printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 2.days.ago)
-        printable.attach_video!(bytes: "mp4-bytes", duration: 9.0)
-        allow(Etsy::Client).to receive(:configured?).and_return(true)
-      end
-
-      it "enqueues the push for the attached listing" do
-        sign_in admin
-
-        expect {
-          post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
-        }.to change(PushBoardPrintableVideoToEtsyJob.jobs, :size).by(1)
-
-        expect(flash[:notice]).to include("987")
-      end
-
-      it "refuses a printable that isn't attached to a listing" do
-        sign_in admin
-        printable.update!(etsy_listing_id: nil)
-
-        expect {
-          post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
-        }.not_to change(PushBoardPrintableVideoToEtsyJob.jobs, :size)
-
-        expect(flash[:alert]).to match(/nothing to send a video to/)
-      end
-
-      it "refuses when there is no video to send" do
-        sign_in admin
-        printable.video_files.each(&:purge)
-
-        post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(flash[:alert]).to match(/no listing video yet/i)
-      end
-
-      # Etsy allows one video per listing and this app can't read a listing back
-      # to find out whether one is there, so the stamp is the only guard.
-      it "refuses a second push and points at the seller UI" do
-        sign_in admin
-        printable.update_columns(etsy_video_pushed_at: 1.hour.ago)
-
-        expect {
-          post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
-        }.not_to change(PushBoardPrintableVideoToEtsyJob.jobs, :size)
-
-        expect(flash[:alert]).to match(/already been sent/)
-        expect(flash[:alert]).to match(/seller UI/)
-      end
-
-      it "refuses when Etsy isn't configured" do
-        sign_in admin
-        allow(Etsy::Client).to receive(:configured?).and_return(false)
-
-        post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(flash[:alert]).to match(/isn't configured/)
-      end
-
-      it "redirects a non-admin away" do
-        sign_in create(:user)
-
-        post push_video_to_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(response).to redirect_to(root_path)
-      end
-
-      describe "the show page" do
-        it "offers the control for a listed printable whose video hasn't gone" do
-          sign_in admin
-
-          get admin_dashboard_board_printable_path(printable)
-
-          expect(response.body).to include("Send video to the listing")
-        end
-
-        it "retires the control once a video has gone, and says where to swap it" do
-          sign_in admin
-          printable.update_columns(etsy_video_pushed_at: 1.hour.ago)
-
-          get admin_dashboard_board_printable_path(printable)
-
-          expect(response.body).not_to include("Send video to the listing")
-          expect(response.body).to include("seller UI")
-        end
-
-        it "doesn't offer it for a printable with no listing" do
-          sign_in admin
-          printable.update!(etsy_listing_id: nil)
-
-          get admin_dashboard_board_printable_path(printable)
-
-          expect(response.body).not_to include("Send video to the listing")
-        end
-      end
-    end
-
-    describe "POST relist_on_etsy" do
-      before { printable.update!(etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 2.days.ago) }
-
-      it "detaches the listing so publishing can create a fresh draft" do
-        sign_in admin
-
-        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
-
-        printable.reload
-        expect(printable.etsy_published?).to be false
-        expect(flash[:notice]).to include("987")
-      end
-
-      # The reason protection was rekeyed. A relisted printable's boards still
-      # have printed QR codes pointing at them.
-      it "leaves the boards it protects frozen" do
-        sign_in admin
-
-        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(printable.reload.protects_board?).to be true
-        expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
-      end
-
-      it "unblocks the publish guard it was previously failing" do
-        sign_in admin
-        post publish_to_etsy_admin_dashboard_board_printable_path(printable)
-        expect(flash[:alert]).to match(/Already on Etsy/)
-
-        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
-        expect(Etsy::PublishBoardPrintable.new(printable.reload).send(:guard_failure))
-          .not_to match(/Already on Etsy/)
-      end
-
-      it "refuses a printable that isn't attached to a listing" do
-        sign_in admin
-        printable.update!(etsy_listing_id: nil)
-
-        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
-
-        expect(flash[:alert]).to match(/nothing to relist/)
-      end
-
-      # Detaching must never reach Etsy — deleting the old draft is the
-      # operator's job, and this app implements no delete call at all.
-      it "sends nothing to Etsy" do
-        sign_in admin
-        expect(Etsy::Client).not_to receive(:new)
-
-        post relist_on_etsy_admin_dashboard_board_printable_path(printable)
       end
     end
 

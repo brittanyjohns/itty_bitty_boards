@@ -21,6 +21,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Detaching a printable from an Etsy draft no longer loses the draft.**
+  "Detach & relist" used to forget the listing id, so the superseded draft was
+  left in the shop with nothing naming it. Detaching now keeps the listing on
+  record — its card stays visible, still showing which draft to go and delete —
+  and a listing that reached Etsy can't be removed from the admin at all. A
+  publish whose images or files fail partway also keeps its listing id now, and
+  says the draft exists but is incomplete, instead of leaving an unnamed
+  half-built listing behind.
+
+- **The same listing video can go to two listings.** Etsy allows one video per
+  listing, but the "already sent" record was kept per printable, so a second
+  listing was refused a clip it had never received. It is now kept per listing.
+
+
 - **Deleting a demo account from the admin dashboard works again.** Selecting
   demo accounts and pressing **Delete selected** reported "Skipped 1 selected
   user(s) that weren't demo accounts" and deleted nothing. The check treated an
@@ -50,6 +64,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   imports are settled by `bin/rails obf_import:classify_sets`.
 
 ### Added
+
+- **A board printable can be sold as several Etsy listings.** One printable now
+  carries a list of listings instead of a single one, so the same document can
+  go up as a standalone listing and as a bundle side by side. Each listing gets
+  its own title, tags and price, its own choice of gallery slides, its own
+  subset of the download PDFs, and its own listing video — anything left blank
+  falls back to the printable's. Add one from the printable's Etsy card, edit
+  its copy, then create its draft; drafts still never go live from here.
+
 
 - **The admin Users table shows where each account signed up.** A new **Source**
   column badges every user as iOS, Android, web, or unknown (accounts created
