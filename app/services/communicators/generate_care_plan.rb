@@ -25,7 +25,10 @@ module Communicators
     # forever — a gap the existing card generators still have.
     # 2: condensed layout — merged header band, two-column emergency grid,
     #    omitted blank emergency fields, two-column care sections.
-    LAYOUT_VERSION = 2
+    # 3: the band's "SpeakAnyWay" eyebrow is gone — the communicator's name is
+    #    the first thing read on a sheet that exists to introduce them, and the
+    #    mark still signs the footnote on every page.
+    LAYOUT_VERSION = 3
 
     VARIANTS = {
       full: { attachment: :care_emergency_plan_pdf, filename: "care-and-emergency-plan", emergency: true },
@@ -34,8 +37,9 @@ module Communicators
 
     class UnknownVariant < ArgumentError; end
 
-    def self.call(profile, variant: :full, regenerate: false, locale: I18n.locale, qr_target_url: nil)
-      new(profile, variant: variant, locale: locale, qr_target_url: qr_target_url)
+    def self.call(profile, variant: :full, regenerate: false, locale: I18n.locale, qr_target_url: nil,
+                  sections: nil)
+      new(profile, variant: variant, locale: locale, qr_target_url: qr_target_url, sections: sections)
         .call(regenerate: regenerate)
     end
 
@@ -43,8 +47,12 @@ module Communicators
     # generating so it can answer 422 — a service that raises can't, and a
     # near-blank document that looks like a finished plan is worse than a
     # refusal.
-    def self.printable?(profile, variant: :full)
-      document = CarePlanDocument.new(profile)
+    #
+    # The section selection has to reach this check too, or a :care_only request
+    # narrowed down to nothing prints the sheet of empty headings the 422 exists
+    # to refuse.
+    def self.printable?(profile, variant: :full, sections: nil)
+      document = CarePlanDocument.new(profile, only_sections: sections)
 
       config_for(variant)[:emergency] ? document.care? || document.emergency? : document.care?
     end
@@ -53,15 +61,22 @@ module Communicators
       VARIANTS.fetch(variant.to_sym) { raise UnknownVariant, "unknown care plan variant" }
     end
 
-    def initialize(profile, variant: :full, locale: I18n.locale, qr_target_url: nil)
+    def initialize(profile, variant: :full, locale: I18n.locale, qr_target_url: nil, sections: nil)
       super(profile, qr_target_url: qr_target_url)
       @variant = variant.to_sym
       @config = self.class.config_for(@variant)
       @locale = locale
+      # nil means every section — see the note on CarePlanDocument#initialize.
+      @sections = sections.nil? ? nil : Array(sections).map { |key| key.to_s.strip }.reject(&:empty?)
     end
 
-    attr_reader :variant, :config, :locale
+    attr_reader :variant, :config, :locale, :sections
 
+    # There is one attachment per VARIANT, not per selection, so a narrowed
+    # download replaces the stored document and the `care_plan_url` on
+    # Profile#api_view points at the narrowed sheet until the next download.
+    # That is deliberate — the screen regenerates on every click, so it
+    # self-corrects — and an attachment per selection would be unbounded.
     def call(regenerate: false)
       return profile if !regenerate && attached_and_fresh?(config[:attachment], signature: signature)
 
@@ -85,19 +100,26 @@ module Communicators
     # The two variants live in separate attachments so they can't literally
     # collide, but a mistake that crossed them would otherwise serve a care-only
     # download containing medications — cheap insurance for an expensive failure.
+    #
+    # The section selection rides along too, and it MUST: the two variants share
+    # one attachment each, so without it a narrowed download is answered by the
+    # cached full document and the picker silently does nothing. Omitted
+    # entirely when nothing was selected away, so an unfiltered download keeps
+    # the signature it has always had.
     def signature
       asset_signature(
         [
           profile.safety_info_signature,
           "care_plan=#{variant}",
           "locale=#{locale}",
+          ("sections=#{sections.sort.join(",")}" if sections),
           "v#{LAYOUT_VERSION}",
-        ].join("::"),
+        ].compact.join("::"),
       )
     end
 
     def document
-      @document ||= CarePlanDocument.new(profile, locale: locale)
+      @document ||= CarePlanDocument.new(profile, locale: locale, only_sections: sections)
     end
 
     def rendered_document

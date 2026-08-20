@@ -94,6 +94,65 @@ RSpec.describe "API::Profiles care plan", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
+    # The section picker's wire format. The frontend sends a comma-separated
+    # string; the array form is what a form-encoded client would send, and both
+    # have to mean the same thing.
+    it "passes a comma-separated selection through to the generator" do
+      expect(Communicators::GenerateCarePlan).to receive(:call)
+        .with(profile, hash_including(sections: %w[meals sensory]))
+        .and_call_original
+
+      post_care_plan(parent, sections: "meals,sensory")
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "accepts the selection as an array" do
+      expect(Communicators::GenerateCarePlan).to receive(:call)
+        .with(profile, hash_including(sections: %w[meals sensory]))
+        .and_call_original
+
+      post_care_plan(parent, sections: %w[meals sensory])
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    # Absent means every section, which is what every caller sent before the
+    # picker existed — so it must stay distinguishable from "none selected".
+    it "passes nil when no selection is sent" do
+      expect(Communicators::GenerateCarePlan).to receive(:call)
+        .with(profile, hash_including(sections: nil))
+        .and_call_original
+
+      post_care_plan(parent)
+    end
+
+    # An emergency-only sheet, and the reason an empty selection is a request
+    # rather than a missing one.
+    it "builds the combined plan from emergency info alone when nothing is selected" do
+      post_care_plan(parent, sections: "")
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_emergency_plan_pdf).to be_attached
+    end
+
+    it "answers no_care_info when a care-only selection resolves to nothing" do
+      post_care_plan(parent, variant: "care_only", sections: "sensory")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("no_care_info")
+      expect(profile.reload.care_plan_pdf).not_to be_attached
+    end
+
+    # A key the profile has no section for can only ever remove sections, so it
+    # needs no validation and gets no error.
+    it "ignores a section key the profile does not have" do
+      post_care_plan(parent, variant: "care_only", sections: "meals,not_a_section")
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_plan_pdf).to be_attached
+    end
+
     it "rejects an unknown variant rather than falling back to the combined plan" do
       post_care_plan(parent, variant: "everything")
 

@@ -19,6 +19,11 @@ RSpec.describe Communicators::CarePlanDocument do
     described_class.new(profile.reload)
   end
 
+  def with_care_only(care, only_sections)
+    profile.update!(settings: { "care" => care })
+    described_class.new(profile.reload, only_sections: only_sections)
+  end
+
   describe "#care_sections" do
     it "labels the section, its fields, and its option values" do
       doc = with_care(
@@ -272,6 +277,61 @@ RSpec.describe Communicators::CarePlanDocument do
     it "reports whether there is any emergency info at all" do
       expect(with_care({ "sections" => {} }, emergency).emergency?).to be(true)
       expect(with_care("sections" => {}).emergency?).to be(false)
+    end
+  end
+
+  # The section picker's server half. The selection is an ALLOWLIST, applied
+  # after the order walk, and nil is not [] — see the note on #initialize.
+  describe "only_sections" do
+    let(:three_sections) do
+      {
+        "order" => %w[meals sensory communication],
+        "sections" => {
+          "communication" => { "values" => { "methods" => ["aac_device"] } },
+          "meals" => { "values" => { "preferences" => "hates anything cold" } },
+          "sensory" => { "values" => { "calming" => "quiet spaces" } },
+        },
+      }
+    end
+
+    it "prints every stored section when nil" do
+      doc = with_care_only(three_sections, nil)
+
+      expect(doc.care_sections.map(&:key)).to eq(%w[meals sensory communication])
+    end
+
+    it "prints only the selected sections, still in the owner's order" do
+      # Passed in a different order than stored, to pin that the SELECTION does
+      # not reorder the sheet.
+      doc = with_care_only(three_sections, %w[communication meals])
+
+      expect(doc.care_sections.map(&:key)).to eq(%w[meals communication])
+    end
+
+    it "ignores a key the profile has no section for" do
+      doc = with_care_only(three_sections, %w[meals not_a_section])
+
+      expect(doc.care_sections.map(&:key)).to eq(%w[meals])
+    end
+
+    # [] is a real request on the :full variant — the emergency page alone.
+    # This is why the argument can't be normalized with Array().
+    it "prints no sections when given an empty selection" do
+      doc = with_care_only(three_sections, [])
+
+      expect(doc.care_sections).to be_empty
+      expect(doc.care?).to be(false)
+    end
+
+    it "answers #care? about the selected sections only" do
+      expect(with_care_only(three_sections, %w[meals]).care?).to be(true)
+      expect(with_care_only(three_sections, %w[transportation]).care?).to be(false)
+    end
+
+    it "tolerates blanks and symbols in the selection" do
+      doc = with_care_only(three_sections, [:meals, "", "  sensory  ", nil])
+
+      expect(doc.care_sections.map(&:key)).to eq(%w[meals sensory])
     end
   end
 end

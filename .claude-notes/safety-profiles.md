@@ -294,7 +294,32 @@ behind the controller-wide owner gate. **Nothing is added to the public MySpeak
 page**: the page keeps its two gated reveals and gains no download button, so
 this introduces no new path to emergency data.
 
+`&sections=` narrows the document to an allowlist of care section keys (the
+download picker in the frontend's `CarePlanOptionsModal`). Accepted as a
+comma-separated string or an array.
+
 Things that will bite a future change:
+
+- **`sections` absent is not `sections` empty.** Absent means every stored
+  section — what every caller sent before the picker shipped, and what keeps
+  those documents' signatures stable. Empty means none of them, which on the
+  `:full` variant is a real request for the emergency page alone. `Array(nil)`
+  collapses the two, so every hop (controller → `GenerateCarePlan` →
+  `CarePlanDocument`) guards on nil explicitly.
+- **A selection that doesn't reach `GenerateCarePlan#signature` does nothing at
+  all.** There is one attachment per variant, so a narrowed request would be
+  answered by the cached full document and the picker would appear to be
+  ignored. The corollary is that a narrowed download REPLACES the stored
+  document, so `care_plan_url` on `Profile#api_view` can point at a narrowed
+  sheet until the next download — acceptable because the client regenerates on
+  every click.
+- **The selection also has to reach `.printable?`.** Otherwise a `:care_only`
+  request narrowed down to nothing prints headings over nothing, which is the
+  exact "a finished plan that says this child needs nothing" failure the 422
+  exists to refuse.
+- Section keys need no validation: they are only ever intersected with the
+  profile's own stored keys, so an unknown one can only remove sections. The
+  list is capped in the controller because it rides in the signature.
 
 - **A flowing document is not a card, and the two render paths are different
   on purpose.** `BaseAssetGenerator#generate_pdf_from_html` pins Grover to a

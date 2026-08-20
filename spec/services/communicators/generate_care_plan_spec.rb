@@ -75,6 +75,18 @@ RSpec.describe Communicators::GenerateCarePlan do
     captured
   end
 
+  # The visible text of the header band, in order — everything from the band to
+  # whatever section follows it, tags stripped. Asserting on the ORDER is the
+  # point: "the name is not preceded by anything" is the claim, and a check for
+  # the absence of one particular string would pass again the moment someone
+  # put a different eyebrow back.
+  def band_text(html)
+    band = html[/<div class="band">.*?(?=<section|<div class="care-heading"|<div class="footnote")/m]
+    raise "no header band in the rendered document" unless band
+
+    band.gsub(/<[^>]+>/, "\n").split("\n").map(&:strip).reject(&:empty?)
+  end
+
   # settings holds care under "care", plus the emergency keys at the top level.
   before do
     profile.update!(settings: { "care" => care }.merge(emergency))
@@ -225,6 +237,18 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to match(/\.page-frame\s*\{[^}]*inset:\s*0/m)
     end
 
+    # The sheet exists to introduce one person. The band used to open with a
+    # "SpeakAnyWay" eyebrow, so the brand was the first thing read on a page
+    # whose whole job is to say who this is.
+    it "reads the communicator's name first, with no brand eyebrow above it" do
+      html = render_html
+
+      expect(band_text(html).first).to eq("Rosa")
+      expect(html).not_to include(%(class="eyebrow"))
+      # The mark still signs the sheet — in the footnote, at the bottom.
+      expect(band_text(html)).not_to include("SpeakAnyWay")
+    end
+
     it "signs the document with the logo in the footnote" do
       html = render_html
 
@@ -367,6 +391,80 @@ RSpec.describe Communicators::GenerateCarePlan do
       care_only = profile.care_plan_pdf.metadata["signature"]
 
       expect(full).not_to eq(care_only)
+    end
+  end
+
+  # The section picker. `sections` is an allowlist; nil means all of them, and
+  # the selection has to reach the freshness signature or a narrowed download is
+  # answered by the cached full document.
+  describe "a narrowed selection" do
+    it "prints only the selected sections" do
+      html = render_html(sections: %w[meals])
+
+      expect(html).to include("hates cold food")
+      expect(html).not_to include("Bedtime")
+      expect(html).not_to include("Eye gaze")
+    end
+
+    it "keeps the emergency block on the full variant" do
+      html = render_html(sections: %w[meals])
+
+      expect(html).to include("zzpeanutszz")
+    end
+
+    # An emergency-only sheet is a real request, and the reason [] can't be
+    # normalized into nil anywhere along the way.
+    it "prints the emergency page alone when no section is selected" do
+      html = render_html(sections: [])
+
+      expect(html).to include("zzpeanutszz")
+      expect(html).not_to include("hates cold food")
+      expect(html).not_to include("Bedtime")
+    end
+
+    it "re-renders when the selection changes" do
+      render_html(sections: %w[meals])
+
+      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      described_class.call(profile.reload, variant: :full, sections: %w[communication])
+    end
+
+    it "does not re-render for the same selection" do
+      render_html(sections: %w[meals])
+
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload, variant: :full, sections: %w[meals])
+    end
+
+    # Order is not part of the request — it is the owner's stored order that
+    # decides the sheet — so two spellings of one selection are one document.
+    it "treats a reordered selection as the same document" do
+      render_html(sections: %w[meals communication])
+
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload, variant: :full, sections: %w[communication meals])
+    end
+
+    # Every document generated before the picker shipped carries a signature
+    # with no sections term. Adding one unconditionally would invalidate all of
+    # them at once for no change in output.
+    it "leaves the signature untouched when nothing is selected away" do
+      render_html
+      unfiltered = profile.reload.care_emergency_plan_pdf.metadata["signature"]
+
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload, variant: :full, sections: nil)
+      expect(profile.reload.care_emergency_plan_pdf.metadata["signature"]).to eq(unfiltered)
+    end
+
+    it "is not printable for care-only when the selection resolves to nothing" do
+      expect(described_class.printable?(profile.reload, variant: :care_only, sections: [])).to be(false)
+      expect(described_class.printable?(profile.reload, variant: :care_only, sections: %w[meals])).to be(true)
+    end
+
+    # The emergency page carries the full variant on its own.
+    it "is still printable for full when the selection resolves to nothing" do
+      expect(described_class.printable?(profile.reload, variant: :full, sections: [])).to be(true)
     end
   end
 

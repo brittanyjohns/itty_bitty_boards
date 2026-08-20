@@ -24,8 +24,10 @@
     <div class="avatar-placeholder"></div>
   <% end %>
 
+  <%# No brand eyebrow above the name, deliberately: this sheet exists to
+      introduce one person, and the first thing read should be who they are.
+      The mark signs the footnote on every page instead. %>
   <div class="who">
-    <div class="eyebrow">SpeakAnyWay</div>
     <h1><%= @display_name %></h1>
     <div class="meta">
       <%= @title %><% if @pronouns.present? %> · <%= @pronouns %><% end %> · <%= @public_url %>
