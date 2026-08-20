@@ -1,4 +1,6 @@
 class MainController < ApplicationController
+  before_action :authenticate_user!, only: :dashboard
+
   def index
     render json: { status: "API is running", version: "1.0", status_code: 200 }
   end

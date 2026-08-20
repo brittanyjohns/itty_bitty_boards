@@ -267,14 +267,30 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
   end
 
   describe "GET /admin/board_printables/:id" do
-    it "shows a pending printable with an auto-refresh meta tag" do
+    # The refresh is a Stimulus controller rather than a
+    # `<meta http-equiv="refresh">` on purpose: Turbo Drive carries stale head
+    # elements across visits, so the meta version kept reloading whatever page
+    # the admin navigated to next. A controller's timer is cleared by
+    # disconnect() when the element leaves the page.
+    it "shows a pending printable with the scoped auto-refresh controller" do
       sign_in admin
       printable = BoardPrintable.create!(board: board, status: "pending", board_ids: [board.id])
 
       get admin_dashboard_board_printable_path(printable)
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include('http-equiv="refresh"')
+      expect(response.body).to include('data-controller="auto-refresh"')
+      expect(response.body).not_to include('http-equiv="refresh"')
+    end
+
+    it "does not auto-refresh a generating printable via a head meta tag" do
+      sign_in admin
+      printable = BoardPrintable.create!(board: board, status: "generating", board_ids: [board.id])
+
+      get admin_dashboard_board_printable_path(printable)
+
+      expect(response.body).to include('data-controller="auto-refresh"')
+      expect(response.body).not_to include('http-equiv="refresh"')
     end
 
     it "shows download links for a complete printable" do
@@ -289,6 +305,7 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
 
       expect(response.body).to include("https://cdn.example.com/core-words.pdf")
       expect(response.body).not_to include('http-equiv="refresh"')
+      expect(response.body).not_to include('data-controller="auto-refresh"')
     end
 
     it "shows the error message for a failed printable" do

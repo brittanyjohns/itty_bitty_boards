@@ -33,4 +33,21 @@ RSpec.describe BoardPolicy do
       expect(described_class.new(paid, board).update?).to be true
     end
   end
+
+  describe BoardPolicy::Scope do
+    it "returns no boards for a nil user rather than raising" do
+      create(:board, user: create(:user))
+
+      expect { described_class.new(nil, Board.all).resolve }.not_to raise_error
+      expect(described_class.new(nil, Board.all).resolve).to be_empty
+    end
+
+    it "returns only the user's own boards" do
+      user = create(:user)
+      own = create(:board, user: user, board_type: "user")
+      create(:board, user: create(:user), board_type: "user")
+
+      expect(described_class.new(user, Board.all).resolve).to contain_exactly(own)
+    end
+  end
 end
