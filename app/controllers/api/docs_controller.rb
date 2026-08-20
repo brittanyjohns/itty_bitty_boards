@@ -133,60 +133,68 @@ class API::DocsController < API::ApplicationController
     end
   end
 
+  # Point an Image at a different picture.
+  #
+  # Three separate things can happen here and they have three different scopes:
+  #
+  #   * the caller's OWN preference   -> a UserDoc row. Always written.
+  #   * the LIBRARY default           -> docs.current + images.src_url. Only an
+  #     actor who may edit the Image (its owner, or an admin for the shared
+  #     library) may move it, because Images are shared across every account.
+  #   * existing TILES                -> Images::TileArtFanout, which reaches
+  #     the actor's and admin's boards only. Once a board exists, its tile art
+  #     belongs to that board's owner; a library change must not repaint it.
   def mark_as_current
-    begin
-      @doc = Doc.find(params[:id])
-      doc_id = @doc.id
-
-      if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
-        @old_fav_docs = current_user.user_docs.includes(:doc).where(image_id: @doc.documentable_id)
-        @old_fav_docs.each do |old_fav_doc|
-          old_fav_doc.doc.update(current: false) if old_fav_doc.user_id == current_user.id
-        end
-        @old_fav_docs.destroy_all
-      end
-      @doc.reload
-      user_doc = UserDoc.create!(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
-      did_update = @doc.update(current: true)
-
-      @current_doc = @doc
-      @image = @doc.documentable
-      board_id = params[:board_id]
-      @board = Board.find_by(id: board_id)
-      if @board
-        @board_image = @board.board_images.find_by(image_id: @image.id)
-        if @board_image
-          @board_image.update(display_image_url: @doc.tile_url)
-        end
-        # @board.update!(updated_at: Time.zone.now)
-        @board.broadcast_board_update!
-      end
-      if params[:update_all]
-        @image.update_all_boards_image_belongs_to(@doc.tile_url, true, current_user.id)
-      end
-      if current_user.admin?
-        @image.src_url = @doc.tile_url
-        @image.save
-      end
-
-      @user = @image.user
-      is_owner = false
-      if @user.nil? && current_user.admin?
-        @user = current_user
-        is_owner = true
-      else
-        is_owner = @user&.id == current_user.id
-      end
-
-      # @image_with_display_doc = @image.with_display_doc(current_user)
-    rescue => e
-      puts "Error: #{e.message}"
-      render json: { error: e.message }, status: :unprocessable_content
+    @doc = Doc.find(params[:id])
+    @image = @doc.documentable
+    unless @image.is_a?(Image)
+      render json: { error: "Doc is not attached to an image." }, status: :unprocessable_content
       return
     end
-    # @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
-    @image_with_display_doc = nil
-    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
+
+    # The board whose tile we're being asked to pin. Must be one the caller may
+    # edit: this was unscoped, so any authenticated user could repaint a tile
+    # on ANY board by passing its id (#469-class IDOR). Mirrors the guard in
+    # Api::ImagesController#check_update_board_image.
+    @board = Board.find_by(id: params[:board_id])
+    @board = nil unless @board && current_user.can_edit?(@board)
+
+    ActiveRecord::Base.transaction do
+      current_user.user_docs.where(image_id: @image.id).destroy_all
+      UserDoc.create!(user_id: current_user.id, doc_id: @doc.id, image_id: @image.id)
+    end
+
+    # src_url is the URL a newly created tile snapshots (BoardImage#set_defaults),
+    # so moving it is how a library change reaches FUTURE boards. The cascade it
+    # fires is scoped by fanout_actor_id.
+    if @image.set_library_default_doc!(@doc, actor: current_user)
+      @image.fanout_actor_id = current_user.id
+      @image.update(src_url: @doc.tile_url)
+    end
+
+    if @board
+      @board_image = @board.board_images.find_by(image_id: @image.id)
+      @board_image&.update(display_image_url: @doc.tile_url)
+      @board.broadcast_board_update!
+    end
+
+    # "Apply to all my boards" — the actor's and admin's boards, never a
+    # stranger's, and never a tile whose picture was deliberately switched off.
+    if params[:update_all]
+      Images::TileArtFanout.call(@image, url: @doc.tile_url, actor: current_user, force: true)
+    end
+
+    render json: {
+      image: nil,
+      board: @board&.api_view(current_user),
+      board_image: @board_image&.api_view(current_user),
+    }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Not found." }, status: :not_found
+  rescue => e
+    # Never leak internals in API errors — generic message only.
+    Rails.logger.error "mark_as_current failed for doc #{params[:id]}: #{e.class}: #{e.message}"
+    render json: { error: "Unable to update this picture." }, status: :unprocessable_content
   end
 
   # DELETE /docs/1 or /docs/1.json
@@ -227,6 +235,11 @@ class API::DocsController < API::ApplicationController
     # :user_id is intentionally NOT permitted — the owner is assigned server-side
     # (@doc.user = current_user in #create), so a client can't set or reassign
     # ownership via create/update mass-assignment (#27).
-    params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :source_type)
+    permitted = params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :source_type)
+    # `current` is the LIBRARY DEFAULT on a shared row, admin-only — same
+    # treatment board_params gives :slug / :predefined. A user's own pick is a
+    # UserDoc, which already outranks `current` in Image#display_doc.
+    permitted.delete(:current) unless current_user&.admin?
+    permitted
   end
 end

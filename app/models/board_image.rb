@@ -908,7 +908,19 @@ class BoardImage < ApplicationRecord
     self.font_size = image.font_size
     self.label = image.label
     # self.display_image_url = image.display_tile_url(user)
-    self.display_image_url = image.src_url
+    #
+    # A snapshot of the library default, deliberately: a tile that re-resolved
+    # its art on every read is a tile the library can repaint at will. Users opt
+    # into improved library art per board via
+    # PUT /api/boards/:id/update_to_default_docs — pull, not push.
+    #
+    # The one thing that survives is "" — the "this tile has no picture" marker
+    # (#picture_hidden?), which is an authored choice about the TILE. Both clone
+    # paths (Board#clone_with_images, Boards::SeededSetCloner#copy_tiles!) dup a
+    # BoardImage and then re-point image_id at an Image resolved for the new
+    # owner, so re-seeding the URL is right — but an unconditional assignment
+    # also silently un-hid a hidden tile on every clone.
+    self.display_image_url = image.src_url unless picture_hidden?
     self.next_words = image.next_words || []
     # Respect a part_of_speech that was explicitly set before create (e.g. a
     # clone via Board#clone_with_images dup'ing a seeded tile, #279) — only

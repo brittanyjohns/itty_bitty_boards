@@ -109,12 +109,13 @@ class API::ImagesController < API::ApplicationController
     saved_image_doc = @image.save_from_url(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
     saved_image_url = saved_image_doc.tile_url
     @image.update_all_boards_image_belongs_to(saved_image_url, false, @current_user.id)
-    # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
     @doc = @image.docs.last
     user_docs_to_delete = @current_user.user_docs.where(image_id: @image.id)
     user_docs_to_delete.destroy_all
     user_doc = UserDoc.create!(user_id: current_user.id, doc_id: @doc.id, image_id: @doc.documentable_id)
-    did_update = @doc.update(current: true)
+    # The LIBRARY default, not "this user's pick" — the UserDoc above is that.
+    # Images are shared, so only someone who may edit this one moves it.
+    @image.set_library_default_doc!(@doc, actor: @current_user)
 
     if @doc.save
       if check_update_board_image(saved_image_url)
@@ -680,17 +681,25 @@ class API::ImagesController < API::ApplicationController
       @user = @image.user
       current_user.user_docs.where(image_id: @image.id).destroy_all
       @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+      @board = nil unless @board && current_user.can_edit?(@board)
       if params[:update_all]
-        @image.board_images.each do |board_image|
-          board_image.update(display_image_url: nil)
-        end
-      else
-        @board_image = BoardImage.where(image_id: @image.id, board_id: @board.id).first
+        # Clearing is a library fan-out too, and obeys the same rule: the
+        # actor's and admin's boards only, and never a tile whose picture was
+        # deliberately switched off.
+        Images::TileArtFanout.clear(@image, actor: current_user)
+      elsif @board
+        @board_image = @board.board_images.find_by(image_id: @image.id)
         @board_image.update!(display_image_url: nil) if @board_image
       end
 
-      @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
-      @image_docs.update_all(current: false)
+      # docs.for_user includes user_id [nil, DEFAULT_ADMIN_ID] rows, so an
+      # unscoped clear here let a non-owner blank the shared library default.
+      # Their own preference is already gone with the user_docs above.
+      if current_user.can_edit?(@image)
+        @image.docs.where(current: true).update_all(current: false)
+      else
+        @image.docs.where(user_id: current_user.id, current: true).update_all(current: false)
+      end
 
       @image_with_display_doc = @image.with_display_doc(current_user)
       @image_with_display_doc[:src] = nil
@@ -749,8 +758,16 @@ class API::ImagesController < API::ApplicationController
     end
     begin
       doc_url = @doc.tile_url
-      if @image.src_url == doc_url
-        @image.update(src_url: nil)
+      # Moving the library default is an edit to the SHARED Image — a non-owner
+      # hiding a doc they uploaded must not do it. Resolve to the next default
+      # rather than nil-ing: a blank src_url is silently refilled by
+      # `before_save :update_src_url` on the next unrelated save, re-firing this
+      # cascade from a surprising place. fanout_actor_id scopes it either way.
+      if @image.src_url == doc_url && current_user.can_edit?(@image)
+        @image.docs.reload
+        replacement = @image.docs.where.not(id: @doc.id).last&.tile_url
+        @image.fanout_actor_id = current_user.id
+        @image.update(src_url: replacement)
       end
       @image.docs.delete(@doc)
       @image.docs.reload

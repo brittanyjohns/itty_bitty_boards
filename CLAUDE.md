@@ -261,6 +261,36 @@ an explicit decision, not a drive-by edit.
   "Hide pictures" works in PDF exports, board covers, and printables without
   any of them knowing the feature exists — which is exactly why it must not
   become a second `data[...]` flag.
+- **A tile's picture belongs to the board's OWNER, and `Images::TileArtFanout`
+  is the only thing allowed to write it from a shared `Image`.** `images` and
+  `docs` are shared library rows — one "apple" `Image` is on thousands of boards
+  across unrelated accounts — while `board_images.display_image_url` is per-tile
+  user content. `Image#update_board_images_display_image` used to sweep EVERY
+  tile of an Image on any `src_url` change with no ownership check at all, so an
+  admin picking different library art repainted every user's existing board. A
+  fan-out may now touch a tile only when its board is owned by the **acting
+  user** or by `DEFAULT_ADMIN_ID` (**no actor ⇒ admin boards only** — never a
+  guess), the tile has no picture of its own (`nil`, or still equal to the URL
+  being replaced), and the tile is not `picture_hidden?`. `force:` means "all of
+  MY boards, including my own pins" and relaxes the pin check *only*;
+  `repair_dead:` is the sole mode that may cross ownership, because a URL that
+  no longer resolves is broken for its owner too. Set `Image#fanout_actor_id`
+  before writing `src_url` so the cascade knows whose boards are in scope. A
+  library change may improve what a board's *empty* tiles fall back to; it may
+  never repaint a tile someone chose — users pull improved art per board via
+  `PUT /api/boards/:id/update_to_default_docs`. No "pinned" column: a non-nil
+  `display_image_url` **is** the pin.
+- **`docs.current` is the LIBRARY DEFAULT and is admin/owner-write-only; a
+  user's own pick is a `UserDoc` row.** `current` is one global boolean on a
+  shared row, but every path wrote it per-user-intent — so a regular user
+  marking a picture current, or merely generating art on a public admin `Image`,
+  flipped the fallback everyone else resolves through `Image#display_doc`.
+  `Image#set_library_default_doc!(doc, actor:)` is the single writer and no-ops
+  unless `actor.can_edit?(image)`. Nothing is lost for the user: `display_doc`
+  reads `UserDoc` **before** `docs.current`, so their pick already wins for them
+  — it just stops becoming everyone else's. `BoardImage#set_defaults` snapshots
+  `image.src_url` at create, which is how a library change legitimately reaches
+  *future* boards, so `src_url` must still move when the default does.
 - **`images.label` is a lowercase matching key; `display_label` is the text.**
   `Image#set_label` downcases and strips `label` on every write and captures
   the authored casing into `display_label`. Never look an image up with

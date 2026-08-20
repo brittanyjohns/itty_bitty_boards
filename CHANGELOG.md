@@ -29,6 +29,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   applied to Mission Control's demo cleanup and to the JSON admin API's bulk
   delete; all three now agree with the checkbox the dashboard shows.
 
+- **Changing a picture in the shared image library no longer repaints boards
+  that already exist.** Pictures are shared: one "apple" image sits on
+  thousands of boards across unrelated accounts. Picking a different picture
+  for one of them used to rewrite that tile on **every** board, in every
+  account — including tiles whose owner had chosen their own picture on a
+  previous visit, and tiles where "Hide pictures" had deliberately switched the
+  picture off. A library change now sets the picture for boards made *from now
+  on*, and updates existing tiles only on boards you own. Your own picture
+  picks are yours: marking a picture as your favourite no longer changes what
+  anyone else sees. Boards can still be brought up to date with the newest
+  library art on demand, one board at a time.
+
 - **Imported boards show up on the boards page like any other board.** A board
   set imported from a `.obf`/`.obz` file was filtered out of board search and
   out of the public board library, so the only way back to it was the group it

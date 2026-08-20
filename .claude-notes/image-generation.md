@@ -110,11 +110,26 @@ future quality work — keep it populated.
 
 ## Cross-user repointing is scoped
 
-`Image#update_all_boards_image_belongs_to(url, override_existing, current_user_id)`
-repoints tiles pointing at nothing or at a dead URL. **Images are shared library
-records**, so callers in the generation path must pass `current_user_id`: without
-it the sweep reaches into other users' boards. Admin-owned boards are still
-filled so the shared library stays populated.
+`Images::TileArtFanout` (`app/services/images/tile_art_fanout.rb`) is the
+**single implementation** of that scoping — every library→tile write goes
+through it, including the `after_save` cascade on `src_url`.
+`Image#update_all_boards_image_belongs_to(url, override_existing,
+current_user_id)` is a thin legacy delegator kept for its existing callers; do
+not add logic there.
+
+**Images are shared library records**, so callers in the generation path must
+pass `current_user_id`: without it the sweep reaches into other users' boards.
+With no actor the fan-out reaches **admin-owned boards only**, which keeps the
+shared library populated without guessing. `override_existing` means "all of MY
+boards, including my own pins" — it has never meant, and must never mean, "all
+boards".
+
+A tile whose `display_image_url` is `""` — the "this tile has no picture" marker
+— is **never** touched by any mode, `override_existing` included. `.blank?` is
+true for it and `.present?` is false for it, so both of the guards this code
+used to use got it wrong and silently un-hid deliberately blanked tiles; ask
+`BoardImage#picture_hidden?` instead. Full rule: the tile-ownership invariant in
+`CLAUDE.md`.
 
 `authorized_to_view_url?` uses **HEAD**, not GET — this runs once per BoardImage
 inside the generation path, and a popular label ("more", "help") has hundreds of
