@@ -196,7 +196,9 @@ class BoardGroup < ApplicationRecord
   def update_all_board_images
     images.includes(:board_images).find_each do |image|
       url = image.display_tile_url(user)
-      image.update_all_boards_image_belongs_to(url) if url.present?
+      # A board group's boards belong to its owner — say so. Images are shared
+      # library rows, so an unattributed sweep here would reach strangers.
+      Images::TileArtFanout.call(image, url: url, actor: user) if url.present?
     end
   end
 

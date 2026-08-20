@@ -1515,7 +1515,9 @@ class Board < ApplicationRecord
         # When the resolved image is a newly created stub (no docs yet),
         # set_defaults leaves display_image_url blank. Fall back to the
         # source image's URL so the tile isn't broken on first render.
-        if new_board_image.persisted? && new_board_image.display_image_url.blank? && original_image.src_url.present?
+        # .nil?, not .blank?: "" is the deliberate "no picture" marker that
+        # set_defaults just preserved, and .blank? would immediately re-show it.
+        if new_board_image.persisted? && new_board_image.display_image_url.nil? && original_image.src_url.present?
           new_board_image.update_column(:display_image_url, original_image.src_url)
         end
       end

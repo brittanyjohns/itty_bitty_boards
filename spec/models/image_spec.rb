@@ -298,44 +298,84 @@ RSpec.describe Image, type: :model do
     end
   end
 
+  # The src_url cascade routes through Images::TileArtFanout. Nothing on a bare
+  # `image.save` names an actor, so an unattributed library change reaches
+  # admin-owned boards only — it can keep the shared library's own boards
+  # populated and can reach nobody else's. Callers that legitimately want the
+  # acting user's boards updated set `fanout_actor_id`.
   describe "#update_board_images_display_image" do
     let(:user)  { FactoryBot.create(:user) }
+    let!(:admin) do
+      User.find_by(id: User::DEFAULT_ADMIN_ID) ||
+        FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+    end
     let(:board) { FactoryBot.create(:board, user: user) }
+    let(:admin_board) { FactoryBot.create(:board, user: admin) }
     let(:image) { FactoryBot.create(:image, user: user) }
     let!(:board_image) do
       FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
     end
+    let!(:admin_board_image) do
+      FactoryBot.create(:board_image, board: admin_board, image: image, skip_create_voice_audio: true)
+    end
+    let(:old_url) { "https://cdn.example.com/old.webp" }
+    let(:new_url) { "https://cdn.example.com/new.webp" }
 
     before do
       # Set starting state via update_columns to avoid triggering callbacks
-      image.update_columns(src_url: "https://cdn.example.com/old.webp")
-      board_image.update_column(:display_image_url, "https://cdn.example.com/old.webp")
+      image.update_columns(src_url: old_url)
+      board_image.update_column(:display_image_url, old_url)
+      admin_board_image.update_column(:display_image_url, old_url)
+      image.board_images.reset
     end
 
-    it "updates tiles that still show the previous default URL" do
-      image.update!(src_url: "https://cdn.example.com/new.webp")
+    it "updates admin-owned tiles that still show the previous default URL" do
+      image.update!(src_url: new_url)
 
-      board_image.reload
-      expect(board_image.display_image_url).to eq("https://cdn.example.com/new.webp")
+      expect(admin_board_image.reload.display_image_url).to eq(new_url)
     end
 
-    it "fills tiles with a blank display_image_url" do
-      board_image.update_column(:display_image_url, nil)
+    it "fills an admin-owned tile with a blank display_image_url" do
+      admin_board_image.update_column(:display_image_url, nil)
       image.board_images.reset
 
-      image.update!(src_url: "https://cdn.example.com/new.webp")
+      image.update!(src_url: new_url)
 
-      board_image.reload
-      expect(board_image.display_image_url).to eq("https://cdn.example.com/new.webp")
+      expect(admin_board_image.reload.display_image_url).to eq(new_url)
+    end
+
+    it "does not reach a user's board when no actor is named" do
+      image.update!(src_url: new_url)
+
+      expect(board_image.reload.display_image_url).to eq(old_url)
+    end
+
+    it "reaches the acting user's own board when one is named" do
+      image.fanout_actor_id = user.id
+      image.update!(src_url: new_url)
+
+      expect(board_image.reload.display_image_url).to eq(new_url)
+    end
+
+    # "" is the "this tile has no picture" marker, and it is blank AND not
+    # present — both of the guards this code used to use got it wrong.
+    it "never un-hides a deliberately blanked tile" do
+      admin_board_image.update_column(:display_image_url, "")
+      image.board_images.reset
+
+      image.update!(src_url: new_url)
+
+      expect(admin_board_image.reload.display_image_url).to eq("")
     end
 
     it "does not overwrite a user-custom URL that differs from the old src_url" do
-      board_image.update_column(:display_image_url, "https://cdn.example.com/user_custom_doc.webp")
+      admin_board_image.update_column(:display_image_url, "https://cdn.example.com/user_custom_doc.webp")
+      image.board_images.reset
 
-      image.update!(src_url: "https://cdn.example.com/new.webp")
+      image.update!(src_url: new_url)
 
-      board_image.reload
-      expect(board_image.display_image_url).to eq("https://cdn.example.com/user_custom_doc.webp")
+      expect(admin_board_image.reload.display_image_url)
+        .to eq("https://cdn.example.com/user_custom_doc.webp")
     end
   end
 
@@ -388,6 +428,18 @@ RSpec.describe Image, type: :model do
     it "does nothing when there is no URL to point at" do
       expect(image.update_all_boards_image_belongs_to(nil, false, owner.id)).to eq([])
       expect(tile_for(owner_board).reload.display_image_url).to be_nil
+    end
+
+    # "" is the "no picture" marker. `.present?` is false for it, so the old
+    # guard treated a deliberately blanked tile as an empty one and re-showed
+    # the picture — including under override_existing.
+    it "does not un-hide a deliberately blanked tile, even with override" do
+      tile_for(owner_board).update_column(:display_image_url, "")
+      image.board_images.reset
+
+      image.update_all_boards_image_belongs_to(new_url, true, owner.id)
+
+      expect(tile_for(owner_board).reload.display_image_url).to eq("")
     end
 
     # The freshly minted URL is known-good, so it must not cost a network

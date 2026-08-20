@@ -126,6 +126,11 @@ class Image < ApplicationRecord
 
   attr_accessor :skip_categorize
 
+  # Who is causing the current write, for the src_url fan-out below. Transient
+  # on purpose: it is a property of the request, not of the row. Left nil, the
+  # fan-out reaches admin-owned boards only — see Images::TileArtFanout.
+  attr_accessor :fanout_actor_id
+
   def bg_hex
     ColorHelper.to_hex(bg_color, default: "#A1A1A1")
   end
@@ -158,17 +163,19 @@ class Image < ApplicationRecord
     "#{label_to_use} without any text or prices with a transparent background."
   end
 
+  # The library's fallback URL moved. Images are SHARED library rows, so this
+  # must never sweep tiles on boards the actor doesn't own —
+  # Images::TileArtFanout is the single authority for that rule. When nothing
+  # set `fanout_actor_id` the actor is unknown, and an unattributed sweep
+  # reaches admin-owned boards only (keeping the library's own boards
+  # populated) rather than guessing.
   def update_board_images_display_image
-    old_url = src_url_before_last_save
-    board_images.each do |bi|
-      if bi.display_image_url.blank?
-        bi.update!(display_image_url: src_url)
-      elsif old_url.present? && bi.display_image_url == old_url
-        # Tile was tracking the previous default — update it.
-        # User-custom tiles point to their own doc's URL and are skipped.
-        bi.update!(display_image_url: src_url)
-      end
-    end
+    Images::TileArtFanout.call(
+      self,
+      url: src_url,
+      actor: fanout_actor_id,
+      replacing: src_url_before_last_save,
+    )
   end
 
   def update_board_images_next_words
@@ -230,34 +237,26 @@ class Image < ApplicationRecord
   # Repoints tiles that are pointing at nothing (or at a dead URL) onto a freshly
   # generated doc.
   #
+  # Legacy signature, kept because several callers use it. The rule lives in
+  # Images::TileArtFanout — do not add logic here.
+  #
   # `current_user_id` scopes the sweep to the generating user's boards plus admin
   # boards. Callers in the generation path always pass it: one user regenerating
   # their own art must not reach into another user's boards, and Images are
   # shared library records so without the scope it would.
+  #
+  # `override_existing` means "apply to all MY boards, including tiles I had
+  # pinned". It has never meant, and must never mean, "all boards".
   def update_all_boards_image_belongs_to(url = nil, override_existing = false, current_user_id = nil)
-    updated_ids = []
-    # The URL was just minted by us, so it's known-good — no need to pay for a
-    # network round trip per board_image to confirm it.
-    return updated_ids if url.blank?
-
-    board_images.includes(:board).find_each do |bi|
-      if current_user_id && (bi.board&.user_id != current_user_id) && bi.board&.user_id != User::DEFAULT_ADMIN_ID
-        next
-      end
-
-      if bi.display_image_url.present? && !override_existing
-        next if authorized_to_view_url?(bi.display_image_url)
-      end
-
-      bi.update_column(:display_image_url, url)
-
-      if bi.valid?
-        updated_ids << bi.id
-      else
-        Rails.logger.error "Error updating BoardImage #{bi.id} for Image #{id}: #{bi.errors.full_messages.join(", ")}"
-      end
-    end
-    updated_ids
+    Images::TileArtFanout.call(
+      self,
+      url: url,
+      actor: current_user_id,
+      force: override_existing,
+      # Without an override, the historical behaviour was to leave a tile alone
+      # only while its URL still resolved — i.e. repair dead art.
+      repair_dead: !override_existing,
+    )
   end
 
   def self.category
@@ -442,8 +441,13 @@ class Image < ApplicationRecord
     Rails.logger.error "No response for image creation" unless response
     if response
       doc = response
+      # The generating user's own pointer.
       doc.update_user_docs
-      doc.update!(current: true)
+      # The LIBRARY default is a different question: a regular user generating
+      # art on a shared/admin Image must not move what everyone else falls back
+      # to. set_library_default_doc! no-ops unless they may edit the Image.
+      actor = User.find_by(id: user_id)
+      set_library_default_doc!(doc, actor: actor)
       doc
     end
   end
@@ -1107,7 +1111,10 @@ class Image < ApplicationRecord
         end
 
         keep.reload
-        keep.update_all_boards_image_belongs_to(keep.src_url) unless dry_run
+        # Genuinely global, and legitimately so: the duplicates just destroyed
+        # took their doc URLs with them, so every tile still pointing at one is
+        # BROKEN. repair_dead (never force) is what lets a repair cross owners.
+        Images::TileArtFanout.call(keep, url: keep.src_url, actor: nil, repair_dead: true) unless dry_run
         puts "Total images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
 
         if total_images_destroyed >= limit
@@ -1183,15 +1190,35 @@ class Image < ApplicationRecord
     doc ? doc.tile_url : nil
   end
 
+  # The LIBRARY DEFAULT doc: what a viewer who has expressed no preference of
+  # their own sees. `docs.current` is one global boolean on a SHARED row, so
+  # only an actor who may edit the Image may move it — for everyone else the
+  # pick is personal and lives in a UserDoc, which Image#display_doc reads
+  # first and which therefore already wins for them.
+  #
+  # Returns whether the library default actually moved, so a caller can decide
+  # whether to follow it with the matching src_url write.
+  def set_library_default_doc!(doc, actor:)
+    return false unless actor && actor.can_edit?(self)
+    return false unless doc && doc.documentable_type == "Image" && doc.documentable_id == id
+
+    transaction do
+      docs.where.not(id: doc.id).where(current: true).update_all(current: false)
+      doc.update!(current: true)
+    end
+    true
+  end
+
   def update_to_src_url!(viewing_user)
     new_url = display_tile_url(viewing_user)
     if new_url.blank? || new_url == src_url
       return
     end
     old_url = src_url
-    display_image_url = new_url
-    self.update_column(:src_url, display_image_url)
-    board_images.where(display_image_url: old_url).update_all(display_image_url: display_image_url)
+    self.update_column(:src_url, new_url)
+    # Scoped: this Image is shared, so only tiles on the viewing user's (and
+    # admin's) boards that were still tracking the old URL may move.
+    Images::TileArtFanout.call(self, url: new_url, actor: viewing_user, replacing: old_url)
   end
 
   def save_audio_file_to_s3!(voice = "polly:kevin", lang = "en")
