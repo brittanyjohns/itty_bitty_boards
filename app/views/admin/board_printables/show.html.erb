@@ -1,11 +1,8 @@
 <% content_for :page_title, "Printable ##{@printable.id}" %>
-<% if %w[pending generating].include?(@printable.status) %>
-  <% content_for :head_extra, tag.meta("http-equiv": "refresh", content: "5") %>
-<% end %>
-
 <%# Everything below the status card renders only when the printable is
-    complete, which is also the only time the auto-refresh above is switched
-    off — so a half-typed listing description can never be wiped by a reload. %>
+    complete, which is also the only time the auto-refresh on the status card is
+    switched off — so a half-typed listing description can never be wiped by a
+    reload. %>
 
 <div class="flex items-center justify-between mb-6">
   <div>
@@ -46,7 +43,12 @@
   <div class="flex items-center gap-3 mb-4">
     <span class="<%= board_printable_status_badge(@printable.status) %> inline-block text-xs rounded px-2.5 py-1"><%= @printable.status %></span>
     <% if %w[pending generating].include?(@printable.status) %>
-      <span class="text-xs text-t3">This page refreshes automatically every 5 seconds.</span>
+      <%# A Stimulus controller, not a <meta http-equiv="refresh">: Turbo Drive
+          keeps stale head elements across visits, so the meta version kept
+          reloading pages you'd navigated on to. %>
+      <span class="text-xs text-t3"
+            data-controller="auto-refresh"
+            data-auto-refresh-interval-value="5000">This page refreshes automatically every 5 seconds.</span>
     <% else %>
       <%# Regenerating re-walks the board tree, so this is how a printable picks
           up board edits. It keeps the listing copy and any Etsy draft. %>

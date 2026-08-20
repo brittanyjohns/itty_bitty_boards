@@ -7,6 +7,9 @@ import { application } from "./application"
 import AddImagesController from "./add_images_controller"
 application.register("add-images", AddImagesController)
 
+import AutoRefreshController from "./auto_refresh_controller"
+application.register("auto-refresh", AutoRefreshController)
+
 import DemoController from "./demo_controller"
 application.register("demo", DemoController)
 
