@@ -200,8 +200,56 @@ rules and needs the matching change — see that repo's
 `.claude-notes/etsy-listing-copy-fix-handoff.md`. What differs until it lands:
 the product phrase is `"communication board"` here and `"vocabulary board"`
 there; `assemble_tags` runs `topic` second here (capped at
-`CopyRules::TOPIC_TAG_MAX`) and fourth there; and the description's opening
-sentence is per-product here and a frozen constant there.
+`CopyRules::TOPIC_TAG_MAX`) and fourth there; the description's opening
+sentence is per-product here and a frozen constant there; and the two SEO rules
+below (no single-word tags, head-term-first titles) exist only here.
+
+**A tag is a PHRASE — `normalize_tag` refuses a single word.** Analysis of all
+21 live listings on 2026-08-20 (views normalized by `original_creation_timestamp`,
+since the API's `created` resets on renewal) found five of every listing's
+thirteen slots going to `aac`, `printable`, `slp`, `classroom` and
+`nonspeaking`. A one-word tag competes with the entire marketplace and does not
+rank; the listings earning views were found by phrases. The rule lives in
+`CopyRules.normalize_tag`, NOT in the pools, deliberately: a future pool edit
+cannot put the slots back, and the same rule reaches `Etsy::Client#normalize_tags`
+— so a one-word tag typed into the admin listing form is dropped on save too.
+That silent drop is intended; the advisory panel names it.
+
+Two consequences worth knowing. A one-word segment of a `topic` now yields
+nothing at all (`topic_tags("core words / feelings")` → `["core words"]`), since
+there is no legal tag to make from it. And the pools trade brand voice for
+search: tags say `nonverbal child`, description prose keeps `nonspeaking`. Etsy
+tags are a search index, not a brand surface — that split is approved, not an
+inconsistency to fix.
+
+**The head term always leads the title; the board name is always the
+qualifier.** `ListingCopy#title` used to open on the board's own name, on the
+reasoning that buyers search "core words board" rather than "SpeakAnyWay". That
+holds only when the board name is itself a search term. Every zero-view listing
+in the same analysis was a niche noun — "Recess", "Haircut", "Potty" — placed in
+front of the phrase buyers actually type, so the title opened on a word nobody
+searches. There is no conditional: the product phrase leads, always.
+
+The single exception is folding, not reordering — a board whose name already
+contains a product word ("Core Words Board") folds INTO the head as
+`"AAC Core Words Board"` rather than being repeated after
+`"AAC Communication Board Printable"`. The widest-first candidate ladder and its
+guaranteed-fitting last rung are unchanged and still load-bearing:
+`pick_fitting_title` truncates mid-word when every rung overflows, which is how
+a listing shipped titled `"… Printable for Speech The (Digital Download)"`. The
+last rung is now a fixed phrase rather than the board name, because the folded
+head can itself be arbitrarily long.
+
+**`Etsy::CopyAdvisories` renders beside the overlap warning and is equally
+advisory.** Three checks — fewer than 13 tags, any single-word tag still stored
+from before the rule, and no "AAC" in the title's first 40 characters. Never a
+gate: each has legitimate exceptions only an admin can judge, and a listing that
+can't be published is worse than one published with twelve tags.
+
+Seven listings were hand-rewritten to this shape on 2026-08-20 and are live. Do
+NOT run `regenerate_listing_copy!` against them — it merges generated copy over
+the stored hash, overwriting hand-tuned title, summary, description and tags:
+`4554491916 4557544635 4556388009 4554121725 4554595592 4559346650 4556507027`.
 
 **The tag pools describe the product LAST unless something stops them.** The
 generic pools — always-on, product-type, audience, top-up — can fill all 13 of

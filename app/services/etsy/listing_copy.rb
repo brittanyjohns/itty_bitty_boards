@@ -22,12 +22,22 @@ module Etsy
     # smaller term survives in TOP_UP_TAGS.
     PRODUCT_HUMAN = "communication board".freeze
 
-    ALWAYS_ON_TAGS = ["aac", "printable", "digital download"].freeze
-    PRODUCT_TYPE_TAGS = [PRODUCT_HUMAN].freeze
+    # Phrases, never bare words. "aac", "printable" and "digital download" held
+    # these three slots on every listing until 2026-08-20 and none of them
+    # ranked — a one-word tag competes with the whole marketplace, and
+    # `CopyRules.normalize_tag` now refuses one outright.
+    #
+    # PRODUCT_TYPE_TAGS carries the SECONDARY product term. `PRODUCT_HUMAN`
+    # itself moved into ALWAYS_ON_TAGS (it is the term the top-viewed listings
+    # are found by, so it earns a guaranteed slot ahead of the topic); leaving
+    # it in both pools would have been harmless at runtime — `assemble_tags`
+    # dedups — but two sources for one tag is how the next edit drops it twice.
+    ALWAYS_ON_TAGS = ["printable aac", PRODUCT_HUMAN, "low tech aac"].freeze
+    PRODUCT_TYPE_TAGS = ["aac board"].freeze
 
     # Every printable here genuinely serves all three audiences, so all three
     # contribute tags and all three are named in the description.
-    AUDIENCE_TAGS = ["autism support", "slp", "classroom"].freeze
+    AUDIENCE_TAGS = ["autism support", "slp resources", "classroom visuals"].freeze
     AUDIENCE_LINES = [
       "Parents and caregivers using AAC at home.",
       "Speech-language pathologists running structured sessions.",
@@ -40,21 +50,26 @@ module Etsy
     # the more natural "talking communication board" is 26 and would be silently
     # dropped by normalize_tag.
     #
-    # "communication board" is deliberately absent: it is PRODUCT_TYPE_TAGS now,
-    # and listing it twice would only mislead the next reader (assemble_tags
-    # dedups it either way). "vocabulary board" sits at the bottom — the smaller
-    # search term is worth a slot when one is free, never ahead of a proven one.
+    # "communication board" and "aac board" are deliberately absent: they are
+    # ALWAYS_ON_TAGS and PRODUCT_TYPE_TAGS respectively, and listing one twice
+    # would only mislead the next reader (assemble_tags dedups it either way).
+    # "vocabulary board" sits at the bottom — the smaller search term is worth a
+    # slot when one is free, never ahead of a proven one.
+    #
+    # "pecs alternative" leads: it is the highest buyer-intent phrase in the
+    # pool, typed by someone who already knows they want this product. "nonverbal
+    # child" replaces the bare "nonspeaking" — TAGS are a search index, not a
+    # brand surface, so they use the word buyers type while the description
+    # prose keeps "nonspeaking". That split is deliberate; don't "fix" it.
     TOP_UP_TAGS = [
+      "pecs alternative",
       "aac printable",
       "voice output aac",
       "speech therapy",
       "special education",
-      "nonspeaking",
-      "slp resources",
+      "nonverbal child",
       "visual supports",
       "autism printable",
-      "classroom visuals",
-      "aac board",
       "vocabulary board",
     ].freeze
 
@@ -133,45 +148,69 @@ module Etsy
 
     def set? = board_count > 1
 
-    # Keyword-forward title. Leads with the board's own name (buyers search
-    # "core words board", not "SpeakAnyWay"), then the product type, then the
-    # bundle size, then the two highest-volume qualifiers in this niche.
+    TITLE_TAIL = "for Speech Therapy & Autism".freeze
+
+    # Keyword-forward title, and the head term ALWAYS leads.
+    #
+    # It used to lead with the board's own name, on the reasoning that buyers
+    # search "core words board" rather than "SpeakAnyWay". That holds only when
+    # the board name is itself a search term. Every zero-view listing in the
+    # 2026-08-20 analysis was a niche noun — "Recess", "Haircut", "Potty" — put
+    # in front of the phrase buyers actually type, so the title opened on a word
+    # nobody searches. The board name is now always the QUALIFIER; the product
+    # phrase is always the head.
+    #
+    # The one exception is a board whose name already names the product ("Core
+    # Words Board"): repeating the product phrase reads badly and eats the
+    # 140-char budget, so the name folds INTO the head instead of following it —
+    # "AAC Core Words Board", never "AAC Communication Board Printable, Core
+    # Words Board".
     def title
       @title ||= begin
         base = CopyRules.title_case_words(board_name)
 
-        # When the board's own name already names the product ("Core Words
-        # Board"), repeating "Vocabulary Board" reads badly AND eats the
-        # 140-char budget, so the type decoration shrinks to "AAC Printable".
         type_words = PRODUCT_HUMAN.downcase.split(/\s+/).select { |w| w.length > 3 }
         names_product = type_words.any? { |w| base.downcase.include?(w) }
-        head = if names_product
-          "#{base} AAC Printable"
-        else
-          "#{base} AAC #{CopyRules.title_case_words(PRODUCT_HUMAN)} Printable"
-        end
+        head = names_product ? "AAC #{base}" : generic_head
 
-        tail = "for Speech Therapy & Autism"
+        # Already folded into the head, so it must not be repeated below.
+        subject = names_product ? nil : base
         size_phrase = set? ? "#{board_count}-Board Set" : nil
         topic_phrase = CopyRules.distinct_topic_phrase(
           title: base, topic: topic_source, product_human: PRODUCT_HUMAN,
         )
 
-        # Widest first, shedding a piece at a time. `base` must stay last: it
-        # is the rung guaranteed to fit, and without it a long board name
-        # overflows every rung and gets truncated mid-word.
+        # Widest first, shedding a piece at a time. The tail rungs carry no
+        # qualifier at all, and the last one is a fixed phrase — without a rung
+        # that always fits, a long board name overflows every candidate and
+        # `ensure_digital_download_suffix` truncates mid-word, which is how a
+        # listing shipped titled "… Printable for Speech The (Digital Download)".
         composed = CopyRules.pick_fitting_title([
-          "#{head}, #{[size_phrase, topic_phrase].compact.join(' — ')} #{tail}",
-          "#{head}, #{topic_phrase} #{tail}",
-          "#{head}, #{size_phrase} #{tail}",
-          "#{head} #{tail}",
-          "#{head}, #{topic_phrase}",
+          compose_title(head, [subject, size_phrase, topic_phrase], TITLE_TAIL),
+          compose_title(head, [subject, topic_phrase], TITLE_TAIL),
+          compose_title(head, [subject, size_phrase], TITLE_TAIL),
+          compose_title(head, [subject], TITLE_TAIL),
+          compose_title(head, [subject, topic_phrase], nil),
+          compose_title(head, [subject], nil),
+          compose_title(head, [], TITLE_TAIL),
           head,
-          base,
+          # Fixed length whatever the board is called — the rung that cannot
+          # overflow, even when `head` itself folded in a 140-char board name.
+          generic_head,
         ])
 
         CopyRules.ensure_digital_download_suffix(CopyRules.enforce_title_rules(composed))
       end
+    end
+
+    def generic_head = "AAC #{CopyRules.title_case_words(PRODUCT_HUMAN)} Printable"
+
+    # "<head>, <qualifier> <tail>" — with the comma dropped when there is no
+    # qualifier, so a rung whose optional pieces are all absent reads as a
+    # sentence rather than "… Printable, for Speech Therapy".
+    def compose_title(head, parts, tail)
+      qualifier = parts.compact.reject(&:blank?).join(" — ")
+      [qualifier.empty? ? head : "#{head}, #{qualifier}", tail].compact_blank.join(" ")
     end
 
     def summary

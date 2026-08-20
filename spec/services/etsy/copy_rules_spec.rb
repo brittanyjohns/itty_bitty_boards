@@ -43,14 +43,27 @@ RSpec.describe Etsy::CopyRules do
     it "rejects a phrase made only of small words" do
       expect(described_class.normalize_tag("for the")).to be_nil
     end
+
+    # Five of every listing's thirteen slots were going to one-word tags that
+    # compete with the whole marketplace. Blocked at the rule, not in the pools,
+    # so a pool edit — or a one-word tag typed into the admin form — can't put
+    # them back.
+    it "rejects a single-word tag" do
+      expect(described_class.normalize_tag("aac")).to be_nil
+      expect(described_class.normalize_tag("Printable!")).to be_nil
+    end
+
+    it "keeps the two-word phrase version of a blocked word" do
+      expect(described_class.normalize_tag("printable aac")).to eq("printable aac")
+    end
   end
 
   describe ".assemble_tags" do
     it "caps at 13, dedupes, and fills the tail from top_up" do
       tags = described_class.assemble_tags(
-        always_on: ["aac", "printable"],
-        product_type: ["aac"],
-        audience: ["slp"],
+        always_on: ["printable aac", "low tech aac"],
+        product_type: ["printable aac"],
+        audience: ["slp resources"],
         topic: ["farm animals"],
         top_up: (1..20).map { |i| "keyword #{i}" },
       )
@@ -59,20 +72,21 @@ RSpec.describe Etsy::CopyRules do
       expect(tags.uniq).to eq(tags)
       # Topic ranks straight after always_on: it is the only pool describing
       # this particular product.
-      expect(tags.first(4)).to eq(["aac", "printable", "farm animals", "slp"])
+      expect(tags.first(4)).to eq(["printable aac", "low tech aac", "farm animals", "slp resources"])
     end
 
     it "ranks the topic above the product-type, audience and top-up pools" do
       tags = described_class.assemble_tags(
-        always_on: ["aac"],
+        always_on: ["printable aac"],
         product_type: ["communication board"],
-        audience: ["classroom"],
+        audience: ["classroom visuals"],
         topic: ["hospital stay", "doctor visit"],
         top_up: ["speech therapy"],
       )
 
       expect(tags).to eq(
-        ["aac", "hospital stay", "doctor visit", "communication board", "classroom", "speech therapy"],
+        ["printable aac", "hospital stay", "doctor visit", "communication board",
+         "classroom visuals", "speech therapy"],
       )
     end
 
@@ -83,9 +97,9 @@ RSpec.describe Etsy::CopyRules do
     # working, and it only happens for a topic of 6+ distinct phrases.
     it "caps the topic so the product-type and audience pools keep their slots" do
       tags = described_class.assemble_tags(
-        always_on: ["aac", "printable", "digital download"],
-        product_type: ["communication board"],
-        audience: ["autism support", "slp", "classroom"],
+        always_on: ["printable aac", "communication board", "low tech aac"],
+        product_type: ["aac board"],
+        audience: ["autism support", "slp resources", "classroom visuals"],
         topic: (1..12).map { |i| "topic phrase #{i}" },
         top_up: ["speech therapy"],
       )
@@ -99,9 +113,9 @@ RSpec.describe Etsy::CopyRules do
     # top-up terms exactly where they were.
     it "leaves the top-up pool intact for a normal-length topic" do
       tags = described_class.assemble_tags(
-        always_on: ["aac", "printable", "digital download"],
-        product_type: ["communication board"],
-        audience: ["autism support", "slp", "classroom"],
+        always_on: ["printable aac", "communication board", "low tech aac"],
+        product_type: ["aac board"],
+        audience: ["autism support", "slp resources", "classroom visuals"],
         topic: ["hospital stay", "doctor visit"],
         top_up: ["aac printable", "voice output aac", "speech therapy", "special education"],
       )
@@ -129,7 +143,13 @@ RSpec.describe Etsy::CopyRules do
     end
 
     it "splits on commas and slashes" do
-      expect(described_class.topic_tags("core words / feelings")).to eq(["core words", "feelings"])
+      expect(described_class.topic_tags("core words / snack time")).to eq(["core words", "snack time"])
+    end
+
+    # A one-word segment yields nothing rather than a one-word tag — the
+    # normalize_tag rule reaching the richest tag source there is.
+    it "drops a segment that is a single word" do
+      expect(described_class.topic_tags("core words / feelings")).to eq(["core words"])
     end
   end
 

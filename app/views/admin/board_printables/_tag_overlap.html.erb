@@ -33,3 +33,22 @@
     </div>
   </div>
 <% end %>
+
+<%# Same panel, same contract: advisory only, never a gate. Each of these is a
+    slot or a search term the listing is leaving on the table, and each has a
+    legitimate exception only an admin can judge. %>
+<% if @copy_advisories&.any? %>
+  <div class="admin-card border rounded-xl p-5 mb-6" style="border-color: #b45309;">
+    <h2 class="text-sm font-medium mb-3" style="color: #f59e0b;">
+      <%= pluralize(@copy_advisories.advisories.size, "listing SEO note") %>
+    </h2>
+    <div class="space-y-2">
+      <% @copy_advisories.advisories.each do |advisory| %>
+        <div class="text-xs">
+          <div class="text-t1"><%= advisory.message %></div>
+          <div class="text-[11px] text-t3"><%= advisory.detail %></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

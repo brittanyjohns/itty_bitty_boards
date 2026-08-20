@@ -31,18 +31,33 @@ RSpec.describe Etsy::ListingCopy do
       expect(title.count("&")).to be <= 1
     end
 
-    it "shrinks the product decoration when the board already names it" do
-      named = create(:board, user: owner, name: "Feelings Communication Board")
+    # The defect the 2026-08-20 analysis found: every zero-view listing opened
+    # on a niche noun nobody searches, with the phrase buyers actually type
+    # pushed past the fold. The board name is the qualifier now, always.
+    it "leads with the head term and makes the board name the qualifier" do
+      niche = create(:board, user: owner, name: "Recess")
+      title = described_class.new(
+        BoardPrintable.create!(board: niche, status: "complete", board_ids: [niche.id]),
+      ).build["title"]
+
+      expect(title).to start_with("AAC Communication Board Printable,")
+      expect(title).to include("Recess")
+    end
+
+    # The one exception: a board whose name already names the product folds
+    # INTO the head rather than being repeated after it.
+    it "folds a board name that already names the product into the head" do
+      named = create(:board, user: owner, name: "Core Words Board")
       title = described_class.new(
         BoardPrintable.create!(board: named, status: "complete", board_ids: [named.id]),
       ).build["title"]
 
-      expect(title).to include("AAC Printable")
+      expect(title).to start_with("AAC Core Words Board")
       expect(title).not_to include("AAC Communication Board Printable")
     end
 
     it "names the product when the board's own name doesn't" do
-      expect(build["title"]).to include("AAC Communication Board Printable")
+      expect(build["title"]).to start_with("AAC Communication Board Printable")
     end
 
     # A blank topic used to collapse the title ladder onto its bare
@@ -61,8 +76,13 @@ RSpec.describe Etsy::ListingCopy do
         BoardPrintable.create!(board: wordy, status: "complete", board_ids: [wordy.id]),
       ).build["title"]
 
+      # A shipped listing once ended "… Printable for Speech The (Digital
+      # Download)": every rung overflowed and the suffix step cut mid-word.
+      # Ending on the complete tail is the proof it took a rung that fits —
+      # `not_to include("for Speech The")` was no proof at all, since every
+      # untruncated title contains it inside "for Speech Therapy".
       expect(title.length).to be <= Etsy::CopyRules::TITLE_MAX
-      expect(title).not_to include("for Speech The")
+      expect(title).to end_with("for Speech Therapy & Autism (Digital Download)")
     end
   end
 
@@ -85,7 +105,9 @@ RSpec.describe Etsy::ListingCopy do
       expect(tags.length).to eq(Etsy::CopyRules::TAG_MAX)
       expect(tags.map(&:length).max).to be <= Etsy::CopyRules::TAG_LEN_MAX
       expect(tags.uniq).to eq(tags)
-      expect(tags).to include("aac", "printable", "farm animals")
+      expect(tags).to include("printable aac", "communication board", "farm animals")
+      # The rule that recovered five slots on every listing.
+      expect(tags.select { |t| t.split(" ").length < 2 }).to be_empty
     end
 
     # The one that would have caught it: nine printables published to Etsy in
@@ -110,7 +132,7 @@ RSpec.describe Etsy::ListingCopy do
 
       expect(tags).to include("bath time", "at the sink", "getting dry")
       # Below always_on, above the shared boilerplate.
-      expect(tags.index("at the sink")).to be < tags.index("communication board")
+      expect(tags.index("at the sink")).to be < tags.index("autism support")
     end
 
     it "keeps an authored topic ahead of the mined board names" do
@@ -127,14 +149,16 @@ RSpec.describe Etsy::ListingCopy do
 
     # The shared boilerplate is still correct for a printable with nothing
     # topical to say — this pins it so a future reshuffle of the pools is a
-    # deliberate act, not a surprise.
+    # deliberate act, not a surprise. Every entry is a PHRASE: the five slots
+    # that used to hold "aac", "printable", "slp", "classroom" and
+    # "nonspeaking" now hold terms a buyer would type.
     it "yields the stable boilerplate set for a single board with no topic" do
       expect(build["tags"]).to eq([
-        "aac", "printable", "digital download",
-        "communication board",
-        "autism support", "slp", "classroom",
-        "aac printable", "voice output aac", "speech therapy", "special education",
-        "nonspeaking", "slp resources",
+        "printable aac", "communication board", "low tech aac",
+        "aac board",
+        "autism support", "slp resources", "classroom visuals",
+        "pecs alternative", "aac printable", "voice output aac", "speech therapy",
+        "special education", "nonverbal child",
       ])
     end
 

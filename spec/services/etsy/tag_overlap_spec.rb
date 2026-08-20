@@ -11,10 +11,12 @@ RSpec.describe Etsy::TagOverlap do
     )
   end
 
+  # What Etsy::ListingCopy yields for a printable with nothing topical to say.
   BOILERPLATE = [
-    "aac", "printable", "digital download", "communication board",
-    "autism support", "slp", "classroom", "aac printable", "voice output aac",
-    "speech therapy", "special education", "nonspeaking", "slp resources",
+    "printable aac", "communication board", "low tech aac", "aac board",
+    "autism support", "slp resources", "classroom visuals", "pecs alternative",
+    "aac printable", "voice output aac", "speech therapy", "special education",
+    "nonverbal child",
   ].freeze
 
   it "flags a printable whose tags are a near-duplicate of another's" do
@@ -119,8 +121,9 @@ RSpec.describe Etsy::TagOverlap do
 
       tags = p.listing_copy["tags"]
       expect(tags).to include("hospital stay", "doctor visit")
-      # always_on is three, then topic — so a topic tag can never be crowded out.
-      expect(tags.index("hospital stay")).to be < tags.index("communication board")
+      # always_on is three, then topic — so a topic tag can never be crowded
+      # out by the product-type, audience or top-up pools below it.
+      expect(tags.index("hospital stay")).to be < tags.index("autism support")
     end
   end
 

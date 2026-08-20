@@ -520,14 +520,16 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
 
         patch update_listing_admin_dashboard_board_printable_path(printable), params: {
           title: "Core Words", summary: "S", description: "D",
-          tags: "AAC, talking communication board, printable", price: "4.50",
+          tags: "AAC Board, talking communication board, AAC, printable aac", price: "4.50",
         }
 
         expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
         expect(printable.reload.listing_copy).to include(
           "title" => "Core Words",
-          # The 27-char tag is dropped here rather than silently by Etsy later.
-          "tags" => ["aac", "printable"],
+          # The 27-char tag is dropped here rather than silently by Etsy later,
+          # and so is the hand-typed one-word "AAC" — the rule reaches the admin
+          # save path, not just generation.
+          "tags" => ["aac board", "printable aac"],
           "price_cents" => 450,
         )
       end
