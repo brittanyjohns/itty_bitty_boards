@@ -1,22 +1,16 @@
 class BoardPolicy < ApplicationPolicy
-    class Scope
-        def initialize(user, scope)
-          @user  = user
-          @scope = scope
-        end
-    
-        def resolve
-          if user.admin?
-            scope.all.user_made
-          else
-            scope.where(user: user).user_made
-          end
-        end
-    
-        private
-    
-        attr_reader :user, :scope
+  class Scope < ApplicationPolicy::Scope
+    def resolve
+      return scope.none unless user
+
+      if user.admin?
+        scope.all.user_made
+      else
+        scope.where(user: user).user_made
+      end
     end
+  end
+
   def create?
     user.admin?
   end
