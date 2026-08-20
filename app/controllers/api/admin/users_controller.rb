@@ -268,7 +268,10 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       render json: { error: "No user_ids provided" }, status: :unprocessable_content
       return
     end
-    users = User.where(id: params[:user_ids]).where.not(role: "admin")
+    # `non_admin`, not `where.not(role: "admin")`: role is nullable and the
+    # plain form compiles to `role != 'admin'`, which is NULL — and so false —
+    # for every ordinary signup, silently skipping them all.
+    users = User.where(id: params[:user_ids]).non_admin
     users.each do |u|
       u.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless u.soft_deleted?
     end
@@ -286,9 +289,9 @@ class API::Admin::UsersController < API::Admin::ApplicationController
 
     demo_users = User.demo_accounts.includes(:boards)
     excluded = demo_users.where(id: exclude_ids)
+    # `demo_accounts` already excludes admins NULL-safely; a stacked
+    # `where.not(role: "admin")` would drop every NULL-role signup.
     candidates = demo_users.where.not(id: exclude_ids)
-
-    candidates = candidates.where.not(role: "admin")
     ranked = candidates.sort_by { |u| -u.boards.size }
     kept = ranked.first(keep_count)
     to_delete = ranked.drop(keep_count)

@@ -15,7 +15,7 @@ module Admin
     }.freeze
 
     def index
-      @sort = params[:sort].presence_in(%w[created_at email name plan_type sign_in_count current_sign_in_at boards]) || "created_at"
+      @sort = params[:sort].presence_in(%w[created_at email name plan_type sign_in_count current_sign_in_at boards signup_platform]) || "created_at"
       @dir = params[:dir].presence_in(%w[asc desc]) || "desc"
       @filter = params[:filter]
       @search = params[:search]
@@ -24,12 +24,25 @@ module Admin
       scope = apply_filter(scope)
       scope = scope.where("email ILIKE ? OR name ILIKE ?", "%#{@search}%", "%#{@search}%") if @search.present?
 
-      if @sort == "boards"
-        @users = scope.includes(:boards).sort_by { |u| u.boards.size }
-        @users.reverse! if @dir == "desc"
-      else
-        @users = scope.order(@sort => @dir.to_sym)
-      end
+      @users =
+        case @sort
+        when "boards"
+          sorted = scope.includes(:boards).sort_by { |u| u.boards.size }
+          @dir == "desc" ? sorted.reverse : sorted
+        when "signup_platform"
+          # jsonb key, not a column — and accounts created before signup
+          # context shipped have no key at all, so they sort last either way
+          # rather than clumping at the top of an ascending sort.
+          #
+          # Built in Arel rather than an interpolated Arel.sql string, same
+          # reasoning as User.demo_accounts: @dir is validated against a
+          # two-element allowlist above, but an interpolated ORDER BY is
+          # indistinguishable from injection to Brakeman (and to the next
+          # person who widens that allowlist).
+          scope.order(signup_platform_ordering)
+        else
+          scope.order(@sort => @dir.to_sym)
+        end
 
       @total_count = scope.count
     end
@@ -199,7 +212,12 @@ module Admin
         return
       end
 
-      users = User.where(id: user_ids).demo_accounts.where.not(role: "admin")
+      # `demo_accounts` already excludes admins via `non_admin`, which spells the
+      # check as "role IS NULL OR role != 'admin'". A plain `where.not(role:)`
+      # compiles to `role != 'admin'`, which is NULL — and therefore false — for
+      # the NULL role every ordinary signup has, so stacking it here skipped
+      # every real demo account and reported it as "not a demo account".
+      users = User.where(id: user_ids).demo_accounts
       skipped = user_ids.size - users.size
       users.each { |u| u.soft_delete_account!(reason: "admin_deleted", actor_id: current_user.id) unless u.soft_deleted? }
 
@@ -239,6 +257,13 @@ module Admin
 
     private
 
+    def signup_platform_ordering
+      key = Arel::Nodes::InfixOperation.new(
+        "->>", User.arel_table[:settings], Arel::Nodes.build_quoted("signup_platform")
+      )
+      (@dir == "asc" ? key.asc : key.desc).nulls_last
+    end
+
     def user_params
       params.require(:user).permit(:name, :email, :role, :locked, :play_demo,
                                    :board_limit, :paid_communicator_limit, :demo_communicator_limit,
@@ -255,6 +280,7 @@ module Admin
       when "free"   then scope.where(plan_type: "free")
       when "trial"  then scope.where(plan_type: "basic_trial")
       when "demo"   then scope.demo_accounts
+      when "ios", "android", "web" then scope.where("users.settings ->> 'signup_platform' = ?", @filter)
       when "locked" then scope.where(locked: true)
       else scope
       end

@@ -27,6 +27,25 @@ module Admin
       PLAN_BADGE_CLASSES.fetch(user.plan_type.to_s, "bg-gray-800 text-gray-400")
     end
 
+    # settings["signup_platform"] is written by User#record_signup_context! and
+    # only ever holds what the signup request declared. Accounts created before
+    # that shipped have no key at all — "unknown", not "web", since guessing
+    # would quietly inflate the web share of every cohort read off this table.
+    SIGNUP_PLATFORM_BADGE_CLASSES = {
+      "ios"     => "bg-blue-900/60 text-blue-300",
+      "android" => "bg-green-900/60 text-green-300",
+      "web"     => "bg-indigo-900/60 text-indigo-300",
+    }.freeze
+
+    def signup_platform(user)
+      settings = user.settings.is_a?(Hash) ? user.settings : {}
+      settings["signup_platform"].presence || "unknown"
+    end
+
+    def signup_platform_badge_class(platform)
+      SIGNUP_PLATFORM_BADGE_CLASSES.fetch(platform.to_s, "bg-gray-800 text-gray-400")
+    end
+
     PARTNER_PILOT_STATE_META = {
       ended:        { label: "Pilot ended",  badge: "bg-red-900/60 text-red-300" },
       ending_soon:  { label: "Ending soon",  badge: "bg-yellow-900/60 text-yellow-300" },

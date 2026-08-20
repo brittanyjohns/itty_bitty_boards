@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Deleting a demo account from the admin dashboard works again.** Selecting
+  demo accounts and pressing **Delete selected** reported "Skipped 1 selected
+  user(s) that weren't demo accounts" and deleted nothing. The check treated an
+  account with no role set — which is every ordinary signup — as failing the
+  "not an admin" test, so every real demo account was skipped. The same skip
+  applied to Mission Control's demo cleanup and to the JSON admin API's bulk
+  delete; all three now agree with the checkbox the dashboard shows.
+
 - **Imported boards show up on the boards page like any other board.** A board
   set imported from a `.obf`/`.obz` file was filtered out of board search and
   out of the public board library, so the only way back to it was the group it
@@ -16,6 +24,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   imports are settled by `bin/rails obf_import:classify_sets`.
 
 ### Added
+
+- **The admin Users table shows where each account signed up.** A new **Source**
+  column badges every user as iOS, Android, web, or unknown (accounts created
+  before signup source was recorded), sortable like the other columns and
+  filterable from the same dropdown as plans and demo accounts. The user detail
+  page gains **Signup source** and **Signup method** alongside the existing
+  signup ref.
+
+- **The admin nav is shorter.** Board Builds, Board Printables, and Kit Pages
+  now sit together under a single **Content** menu instead of each taking a slot
+  in a bar that had run out of room.
 
 - **Kit landing pages write themselves.** Creating a `/kit/<slug>` lead-magnet
   page used to mean typing a slug, headline, subhead, call to action and a raw

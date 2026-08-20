@@ -80,6 +80,12 @@
     html.dark .admin-flash-ok { background: rgba(34,197,94,0.15); color: #86efac; }
     html.dark .admin-flash-err { background: rgba(239,68,68,0.15); color: #fca5a5; }
 
+    /* Safari still draws the disclosure triangle without this. */
+    .admin-menu > summary::-webkit-details-marker { display: none; }
+    .admin-menu > summary::marker { content: ""; }
+    .admin-menu[open] > summary { background: var(--bg-surface-alt); color: var(--text-primary); }
+    .admin-menu a:hover { background: var(--hover-row); }
+
     .theme-toggle {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 4px 10px; border-radius: 6px; cursor: pointer;
@@ -124,16 +130,32 @@
           <% end %>
           <%= link_to "Video Boards", admin_dashboard_video_boards_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/video_boards") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
-          <%= link_to "Board Builds", admin_dashboard_board_builds_path,
-                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/board_builds") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
-          <%= link_to "Kit Pages", admin_dashboard_kit_pages_path,
-                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/kit_pages") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+          <%# Board Builds / Kit Pages / Board Printables share one "Content"
+              menu — the flat nav had outgrown the bar. <details> so the menu
+              works with no JS; the inline script below only closes it on an
+              outside click. %>
+          <% content_items = [
+               ["Board Builds",     admin_dashboard_board_builds_path,     "/admin/board_builds"],
+               ["Board Printables", admin_dashboard_board_printables_path, "/admin/board_printables"],
+               ["Kit Pages",        admin_dashboard_kit_pages_path,        "/admin/kit_pages"],
+             ] %>
+          <% content_active = content_items.any? { |_, _, prefix| request.path.start_with?(prefix) } %>
+          <details class="admin-menu relative">
+            <summary class="text-xs px-3 py-1.5 rounded cursor-pointer list-none inline-flex items-center gap-1 <%= content_active ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1" %> transition-colors">
+              Content
+              <span class="text-[9px] leading-none">&#9660;</span>
+            </summary>
+            <div class="admin-card border rounded-lg absolute left-0 mt-1 py-1 w-48 z-50 shadow-lg">
+              <% content_items.each do |label, path, prefix| %>
+                <%= link_to label, path,
+                      class: "block text-xs px-3 py-2 #{request.path.start_with?(prefix) ? "text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+              <% end %>
+            </div>
+          </details>
           <%= link_to "Feedback", admin_dashboard_feedback_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/feedback") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Word Events", admin_dashboard_word_events_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/word_events") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
-          <%= link_to "Board Printables", admin_dashboard_board_printables_path,
-                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/board_printables") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq", target: "_blank", rel: "noopener",
@@ -172,6 +194,13 @@
       localStorage.setItem('admin_theme', isDark ? 'dark' : 'light');
       updateThemeButton();
     }
+    // Close the nav menu when the click lands outside it — <details> has no
+    // dismiss-on-outside-click behavior of its own.
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('details.admin-menu[open]').forEach(function (d) {
+        if (!d.contains(e.target)) d.removeAttribute('open');
+      });
+    });
     function updateThemeButton() {
       var isDark = document.documentElement.classList.contains('dark');
       document.getElementById('theme-icon').innerHTML = isDark ? '&#9790;' : '&#9788;';
