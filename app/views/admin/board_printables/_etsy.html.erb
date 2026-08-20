@@ -3,13 +3,17 @@
     Etsy seller UI, after a human has checked the category, the photos, and the
     return policy.
 
+    A printable can carry SEVERAL listings — a standalone and a bundle, say —
+    so publishing, detaching and sending a video are per-listing and live on
+    each card below. What is refused is publishing the same ROW twice.
+
     Two states are tracked separately and must not be collapsed:
 
-      etsy_published?       — attached to a listing RIGHT NOW. Gates publishing,
-                              and is what "Detach & relist" clears.
+      attached?             — that row has a draft RIGHT NOW. Gates publishing
+                              it, and is what "Detach" clears.
       etsy_ever_published?  — a draft was made from this printable at some
                               point. Gates marketplace PROTECTION, and is never
-                              cleared, because relisting doesn't un-print the
+                              cleared, because detaching doesn't un-print the
                               paper already carrying these boards' QR codes. %>
 <div class="admin-card border rounded-xl p-5 mb-6">
   <h2 class="text-sm font-medium text-t1 mb-1">Etsy</h2>
@@ -25,8 +29,7 @@
   <% end %>
 
   <%# Every listing this printable has ever had, superseded ones included — the
-      record the old scalar columns could not keep. Read-only for now; the
-      actions still live on the printable below. %>
+      record the old scalar columns could not keep. %>
   <% if @etsy_listings.present? %>
     <div class="space-y-3 mb-4">
       <%= render partial: "admin/board_printables/etsy_listing",
@@ -34,66 +37,34 @@
     </div>
   <% end %>
 
-  <% if @printable.etsy_published? %>
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs mb-4">
-      <div>
-        <div class="text-t2 mb-0.5">Listing</div>
-        <div class="text-t1"><%= @printable.etsy_listing_id %></div>
-      </div>
-      <div>
-        <div class="text-t2 mb-0.5">Draft created</div>
-        <div class="text-t1"><%= @printable.etsy_published_at&.strftime("%b %-d, %Y %l:%M %p") || "—" %></div>
-      </div>
-    </div>
-    <%# Goes to the seller's listing editor, not the public listing page — a
-        draft has no public page. Href built from the numeric listing id, not
-        the stored URL string; see etsy_listing_url_for. %>
-    <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(@printable),
-          target: "_blank", rel: "noopener",
-          class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
-
-    <%# The app CREATES listings and implements no call that UPDATES one, so a
-        re-rendered gallery can never reach this draft in place: replacing photos
-        needs a delete Etsy::Client deliberately doesn't have. Replacing it is a
-        deliberate two-step: detach here, delete the old draft on Etsy yourself,
-        publish again. Nothing here touches Etsy.
-
-        The video is the one exception, and it is not an update: adding a video
-        to a listing that has none is an additive POST, offered on the video card
-        above. Everything else needs a relist. %>
-    <div class="mt-4 pt-4 border-t border-white/10 flex items-start justify-between gap-4">
-      <p class="text-[11px] text-t3">
-        Re-rendered the <strong>images</strong>? They won't reach this draft — the app only ever creates
-        listings. Detach, delete the old draft on Etsy, then publish again. A <strong>video</strong> is the
-        exception: if this listing hasn't got one, send it from the video card above without relisting.
-      </p>
-      <%= button_to "Detach & relist", relist_on_etsy_admin_dashboard_board_printable_path(@printable),
-            method: :post,
-            class: "shrink-0 text-xs font-medium px-3 py-2 rounded admin-card-alt text-t2 hover:text-t1 cursor-pointer",
-            form: { data: { turbo_confirm: relist_confirm(@printable) } } %>
-    </div>
-  <% elsif !@etsy_configured %>
+  <% if !@etsy_configured %>
     <p class="text-xs text-t3">
       Etsy isn't configured. Set <code>ETSY_KEYSTRING</code>, <code>ETSY_SHARED_SECRET</code>,
       <code>ETSY_OAUTH_CLIENT_ID</code> and <code>ETSY_SHOP_ID</code>, then seed this app's own
       refresh token with <code>rake etsy:seed_refresh_token</code>.
     </p>
   <% else %>
-    <% if @printable.etsy_ever_published? %>
-      <p class="text-[11px] text-t3 mb-3">
-        <%# The date is when the FIRST draft was made, not when it was detached —
-            nothing records the detach, and dating it wrongly is worse than not
-            dating it. %>
-        Detached from a previous draft<%= " (first published #{@printable.etsy_published_at.strftime('%b %-d, %Y')})" if @printable.etsy_published_at %>.
-        Delete that draft on Etsy if you haven't — publishing here makes a new one, it can't update the old.
-      </p>
+    <%# Adding a listing touches nothing external — it allocates a row to edit
+        and publish later. That ordering is the point: the row is the token a
+        publish claims exactly once, so a double-click cannot make two drafts. %>
+    <%= form_with url: admin_dashboard_board_printable_listings_path(@printable),
+                  method: :post, class: "flex flex-wrap items-end gap-3 pt-3 border-t",
+                  style: "border-color: var(--border);", data: { turbo: false } do |f| %>
+      <div>
+        <label class="block text-[11px] text-t2 mb-1">Kind</label>
+        <%= select_tag "board_printable_listing[purpose]",
+              options_for_select(BoardPrintableListing::PURPOSES.map { |p| [p.humanize, p] }),
+              class: "text-xs rounded admin-card-alt px-2 py-2" %>
+      </div>
+      <div>
+        <label class="block text-[11px] text-t2 mb-1">Label (optional)</label>
+        <%= text_field_tag "board_printable_listing[label]", nil, placeholder: "holiday bundle",
+              class: "text-xs rounded admin-card-alt px-2 py-2" %>
+      </div>
+      <%= submit_tag @etsy_listings.any? ? "Add another listing" : "Add a listing",
+            class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer",
+            data: { turbo_confirm: create_listing_confirm(@printable) } %>
     <% end %>
-    <%= button_to @printable.etsy_ever_published? ? "Create replacement draft" : "Create Etsy draft",
-          publish_to_etsy_admin_dashboard_board_printable_path(@printable),
-          method: :post,
-          class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
-          form: { data: { turbo_confirm: "Create a draft Etsy listing for \"#{@listing['title']}\"? " \
-                                         "It will NOT go live — you publish it in Etsy yourself." } } %>
   <% end %>
 
   <%# Protection is keyed on having EVER been published, so this block sits

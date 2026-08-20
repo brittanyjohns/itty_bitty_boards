@@ -65,8 +65,10 @@ module Admin
       # A relisted printable has no listing id to name — the draft it was
       # detached from is still on Etsy, so the warning is if anything more
       # important there, just less specific.
-      draft = if printable.etsy_published?
-        "Etsy draft #{printable.etsy_listing_id} stays on Etsy — remove it there yourself."
+      ids = printable.etsy_listings.filter_map(&:etsy_listing_id)
+      draft = if ids.any?
+        "Etsy #{"draft".pluralize(ids.size)} #{ids.join(", ")} #{ids.one? ? "stays" : "stay"} on Etsy — " \
+        "remove #{ids.one? ? "it" : "them"} there yourself."
       else
         "Any Etsy draft made from this printable stays on Etsy — remove it there yourself."
       end
@@ -92,36 +94,52 @@ module Admin
       "until you push it with the printables CLI."
     end
 
-    # The confirm on "Detach & relist". Says the two things an admin could
-    # otherwise get wrong: nothing here touches the draft on Etsy, and the
-    # boards stay frozen (protection is keyed on having ever been published, not
-    # on the listing id this clears).
-    def relist_confirm(printable)
-      "Detach this printable from Etsy listing #{printable.etsy_listing_id}? " \
-      "That draft is NOT deleted — remove it on Etsy yourself, or you'll have two. " \
-      "Publishing again creates a new draft with the current images and video. " \
-      "The #{pluralize(count = printable.protected_board_ids.size, "board")} it protects " \
-      "#{count == 1 ? "stays" : "stay"} protected."
+    # The confirm on "Add a listing". Says what it does NOT do: a row is local
+    # until you publish it, so this cannot make a draft by accident.
+    def create_listing_confirm(printable)
+      existing = printable.etsy_listings.count
+      base = "Add another listing to this printable? Nothing is sent to Etsy — you edit its copy first, " \
+             "then create the draft from its own card."
+      return base if existing.zero?
+
+      "#{base} This printable already has #{pluralize(existing, "listing")}."
     end
 
-    # The confirm on "Send video to the listing". States the precondition the
-    # app cannot check for itself: Etsy allows one video per listing, and
-    # nothing here can read a listing back to find out whether it already has
-    # one. Naming the listing id is what lets an admin go and look.
-    def push_video_confirm(printable)
-      "Send this video to Etsy listing #{printable.etsy_listing_id}? " \
-      "Etsy allows ONE video per listing and this app can't read the listing to check — " \
-      "only continue if that listing has no video yet. It can't be undone from here; " \
-      "replacing a listing's video is a seller-UI job."
+    # The confirm on "Create Etsy draft" / "Retry". Names the title going out,
+    # because the row's copy may differ from the printable's.
+    def publish_listing_confirm(listing)
+      "Create a draft Etsy listing for \"#{listing.resolved_copy["title"]}\"? " \
+      "It will NOT go live — you publish it in Etsy yourself."
+    end
+
+    # The confirm on "Detach". Says the two things an admin could otherwise get
+    # wrong: nothing here touches the draft on Etsy, and the boards stay frozen
+    # (protection is keyed on having ever been published, not on being attached).
+    def supersede_listing_confirm(listing)
+      count = listing.board_printable.protected_board_ids.size
+
+      "Detach this listing from Etsy draft #{listing.etsy_listing_id}? " \
+      "That draft is NOT deleted — remove it on Etsy yourself, or you'll have two. " \
+      "The #{pluralize(count, "board")} it protects #{count == 1 ? "stays" : "stay"} protected."
+    end
+
+    # The confirm on "Replace" — detach plus a fresh row carrying the same copy.
+    # The one-click version of what "Detach & relist" used to be, except the old
+    # row survives so the draft it points at is still findable.
+    def replace_listing_confirm(listing)
+      "Detach from Etsy draft #{listing.etsy_listing_id} and add a replacement listing with the same copy? " \
+      "That draft is NOT deleted — remove it on Etsy yourself. Publishing the replacement creates a new " \
+      "draft with the current images and video."
     end
 
     # The confirm on the release button. Names the listing id, because that's
     # the thing an admin should go look at before deciding the paper is dead.
     def waive_protection_confirm(printable)
-      listing = printable.etsy_published? ? "Etsy listing #{printable.etsy_listing_id}" : "The Etsy listing"
+      ids = printable.etsy_listings.filter_map(&:etsy_listing_id)
+      listings = ids.any? ? "Etsy #{"listing".pluralize(ids.size)} #{ids.join(", ")}" : "The Etsy listing"
 
       "Release protection on #{pluralize(printable.protected_board_ids.size, "board")}? " \
-      "#{listing} may still be live, and printed copies keep pointing at these boards. " \
+      "#{listings} may still be live, and printed copies keep pointing at these boards. " \
       "They become deletable, renameable and unpublishable again."
     end
 

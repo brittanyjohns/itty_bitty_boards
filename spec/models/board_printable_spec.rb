@@ -186,85 +186,63 @@ RSpec.describe BoardPrintable do
     end
   end
 
-  describe "relisting" do
+  describe "detaching a listing" do
     let(:board) { FactoryBot.create(:board, name: "Core Words") }
     let(:printable) do
       described_class.create!(board: board, status: "complete", board_ids: [board.id])
     end
-
-    before do
-      printable.update!(
-        etsy_listing_id: 987,
-        etsy_listing_url: "https://etsy.test/987",
-        etsy_published_at: 3.days.ago,
-        etsy_error: "something went wrong last time",
+    let!(:listing) do
+      printable.etsy_listings.create!(
+        etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987",
+        state: "published", published_at: 3.days.ago,
       )
     end
 
-    it "detaches from the listing so a fresh draft can be created" do
-      printable.relist!
+    # The orphaning fix. Detaching used to NULL the id and leave the draft
+    # unfindable; the row keeps it, because this app implements no delete call
+    # and someone has to be told which listing to remove on Etsy.
+    it "supersedes the row and keeps the listing id" do
+      listing.supersede!
 
-      expect(printable.reload.etsy_listing_id).to be_nil
-      expect(printable.etsy_listing_url).to be_nil
-      expect(printable.etsy_published?).to be false
-      expect(printable.etsy_error).to be_nil
-    end
-
-    # The whole reason protection moved off `etsy_listing_id`. Relisting must
-    # not unfreeze boards whose printed pages are already in someone's hands.
-    it "keeps the boards it protects frozen" do
-      expect { printable.relist! }.not_to change { printable.reload.protects_board? }.from(true)
+      expect(listing.reload).to have_attributes(state: "superseded", etsy_listing_id: 987)
+      expect(printable.reload.etsy_published?).to be false
       expect(printable.etsy_ever_published?).to be true
     end
 
+    # The whole reason protection is not keyed on being attached. Detaching must
+    # not unfreeze boards whose printed pages are already in someone's hands.
+    it "keeps the boards it protects frozen" do
+      expect { listing.supersede! }.not_to change { printable.reload.protects_board? }.from(true)
+    end
+
     it "stays protected in the query the board guard actually uses" do
-      printable.relist!
+      listing.supersede!
 
       expect(Boards::MarketplaceProtection.new(board).protected?).to be true
       expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
     end
 
-    # Detaching used to lose the draft: the id was NULLed and nothing else
-    # recorded it, so nobody could be told which listing to delete on Etsy.
-    it "supersedes the listing row instead of forgetting it" do
-      listing = printable.etsy_listings.create!(
-        etsy_listing_id: 987, state: "published", published_at: 3.days.ago,
-      )
-
-      printable.relist!
-
-      expect(listing.reload).to have_attributes(state: "superseded", etsy_listing_id: 987)
-      expect(listing.superseded_at).to be_present
-      expect(printable.reload.etsy_published?).to be false
-      expect(printable.etsy_ever_published?).to be true
-    end
-
     it "leaves an explicit waiver alone" do
       printable.waive_protection!(user: FactoryBot.create(:admin_user), reason: "sold out")
 
-      printable.relist!
+      listing.supersede!
 
       expect(printable.reload.protection_waived?).to be true
       expect(printable.protects_board?).to be false
     end
 
     # Protection must never NARROW. A row carrying a listing id but no timestamp
-    # protected its boards before the rekey; relisting it has to keep them
-    # frozen, which means stamping the timestamp on the way past.
-    it "protects, and keeps protecting, a row that has an id but no timestamp" do
+    # protected its boards before listing rows existed, and still has to.
+    it "protects a legacy row that has an id but no timestamp" do
       legacy = described_class.create!(board: board, status: "complete", board_ids: [board.id])
       legacy.update_columns(etsy_listing_id: 555, etsy_published_at: nil)
 
       expect(legacy.reload.protects_board?).to be true
-
-      legacy.relist!
-
-      expect(legacy.reload.etsy_listing_id).to be_nil
-      expect(legacy.etsy_published_at).to be_present
-      expect(legacy.protects_board?).to be true
       expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
     end
+  end
 
+  describe "protection" do
     # A printable that was never published isn't protecting anything, and has no
     # listing to detach from.
     it "does not protect a printable that was never published" do

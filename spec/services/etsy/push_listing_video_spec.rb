@@ -5,9 +5,12 @@ RSpec.describe Etsy::PushListingVideo do
   let(:board) { create(:board, user: owner, name: "Core Words") }
 
   let(:printable) do
-    BoardPrintable.create!(
-      board: board, status: "complete", board_ids: [board.id], page_count: 6,
-      etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987", etsy_published_at: 1.day.ago,
+    BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id], page_count: 6)
+  end
+  let(:listing) do
+    printable.etsy_listings.create!(
+      etsy_listing_id: 987, etsy_listing_url: "https://etsy.test/987",
+      state: "published", published_at: 1.day.ago,
     )
   end
 
@@ -18,28 +21,42 @@ RSpec.describe Etsy::PushListingVideo do
     allow(client).to receive(:upload_video).and_return(true)
   end
 
-  def push = described_class.new(printable.reload, client: client).call
+  def push = described_class.new(listing.tap { printable.reload }, client: client).call
 
   describe "a successful push" do
     it "uploads the clip to the attached listing and stamps that it went" do
       expect(client).to receive(:upload_video).with(987, hash_including(bytes: "mp4-bytes"))
 
       expect(push.ok?).to be true
-      expect(printable.reload.etsy_video_pushed_at).to be_present
+      expect(listing.reload.video_pushed_at).to be_present
     end
 
     it "clears a previous error" do
-      printable.update_columns(etsy_error: "an earlier failure")
+      listing.update_columns(error: "an earlier failure")
 
       push
 
-      expect(printable.reload.etsy_error).to be_nil
+      expect(listing.reload.error).to be_nil
+    end
+
+    # Etsy's rule is per LISTING, so a printable's standalone listing and its
+    # bundle can both take the same rendered clip. The old printable-wide stamp
+    # would have refused the second — this is a bug the row fixes.
+    it "lets a sibling listing take the same clip" do
+      listing.mark_video_pushed!
+      sibling = printable.etsy_listings.create!(
+        etsy_listing_id: 988, state: "published", published_at: 1.day.ago, purpose: "bundle",
+      )
+
+      expect(client).to receive(:upload_video).with(988, hash_including(bytes: "mp4-bytes"))
+
+      expect(described_class.new(sibling, client: client).call.ok?).to be true
     end
   end
 
   describe "the one-video-per-listing guard" do
     it "refuses a second push and names the seller UI as the way to replace it" do
-      printable.update_columns(etsy_video_pushed_at: 1.hour.ago)
+      listing.mark_video_pushed!
 
       result = push
 
@@ -68,16 +85,17 @@ RSpec.describe Etsy::PushListingVideo do
         BoardPrintable::LISTING_IMAGE_ORDER.each { |v| fresh.attach_image!(bytes: "png", variant: v) }
       end
 
-      Etsy::PublishBoardPrintable.new(fresh, client: publish_client).call
+      fresh_listing = fresh.etsy_listings.create!(state: "publishing")
+      Etsy::PublishBoardPrintableListing.new(fresh_listing, client: publish_client).call
 
-      expect(fresh.reload.etsy_video_pushed?).to be true
-      expect(fresh.can_push_listing_video?).to be false
+      expect(fresh_listing.reload.video_pushed_at).to be_present
+      expect(fresh_listing.can_push_video?).to be false
     end
   end
 
   describe "guards" do
-    it "refuses a printable with no attached listing" do
-      printable.update_columns(etsy_listing_id: nil)
+    it "refuses a row with no attached draft" do
+      listing.supersede!
 
       expect(push.ok?).to be false
       expect(client).not_to have_received(:upload_video)
@@ -103,9 +121,9 @@ RSpec.describe Etsy::PushListingVideo do
       result = push
 
       expect(result.ok?).to be false
-      expect(printable.reload.etsy_video_pushed_at).to be_nil
-      expect(printable.etsy_error).to match(/413 too large/)
-      expect(printable.can_push_listing_video?).to be true
+      expect(listing.reload.video_pushed_at).to be_nil
+      expect(listing.error).to match(/413 too large/)
+      expect(listing.can_push_video?).to be true
     end
   end
 
@@ -119,16 +137,18 @@ RSpec.describe Etsy::PushListingVideo do
     end
   end
 
-  describe "relisting" do
-    # A detached printable is heading for a NEW draft, which has no video until
-    # publishing gives it one. Leaving the stamp set would hide the control for
-    # a listing that genuinely has nothing on it.
-    it "clears the stamp so the replacement listing can receive one" do
-      printable.update_columns(etsy_video_pushed_at: 1.hour.ago)
+  describe "replacing a listing" do
+    # A replacement is a DIFFERENT row, whose stamp is nil by construction — so
+    # nothing has to remember to clear anything, and the detached row keeps the
+    # true record of what its own draft received.
+    it "leaves the superseded row stamped and starts the replacement unstamped" do
+      listing.mark_video_pushed!
+      listing.supersede!
 
-      printable.relist!
+      replacement = printable.etsy_listings.create!(purpose: listing.purpose)
 
-      expect(printable.reload.etsy_video_pushed_at).to be_nil
+      expect(listing.reload.video_pushed_at).to be_present
+      expect(replacement.video_pushed_at).to be_nil
     end
   end
 end

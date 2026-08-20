@@ -416,33 +416,6 @@ class BoardPrintable < ApplicationRecord
     etsy_published_at.present? || etsy_listing_id.present? || etsy_listings.any?(&:reached_etsy?)
   end
 
-  # Whether this app has already sent a listing video to the listing this
-  # printable is attached to.
-  #
-  # Etsy allows exactly one video per listing, and Etsy::Client implements no
-  # list or delete counterpart — so the app cannot ask a listing whether it
-  # already has one. A POST against a listing with NO video is the safe,
-  # intended call; a second POST has no outcome this app could verify. This
-  # column is the only memory that makes the second one refusable.
-  def etsy_video_pushed? = etsy_video_pushed_at.present?
-
-  # Whether "Send video to the listing" should be offered at all.
-  #
-  # Note this deliberately does NOT require `listing_video_current?`: a stale
-  # rendered clip is a judgement call the admin makes with the badge in front of
-  # them, exactly as publishing does. What it does require is that a video
-  # exists and that a listing is attached right now — a detached printable has
-  # nothing to push to, and publishing will carry the video anyway.
-  def can_push_listing_video? = etsy_published? && listing_video? && !etsy_video_pushed?
-
-  def mark_etsy_video_pushed!
-    update_columns(etsy_video_pushed_at: Time.current, updated_at: Time.current)
-    # Mirrored onto the row it actually applies to. Etsy's one-video rule is per
-    # LISTING, so this stamp belongs on the listing and only lives on the
-    # printable while the scalar columns do.
-    etsy_listings.select(&:attached?).each(&:mark_video_pushed!)
-  end
-
   # Whether this printable freezes the boards it was rendered from.
   #
   # Keyed on `etsy_published_at`, NOT on the record existing: generating a
@@ -450,44 +423,13 @@ class BoardPrintable < ApplicationRecord
   # board every time would make the feature something to avoid.
   #
   # It is also not keyed on any "is the listing still live" state, and
-  # deliberately not on `etsy_listing_id` either. The thing protection defends
-  # is a printed sheet with a QR on it: ending an Etsy listing doesn't un-print
-  # that sheet, and neither does relisting. #relist! clears the listing id so a
-  # fresh draft can be created, so keying protection there would silently
-  # unfreeze boards whose printed pages are already in someone's hands — the
-  # exact failure this exists to prevent. Release is the explicit waiver below.
+  # deliberately not on whether a listing is attached RIGHT NOW. The thing
+  # protection defends is a printed sheet with a QR on it: ending an Etsy
+  # listing doesn't un-print that sheet, and neither does detaching from it. A
+  # superseded row still protects, or replacing a draft would silently unfreeze
+  # boards whose printed pages are already in someone's hands — the exact
+  # failure this exists to prevent. Release is the explicit waiver below.
   def protects_board? = etsy_ever_published? && protection_waived_at.nil?
-
-  # Forget which listing this printable is attached to, so Publish can create a
-  # fresh draft. For replacing a draft whose gallery is out of date: this app
-  # only ever CREATES listings — it has no path that updates one — so a
-  # re-rendered gallery can't reach an existing draft any other way.
-  #
-  # Deliberately does NOT touch `etsy_published_at` (protection reads it) or
-  # `protection_waived_at`. The old draft is left alone on Etsy; deleting it
-  # there is the operator's job, and doing it from here would mean implementing
-  # a delete call this app pointedly does not have.
-  def relist!
-    # Backfilled BEFORE the id is dropped, so a row that somehow carries a
-    # listing id without a timestamp doesn't lose its only remaining evidence of
-    # having been published — which is what protection reads.
-    update!(
-      etsy_published_at: etsy_published_at || Time.current,
-      etsy_listing_id: nil,
-      etsy_listing_url: nil,
-      etsy_error: nil,
-      # Scoped to the listing it was pushed to, so detaching from that listing
-      # retires the fact. The replacement draft has no video until publishing
-      # gives it one, and leaving the stamp set would hide the push control for
-      # a listing that genuinely has nothing on it.
-      etsy_video_pushed_at: nil,
-    )
-
-    # The row keeps its listing id — that draft is still on Etsy and someone has
-    # to be told which one to delete. Superseding rather than deleting is the
-    # half the scalar columns could not do.
-    etsy_listings.select(&:attached?).each(&:supersede!)
-  end
 
   def protection_waived? = protection_waived_at.present?
 

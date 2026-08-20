@@ -14,7 +14,7 @@ require "faraday/multipart"
 # Unlike most clients in this app this one RAISES rather than returning a
 # Result struct. A failed RevenueCat lookup degrades to "unverified" and the
 # request continues; a failed Etsy call must abort the publish immediately and
-# leave nothing half-created. Etsy::PublishBoardPrintable is the boundary that
+# leave nothing half-created. Etsy::PublishBoardPrintableListing is the boundary
 # turns these into a Result for the UI.
 module Etsy
   class Client
@@ -172,7 +172,7 @@ module Etsy
     # There is deliberately no list or delete counterpart. Etsy's `video_id`
     # form field replaces an existing video, which is what an update path would
     # want — but this app only ever creates fresh drafts
-    # (Etsy::PublishBoardPrintable refuses a printable that is already
+    # (Etsy::PublishBoardPrintableListing refuses a listing row that is already
     # published), so a listing here can never already have one. A DELETE
     # against a live listing is also exactly what the drafts-only invariant
     # exists to prevent.

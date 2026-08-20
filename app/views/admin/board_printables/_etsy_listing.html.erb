@@ -48,17 +48,60 @@
     <p class="text-[11px] text-t3 mb-3"><%= etsy_listing.error %></p>
   <% end %>
 
-  <% if etsy_listing.superseded? %>
-    <p class="text-[11px] text-t3">
-      Detached <%= etsy_listing.superseded_at.strftime("%b %-d, %Y") %>. Draft
-      <%= etsy_listing.etsy_listing_id || "(id not recorded)" %> is still on Etsy unless you removed it there.
-    </p>
-  <% elsif etsy_listing.etsy_listing_id.present? %>
-    <%# The SELLER's listing editor, not the public listing page — a draft has
-        no public page. Built from the numeric id, never the stored URL string;
-        see etsy_listing_url_for. %>
-    <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(etsy_listing),
-          target: "_blank", rel: "noopener",
-          class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
-  <% end %>
+  <div class="flex flex-wrap items-center gap-2">
+    <% if etsy_listing.superseded? %>
+      <p class="text-[11px] text-t3">
+        Detached <%= etsy_listing.superseded_at.strftime("%b %-d, %Y") %>. Draft
+        <%= etsy_listing.etsy_listing_id || "(id not recorded)" %> is still on Etsy unless you removed it there.
+      </p>
+    <% elsif etsy_listing.attached? %>
+      <%# The SELLER's listing editor, not the public listing page — a draft has
+          no public page. Built from the numeric id, never the stored URL string;
+          see etsy_listing_url_for. %>
+      <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(etsy_listing),
+            target: "_blank", rel: "noopener",
+            class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+
+      <% if etsy_listing.can_push_video? && @printable.listing_video? %>
+        <%= button_to "Send video", push_video_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+              method: :post,
+              class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+              form: { data: { turbo_confirm: push_video_confirm(etsy_listing) } } %>
+      <% end %>
+
+      <%# The app CREATES listings and implements no call that UPDATES one, so a
+          re-rendered gallery can never reach this draft in place. Replacing it
+          is detach here, delete the old draft on Etsy yourself, publish the
+          replacement. Nothing here touches Etsy. %>
+      <%= button_to "Replace", replace_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: replace_listing_confirm(etsy_listing) } } %>
+      <%= button_to "Detach", supersede_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: supersede_listing_confirm(etsy_listing) } } %>
+    <% elsif etsy_listing.state == "publishing" %>
+      <%# Deliberately no reset button. A stuck row means a job was dispatched
+          against a real shop and we do not know what it did; a one-click reset
+          is a duplicate-draft generator. `rake printables:reset_stuck_listing`
+          exists and makes you confirm you looked. %>
+      <p class="text-[11px] text-t3">
+        Publishing since <%= etsy_listing.claimed_at&.strftime("%b %-d, %Y %l:%M %p") || "—" %>.
+        If it's been stuck more than a few minutes, check the shop before resetting it.
+      </p>
+    <% else %>
+      <%= button_to etsy_listing.state == "failed" ? "Retry Etsy draft" : "Create Etsy draft",
+            publish_admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+            form: { data: { turbo_confirm: publish_listing_confirm(etsy_listing) } } %>
+      <%# Only a row that never reached Etsy. A row carrying a listing id is the
+          only record that a draft exists in a real shop. %>
+      <%= button_to "Remove", admin_dashboard_board_printable_listing_path(@printable, etsy_listing),
+            method: :delete,
+            class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer",
+            form: { data: { turbo_confirm: "Remove this listing? Nothing has been sent to Etsy for it." } } %>
+    <% end %>
+  </div>
 </div>
