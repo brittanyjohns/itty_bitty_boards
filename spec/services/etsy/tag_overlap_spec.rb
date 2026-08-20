@@ -170,5 +170,37 @@ RSpec.describe Etsy::TagOverlap do
 
       expect(described_class.new(only).any?).to be false
     end
+
+    # The printable's show page instantiates from the printable itself, not a
+    # specific listing — the case the admin screenshot caught: a single
+    # standalone listing with no tags override of its own always ships the
+    # printable's exact tags, so comparing the printable's base copy against
+    # it is a comparison against itself wearing a listing's label.
+    it "does not warn when comparing the printable itself against a single non-overriding listing" do
+      board = create(:board, name: "Core Words")
+      printable = BoardPrintable.create!(
+        board: board, status: "complete",
+        listing_copy: { "title" => "T", "tags" => Etsy::CopyRules::TAG_MAX.times.map { |i| "tag#{i}" } },
+      )
+      printable.etsy_listings.create!(purpose: "standalone")
+
+      overlap = described_class.new(printable, tags: printable.listing_copy_or_default["tags"])
+
+      expect(overlap.any?).to be false
+    end
+
+    it "still warns from the printable when a sibling listing has genuinely diverged tags that overlap" do
+      board = create(:board, name: "Core Words")
+      base_tags = Etsy::CopyRules::TAG_MAX.times.map { |i| "tag#{i}" }
+      printable = BoardPrintable.create!(
+        board: board, status: "complete",
+        listing_copy: { "title" => "T", "tags" => base_tags },
+      )
+      printable.etsy_listings.create!(purpose: "bundle", label: "holiday", listing_copy: { "tags" => base_tags })
+
+      overlap = described_class.new(printable, tags: base_tags)
+
+      expect(overlap.any?).to be true
+    end
   end
 end
