@@ -224,6 +224,21 @@ RSpec.describe BoardPrintable do
       expect(Boards::MarketplaceProtection.protected_board_ids([board.id])).to include(board.id)
     end
 
+    # Detaching used to lose the draft: the id was NULLed and nothing else
+    # recorded it, so nobody could be told which listing to delete on Etsy.
+    it "supersedes the listing row instead of forgetting it" do
+      listing = printable.etsy_listings.create!(
+        etsy_listing_id: 987, state: "published", published_at: 3.days.ago,
+      )
+
+      printable.relist!
+
+      expect(listing.reload).to have_attributes(state: "superseded", etsy_listing_id: 987)
+      expect(listing.superseded_at).to be_present
+      expect(printable.reload.etsy_published?).to be false
+      expect(printable.etsy_ever_published?).to be true
+    end
+
     it "leaves an explicit waiver alone" do
       printable.waive_protection!(user: FactoryBot.create(:admin_user), reason: "sold out")
 

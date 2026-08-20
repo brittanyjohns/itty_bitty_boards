@@ -382,10 +382,26 @@ class BoardPrintable < ApplicationRecord
     ids.filter_map { |id| by_id[id] }
   end
 
-  # Whether this printable is CURRENTLY linked to a marketplace listing. This is
-  # what stops a second draft being created for the same printable, and it is
-  # the one thing #relist! clears.
-  def etsy_published? = etsy_listing_id.present?
+  # Whether this printable is CURRENTLY linked to at least one marketplace
+  # listing.
+  #
+  # A DISPLAY predicate, not a guard. It used to be what refused a second draft
+  # for the same printable; that duty now belongs to
+  # BoardPrintableListing#reached_etsy?, one row at a time, because carrying two
+  # listings is the point.
+  #
+  # The `etsy_listing_id` half covers a row published after the backfill ran but
+  # before publishing started writing listing rows. It goes with the column.
+  def etsy_published? = etsy_listing_id.present? || etsy_listings.any?(&:attached?)
+
+  # The listing the printable-level API contract reports as "the" listing:
+  # whichever is attached, else the first that ever reached Etsy. Every
+  # printable that existed before this table has exactly one, so nothing
+  # observable moves.
+  def primary_etsy_listing
+    reached = etsy_listings.select(&:reached_etsy?)
+    reached.find(&:attached?) || reached.first
+  end
 
   # Whether a draft was EVER created from this printable.
   #
@@ -394,7 +410,11 @@ class BoardPrintable < ApplicationRecord
   # but no timestamp (set by hand, or by any path that predates the two being
   # written together) protected its boards before, and must keep protecting
   # them. Widening can only over-protect; narrowing unfreezes printed paper.
-  def etsy_ever_published? = etsy_published_at.present? || etsy_listing_id.present?
+  # Must agree exactly with Boards::MarketplaceProtection::PROTECTING_SQL, which
+  # asks the same question of many printables at once.
+  def etsy_ever_published?
+    etsy_published_at.present? || etsy_listing_id.present? || etsy_listings.any?(&:reached_etsy?)
+  end
 
   # Whether this app has already sent a listing video to the listing this
   # printable is attached to.
@@ -417,6 +437,10 @@ class BoardPrintable < ApplicationRecord
 
   def mark_etsy_video_pushed!
     update_columns(etsy_video_pushed_at: Time.current, updated_at: Time.current)
+    # Mirrored onto the row it actually applies to. Etsy's one-video rule is per
+    # LISTING, so this stamp belongs on the listing and only lives on the
+    # printable while the scalar columns do.
+    etsy_listings.select(&:attached?).each(&:mark_video_pushed!)
   end
 
   # Whether this printable freezes the boards it was rendered from.
@@ -458,6 +482,11 @@ class BoardPrintable < ApplicationRecord
       # a listing that genuinely has nothing on it.
       etsy_video_pushed_at: nil,
     )
+
+    # The row keeps its listing id — that draft is still on Etsy and someone has
+    # to be told which one to delete. Superseding rather than deleting is the
+    # half the scalar columns could not do.
+    etsy_listings.select(&:attached?).each(&:supersede!)
   end
 
   def protection_waived? = protection_waived_at.present?

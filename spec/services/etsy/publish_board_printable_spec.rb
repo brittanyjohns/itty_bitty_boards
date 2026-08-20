@@ -46,6 +46,30 @@ RSpec.describe Etsy::PublishBoardPrintable do
     end
   end
 
+  describe "the listing row" do
+    it "records the draft as a listing row alongside the scalar columns" do
+      publish
+
+      listing = printable.reload.etsy_listings.sole
+      expect(listing).to have_attributes(
+        etsy_listing_id: 987,
+        etsy_listing_url: "https://etsy.test/987",
+        state: "published",
+      )
+      expect(listing.published_at).to be_present
+    end
+
+    # The draft exists and the columns already record it; failing to write the
+    # mirror row must not report a successful publish as a failure.
+    it "does not fail the publish when the row cannot be written" do
+      allow_any_instance_of(BoardPrintableListing)
+        .to receive(:save!).and_raise(ActiveRecord::StatementInvalid, "nope")
+
+      expect(publish.ok?).to be true
+      expect(printable.reload.etsy_listing_id).to eq(987)
+    end
+  end
+
   describe "a successful publish" do
     it "records the listing and clears any previous error" do
       printable.update_columns(etsy_error: "an earlier failure")

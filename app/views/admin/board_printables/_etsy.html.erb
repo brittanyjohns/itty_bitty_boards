@@ -24,6 +24,16 @@
     </div>
   <% end %>
 
+  <%# Every listing this printable has ever had, superseded ones included — the
+      record the old scalar columns could not keep. Read-only for now; the
+      actions still live on the printable below. %>
+  <% if @etsy_listings.present? %>
+    <div class="space-y-3 mb-4">
+      <%= render partial: "admin/board_printables/etsy_listing",
+                 collection: @etsy_listings, as: :etsy_listing %>
+    </div>
+  <% end %>
+
   <% if @printable.etsy_published? %>
     <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs mb-4">
       <div>

@@ -1,0 +1,64 @@
+<%# One Etsy listing made from this printable.
+
+    A row that has reached Etsy is NEVER deletable from here. It is the only
+    record that a draft exists in a real shop — this app implements no delete
+    call, so losing the row loses the draft. Detaching supersedes the row and
+    keeps its id for exactly that reason. %>
+<div class="admin-card-alt border rounded-lg p-4">
+  <div class="flex items-start justify-between gap-3 mb-3">
+    <div>
+      <div class="text-xs font-medium text-t1">
+        <%= etsy_listing.purpose.humanize %><%= " — #{etsy_listing.label}" if etsy_listing.label.present? %>
+      </div>
+      <div class="text-[11px] text-t3">
+        <%= etsy_listing.resolved_copy["title"] %>
+      </div>
+    </div>
+    <span class="shrink-0 text-[11px] px-1.5 py-0.5 rounded font-medium <%= etsy_listing_state_badge(etsy_listing) %>">
+      <%= etsy_listing.state %>
+    </span>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs mb-3">
+    <div>
+      <div class="text-t2 mb-0.5">Listing</div>
+      <div class="text-t1"><%= etsy_listing.etsy_listing_id || "—" %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Draft created</div>
+      <div class="text-t1"><%= etsy_listing.published_at&.strftime("%b %-d, %Y %l:%M %p") || "—" %></div>
+    </div>
+    <div>
+      <div class="text-t2 mb-0.5">Video sent</div>
+      <div class="text-t1"><%= etsy_listing.video_pushed_at&.strftime("%b %-d, %Y") || "—" %></div>
+    </div>
+  </div>
+
+  <%# The id is persisted the instant Etsy returns it, before any upload — so a
+      draft whose gallery or files failed partway is still findable here rather
+      than being an orphan in the shop. %>
+  <% if etsy_listing.assets_incomplete? %>
+    <p class="text-[11px] text-amber-300 mb-3">
+      Draft <%= etsy_listing.etsy_listing_id %> exists but its images or files didn't all upload.
+      Check it in the seller UI before doing anything else here.
+    </p>
+  <% end %>
+
+  <% if etsy_listing.error.present? %>
+    <p class="text-[11px] text-t3 mb-3"><%= etsy_listing.error %></p>
+  <% end %>
+
+  <% if etsy_listing.superseded? %>
+    <p class="text-[11px] text-t3">
+      Detached <%= etsy_listing.superseded_at.strftime("%b %-d, %Y") %>. Draft
+      <%= etsy_listing.etsy_listing_id || "(id not recorded)" %> is still on Etsy unless you removed it there.
+    </p>
+  <% elsif etsy_listing.etsy_listing_id.present? %>
+    <%# The SELLER's listing editor, not the public listing page — a draft has
+        no public page. Built from the numeric id, never the stored URL string;
+        see etsy_listing_url_for. %>
+    <%= link_to "Edit draft on Etsy ↗", etsy_listing_url_for(etsy_listing),
+          target: "_blank", rel: "noopener",
+          class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+  <% end %>
+</div>

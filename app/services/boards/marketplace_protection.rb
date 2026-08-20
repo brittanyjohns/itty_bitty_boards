@@ -62,8 +62,12 @@ module Boards
     def protected? = printables.any?
 
     # The printables whose product depends on this board.
+    #
+    # Eager-loads listings because #summary reads them per printable. The class
+    # method deliberately does NOT — .protected_board_ids flat-maps over up to
+    # 100 boards and has no use for them.
     def printables
-      @printables ||= self.class.protecting_scope([board_id]).to_a
+      @printables ||= self.class.protecting_scope([board_id]).includes(:etsy_listings).to_a
     end
 
     # :root when the board is the printable's own board, :page when it is an
@@ -127,15 +131,38 @@ module Boards
 
     attr_reader :board, :board_id
 
+    # `etsy_listing_id` / `etsy_listing_url` are the frontend's contract
+    # (MarketplacePrintable in src/data/marketplaceProtection.ts, rendered by
+    # MarketplaceProtectionModal). Both keys STAY, now reporting the printable's
+    # primary listing rather than a scalar column — every printable that existed
+    # before listing rows has exactly one, so the payload does not move.
+    #
+    # `etsy_listings` is additive. The current frontend ignores unknown keys, so
+    # widening here is safe ahead of the modal learning to list them.
     def printable_summary(printable)
+      listings = printable.etsy_listings.select(&:reached_etsy?)
+      primary = listings.find(&:attached?) || listings.first
+
       {
         id: printable.id,
-        etsy_listing_id: printable.etsy_listing_id,
-        etsy_listing_url: printable.etsy_listing_url,
+        etsy_listing_id: primary&.etsy_listing_id || printable.etsy_listing_id,
+        etsy_listing_url: primary&.etsy_listing_url || printable.etsy_listing_url,
+        etsy_listings: listings.map { |listing| listing_summary(listing) },
         root_board: {
           id: printable.board_id,
           name: printable.board&.name,
         },
+      }
+    end
+
+    def listing_summary(listing)
+      {
+        id: listing.id,
+        etsy_listing_id: listing.etsy_listing_id,
+        etsy_listing_url: listing.etsy_listing_url,
+        purpose: listing.purpose,
+        label: listing.label,
+        superseded: listing.superseded?,
       }
     end
   end

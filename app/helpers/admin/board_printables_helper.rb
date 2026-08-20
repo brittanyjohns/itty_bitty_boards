@@ -31,10 +31,23 @@ module Admin
     # response ever writes it isn't visible at the call site, and wouldn't stay
     # true if something else started writing the column. The id is a bigint, so
     # there is nothing to inject.
-    def etsy_listing_url_for(printable)
-      return nil if printable.etsy_listing_id.blank?
+    #
+    # Takes anything carrying an `etsy_listing_id` — a BoardPrintable while the
+    # scalar columns survive, or a BoardPrintableListing row.
+    def etsy_listing_url_for(record)
+      return nil if record.etsy_listing_id.blank?
 
-      "https://www.etsy.com/your/shops/me/listing-editor/edit/#{printable.etsy_listing_id.to_i}#media"
+      "https://www.etsy.com/your/shops/me/listing-editor/edit/#{record.etsy_listing_id.to_i}#media"
+    end
+
+    def etsy_listing_state_badge(listing)
+      case listing.state
+      when "published"  then "bg-green-900/60 text-green-300"
+      when "publishing" then "bg-indigo-900/60 text-indigo-300"
+      when "pending"    then "bg-amber-900/60 text-amber-300"
+      when "failed"     then "bg-red-900/60 text-red-300"
+      else "admin-card text-t2"
+      end
     end
 
     # Deleting the record can't touch Etsy — Rails only ever creates drafts and

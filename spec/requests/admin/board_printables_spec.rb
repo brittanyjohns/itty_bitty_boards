@@ -482,6 +482,27 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
         expect(response.body).not_to include("Create Etsy draft")
       end
 
+      # The record the scalar columns could not keep: a detached listing still
+      # names the draft an operator has to go and delete.
+      it "shows a card per listing, superseded ones included" do
+        sign_in admin
+        printable.etsy_listings.create!(
+          etsy_listing_id: 111, state: "superseded",
+          published_at: 3.days.ago, superseded_at: 2.days.ago,
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 222, state: "published", published_at: 1.day.ago,
+          purpose: "bundle", label: "holiday",
+        )
+
+        get admin_dashboard_board_printable_path(printable)
+
+        expect(response.body).to include("111")
+        expect(response.body).to include("222")
+        expect(response.body).to include("holiday")
+        expect(response.body).to include("superseded")
+      end
+
       it "says Etsy is unconfigured instead of offering a button that would fail" do
         sign_in admin
         allow(Etsy::Client).to receive(:configured?).and_return(false)

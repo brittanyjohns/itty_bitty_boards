@@ -70,6 +70,16 @@ class BoardPrintableListing < ApplicationRecord
   # that makes two listings of one printable render different images.
   def resolved_topic = topic_override.presence || board_printable.topic
 
+  # Etsy allows one video per listing and this app implements no call that can
+  # read a listing back, so this stamp is the only memory that makes a second
+  # POST at the SAME listing refusable. It is per row because the rule is per
+  # listing: the same clip going to a standalone and a bundle is correct.
+  def can_push_video? = attached? && video_pushed_at.nil?
+
+  def mark_video_pushed!
+    update_columns(video_pushed_at: Time.current, updated_at: Time.current)
+  end
+
   # Detach WITHOUT forgetting.
   #
   # Keeps `etsy_listing_id` so the admin can still be told which draft to delete

@@ -52,6 +52,12 @@ module Etsy
         etsy_error: nil,
       )
 
+      # Dual-write while the scalar columns are still authoritative, so a
+      # printable published between this release and the one that makes listing
+      # rows the source of truth is not invisible to everything downstream. The
+      # scalars are what this service still reads; the row is a record.
+      record_listing(listing)
+
       # AFTER the record is marked published, and outside the rescue that turns
       # a failure into a Result: the video is the one optional part of a draft,
       # and losing it must not turn a listing that exists into a publish that
@@ -162,6 +168,24 @@ module Etsy
       printable.update_columns(
         etsy_error: "Draft created, but the listing video failed to upload: #{e.message}".truncate(1000),
         updated_at: Time.current,
+      )
+    end
+
+    # Never fatal: the draft exists and the scalars already record it, so
+    # failing to write the mirror row must not turn a successful publish into a
+    # reported failure. The row is reconstructible from the columns; the draft
+    # is not.
+    def record_listing(listing)
+      printable.etsy_listings.create!(
+        etsy_listing_id: listing[:listing_id],
+        etsy_listing_url: listing[:url],
+        state: "published",
+        published_at: Time.current,
+        assets_uploaded_at: Time.current,
+      )
+    rescue StandardError => e
+      Rails.logger.error(
+        "[Etsy::PublishBoardPrintable] printable #{printable.id} listing row: #{e.class} - #{e.message}",
       )
     end
 

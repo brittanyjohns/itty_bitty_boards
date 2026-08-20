@@ -161,5 +161,46 @@ RSpec.describe Boards::MarketplaceProtection do
 
       expect(described_class.new(root).protected?).to be false
     end
+
+    # The frontend reads `etsy_listing_id` / `etsy_listing_url` off each
+    # printable (MarketplacePrintable in src/data/marketplaceProtection.ts).
+    # Those keys keep their meaning; the array is additive.
+    describe "#summary with several listings" do
+      it "reports the attached listing as the primary and carries them all" do
+        printable = BoardPrintable.create!(
+          board: root, status: "complete", board_ids: [root.id, page.id],
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 111, etsy_listing_url: "https://www.etsy.com/listing/111",
+          state: "superseded", published_at: 3.days.ago, superseded_at: 2.days.ago,
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 222, etsy_listing_url: "https://www.etsy.com/listing/222",
+          state: "published", published_at: 1.day.ago, purpose: "bundle", label: "holiday",
+        )
+
+        summary = described_class.new(root).summary[:printables].sole
+
+        expect(summary[:etsy_listing_id]).to eq(222)
+        expect(summary[:etsy_listing_url]).to eq("https://www.etsy.com/listing/222")
+        expect(summary[:etsy_listings].map { |l| l[:etsy_listing_id] }).to contain_exactly(111, 222)
+        expect(summary[:etsy_listings].find { |l| l[:etsy_listing_id] == 111 }[:superseded]).to be true
+        expect(summary[:etsy_listings].find { |l| l[:etsy_listing_id] == 222 }[:purpose]).to eq("bundle")
+      end
+
+      # Nothing live to point at, but the paper still exists — the primary falls
+      # back to the detached listing rather than reporting nothing.
+      it "falls back to a superseded listing when none is attached" do
+        printable = BoardPrintable.create!(
+          board: root, status: "complete", board_ids: [root.id],
+        )
+        printable.etsy_listings.create!(
+          etsy_listing_id: 333, state: "superseded",
+          published_at: 3.days.ago, superseded_at: 1.day.ago,
+        )
+
+        expect(described_class.new(root).summary[:printables].sole[:etsy_listing_id]).to eq(333)
+      end
+    end
   end
 end
