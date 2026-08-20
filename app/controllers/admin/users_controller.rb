@@ -33,7 +33,13 @@ module Admin
           # jsonb key, not a column — and accounts created before signup
           # context shipped have no key at all, so they sort last either way
           # rather than clumping at the top of an ascending sort.
-          scope.order(Arel.sql("users.settings ->> 'signup_platform' #{@dir.upcase} NULLS LAST"))
+          #
+          # Built in Arel rather than an interpolated Arel.sql string, same
+          # reasoning as User.demo_accounts: @dir is validated against a
+          # two-element allowlist above, but an interpolated ORDER BY is
+          # indistinguishable from injection to Brakeman (and to the next
+          # person who widens that allowlist).
+          scope.order(signup_platform_ordering)
         else
           scope.order(@sort => @dir.to_sym)
         end
@@ -250,6 +256,13 @@ module Admin
     end
 
     private
+
+    def signup_platform_ordering
+      key = Arel::Nodes::InfixOperation.new(
+        "->>", User.arel_table[:settings], Arel::Nodes.build_quoted("signup_platform")
+      )
+      (@dir == "asc" ? key.asc : key.desc).nulls_last
+    end
 
     def user_params
       params.require(:user).permit(:name, :email, :role, :locked, :play_demo,
