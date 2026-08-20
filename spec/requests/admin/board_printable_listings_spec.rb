@@ -277,4 +277,40 @@ RSpec.describe "Admin::BoardPrintableListings (dashboard)", type: :request do
       expect(flash[:alert]).to match(/isn't attached/)
     end
   end
+
+  describe "PATCH update" do
+    it "stores overrides and drops blanks so they fall back" do
+      sign_in admin
+
+      patch admin_dashboard_board_printable_listing_path(printable, listing), params: {
+        board_printable_listing: {
+          purpose: "bundle", label: "holiday", title: "Core Words Bundle", summary: "",
+          price_cents: "1299", tags: "aac, core, bundle", topic_override: "school morning",
+          image_variants: [BoardPrintable::IMAGE_HERO], pdf_variants: [BoardPrintable::VARIANT_COLOR],
+        },
+      }
+
+      expect(listing.reload).to have_attributes(
+        purpose: "bundle", label: "holiday", topic_override: "school morning",
+      )
+      expect(listing.listing_copy["title"]).to eq("Core Words Bundle")
+      expect(listing.listing_copy).not_to have_key("summary")
+      expect(listing.listing_copy["price_cents"]).to eq(1299)
+      expect(listing.listing_copy["tags"]).to eq(%w[aac core bundle])
+      expect(listing.selected_image_variants).to eq([BoardPrintable::IMAGE_HERO])
+      expect(listing.selected_pdf_variants).to eq([BoardPrintable::VARIANT_COLOR])
+    end
+
+    # A typo'd variant would silently drop a slide or a download file from a
+    # live listing, which is the kind of failure nobody goes looking for.
+    it "refuses a variant it doesn't know" do
+      sign_in admin
+
+      patch admin_dashboard_board_printable_listing_path(printable, listing),
+            params: { board_printable_listing: { image_variants: ["glossy"] } }
+
+      expect(listing.reload.image_variants).to eq([])
+      expect(flash[:alert]).to include("glossy")
+    end
+  end
 end

@@ -24,12 +24,18 @@ RSpec.describe Etsy::PublishBoardPrintableListing do
     allow(client).to receive(:upload_image).and_return(true)
     allow(client).to receive(:upload_file).and_return(true)
 
-    # Grover renders the gallery slides; the bytes themselves are irrelevant here.
-    allow_any_instance_of(Boards::Printables::RenderListingImages).to receive(:call) do
-      BoardPrintable::LISTING_IMAGE_ORDER.each do |variant|
-        printable.attach_image!(bytes: "png", variant: variant)
+    # Grover renders the slides; the bytes are irrelevant here. Honours the
+    # `listing:` kwarg so a per-listing render is distinguishable from a shared
+    # one, which is the whole thing the topic override buys.
+    allow(Boards::Printables::RenderListingImages).to receive(:new) do |printable:, listing: nil|
+      instance_double(Boards::Printables::RenderListingImages).tap do |renderer|
+        allow(renderer).to receive(:call) do
+          BoardPrintable::LISTING_IMAGE_ORDER.each do |variant|
+            printable.attach_image!(bytes: "png", variant: variant, listing: listing)
+          end
+          printable.purge_legacy_listing_images!
+        end
       end
-      printable.purge_legacy_listing_images!
     end
   end
 
@@ -101,6 +107,43 @@ RSpec.describe Etsy::PublishBoardPrintableListing do
       publish
 
       expect(printable.reload.etsy_published_at).to be_within(1.second).of(first)
+    end
+  end
+
+  # The PDFs are shared; the gallery, the file subset and the video are per
+  # listing. That is what lets a bundle sit beside a standalone in one shop.
+  describe "per-listing assets" do
+    it "uploads only the PDF variants this listing selected" do
+      printable.attach_pdf!(filename: "core.low-ink.pdf", bytes: "b", variant: BoardPrintable::VARIANT_LOW_INK)
+      listing.update!(pdf_variants: [BoardPrintable::VARIANT_LOW_INK])
+
+      expect(client).to receive(:upload_file).once
+        .with(987, hash_including(filename: "core.low-ink.pdf", rank: 1))
+
+      expect(publish.ok?).to be true
+    end
+
+    it "uploads only the gallery slides this listing selected, in rank order" do
+      listing.update!(image_variants: [BoardPrintable::IMAGE_HERO, BoardPrintable::IMAGE_ON_PAPER])
+      ranks = []
+      allow(client).to receive(:upload_image) { |_id, opts| ranks << [opts[:rank], opts[:filename]] }
+
+      publish
+
+      expect(ranks.map(&:first)).to eq([1, 2])
+      expect(ranks.first.last).to start_with("#{BoardPrintable::IMAGE_ON_PAPER.dasherize}-")
+    end
+
+    # The renderer builds its slides from the boards and the topic, never from
+    # listing copy — so a topic override is the only thing that makes two
+    # listings of one printable render different images.
+    it "renders its own gallery when it carries a topic override" do
+      listing.update!(topic_override: "school morning")
+
+      publish
+
+      own = printable.reload.all_image_files.select { |f| f.metadata["listing_id"] == listing.id }
+      expect(own.map { |f| f.metadata["variant"] }).to match_array(BoardPrintable::LISTING_IMAGE_ORDER)
     end
   end
 

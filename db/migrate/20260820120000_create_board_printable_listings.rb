@@ -91,20 +91,23 @@ class CreateBoardPrintableListings < ActiveRecord::Migration[8.0]
   # row: the earlier draft's id was NULLed by #relist! and is genuinely
   # unrecoverable. The watermark still protects it. That is the last casualty of
   # the bug this table fixes.
+  #
+  # The allowlist columns (`image_variants`, `pdf_variants`) are deliberately not
+  # named: they default to `[]`, which means "all of them", and naming them here
+  # would pin this migration to whatever they are called in a later release.
   def backfill!
     execute(<<~SQL)
       INSERT INTO board_printable_listings
         (board_printable_id, etsy_listing_id, etsy_listing_url, state, purpose,
-         label, listing_copy, image_variants, pdf_keys, published_at,
-         assets_uploaded_at, superseded_at, video_pushed_at, error,
-         created_at, updated_at)
+         label, listing_copy, published_at, assets_uploaded_at, superseded_at,
+         video_pushed_at, error, created_at, updated_at)
       SELECT id, etsy_listing_id, etsy_listing_url,
              CASE WHEN etsy_listing_id IS NOT NULL THEN 'published' ELSE 'superseded' END,
              'standalone',
              CASE WHEN etsy_listing_id IS NULL
                   THEN 'Detached before listing history was kept — its Etsy id was not recorded'
              END,
-             '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,
+             '{}'::jsonb,
              etsy_published_at,
              CASE WHEN etsy_listing_id IS NOT NULL THEN COALESCE(etsy_published_at, updated_at) END,
              CASE WHEN etsy_listing_id IS NULL     THEN updated_at END,

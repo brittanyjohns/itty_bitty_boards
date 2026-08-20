@@ -44,7 +44,7 @@ module Etsy
       guard = guard_failure
       return failure(guard) if guard
 
-      file = printable.video_file
+      file = listing.video_file
       client.upload_video(listing.etsy_listing_id, bytes: file.download, filename: file.filename.to_s)
 
       # Stamped only after Etsy accepted it. A failed upload must leave the
@@ -67,7 +67,7 @@ module Etsy
 
     def guard_failure
       return "This listing isn't attached to an Etsy draft." unless listing.attached?
-      return "This printable has no listing video. Render or upload one first." unless printable.listing_video?
+      return "This listing has no video. Render or upload one first." unless listing.listing_video?
 
       if listing.video_pushed_at.present?
         # Naming the way out matters, and the way out is NOT another POST from

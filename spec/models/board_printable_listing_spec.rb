@@ -120,4 +120,94 @@ RSpec.describe BoardPrintableListing do
       expect(listing(topic_override: "school morning").resolved_topic).to eq("school morning")
     end
   end
+
+  # Every partition is an ALLOWLIST over the printable's shared assets, never an
+  # exclusion — the same rule that keeps the listing video out of a buyer's
+  # download.
+  describe "per-listing assets" do
+    before do
+      printable.attach_pdf!(filename: "core.color.pdf", bytes: "a", variant: BoardPrintable::VARIANT_COLOR)
+      printable.attach_pdf!(filename: "core.low-ink.pdf", bytes: "b", variant: BoardPrintable::VARIANT_LOW_INK)
+      BoardPrintable::LISTING_IMAGE_ORDER.each { |v| printable.attach_image!(bytes: "png", variant: v) }
+      printable.reload
+    end
+
+    describe "#pdf_files" do
+      it "ships every PDF when nothing is selected" do
+        expect(listing.pdf_files.size).to eq(2)
+      end
+
+      it "ships only the selected variants" do
+        row = listing(pdf_variants: [BoardPrintable::VARIANT_COLOR])
+
+        expect(row.pdf_files.map { |f| f.metadata["variant"] }).to eq([BoardPrintable::VARIANT_COLOR])
+      end
+
+      # The intersection is what stops a per-listing subset becoming a second
+      # way to hand a buyer something that isn't the product.
+      it "can never reach a gallery image or the video" do
+        printable.attach_video!(bytes: "mp4", duration: 9.0)
+        row = listing(pdf_variants: BoardPrintableListing::PDF_VARIANTS)
+
+        expect(row.pdf_files.map { |f| f.metadata["kind"] }.uniq).to eq([BoardPrintable::KIND_PDF])
+      end
+
+      it "refuses a variant it doesn't know" do
+        row = described_class.new(board_printable: printable, pdf_variants: ["glossy"])
+
+        expect(row).not_to be_valid
+        expect(row.errors[:pdf_variants].join).to include("glossy")
+      end
+    end
+
+    describe "#image_files" do
+      it "inherits the shared gallery, in listing rank order" do
+        expect(listing.image_files.map { |f| f.metadata["variant"] })
+          .to eq(BoardPrintable::LISTING_IMAGE_ORDER)
+      end
+
+      it "narrows to the selected slides, keeping rank order" do
+        row = listing(image_variants: [BoardPrintable::IMAGE_HERO, BoardPrintable::IMAGE_ON_PAPER])
+
+        expect(row.image_files.map { |f| f.metadata["variant"] })
+          .to eq([BoardPrintable::IMAGE_ON_PAPER, BoardPrintable::IMAGE_HERO])
+      end
+
+      it "prefers its own rendered slides over the shared ones" do
+        row = listing(topic_override: "school morning")
+        printable.attach_image!(bytes: "own", variant: BoardPrintable::IMAGE_HERO, listing: row)
+
+        expect(row.reload.image_files.map { |f| f.metadata["variant"] }).to eq([BoardPrintable::IMAGE_HERO])
+        expect(printable.reload.image_files.size).to eq(BoardPrintable::LISTING_IMAGE_ORDER.size)
+      end
+
+      # Rendering a listing's own hero used to delete the shared one, because
+      # the purge matched on variant alone.
+      it "does not clobber the shared gallery when its own is rendered" do
+        row = listing
+        printable.attach_image!(bytes: "own", variant: BoardPrintable::IMAGE_HERO, listing: row)
+
+        shared = printable.reload.image_files.map { |f| f.metadata["variant"] }
+        expect(shared).to match_array(BoardPrintable::LISTING_IMAGE_ORDER)
+      end
+    end
+
+    describe "#video_file" do
+      it "inherits the shared clip and prefers its own" do
+        printable.attach_video!(bytes: "shared", duration: 9.0)
+        row = listing
+        expect(row.video_file.download).to eq("shared")
+
+        printable.attach_video!(bytes: "own", duration: 9.0, listing: row)
+        expect(row.reload.video_file.download).to eq("own")
+        expect(printable.reload.video_file.download).to eq("shared")
+      end
+    end
+
+    describe "#listing_images_current?" do
+      it "is satisfied by the slides it actually selected" do
+        expect(listing(image_variants: [BoardPrintable::IMAGE_HERO]).listing_images_current?).to be true
+      end
+    end
+  end
 end

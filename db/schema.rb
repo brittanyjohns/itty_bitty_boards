@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_20_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_20_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -234,7 +234,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_20_120000) do
     t.jsonb "listing_copy", default: {}, null: false
     t.string "topic_override"
     t.jsonb "image_variants", default: [], null: false
-    t.jsonb "pdf_keys", default: [], null: false
+    t.jsonb "pdf_variants", default: [], null: false
     t.datetime "published_at"
     t.datetime "assets_uploaded_at"
     t.datetime "superseded_at"

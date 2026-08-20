@@ -28,11 +28,18 @@ class BoardPrintableListing < ApplicationRecord
   # can be read at a glance.
   PURPOSES = %w[standalone bundle variant].freeze
 
+  # What `pdf_variants` may name. The variant, not the ActiveStorage key: a key
+  # is versioned per generation run, so an allowlist of keys empties itself on
+  # the first "Regenerate" and the listing silently reverts to shipping
+  # everything.
+  PDF_VARIANTS = (BoardPrintable::DOWNLOAD_VARIANTS + [BoardPrintable::VARIANT_FULL]).freeze
+
   belongs_to :board_printable
   belongs_to :created_by, class_name: "User", optional: true
 
   validates :state, inclusion: { in: STATES }
   validates :purpose, inclusion: { in: PURPOSES }
+  validate :allowlists_are_known
 
   scope :ordered, -> { order(:created_at, :id) }
 
@@ -65,6 +72,82 @@ class BoardPrintableListing < ApplicationRecord
                    .merge(listing_copy.to_h.stringify_keys.compact_blank)
   end
 
+  # ---- Assets -------------------------------------------------------------
+  #
+  # Every partition below is an ALLOWLIST over the printable's shared set, never
+  # an exclusion. That is the same rule BoardPrintable::KIND_DOWNLOADABLE holds:
+  # selecting by "not the thing I don't want" was correct only while there were
+  # two kinds of blob, and the moment a third existed the video was served to
+  # buyers as a PDF. A per-listing subset must not become a second way round it.
+
+  # This listing's gallery: its own rendered slides if it has any, else the
+  # shared ones. Then narrowed and ordered by `image_variants` — empty means
+  # "all of them", which is what every listing starts with.
+  # The slides rendered FOR this listing, as opposed to the shared gallery it
+  # would otherwise inherit.
+  def own_image_files
+    board_printable.all_image_files.select { |f| f.metadata["listing_id"] == id }
+  end
+
+  # A topic override changes what the slides SAY, so a listing carrying one
+  # needs a gallery of its own — the renderer builds every slide from the boards
+  # and the topic, so inheriting the shared gallery would leave the override
+  # doing nothing at all.
+  def own_gallery_required? = topic_override.present?
+
+  def image_files
+    files = own_image_files.presence || board_printable.current_image_files
+    files = files.select { |f| BoardPrintable::LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
+    files = files.select { |f| selected_image_variants.include?(f.metadata["variant"]) } if
+      selected_image_variants.any?
+
+    # Sorted here rather than at the upload site: rank 1 is Etsy's search
+    # thumbnail, and every reader of this list wants the same order.
+    files.sort_by { |f| BoardPrintable::LISTING_IMAGE_ORDER.index(f.metadata["variant"]) }
+  end
+
+  # INTERSECTED with the printable's `pdf_files`, which is the allowlist that
+  # keeps a gallery image or the listing video from ever being handed to a buyer
+  # as the product. Never a fresh selection over `files`.
+  def pdf_files
+    files = board_printable.pdf_files
+    return files if selected_pdf_variants.empty?
+
+    files.select { |f| selected_pdf_variants.include?(f.metadata["variant"]) }
+  end
+
+  # This listing's own clip if it has one, else the shared one.
+  def video_file
+    board_printable.all_video_files.find { |f| f.metadata["listing_id"] == id } ||
+      board_printable.video_file
+  end
+
+  def listing_video? = video_file.present?
+
+  # Whether this listing's gallery is the one this code ships today. Only its
+  # SELECTED variants have to be there — a listing that deliberately ships six
+  # slides is not stale for missing the other four.
+  def listing_images_current?
+    return false if own_gallery_required? && own_image_files.empty?
+
+    have = image_files.map { |f| f.metadata["variant"] }
+    (selected_image_variants.presence || BoardPrintable::LISTING_IMAGE_ORDER).all? { |v| have.include?(v) }
+  end
+
+  # Rank 1 is Etsy's search thumbnail, and the shop audit is unambiguous about
+  # what belongs there: a photoreal in-use mockup. `about` and `page_index` are
+  # shop framing and an objection-handler — leading with either is the mistake
+  # this ordering exists to prevent.
+  def first_image_variant = image_files.first&.metadata&.dig("variant")
+
+  def selected_image_variants
+    Array(image_variants) & BoardPrintable::LISTING_IMAGE_ORDER
+  end
+
+  def selected_pdf_variants
+    Array(pdf_variants) & PDF_VARIANTS
+  end
+
   # Feeds the gallery renderer, which builds its slides from the boards and the
   # topic — never from `listing_copy`. Overriding the topic is the only lever
   # that makes two listings of one printable render different images.
@@ -88,5 +171,17 @@ class BoardPrintableListing < ApplicationRecord
   # different row whose stamp is nil by construction.
   def supersede!
     update!(state: "superseded", superseded_at: Time.current)
+  end
+
+  private
+
+  # A typo'd variant would silently drop a slide or a download file from a live
+  # listing, which is the kind of failure nobody looks for.
+  def allowlists_are_known
+    unknown_images = Array(image_variants) - BoardPrintable::LISTING_IMAGE_ORDER
+    unknown_pdfs = Array(pdf_variants) - PDF_VARIANTS
+
+    errors.add(:image_variants, "has unknown variants: #{unknown_images.join(", ")}") if unknown_images.any?
+    errors.add(:pdf_variants, "has unknown variants: #{unknown_pdfs.join(", ")}") if unknown_pdfs.any?
   end
 end

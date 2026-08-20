@@ -101,14 +101,14 @@ RSpec.describe Etsy::PushListingVideo do
       expect(client).not_to have_received(:upload_video)
     end
 
-    it "refuses a printable with no video" do
-      printable.video_files.each(&:purge)
+    it "refuses a listing with no video" do
+      printable.all_video_files.each(&:purge)
       printable.reload
 
       result = push
 
       expect(result.ok?).to be false
-      expect(result.error).to match(/no listing video/i)
+      expect(result.error).to match(/no video/i)
     end
   end
 

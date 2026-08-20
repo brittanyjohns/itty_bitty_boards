@@ -144,10 +144,16 @@ module Etsy
     # was redesigned still HAS images — the retired cover/what's-included pair —
     # and publishing those would put a retired gallery design on a live listing.
     def render_listing_images_if_missing
-      return if printable.listing_images_current?
+      return if listing.listing_images_current?
 
-      Boards::Printables::RenderListingImages.new(printable: printable).call
+      # Rendered for THIS listing when it carries a topic override, so its
+      # slides say what its own copy says; otherwise the shared gallery every
+      # listing inherits.
+      Boards::Printables::RenderListingImages.new(
+        printable: printable, listing: listing.topic_override.presence && listing,
+      ).call
       printable.reload
+      listing.reload
     end
 
     # A failure here leaves the row `published` with its id set, because the
@@ -171,16 +177,17 @@ module Etsy
       false
     end
 
-    def image_files = printable.current_image_files
+    # This LISTING's assets, not the printable's: its own rendered gallery if it
+    # has one, its own PDF subset, its own clip — each falling back to the
+    # shared set. Already in LISTING_IMAGE_ORDER.
+    def image_files = listing.image_files
 
-    def pdf_files = printable.pdf_files
+    def pdf_files = listing.pdf_files
 
     def upload_images(listing_id)
-      image_files
-        .sort_by { |f| BoardPrintable::LISTING_IMAGE_ORDER.index(f.metadata["variant"]) }
-        .each_with_index do |file, index|
-          client.upload_image(listing_id, bytes: file.download, filename: file.filename.to_s, rank: index + 1)
-        end
+      image_files.each_with_index do |file, index|
+        client.upload_image(listing_id, bytes: file.download, filename: file.filename.to_s, rank: index + 1)
+      end
     end
 
     def upload_files(listing_id)
@@ -199,7 +206,7 @@ module Etsy
     # `retry: 0`, where a timeout wedges a publish half-done in a real shop. The
     # video is rendered from the admin, ahead of time.
     def upload_video(listing_id)
-      file = printable.video_file
+      file = listing.video_file
       return if file.blank?
 
       client.upload_video(listing_id, bytes: file.download, filename: file.filename.to_s)

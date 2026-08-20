@@ -26,14 +26,21 @@ module Admin
     end
 
     def update
-      @listing.update!(
+      @listing.assign_attributes(
         purpose: listing_params[:purpose].presence_in(BoardPrintableListing::PURPOSES) || @listing.purpose,
         label: listing_params[:label],
         topic_override: listing_params[:topic_override],
         listing_copy: copy_overrides,
+        image_variants: Array(listing_params[:image_variants]).compact_blank,
+        pdf_variants: Array(listing_params[:pdf_variants]).compact_blank,
       )
 
-      redirect_to admin_dashboard_board_printable_path(@printable), notice: "Listing saved."
+      if @listing.save
+        redirect_to admin_dashboard_board_printable_path(@printable), notice: "Listing saved."
+      else
+        redirect_to admin_dashboard_board_printable_path(@printable),
+                    alert: @listing.errors.full_messages.to_sentence
+      end
     end
 
     # Only a row that never reached Etsy. A row carrying a listing id is the
@@ -111,7 +118,7 @@ module Admin
           listing_copy: @listing.listing_copy,
           topic_override: @listing.topic_override,
           image_variants: @listing.image_variants,
-          pdf_keys: @listing.pdf_keys,
+          pdf_variants: @listing.pdf_variants,
           created_by: current_user,
         )
       end
@@ -157,6 +164,7 @@ module Admin
     def listing_params
       params.fetch(:board_printable_listing, {}).permit(
         :purpose, :label, :topic_override, :title, :summary, :description, :tags, :price_cents,
+        image_variants: [], pdf_variants: [],
       )
     end
 

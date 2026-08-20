@@ -27,22 +27,29 @@ module Boards
       CANVAS_PX = 1280
       SCALE = 2
 
-      def initialize(printable:)
+      # `listing` renders THIS listing's own gallery rather than the shared one:
+      # the slides are stamped with its id and its topic override feeds the
+      # headline copy. Nothing else about a listing reaches a slide — the copy
+      # on them comes from the boards, not from `listing_copy` — so a listing
+      # with no override would render byte-identical images and is deliberately
+      # left sharing the printable's gallery instead.
+      def initialize(printable:, listing: nil)
         @printable = printable
+        @listing = listing
       end
 
       # => BoardPrintable::LISTING_IMAGE_ORDER
       def call
-        printable.attach_image!(bytes: render("mockup", assigns: paper_assigns(0)), variant: BoardPrintable::IMAGE_ON_PAPER)
-        printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO)
-        printable.attach_image!(bytes: render("mockup", assigns: device_assigns(0)), variant: BoardPrintable::IMAGE_ON_A_DEVICE)
-        printable.attach_image!(bytes: render("flip_book", assigns: flip_book_assigns), variant: BoardPrintable::IMAGE_FLIP_BOOK)
-        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns), variant: BoardPrintable::IMAGE_WHATS_INCLUDED)
-        printable.attach_image!(bytes: render("mockup", assigns: paper_assigns(1)), variant: BoardPrintable::IMAGE_ON_PAPER_ALT)
-        printable.attach_image!(bytes: render("assemble", assigns: shared_assigns), variant: BoardPrintable::IMAGE_ASSEMBLE)
-        printable.attach_image!(bytes: render("mockup", assigns: device_assigns(1)), variant: BoardPrintable::IMAGE_ON_A_DEVICE_ALT)
-        printable.attach_image!(bytes: render("page_index", assigns: page_index_assigns), variant: BoardPrintable::IMAGE_PAGE_INDEX)
-        printable.attach_image!(bytes: render("about", assigns: about_assigns), variant: BoardPrintable::IMAGE_ABOUT)
+        printable.attach_image!(bytes: render("mockup", assigns: paper_assigns(0)), variant: BoardPrintable::IMAGE_ON_PAPER, listing: listing)
+        printable.attach_image!(bytes: render("hero", assigns: hero_assigns), variant: BoardPrintable::IMAGE_HERO, listing: listing)
+        printable.attach_image!(bytes: render("mockup", assigns: device_assigns(0)), variant: BoardPrintable::IMAGE_ON_A_DEVICE, listing: listing)
+        printable.attach_image!(bytes: render("flip_book", assigns: flip_book_assigns), variant: BoardPrintable::IMAGE_FLIP_BOOK, listing: listing)
+        printable.attach_image!(bytes: render("whats_included", assigns: whats_included_assigns), variant: BoardPrintable::IMAGE_WHATS_INCLUDED, listing: listing)
+        printable.attach_image!(bytes: render("mockup", assigns: paper_assigns(1)), variant: BoardPrintable::IMAGE_ON_PAPER_ALT, listing: listing)
+        printable.attach_image!(bytes: render("assemble", assigns: shared_assigns), variant: BoardPrintable::IMAGE_ASSEMBLE, listing: listing)
+        printable.attach_image!(bytes: render("mockup", assigns: device_assigns(1)), variant: BoardPrintable::IMAGE_ON_A_DEVICE_ALT, listing: listing)
+        printable.attach_image!(bytes: render("page_index", assigns: page_index_assigns), variant: BoardPrintable::IMAGE_PAGE_INDEX, listing: listing)
+        printable.attach_image!(bytes: render("about", assigns: about_assigns), variant: BoardPrintable::IMAGE_ABOUT, listing: listing)
 
         # Last, and only once every slide is attached: a render that raises
         # part-way leaves the old gallery intact rather than emptying it.
@@ -53,11 +60,14 @@ module Boards
 
       private
 
-      attr_reader :printable
+      attr_reader :printable, :listing
 
       def board = printable.board
 
       def board_count = [printable.board_ids.to_a.size, 1].max
+
+      # A listing's override when rendering that listing's own gallery.
+      def topic = listing&.resolved_topic.presence || printable.topic
 
       def set? = board_count > 1
 
@@ -153,7 +163,7 @@ module Boards
 
         shared_assigns.merge(
           title: Boards::AssetRendering.board_title_for(board),
-          headline: ::Printables::SlideCopy.hero_headline(board_count: board_count, topic: printable.topic),
+          headline: ::Printables::SlideCopy.hero_headline(board_count: board_count, topic: topic),
           background: BrandAssets.scene_data_uri_for(board),
           thumbnails: tiles,
           # Keyed off how many pages actually RENDERED, not board_count: a board

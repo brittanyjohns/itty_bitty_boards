@@ -215,8 +215,18 @@ class BoardPrintable < ApplicationRecord
   # looking at the previous render and wondering why "Regenerate" did nothing.
   # Same lesson as Boards::GeneratePreviewAssets. Any earlier render of this
   # variant is purged first so the versioned keys can't pile up.
-  def attach_image!(bytes:, variant:)
-    image_files.select { |f| f.metadata["variant"] == variant }.each(&:purge)
+  # `listing` stamps the blob as belonging to one BoardPrintableListing. A blob
+  # with no `listing_id` is the SHARED gallery every listing inherits; one with
+  # a listing_id belongs to that listing alone.
+  #
+  # The purge is scoped the same way. It used to drop "any earlier render of
+  # this variant", which the moment a listing had its own gallery would have
+  # meant rendering a listing's hero deleted the shared hero — and rendering the
+  # shared one deleted every listing's.
+  def attach_image!(bytes:, variant:, listing: nil)
+    image_files
+      .select { |f| f.metadata["variant"] == variant && f.metadata["listing_id"] == listing&.id }
+      .each(&:purge)
     reload_files_association
 
     filename = "#{variant.dasherize}-#{SecureRandom.hex(4)}.png"
@@ -225,7 +235,7 @@ class BoardPrintable < ApplicationRecord
       filename: filename,
       bytes: bytes,
       content_type: "image/png",
-      metadata: { "variant" => variant, "kind" => KIND_IMAGE },
+      metadata: { "variant" => variant, "kind" => KIND_IMAGE, "listing_id" => listing&.id },
     )
   end
 
@@ -233,8 +243,11 @@ class BoardPrintable < ApplicationRecord
   # `source` distinguishes a rendered flip-through from a clip an operator
   # uploaded by hand: a hand-made clip must never be marked stale by a spec
   # bump, because nothing can re-render it.
-  def attach_video!(bytes:, duration:, source: VIDEO_FLIP_THROUGH)
-    video_files.each(&:purge)
+  # `listing` scopes the clip to one listing, as it does for images — and the
+  # purge is scoped with it, or attaching a listing's own clip would delete the
+  # shared one every other listing inherits.
+  def attach_video!(bytes:, duration:, source: VIDEO_FLIP_THROUGH, listing: nil)
+    video_files.select { |f| f.metadata["listing_id"] == listing&.id }.each(&:purge)
     reload_files_association
 
     filename = "#{source.dasherize}-#{SecureRandom.hex(4)}.mp4"
@@ -245,6 +258,7 @@ class BoardPrintable < ApplicationRecord
       content_type: VideoTranscoder::OUTPUT_CONTENT_TYPE,
       metadata: {
         "kind" => KIND_VIDEO,
+        "listing_id" => listing&.id,
         "variant" => source,
         "spec_version" => VIDEO_SPEC_VERSION,
         "duration" => duration.to_f.round(2),
@@ -253,11 +267,16 @@ class BoardPrintable < ApplicationRecord
     )
   end
 
-  def video_files
+  # Every video blob, shared and listing-scoped alike. Callers almost always
+  # want #video_files (the shared ones) or BoardPrintableListing#video_file.
+  def all_video_files
     return [] unless files.attached?
 
     files.select { |f| f.metadata["kind"] == KIND_VIDEO }
   end
+
+  # The SHARED clip — the one a listing inherits when it has none of its own.
+  def video_files = all_video_files.select { |f| f.metadata["listing_id"].nil? }
 
   def video_file = video_files.first
 
@@ -311,11 +330,16 @@ class BoardPrintable < ApplicationRecord
     files.select { |f| KIND_DOWNLOADABLE.include?(f.metadata["kind"].presence) }
   end
 
-  def image_files
+  # Every image blob, shared and listing-scoped alike.
+  def all_image_files
     return [] unless files.attached?
 
     files.select { |f| f.metadata["kind"] == KIND_IMAGE }
   end
+
+  # The SHARED gallery. `listing_id` absent means "every listing inherits this",
+  # which is what a printable that has never had a per-listing gallery carries.
+  def image_files = all_image_files.select { |f| f.metadata["listing_id"].nil? }
 
   def listing_images? = image_files.any?
 
@@ -352,7 +376,7 @@ class BoardPrintable < ApplicationRecord
   # before it, so a render that fails leaves the old images in place instead of
   # emptying the gallery.
   def purge_legacy_listing_images!
-    stale = image_files.reject { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
+    stale = all_image_files.reject { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
     return if stale.empty?
 
     stale.each(&:purge)
