@@ -94,10 +94,19 @@ module Etsy
 
     # Other listings on this same printable. Their RESOLVED copy, since a
     # listing that overrides nothing still ships the printable's tags.
+    #
+    # When the subject is the printable itself (no @listing — the printable's
+    # show page, comparing its own base copy), a listing with no tags override
+    # of its own isn't a sibling to compare against: it ships the exact tags
+    # being compared, so it would always "match" itself at 100%. Only a
+    # listing that has actually diverged represents an independent product
+    # worth flagging.
     def sibling_candidates
       return [] if @printable.id.nil?
 
-      @printable.etsy_listings.reject { |other| other.id == @listing&.id }.map do |other|
+      @printable.etsy_listings.reject { |other| other.id == @listing&.id }
+                .reject { |other| @listing.nil? && other.listing_copy.to_h["tags"].blank? }
+                .map do |other|
         { printable: @printable, listing: other, tags: normalize(other.resolved_copy["tags"]) }
       end
     end
