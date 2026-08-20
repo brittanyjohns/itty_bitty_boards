@@ -353,6 +353,9 @@ class API::BoardImagesController < API::ApplicationController
     queued = 0
     unlabeled = 0
     unchanged = 0
+    # One job for the whole selection, not one per tile — see RenderTextTilesJob
+    # for why (queue fairness, plus in-batch dedupe of identical renders).
+    entries = []
 
     @board.board_images.where(id: board_image_ids).each do |board_image|
       options = default_text_tile_options_for(board_image)
@@ -377,9 +380,11 @@ class API::BoardImagesController < API::ApplicationController
 
       board_image.status = "generating"
       board_image.save!
-      RenderTextTileJob.perform_async(board_image.id, options.to_h)
+      entries << [board_image.id, options.to_h]
       queued += 1
     end
+
+    RenderTextTilesJob.perform_async(entries) if entries.any?
 
     @board.broadcast_board_update!
     render json: {

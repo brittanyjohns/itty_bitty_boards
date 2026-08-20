@@ -263,3 +263,42 @@ sit behind minute-long OpenAI calls). Sets `status: "generating"` and
   default 60/min), not the AI one — free renders shouldn't consume a budget the
   user paid for, but each is still a Chrome fork.
 - Nothing is staging-gated: there are no paid calls on this path.
+
+## Dedupe and batching
+
+A render is deterministic, and `Options#render_digest` is defined as everything
+that changes the pixels and nothing that doesn't — so two tiles with the same
+digest are byte-identical no matter whose board they sit on. That digest is the
+dedupe key, stored on the Doc as `data["render_digest"]` (partial index
+`index_docs_on_text_tile_render_digest`).
+
+- **`Creator` looks the digest up before forking Chrome**, in two tiers. Same
+  Image + same user + same digest reuses the **Doc row** outright (a second row
+  is just a duplicate thumbnail in that tile's gallery). Any other match creates
+  this Image's own Doc row — the row is per-Image/per-user, since docs carry
+  `user_id` and seed `UserDoc` — but attaches the **same blob**: no render, no
+  upload.
+- **Sharing a blob across Doc rows is safe because of the FK.**
+  `active_storage_attachments.blob_id` has a foreign key and
+  `ActiveStorage::Blob#purge` rescues `InvalidForeignKey`, so hard-deleting one
+  Doc (`docs#destroy?hard_delete=1`, or `ConvertDocToWebpJob` purging the
+  original) can't take the bytes out from under the others. Don't drop that FK,
+  and don't "fix" a dedupe miss by copying bytes into a fresh blob.
+- A doc whose blob was purged is not a reuse source — the lookup joins
+  `image_attachment`.
+- The controller's unchanged-render short circuit is still worth keeping: it
+  answers without touching the queue at all. The `Creator` dedupe is the second
+  net, for tiles that have never carried this render.
+
+**Bulk is one job, not one per tile.** `create_text_images` enqueues a single
+`RenderTextTilesJob` carrying `[[board_image_id, options], ...]`.
+
+- The queue runs three workers, so a select-all used to park everyone else's
+  single-tile render behind thirty Chrome forks.
+- Sequential inside the job **on purpose**: rendering the selection in parallel
+  would race the digest lookup and fork Chrome N times for the same picture.
+- One tile's failure marks only that tile `failed`; the batch still raises at
+  the end so Sidekiq retries, which is cheap because every tile that succeeded
+  now dedupes to its own Doc instead of re-rendering.
+- The board is broadcast once per board at the end, not once per tile —
+  `Creator.call(broadcast: false)` is what the batch passes.

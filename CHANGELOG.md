@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Text tiles render once and are reused.** A text-tile picture is fully
+  determined by its settings, so identical renders now share one rendered image
+  instead of each forking headless Chrome and uploading its own copy — the same
+  word on the same coloured tile is rendered the first time and reused after
+  that. The bulk "Set text image" action also queues one job for the whole
+  selection rather than one per tile, so selecting thirty tiles no longer parks
+  everyone else's single-tile render behind thirty renders.
+
 - **Etsy listing copy leads with the terms buyers search.** Generated tags are
   now always phrases — `aac`, `printable`, `slp`, `classroom` and `nonspeaking`
   were burning five of every listing's thirteen slots and don't rank, so
