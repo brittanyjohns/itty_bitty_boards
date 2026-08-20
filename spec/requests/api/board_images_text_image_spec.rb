@@ -145,7 +145,9 @@ RSpec.describe "API::BoardImages text tiles", type: :request do
     end
 
     it "renders one tile per selection and reports them queued" do
-      expect { post_bulk }.to change(RenderTextTileJob.jobs, :size).by(2)
+      expect { post_bulk }.to change(RenderTextTilesJob.jobs, :size).by(1)
+      expect(RenderTextTilesJob.jobs.last["args"].first.map(&:first))
+        .to contain_exactly(board_image.id, second_tile.id)
 
       expect(response).to have_http_status(:success)
       body = JSON.parse(response.body)
@@ -179,15 +181,16 @@ RSpec.describe "API::BoardImages text tiles", type: :request do
     it "skips a tile with no text instead of failing the batch" do
       second_tile.update_columns(label: nil, display_label: nil)
 
-      expect { post_bulk }.to change(RenderTextTileJob.jobs, :size).by(1)
+      expect { post_bulk }.to change(RenderTextTilesJob.jobs, :size).by(1)
 
+      expect(RenderTextTilesJob.jobs.last["args"].first.map(&:first)).to eq([board_image.id])
       expect(JSON.parse(response.body)).to include("queued" => 1, "unlabeled" => 1)
       expect(second_tile.reload.data&.dig("text_image")).to be_nil
     end
 
     it "does not re-render a tile that already shows this exact picture" do
       post_bulk
-      RenderTextTileJob.jobs.clear
+      RenderTextTilesJob.jobs.clear
       [board_image, second_tile].each do |tile|
         tile.reload
         doc = tile.image.docs.create!(source_type: Doc::SOURCE_TYPE_TEXT_TILE, user_id: user.id)
@@ -198,7 +201,7 @@ RSpec.describe "API::BoardImages text tiles", type: :request do
         )
       end
 
-      expect { post_bulk }.not_to change(RenderTextTileJob.jobs, :size)
+      expect { post_bulk }.not_to change(RenderTextTilesJob.jobs, :size)
       expect(JSON.parse(response.body)).to include("queued" => 0, "unchanged" => 2)
     end
 
@@ -212,7 +215,8 @@ RSpec.describe "API::BoardImages text tiles", type: :request do
       )
 
       expect { post_bulk(ids: [board_image.id, stranger.id]) }
-        .to change(RenderTextTileJob.jobs, :size).by(1)
+        .to change(RenderTextTilesJob.jobs, :size).by(1)
+      expect(RenderTextTilesJob.jobs.last["args"].first.map(&:first)).to eq([board_image.id])
 
       expect(JSON.parse(response.body)).to include("queued" => 1)
       expect(stranger.reload.data&.dig("text_image")).to be_nil

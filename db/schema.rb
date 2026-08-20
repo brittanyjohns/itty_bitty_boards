@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_20_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_20_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -526,6 +526,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_20_140000) do
     t.string "prompt_for_prompt"
     t.jsonb "data"
     t.jsonb "license"
+    t.index "((data ->> 'render_digest'::text))", name: "index_docs_on_text_tile_render_digest", where: "((source_type)::text = 'SpeakAnyWayText'::text)"
     t.index ["deleted_at"], name: "index_docs_on_deleted_at"
     t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
