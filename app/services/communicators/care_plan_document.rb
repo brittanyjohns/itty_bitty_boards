@@ -45,12 +45,20 @@ module Communicators
     # signal at the cost of a line instead of ten.
     OMIT_BLANK_EMERGENCY_FIELDS = true
 
-    def initialize(profile, locale: I18n.locale)
+    # `only_sections` is an ALLOWLIST of section keys, and nil is not the same
+    # thing as an empty array: nil means "every stored section" (what every
+    # caller did before the picker existed), while [] means the caller asked for
+    # none of them — a real request on the :full variant, where the emergency
+    # page alone is the document. `Array(nil)` collapses the two, so the
+    # normalization has to guard on nil explicitly.
+    def initialize(profile, locale: I18n.locale, only_sections: nil)
       @profile = profile
       @locale = locale
+      @only_sections =
+        only_sections.nil? ? nil : Array(only_sections).map { |key| key.to_s.strip }.reject(&:empty?)
     end
 
-    attr_reader :profile, :locale
+    attr_reader :profile, :locale, :only_sections
 
     def care_sections
       @care_sections ||= ordered_keys.filter_map { |key| build_section(key) }
@@ -120,12 +128,21 @@ module Communicators
 
     # Stored order first, then whatever it forgot. A section must never vanish
     # from the printed sheet just because `order` went stale.
+    #
+    # The allowlist is applied HERE, after the order walk, so a narrowed
+    # document still prints in the owner's own order and a filtered-out section
+    # is never built. A key in the selection that isn't stored simply doesn't
+    # intersect — which is also why the selection needs no validation: it only
+    # ever gets to remove keys the profile already had.
     def ordered_keys
       ordered = Array(care_settings["order"]).select do |key|
         key.is_a?(String) && stored_sections.key?(key)
       end
 
-      ordered + (stored_sections.keys - ordered)
+      keys = ordered + (stored_sections.keys - ordered)
+      return keys if only_sections.nil?
+
+      keys & only_sections
     end
 
     def build_section(key)

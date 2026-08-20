@@ -3,6 +3,11 @@ class API::Profiles::AssetsController < API::ApplicationController
   before_action :set_profile
   before_action :require_owner!
 
+  # Six built-in sections plus four custom ones is the whole ceiling today
+  # (Profile::CARE_SECTIONS + Profile::MAX_CUSTOM_CARE_SECTIONS); the cap is
+  # slack over that, not a limit anyone can reach by filling in the form.
+  MAX_CARE_SECTIONS = 50
+
   def safety_id
     Rails.logger.info "Generating safety ID for Profile ID: #{@profile.id}, Regenerate: #{params[:regenerate]}"
     Communicators::GenerateSafetyIdCard.call(@profile, regenerate: truthy?(params[:regenerate]))
@@ -36,6 +41,7 @@ class API::Profiles::AssetsController < API::ApplicationController
   # builds them.
   def care_plan
     variant = params[:variant].presence || "full"
+    sections = care_sections_param
 
     unless Communicators::GenerateCarePlan::VARIANTS.key?(variant.to_sym)
       render json: { error: "unknown_variant" }, status: :unprocessable_content
@@ -46,7 +52,7 @@ class API::Profiles::AssetsController < API::ApplicationController
     # rather than emitting a near-blank document is deliberate: a printed sheet
     # with headings and nothing under them looks like a finished plan that says
     # this child needs nothing.
-    unless Communicators::GenerateCarePlan.printable?(@profile, variant: variant)
+    unless Communicators::GenerateCarePlan.printable?(@profile, variant: variant, sections: sections)
       render json: { error: empty_reason_for(variant) }, status: :unprocessable_content
       return
     end
@@ -55,6 +61,7 @@ class API::Profiles::AssetsController < API::ApplicationController
       @profile,
       variant: variant,
       regenerate: truthy?(params[:regenerate]),
+      sections: sections,
     )
 
     attachment = @profile.public_send(
@@ -69,6 +76,23 @@ class API::Profiles::AssetsController < API::ApplicationController
   end
 
   private
+
+  # The care sections to include, as an ALLOWLIST. Absent means every section —
+  # what every caller sent before the picker shipped — so nil and [] are
+  # different answers and the nil check comes first.
+  #
+  # Accepts either `sections[]=meals&sections[]=sensory` or a comma-separated
+  # string, since the frontend sends the latter. The list is capped because it
+  # rides in the document's freshness signature; the keys themselves need no
+  # validation, as they are only ever intersected with the profile's own stored
+  # section keys.
+  def care_sections_param
+    raw = params[:sections]
+    return nil if raw.nil?
+
+    list = raw.is_a?(Array) ? raw : raw.to_s.split(",")
+    list.map { |key| key.to_s.strip }.reject(&:empty?).first(MAX_CARE_SECTIONS)
+  end
 
   # `full` can print on emergency info alone, so the two variants run out of
   # things to say for different reasons and the frontend should be able to say

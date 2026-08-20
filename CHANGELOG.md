@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Care plan downloads can be narrowed to the sections you want.** The care
+  plan endpoint takes a `sections` allowlist, so a sheet for a bus driver
+  doesn't have to carry the meals and personal-care pages. Sending no
+  `sections` still prints everything, as before.
+
+### Changed
+
+- **The care plan PDF leads with the communicator's name.** The "SpeakAnyWay"
+  eyebrow above it is gone — on a sheet whose job is to introduce one person,
+  the brand was the first thing a reader saw. The mark still signs the footnote
+  on every page.
+
 ### Fixed
 
 - **Deleting a demo account from the admin dashboard works again.** Selecting
