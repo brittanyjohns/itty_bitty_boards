@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title><%= @child_name %>'s safety cards have been updated</title>
+    <title><%= @child_name %>'s device tag has been updated</title>
     <style>
         body {
             background-color: #f0f0f0;
@@ -47,21 +47,22 @@
 <body>
     <div class="container">
   <%= render "layouts/email_logo" %>
-        <div class="header">Updated safety cards for <%= @child_name %></div>
+        <div class="header">Updated device tag for <%= @child_name %></div>
         <div class="content">
             <p>We've given <%= @child_name %>'s safety profile a new secure link.
             This keeps the page harder to guess and your child's emergency
             information more private.</p>
 
-            <p>Because the link changed, we've refreshed the safety ID card and
-            device tag with a new QR code. Please download and reprint the
-            updated cards so they point to the right page.</p>
+            <p>Because the link changed, we've refreshed the device tag with a
+            new QR code. Please download and reprint it so it points to the
+            right page.</p>
 
-            <a class="button" href="<%= @download_url %>">Download updated cards</a>
+            <a class="button" href="<%= @download_url %>">Download updated tag</a>
 
-            <p class="footer">If you have any printed cards with the old code,
-            you can keep using them for now — old links automatically redirect
-            to the new one — but we recommend reprinting when you can.</p>
+            <p class="footer">If you have anything printed with the old code —
+            a device tag, a care plan, a wallet card — you can keep using it
+            for now, since old links automatically redirect to the new one. We
+            recommend reprinting when you can.</p>
         </div>
     </div>
 </body>

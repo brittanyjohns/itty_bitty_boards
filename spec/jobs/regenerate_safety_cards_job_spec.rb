@@ -10,11 +10,19 @@ RSpec.describe RegenerateSafetyCardsJob, type: :job do
     allow(Communicators::GenerateDeviceTag).to receive(:call)
   end
 
-  it "regenerates both cards forcing a fresh render" do
+  it "regenerates the device tag forcing a fresh render" do
     described_class.new.perform(profile.id)
 
-    expect(Communicators::GenerateSafetyIdCard).to have_received(:call).with(profile, regenerate: true)
     expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile, regenerate: true)
+  end
+
+  # The Safety ID card is no longer offered on Print & share, so refreshing its
+  # QR here would spend two headless-Chrome renders on a card nobody is being
+  # handed. The generator and its endpoint still exist for anything that asks.
+  it "does not rebuild the retired Safety ID card" do
+    described_class.new.perform(profile.id)
+
+    expect(Communicators::GenerateSafetyIdCard).not_to have_received(:call)
   end
 
   it "emails the parent that fresh cards are ready" do
@@ -27,16 +35,16 @@ RSpec.describe RegenerateSafetyCardsJob, type: :job do
     expect {
       described_class.new.perform(-1)
     }.not_to have_enqueued_mail(CommunicationAccountMailer, :safety_cards_updated)
-    expect(Communicators::GenerateSafetyIdCard).not_to have_received(:call)
+    expect(Communicators::GenerateDeviceTag).not_to have_received(:call)
   end
 
-  it "still regenerates cards but skips the email when the owner has no email" do
+  it "still regenerates the tag but skips the email when the owner has no email" do
     owner.update_columns(email: "")
 
     expect {
       described_class.new.perform(profile.id)
     }.not_to have_enqueued_mail(CommunicationAccountMailer, :safety_cards_updated)
 
-    expect(Communicators::GenerateSafetyIdCard).to have_received(:call).with(profile, regenerate: true)
+    expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile, regenerate: true)
   end
 end

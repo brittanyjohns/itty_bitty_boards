@@ -75,14 +75,26 @@ RSpec.describe "API::Internal::Profiles", type: :request do
       expect(profile.reload.settings).to include(new_settings)
     end
 
-    it "regenerates safety_id and device_tag attachments for safety profiles" do
+    it "regenerates the device tag for safety profiles" do
       patch "/api/internal/profiles/#{profile.id}",
             params: { profile: { bio: "Updated bio" } }.to_json,
             headers: json_headers
 
       expect(response).to have_http_status(:ok)
-      expect(Communicators::GenerateSafetyIdCard).to have_received(:call).with(profile)
       expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
+    end
+
+    # The default path goes through Profile#generate_attachments!, which no
+    # longer builds the retired Safety ID card. The qr_target_url branch below
+    # still asks for one explicitly — that is the AAC Classroom Kit, and it is
+    # the reason the generator and its endpoint stay.
+    it "does not build the retired Safety ID card on the default path" do
+      patch "/api/internal/profiles/#{profile.id}",
+            params: { profile: { bio: "Updated bio" } }.to_json,
+            headers: json_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(Communicators::GenerateSafetyIdCard).not_to have_received(:call)
     end
 
     it "regenerates the tags pointed at qr_target_url when provided (AAC Classroom Kit)" do
@@ -99,13 +111,12 @@ RSpec.describe "API::Internal::Profiles", type: :request do
         .to have_received(:call).with(profile, regenerate: true, qr_target_url: kit_url)
     end
 
-    it "accepts an empty profile patch and regenerates safety attachments" do
+    it "accepts an empty profile patch and regenerates the device tag" do
       patch "/api/internal/profiles/#{profile.id}",
             params: { profile: {} }.to_json,
             headers: json_headers
 
       expect(response).to have_http_status(:ok)
-      expect(Communicators::GenerateSafetyIdCard).to have_received(:call).with(profile)
       expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
     end
 
