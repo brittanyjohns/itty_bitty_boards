@@ -1,0 +1,46 @@
+<%# The emergency block: a white card with a red left rail (the gradient-fill
+    red box is gone). Shared by the sheet and half sizes. Reads @emergency_fields
+    / @blank_emergency_field_names / @emergency_contacts directly, same as the
+    glance partial. %>
+<section class="emergency">
+  <div class="sec-head">
+    <h2><%= t("care.document.emergency.heading") %></h2><span class="line"></span>
+  </div>
+
+  <div class="egrid">
+    <% @emergency_fields.each do |field| %>
+      <%# Allergies renders in the glance strip only. Free-text notes run long
+          enough to want the full width. %>
+      <% next if field.key == "allergies" %>
+      <div class="f<%= " wide" if field.key == "emergency_notes" %>">
+        <span class="k"><%= field.label %></span><%= field.values.first %>
+      </div>
+    <% end %>
+
+    <% if @blank_emergency_field_names.any? %>
+      <div class="not-provided">
+        <%= t(
+              "care.document.emergency.not_provided",
+              fields: @blank_emergency_field_names.to_sentence(
+                words_connector: t("care.document.emergency.blank_names_connectors.words_connector"),
+                two_words_connector: t("care.document.emergency.blank_names_connectors.two_words_connector"),
+                last_word_connector: t("care.document.emergency.blank_names_connectors.last_word_connector"),
+              ),
+            ) %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="contacts">
+    <% if @emergency_contacts.any? %>
+      <% @emergency_contacts.each do |contact| %>
+        <div class="contact">
+          <span class="name"><%= contact["name"].presence || t("care.document.emergency.relationship_unknown") %></span><% if contact["relationship"].present? %> <span class="rel">· <%= contact["relationship"] %></span><% end %>
+          <span class="phone"><%= contact["phone"] %></span>
+        </div>
+      <% end %>
+    <% else %>
+      <div class="contact muted"><%= t("care.document.emergency.no_contacts") %></div>
+    <% end %>
+  </div>
+</section>

@@ -41,6 +41,7 @@ class API::Profiles::AssetsController < API::ApplicationController
   # builds them.
   def care_plan
     variant = params[:variant].presence || "full"
+    size = params[:size].presence || "sheet"
     sections = care_sections_param
 
     unless Communicators::GenerateCarePlan::VARIANTS.key?(variant.to_sym)
@@ -48,11 +49,24 @@ class API::Profiles::AssetsController < API::ApplicationController
       return
     end
 
+    unless Communicators::GenerateCarePlan::SIZES.include?(size)
+      render json: { error: "unknown_size" }, status: :unprocessable_content
+      return
+    end
+
+    # care_only + wallet isn't offered — a wallet card with no emergency block
+    # is a name, a photo, and five care lines, which isn't worth the paper.
+    # Answered here, before generating anything, rather than emitting it.
+    unless Communicators::GenerateCarePlan.supported?(variant, size)
+      render json: { error: "unsupported_size" }, status: :unprocessable_content
+      return
+    end
+
     # There is no care plan for a communicator with no care plan. Answering 422
     # rather than emitting a near-blank document is deliberate: a printed sheet
     # with headings and nothing under them looks like a finished plan that says
     # this child needs nothing.
-    unless Communicators::GenerateCarePlan.printable?(@profile, variant: variant, sections: sections)
+    unless Communicators::GenerateCarePlan.printable?(@profile, variant: variant, size: size, sections: sections)
       render json: { error: empty_reason_for(variant) }, status: :unprocessable_content
       return
     end
@@ -60,12 +74,13 @@ class API::Profiles::AssetsController < API::ApplicationController
     Communicators::GenerateCarePlan.call(
       @profile,
       variant: variant,
+      size: size,
       regenerate: truthy?(params[:regenerate]),
       sections: sections,
     )
 
     attachment = @profile.public_send(
-      Communicators::GenerateCarePlan::VARIANTS.fetch(variant.to_sym)[:attachment],
+      Communicators::GenerateCarePlan.config_for(variant, size)[:attachment],
     )
 
     if attachment.attached?

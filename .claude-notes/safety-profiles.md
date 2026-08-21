@@ -281,18 +281,85 @@ the free-text bio.
 
 ## The care plan PDFs
 
-`Communicators::GenerateCarePlan` builds two owner-downloadable documents from
-the same data the two gated reveals serve:
+`Communicators::GenerateCarePlan` builds owner-downloadable documents from the
+same data the two gated reveals serve, at one of three physical **sizes** —
+`sheet` (the original flowing Letter document), `half` (one Letter page,
+folded once), and `wallet` (one Letter page, 4-up fold strips). Two variants
+times three sizes, minus one:
 
-| variant | attachment | contents |
-|---|---|---|
-| `:full` | `care_emergency_plan_pdf` | care sections **+** emergency info |
-| `:care_only` | `care_plan_pdf` | care sections only |
+| variant | sheet | half | wallet |
+|---|---|---|---|
+| `:full` | `care_emergency_plan_pdf` | `care_emergency_plan_half_pdf` | `care_emergency_plan_wallet_pdf` |
+| `:care_only` | `care_plan_pdf` | `care_plan_half_pdf` | *(not offered)* |
 
-`POST /api/profiles/:id/care_plan?variant=` — one route, variant as a param,
-behind the controller-wide owner gate. **Nothing is added to the public MySpeak
-page**: the page keeps its two gated reveals and gains no download button, so
-this introduces no new path to emergency data.
+`:care_only` + `wallet` is deliberately absent — strip the emergency block out
+of a wallet card and what's left is a name, a photo, and five care lines,
+which isn't worth the paper. `GenerateCarePlan.supported?(variant, size)`
+answers this without raising; the endpoint uses it to return 422
+`unsupported_size` rather than emitting the card. An unrecognized size string
+gets its own 422 `unknown_size`, checked before that.
+
+`POST /api/profiles/:id/care_plan?variant=&size=` (size defaults to `sheet`)
+— one route, both as params, behind the controller-wide owner gate. **Nothing
+is added to the public MySpeak page**: the page keeps its two gated reveals
+and gains no download button, so this introduces no new path to emergency
+data.
+
+- **`half` and `wallet` are fixed single pages, not flowing documents** — the
+  opposite failure mode from `sheet`'s "however many pages it takes." They're
+  `overflow: hidden` boxes sized in physical units (in, pt), so a maxed-out
+  profile clips silently unless something intervenes.
+  `CarePlanDocument#half_condensed?` / `#half_truncated?` are a weighted-count
+  proxy for "would this overflow" — there is no headless Chrome available at
+  spec time to actually paginate against, so the half size's overflow ladder
+  (full chips → comma-joined text → `#condensed_care_lines` with a
+  "Full plan on my live page" note) is driven by that heuristic rather than a
+  real layout measurement. The wallet size skips the ladder entirely and
+  always renders `#condensed_care_lines` capped at both a line COUNT
+  (`GenerateCarePlan::WALLET_LINE_LIMIT`) and a per-line character length
+  (`WALLET_LINE_MAX_CHARS`) — a maxed-out section's joined values run to
+  hundreds of characters on their own, and capping only the line count let
+  one long line silently overflow the 2in strip on its own.
+- **A long unbroken token (a 300-character short_text field with no spaces,
+  a URL) needs `overflow-wrap: break-word` on `body`** in
+  `layouts/pdf_care_plan.html.erb` — without it such a token doesn't wrap, it
+  overflows its box, and on the fixed-height half/wallet sizes
+  `overflow: hidden` makes the excess vanish rather than merely spill visibly.
+  A flex-row value column (`.condensed-lines .cline .v`, `.wlist .li .v`)
+  additionally needs `flex: 1; min-width: 0` — a flex item's default
+  `min-width: auto` refuses to shrink below its own content's natural width,
+  which overflows the row even with `break-word` set.
+- **`half` and `wallet` print single-sided; the back face is authored upright
+  and rotated 180deg by a `.flip` class** (folding print-side-out applies
+  exactly that rotation — see the CSS comment above `.flip` in the layout for
+  the full derivation). This bit once, badly: the multi-line CSS comment
+  documenting the rotation was closed with an ERB `%>` instead of a CSS `*/`,
+  which left the comment OPEN and silently swallowed every rule up to the next
+  real `*/` — `.flip`, `.foldrule`, and `.foldrule span` all included. Nothing
+  in the rendered HTML or a stubbed-Grover spec catches this (the class names
+  are all still present, and a spec never renders through real Chrome); it
+  only showed up as flat, unrotated back-face content in an actual printed
+  PDF. If a folded `half` or `wallet` print ever comes out both faces
+  right-side-up (i.e. the back face rotation silently stopped applying), check
+  for exactly this before touching the rotation math itself.
+- **Section cards carry their own colour and icon**, keyed by
+  `CarePlanDocument.style_key_for` (`STYLE_KEYS`: comm/care/meal/sens/move/
+  trav) and rendered via `CarePlanIcons.svg_for` (inline SVG — the layout's
+  no-network rule applies to icons same as fonts). A custom section maps to
+  `"trav"` (navy) rather than getting a colour of its own, so four
+  parent-authored sections don't turn the sheet into a paint chart.
+- **The identity block's first-person line (`CarePlanDocument#says`) and the
+  glance strip's "How I talk" (`#glance_how_i_talk`) are derived from the
+  communication section independently of `only_sections`.** They introduce the
+  person; narrowing the printed sections to "meals only" shouldn't erase how
+  the subject talks. A communication section the parent explicitly disabled
+  (`enabled: false`) is still respected, though — that's a real "nothing to
+  say" state, not a filter.
+- **Allergies render in the "At a glance" strip and nowhere else.** The
+  emergency grid's field loop explicitly skips `field.key == "allergies"`;
+  `CarePlanDocument::EMERGENCY_FIELDS` still includes it (nothing else changes
+  there), it just never reaches that particular loop. Printing it twice was
+  the first design pass's bug.
 
 `&sections=` narrows the document to an allowlist of care section keys (the
 download picker in the frontend's `CarePlanOptionsModal`). Accepted as a
@@ -349,21 +416,25 @@ Things that will bite a future change:
   version constant a template redesign leaves every cached PDF stale forever —
   a gap the card generators still have. Bump `LAYOUT_VERSION` when the template
   or layout changes in a way existing documents should pick up.
-- **Section-level `break-inside: avoid` is the wrong instinct.** A built-in
-  section can carry four fields plus eight detail lines, which exceeds a page,
-  and an unbreakable box taller than a page makes Chrome push the whole thing
-  over and leave a dead half-page. The mechanism is a `.section-keep` wrapper
-  holding the heading plus its first row; everything after that flows. The
-  "Day-to-day support" divider lives INSIDE the first section's keep block for
-  the same reason — rendered above the loop it stranded at the foot of page 1
-  with the first section overleaf, which only a real render showed.
+- **Each section is a `.card` with `break-inside: avoid` on the sheet size,
+  not a `.section-keep` heading-plus-first-row wrapper** (that mechanism was
+  deleted; don't restore it). This is safe only because a section is
+  half-width in a two-column layout and prints one line per field — the
+  tallest realistic card (Meals, four fields, one a 300-character
+  `short_text`) is around 1.1in in a column, so the rare one that outgrows a
+  column gets split by Chrome rather than clipped, which is the accepted
+  failure. If cards ever grow tall enough to routinely exceed a page, revisit
+  this rather than adding `column-fill: auto`.
 - **An empty plan is refused, not printed.** `GenerateCarePlan.printable?` is
   checked in the controller (a service that raises can't answer 422):
-  `care_only` with no care info → `no_care_info`; `full` with neither → 
+  `care_only` with no care info → `no_care_info`; `full` with neither →
   `nothing_to_print`. `full` on emergency info alone still prints — that's the
-  hospital-bag case. Blank emergency FIELDS are printed as "None listed"
-  rather than omitted, matching the safety ID card: a missing Medications
-  heading and "Medications — none listed" read very differently to a nurse.
+  hospital-bag case. Blank emergency fields are OMITTED under
+  `CarePlanDocument::OMIT_BLANK_EMERGENCY_FIELDS` (the opposite of printing
+  "None listed" per field) and named collectively in one muted line instead —
+  `#blank_emergency_field_names` — so "nobody answered this" stays
+  distinguishable from "there is nothing here" at a tenth of the height ten
+  per-field rows used to cost.
 - **`Communicators::CarePlanDocument` is a port of `resolveCareSections`**
   (frontend `src/data/careSections.ts`). The labels are not duplicated —
   `CareLabels` serves those — but the walk over stored settings genuinely

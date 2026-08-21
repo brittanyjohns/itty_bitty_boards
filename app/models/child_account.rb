@@ -1155,6 +1155,9 @@ class ChildAccount < ApplicationRecord
       safety_id_url: safety_id_url,
       care_plan_url: care_plan_url,
       care_emergency_plan_url: care_emergency_plan_url,
+      care_plan_half_url: care_plan_half_url,
+      care_emergency_plan_half_url: care_emergency_plan_half_url,
+      care_emergency_plan_wallet_url: care_emergency_plan_wallet_url,
       voice: voice,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
@@ -1373,5 +1376,20 @@ class ChildAccount < ApplicationRecord
   def care_emergency_plan_url
     return nil unless profile&.care_emergency_plan_pdf&.attached?
     profile.url_for_attachment(profile.care_emergency_plan_pdf)
+  end
+
+  def care_plan_half_url
+    return nil unless profile&.care_plan_half_pdf&.attached?
+    profile.url_for_attachment(profile.care_plan_half_pdf)
+  end
+
+  def care_emergency_plan_half_url
+    return nil unless profile&.care_emergency_plan_half_pdf&.attached?
+    profile.url_for_attachment(profile.care_emergency_plan_half_pdf)
+  end
+
+  def care_emergency_plan_wallet_url
+    return nil unless profile&.care_emergency_plan_wallet_pdf&.attached?
+    profile.url_for_attachment(profile.care_emergency_plan_wallet_pdf)
   end
 end

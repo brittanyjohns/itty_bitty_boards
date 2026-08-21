@@ -1,0 +1,23 @@
+<%# The `wallet` size: one Letter page, four identical 3.5x4in fold-strips
+    (2 across x 2 down), cut apart and folded once each. Printed single-sided
+    — Grover's margin is 0 for this size, same as `half`, and the CSS below
+    lays the 2x2 grid out against the full untrimmed page.
+
+    :care_only is not offered at this size — see the class comment on
+    Communicators::GenerateCarePlan. Content is always the combined plan's
+    condensed day-to-day lines (Communicators::GenerateCarePlan::WALLET_LINE_LIMIT),
+    never the overflow ladder the `half` size has: there is no room here for
+    anything but the hard cap. %>
+
+<div class="wallet-sheet">
+  <div class="wallet-page">
+    <% 4.times do %>
+      <%= render "communicators/assets/care_plan_wallet_strip" %>
+    <% end %>
+  </div>
+
+  <div class="wallet-legend">
+    <span class="keyline"><i></i> <%= t("care.document.wallet.legend_cut") %></span>
+    <span class="keyline"><i class="dash"></i> <%= t("care.document.wallet.legend_fold") %></span>
+  </div>
+</div>

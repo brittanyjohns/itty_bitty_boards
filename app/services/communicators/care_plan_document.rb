@@ -23,6 +23,10 @@ module Communicators
     Section = Struct.new(:key, :label, :custom, :fields, :items, keyword_init: true)
     Field = Struct.new(:key, :label, :type, :values, keyword_init: true)
     Item = Struct.new(:label, :value, keyword_init: true)
+    # The first-person "says" line's resolved parts. `rest` is an array of
+    # labels, not a joined string — grammar (the "and", the comma list) is the
+    # view's job so it can go through I18n; this struct is data only.
+    Says = Struct.new(:primary, :rest, :helps, keyword_init: true)
 
     # The emergency fields, in the order a responder reads them. Contacts are
     # handled separately — they're structured, not free text.
@@ -45,6 +49,24 @@ module Communicators
     # signal at the cost of a line instead of ten.
     OMIT_BLANK_EMERGENCY_FIELDS = true
 
+    # Section key -> the per-section colour/icon suffix used by the CSS
+    # (`.s-comm`, `.s-care`, ...) and by CarePlanIcons. A custom section isn't
+    # in this map on purpose: #style_key_for falls back to "trav" (navy) for
+    # anything it doesn't recognize, which is what keeps a parent's four custom
+    # sections from turning the sheet into a paint chart.
+    STYLE_KEYS = {
+      "communication" => "comm",
+      "personal_care" => "care",
+      "meals" => "meal",
+      "sensory" => "sens",
+      "mobility" => "move",
+      "transportation" => "trav",
+    }.freeze
+
+    def self.style_key_for(section)
+      STYLE_KEYS.fetch(section.key, "trav")
+    end
+
     # `only_sections` is an ALLOWLIST of section keys, and nil is not the same
     # thing as an empty array: nil means "every stored section" (what every
     # caller did before the picker existed), while [] means the caller asked for
@@ -59,10 +81,6 @@ module Communicators
     end
 
     attr_reader :profile, :locale, :only_sections
-
-    def care_sections
-      @care_sections ||= ordered_keys.filter_map { |key| build_section(key) }
-    end
 
     def care?
       care_sections.any?
@@ -98,7 +116,162 @@ module Communicators
       profile.has_safety_info?
     end
 
+    # The "At a glance" strip's allergy cell. Its own reader, separate from
+    # #emergency_fields, because it renders in exactly one place on the sheet —
+    # the glance strip — never inside the emergency grid. See
+    # OMIT_BLANK_EMERGENCY_FIELDS's sibling rule in the template: printing this
+    # twice was the first mockup's bug.
+    def allergies
+      all_emergency_fields.find { |field| field.key == "allergies" }&.values&.first
+    end
+
+    # The glance strip's "Call first" cell: the same first contact
+    # #emergency_contacts would return, exposed under its own name so a caller
+    # reading the glance data doesn't have to know that's where it comes from.
+    def call_first_contact
+      emergency_contacts.first
+    end
+
+    # The identity block's first-person line and the glance strip's "How I
+    # talk" are both built from the communication section's stored answers —
+    # deliberately independent of `only_sections`. They introduce the person,
+    # they aren't part of the printed detail sections, and narrowing the sheet
+    # to "meals only" shouldn't erase how the sheet's subject talks. A section
+    # the parent explicitly disabled is still respected, though.
+    def says
+      return nil if communication_methods.empty? && communication_what_helps.empty?
+
+      Says.new(
+        primary: communication_methods.first,
+        rest: communication_methods[1..].to_a.map { |v| decapitalize(v) },
+        helps: communication_what_helps.first,
+      )
+    end
+
+    # { primary:, sub: } for the glance strip, or nil when nothing is stored —
+    # the template falls back to a neutral cell in that case, same as an
+    # unanswered allergy field falls back to "None listed".
+    def glance_how_i_talk
+      return nil if communication_methods.empty?
+
+      { primary: communication_methods.first, sub: glance_how_i_talk_sub }
+    end
+
+    # One "Section label: joined values" line per section, in printed order,
+    # capped at `limit`. This is the wallet card's whole day-to-day content —
+    # five lines, no chips, no room for anything else — and the truncated tier
+    # of the half-page's overflow ladder reaches for the same method. A section
+    # with nothing to say (custom section with items only, say) still renders
+    # by folding item values in alongside field values.
+    #
+    # `truncate_at` bounds each LINE's own length, not just the count of lines
+    # — a maxed-out section (Profile::MAX_CARE_MULTI_SELECT values, or a
+    # custom section's Profile::MAX_CARE_CUSTOM_ITEMS items) joins into one
+    # very long string, and even a five-line cap silently overflowed the
+    # wallet's 2in half once that string wrapped to several visual lines on
+    # its own. The wallet passes this; the half size's more spacious back
+    # panel does not need to.
+    def condensed_care_lines(limit: nil, truncate_at: nil)
+      lines = care_sections.filter_map do |section|
+        parts = section.fields.map { |f| f.values.join(", ") } + section.items.map(&:value)
+        next if parts.empty?
+
+        text = parts.join(", ")
+        text = "#{text[0, truncate_at - 1]}…" if truncate_at && text.length > truncate_at
+
+        { label: section.label, text: text }
+      end
+
+      limit ? lines.first(limit) : lines
+    end
+
+    # care_sections, with every multi_select field's values capped at
+    # `max_values` — the half-page's middle overflow tier (drop from chips to
+    # comma-joined text before dropping content outright). Fields and items
+    # untouched when max_values is nil.
+    def care_sections(max_values: nil)
+      sections = @care_sections ||= ordered_keys.filter_map { |key| build_section(key) }
+      return sections unless max_values
+
+      sections.map do |section|
+        Section.new(
+          key: section.key, label: section.label, custom: section.custom, items: section.items,
+          fields: section.fields.map do |field|
+            Field.new(key: field.key, label: field.label, type: field.type,
+              values: field.values.first(max_values))
+          end,
+        )
+      end
+    end
+
+    # A rough, deterministic proxy for "will this overflow a fixed 5.5in
+    # panel" — there is no headless Chrome available at spec time to actually
+    # paginate against, so the half/wallet overflow ladder is driven by this
+    # weighted count instead of a real layout measurement. Calibrated against
+    # the two shapes the acceptance criteria name: a sparse profile (a
+    # handful of chips per section) should land well under both thresholds,
+    # and a maxed-out profile (Profile::MAX_CARE_MULTI_SELECT values in every
+    # field, across every section, plus 4 custom sections of 8 items each)
+    # should clear both by a wide margin.
+    def care_content_weight
+      care_sections.sum do |section|
+        section.fields.sum do |field|
+          field.type == :short_text ? (field.values.first.to_s.length / 40.0) : field.values.length * 3
+        end + section.items.length * 4
+      end
+    end
+
+    HALF_CONDENSE_WEIGHT = 90
+    HALF_TRUNCATE_WEIGHT = 160
+
+    # Middle tier: still every section and field, but comma-joined text
+    # instead of chips — roughly half the height per row.
+    def half_condensed?
+      care_content_weight > HALF_CONDENSE_WEIGHT
+    end
+
+    # Last tier: even condensed text would overflow the panel, so the template
+    # drops to #condensed_care_lines and prints the "Full plan on my live
+    # page" note instead of trying to fit everything.
+    def half_truncated?
+      care_content_weight > HALF_TRUNCATE_WEIGHT
+    end
+
     private
+
+    def communication_fields
+      @communication_fields ||= begin
+        raw = stored_sections["communication"]
+        if raw.is_a?(Hash) && raw["enabled"] != false
+          resolve_fields("communication", Profile::CARE_SECTIONS.fetch("communication"), raw["values"])
+        else
+          []
+        end
+      end
+    end
+
+    def communication_methods
+      communication_fields.find { |f| f.key == "methods" }&.values || []
+    end
+
+    def communication_what_helps
+      communication_fields.find { |f| f.key == "what_helps" }&.values || []
+    end
+
+    def glance_how_i_talk_sub
+      rest = communication_methods[1..].to_a
+      return nil if rest.empty?
+
+      if rest.length == 1
+        I18n.t("care.document.glance.plus_one", value: decapitalize(rest.first), locale: locale)
+      else
+        I18n.t("care.document.glance.plus_many", count: rest.length, locale: locale)
+      end
+    end
+
+    def decapitalize(str)
+      str[0].downcase + str[1..].to_s
+    end
 
     def all_emergency_fields
       @all_emergency_fields ||= EMERGENCY_FIELDS.map do |key|

@@ -5,7 +5,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **The Care & Emergency Plan can be downloaded as a half-page fold card or a
+  wallet fold strip, not just the full Letter sheet.** `POST
+  /api/profiles/:id/care_plan` takes a new `size` param (`sheet` default,
+  `half`, or `wallet`); `half` is one Letter page folded once, `wallet` is
+  four cut-and-fold strips per Letter page, and both print single-sided. The
+  care-only variant is offered at `sheet` and `half` but not `wallet` — a
+  wallet card with no emergency block isn't worth the paper.
+
 ### Changed
+
+- **The care plan PDF has a new look.** Field labels sit on their own line in
+  small caps above their value instead of inline with it; a picked
+  (multi-select) answer renders as one chip per value, tinted to its
+  section's colour, instead of a comma-joined sentence; each day-to-day
+  section gets its own colour and icon; the header is a cream identity card
+  with a gradient hairline instead of a full gradient band; the emergency
+  block is a white card with a red left rail instead of a red-filled box; and
+  a new "At a glance" strip (allergies, how the communicator talks, who to
+  call first) sits above it. Existing downloads keep serving the old look
+  until regenerated.
 
 - **Text tiles render once and are reused.** A text-tile picture is fully
   determined by its settings, so identical renders now share one rendered image

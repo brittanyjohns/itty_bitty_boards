@@ -1,0 +1,91 @@
+<%# The `half` size: one Letter page, folded once, printed single-sided.
+    Rendered by Communicators::GenerateCarePlan under layouts/pdf_care_plan,
+    with Grover's margin set to 0 (no Chrome header/footer — a folded card
+    doesn't get page numbers).
+
+    Two 5.5in panels. The BACK panel is authored upright here and rotated
+    180deg by the `.flip` class — see the fold-mechanics comment in the
+    layout's <style> block before touching that rotation. Bottom panel = front
+    (what's showing on a table), top panel = back (day-to-day support).
+
+    Fixed height, `overflow: hidden` (in .fpanel) — a maxed-out profile WILL
+    silently clip past the fold. The overflow ladder below is what keeps that
+    from happening for anything short of a truly maxed-out profile:
+    Communicators::CarePlanDocument#half_condensed? / #half_truncated? are a
+    deterministic proxy for "would this overflow", calibrated against the
+    documented care-data limits (there is no headless Chrome available at spec
+    time to actually paginate against). %>
+
+<div class="foldsheet">
+  <%# BACK FACE — prints upside-down, becomes the back when folded. %>
+  <div class="fpanel flip">
+    <div class="fbar"></div>
+
+    <% if @care_sections.any? %>
+      <div class="care-heading"><%= t("care.document.care_heading") %></div>
+
+      <% if @half_truncated %>
+        <%# Last-resort tier: even comma-joined text would overflow. Drop to
+            one line per section and say where the rest lives. %>
+        <div class="condensed-lines">
+          <% @half_condensed_lines.each do |line| %>
+            <div class="cline">
+              <span class="k"><%= line[:label] %></span>
+              <span class="v"><%= line[:text] %></span>
+            </div>
+          <% end %>
+        </div>
+      <% elsif @half_condensed %>
+        <%# Middle tier: every section and field, comma-joined text instead of
+            chips — roughly half the height per row. %>
+        <div class="cols">
+          <% @care_sections_condensed.each do |section| %>
+            <%= render "communicators/assets/care_plan_card", section: section, chips: false %>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="cols">
+          <% @care_sections.each do |section| %>
+            <%= render "communicators/assets/care_plan_card", section: section %>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+
+    <div class="ffoot">
+      <p>
+        <b><%= t("care.document.live_page") %></b>
+        <% if @emergency %><%= t("care.document.confidential") %><% end %>
+        <% if @half_truncated %>
+          <span class="full-plan-note"><%= t("care.document.half.full_plan_note") %></span>
+        <% end %>
+      </p>
+      <% if @logo.present? %>
+        <img src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
+      <% end %>
+    </div>
+  </div>
+
+  <div class="foldrule" style="top:5.5in"><span><%= t("care.document.half.fold_here") %></span></div>
+
+  <%# FRONT FACE %>
+  <div class="fpanel">
+    <div class="fbar"></div>
+
+    <div class="fid">
+      <%= render "communicators/assets/care_plan_identity" %>
+    </div>
+
+    <% if @emergency %>
+      <%= render "communicators/assets/care_plan_glance" %>
+      <%= render "communicators/assets/care_plan_emergency" %>
+    <% end %>
+
+    <div class="ffoot">
+      <p><%= t("care.document.half.turn_over", name: @display_name) %></p>
+      <% if @logo.present? %>
+        <img src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
+      <% end %>
+    </div>
+  </div>
+</div>

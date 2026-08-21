@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module Communicators
-  # The communicator care plan — a flowing, multi-page Letter PDF built from
-  # settings["care"] and (in the :full variant) the emergency info.
+  # The communicator care plan — built from settings["care"] and (in the
+  # :full variant) the emergency info, at one of three physical sizes.
   #
   # Two variants, one class: the documents share everything but a single block,
   # and two classes would fork the care rendering immediately.
@@ -10,9 +10,22 @@ module Communicators
   #   :full      "Care & Emergency Plan" — care sections + emergency info
   #   :care_only "Care Plan"             — care sections, no medical data
   #
+  # Three sizes, same class again — they share every derived string
+  # (CarePlanDocument#says, #glance_how_i_talk, ...) and the whole design
+  # system (layouts/pdf_care_plan.html.erb); only the template and the Grover
+  # page options change.
+  #
+  #   :sheet  (default) a flowing, multi-page Letter document — fridge, binder
+  #   :half   one Letter page, folded once — substitute teacher, sitter
+  #   :wallet one Letter page, 4-up strips, cut and folded — lanyard, bus driver
+  #
+  # `:care_only` + `:wallet` is not offered: strip the emergency block out of a
+  # wallet card and what's left is a name, a photo, and five care lines, which
+  # isn't worth the paper. See .supported?.
+  #
   # PDF only, no PNG. Every other communicator asset ships both, but a PNG of a
-  # three-page document is either one impossibly tall image or a silently
-  # cropped first page, and there is nothing that would display it.
+  # multi-page or fixed-layout document is either meaningless or redundant with
+  # the PDF, and there is nothing that would display it.
   #
   # NOT generated from Profile#generate_attachments!. That runs synchronously on
   # every safety-profile save — an avatar upload, a theme tweak — and is already
@@ -28,18 +41,54 @@ module Communicators
     # 3: the band's "SpeakAnyWay" eyebrow is gone — the communicator's name is
     #    the first thing read on a sheet that exists to introduce them, and the
     #    mark still signs the footnote on every page.
-    LAYOUT_VERSION = 3
+    # 4: visual redesign (identity card, per-section colour + icons, chips,
+    #    "At a glance" strip, red-rail emergency block) plus the half and
+    #    wallet sizes.
+    LAYOUT_VERSION = 4
+
+    SIZES = %w[sheet half wallet].freeze
 
     VARIANTS = {
-      full: { attachment: :care_emergency_plan_pdf, filename: "care-and-emergency-plan", emergency: true },
-      care_only: { attachment: :care_plan_pdf, filename: "care-plan", emergency: false },
+      full: {
+        emergency: true,
+        sizes: {
+          sheet: { attachment: :care_emergency_plan_pdf, filename: "care-and-emergency-plan" },
+          half: { attachment: :care_emergency_plan_half_pdf, filename: "care-and-emergency-plan-half" },
+          wallet: { attachment: :care_emergency_plan_wallet_pdf, filename: "care-and-emergency-plan-wallet" },
+        },
+      },
+      care_only: {
+        emergency: false,
+        sizes: {
+          sheet: { attachment: :care_plan_pdf, filename: "care-plan" },
+          half: { attachment: :care_plan_half_pdf, filename: "care-plan-half" },
+          # No :wallet here, deliberately — see the class comment.
+        },
+      },
     }.freeze
 
-    class UnknownVariant < ArgumentError; end
+    # How many values the half page's middle overflow tier shows per
+    # multi_select field before falling back to comma-joined text (see
+    # CarePlanDocument#half_condensed?) — chosen so a maxed field
+    # (Profile::MAX_CARE_MULTI_SELECT values) still fits a wrapped line.
+    HALF_CONDENSED_MAX_VALUES = 6
+    # The wallet card's hard caps: five lines is what a 2in half-strip has
+    # room for without shrinking the type past legibility, and each line is
+    # further capped in length — a maxed-out section's joined values can run
+    # to hundreds of characters on their own, which wraps to several visual
+    # lines and overflows the strip even at five lines.
+    WALLET_LINE_LIMIT = 5
+    WALLET_LINE_MAX_CHARS = 60
+    # The half page's own last-resort tier: more generous than the wallet's,
+    # since a 4.5in back panel has room for it.
+    HALF_TRUNCATED_LINE_LIMIT = 8
 
-    def self.call(profile, variant: :full, regenerate: false, locale: I18n.locale, qr_target_url: nil,
-                  sections: nil)
-      new(profile, variant: variant, locale: locale, qr_target_url: qr_target_url, sections: sections)
+    class UnknownVariant < ArgumentError; end
+    class UnsupportedSize < ArgumentError; end
+
+    def self.call(profile, variant: :full, size: :sheet, regenerate: false, locale: I18n.locale,
+                  qr_target_url: nil, sections: nil)
+      new(profile, variant: variant, size: size, locale: locale, qr_target_url: qr_target_url, sections: sections)
         .call(regenerate: regenerate)
     end
 
@@ -50,37 +99,53 @@ module Communicators
     #
     # The section selection has to reach this check too, or a :care_only request
     # narrowed down to nothing prints the sheet of empty headings the 422 exists
-    # to refuse.
-    def self.printable?(profile, variant: :full, sections: nil)
+    # to refuse. Printability is about CONTENT, not paper size, so `size` rides
+    # along for interface symmetry with .call but doesn't change the answer.
+    def self.printable?(profile, variant: :full, size: :sheet, sections: nil)
       document = CarePlanDocument.new(profile, only_sections: sections)
 
-      config_for(variant)[:emergency] ? document.care? || document.emergency? : document.care?
+      variant_config(variant)[:emergency] ? document.care? || document.emergency? : document.care?
     end
 
-    def self.config_for(variant)
+    def self.variant_config(variant)
       VARIANTS.fetch(variant.to_sym) { raise UnknownVariant, "unknown care plan variant" }
     end
 
-    def initialize(profile, variant: :full, locale: I18n.locale, qr_target_url: nil, sections: nil)
+    # Whether this [variant, size] pair is offered at all — the one gap is
+    # :care_only + :wallet. Never raises: the endpoint uses this to answer 422
+    # unsupported_size rather than emitting a card not worth the paper.
+    def self.supported?(variant, size)
+      variant_config(variant)[:sizes].key?(size.to_sym)
+    rescue UnknownVariant
+      false
+    end
+
+    def self.config_for(variant, size)
+      variant_config(variant)[:sizes].fetch(size.to_sym) { raise UnsupportedSize, "unsupported size for this variant" }
+    end
+
+    def initialize(profile, variant: :full, size: :sheet, locale: I18n.locale, qr_target_url: nil, sections: nil)
       super(profile, qr_target_url: qr_target_url)
       @variant = variant.to_sym
-      @config = self.class.config_for(@variant)
+      @size = size.to_sym
+      @config = self.class.config_for(@variant, @size)
+      @emergency = self.class.variant_config(@variant)[:emergency]
       @locale = locale
       # nil means every section — see the note on CarePlanDocument#initialize.
       @sections = sections.nil? ? nil : Array(sections).map { |key| key.to_s.strip }.reject(&:empty?)
     end
 
-    attr_reader :variant, :config, :locale, :sections
+    attr_reader :variant, :size, :config, :emergency, :locale, :sections
 
-    # There is one attachment per VARIANT, not per selection, so a narrowed
-    # download replaces the stored document and the `care_plan_url` on
+    # There is one attachment per [variant, size], not per selection, so a
+    # narrowed download replaces the stored document and the URL on
     # Profile#api_view points at the narrowed sheet until the next download.
     # That is deliberate — the screen regenerates on every click, so it
     # self-corrects — and an attachment per selection would be unbounded.
     def call(regenerate: false)
       return profile if !regenerate && attached_and_fresh?(config[:attachment], signature: signature)
 
-      pdf = generate_letter_pdf(rendered_document)
+      pdf = generate_pdf(rendered_document)
 
       attach_binary(
         record: profile,
@@ -96,10 +161,15 @@ module Communicators
 
     private
 
-    # The variant and locale ride in the signature alongside the layout version.
-    # The two variants live in separate attachments so they can't literally
-    # collide, but a mistake that crossed them would otherwise serve a care-only
-    # download containing medications — cheap insurance for an expensive failure.
+    # The variant, size, and locale ride in the signature alongside the layout
+    # version. The variants (and now sizes) live in separate attachments so
+    # they can't literally collide, but a mistake that crossed them would
+    # otherwise serve a care-only download containing medications, or a wallet
+    # card to someone who asked for a sheet — cheap insurance for an expensive
+    # failure. `size` is unconditional, unlike `sections` below: every existing
+    # signature predates the size param, but this ships alongside the
+    # LAYOUT_VERSION bump that already invalidates them, so there is no
+    # untouched history to preserve.
     #
     # The section selection rides along too, and it MUST: the two variants share
     # one attachment each, so without it a narrowed download is answered by the
@@ -111,6 +181,7 @@ module Communicators
         [
           profile.safety_info_signature,
           "care_plan=#{variant}",
+          "size=#{size}",
           "locale=#{locale}",
           ("sections=#{sections.sort.join(",")}" if sections),
           "v#{LAYOUT_VERSION}",
@@ -125,16 +196,24 @@ module Communicators
     def rendered_document
       I18n.with_locale(locale) do
         ApplicationController.render(
-          template: "communicators/assets/care_plan",
+          template: template_name,
           layout: "pdf_care_plan",
           assigns: template_assigns,
         )
       end
     end
 
+    def template_name
+      case size
+      when :half then "communicators/assets/care_plan_half"
+      when :wallet then "communicators/assets/care_plan_wallet"
+      else "communicators/assets/care_plan"
+      end
+    end
+
     def template_assigns
       {
-        # No subtitle: the condensed band carries title · URL on one 7.5pt meta
+        # No subtitle: the identity card carries the doctype line and the says
         # line, and "How to support Rosa day to day" is the one line on the old
         # sheet a reader already knows. care.document.subtitle is left in the
         # locale files for whoever brings it back.
@@ -151,11 +230,29 @@ module Communicators
         logo: logo_base64,
         public_url: public_url,
         qr_data_url: qr_data_url_for(public_url),
-        emergency: config[:emergency],
-        emergency_fields: config[:emergency] ? document.emergency_fields : [],
-        blank_emergency_field_names: config[:emergency] ? document.blank_emergency_field_names : [],
-        emergency_contacts: config[:emergency] ? document.emergency_contacts : [],
+        emergency: emergency,
+        emergency_fields: emergency ? document.emergency_fields : [],
+        blank_emergency_field_names: emergency ? document.blank_emergency_field_names : [],
+        emergency_contacts: emergency ? document.emergency_contacts : [],
         care_sections: document.care_sections,
+        # Communication-derived, not emergency data — shown on both variants,
+        # same as the rest of the identity block.
+        says: document.says,
+        # The "At a glance" strip only ever renders on the :full variant (see
+        # the templates): allergies and the first contact ARE emergency data,
+        # so they're computed only when this document carries emergency info
+        # at all, mirroring the pattern above rather than trusting the
+        # template's `if @emergency` guard alone.
+        glance_how_i_talk: document.glance_how_i_talk,
+        allergies: emergency ? document.allergies : nil,
+        call_first_contact: emergency ? document.call_first_contact : nil,
+        # Only the half and wallet templates use these; harmless to compute
+        # for :sheet too since both are cheap (no rendering happens here).
+        half_condensed: document.half_condensed?,
+        half_truncated: document.half_truncated?,
+        care_sections_condensed: document.care_sections(max_values: HALF_CONDENSED_MAX_VALUES),
+        half_condensed_lines: document.condensed_care_lines(limit: HALF_TRUNCATED_LINE_LIMIT),
+        wallet_lines: document.condensed_care_lines(limit: WALLET_LINE_LIMIT, truncate_at: WALLET_LINE_MAX_CHARS),
       }
     end
 
@@ -163,26 +260,36 @@ module Communicators
       effective_qr_url(profile.public_url)
     end
 
-    # The flowing-document counterpart to BaseAssetGenerator#generate_pdf_from_html.
+    # The counterpart to BaseAssetGenerator#generate_pdf_from_html, for a page
+    # sized by CSS rather than by fixed pixels.
     #
-    # That one pins Grover to a fixed pixel page, which is right for a card and
-    # wrong for a document — a care plan is however many pages the parent's
-    # answers come to, and a fixed height would silently discard the rest.
-    # Reaching for the wrong one of these two is the bug this pair exists to
-    # make obvious.
-    #
-    # The margin is NOT decoration. Chrome renders the header and footer in a
-    # separate document with none of the page's CSS, and clips them to nothing
-    # unless the page reserves margin for them — so `@page { margin: 0 }` (which
-    # layouts/pdf_printable.html.erb has) makes the page numbers silently
-    # vanish. The empty header_template is equally required: without one Chrome
-    # prints its own title-and-date header.
-    def generate_letter_pdf(html)
+    # :sheet flows to however many pages the parent's answers come to — a fixed
+    # height would silently discard the rest. :half and :wallet are fixed
+    # single pages, but still CSS-sized (`@page { size: letter }` in the
+    # layout) rather than pinned to a pixel viewport, because their content is
+    # laid out in physical units (in, pt) that only make sense against a real
+    # page size.
+    def generate_pdf(html)
       Grover.new(html, **letter_options).to_pdf
     end
 
+    # :sheet keeps the header/footer Chrome renders in a separate document —
+    # see the note on #footer_template. :half and :wallet get neither: a folded
+    # card or a cut-and-folded wallet strip does not get page numbers, and
+    # `margin: 0` is what lets their CSS lay out content against the FULL,
+    # untrimmed page (the fold/cut lines are measured from the physical edge).
+    #
+    # The margin is NOT decoration on either branch. For :sheet, Chrome renders
+    # the header and footer in a separate document with none of the page's CSS
+    # and clips them to nothing unless the page reserves margin for them — so
+    # `@page { margin: 0 }` (which layouts/pdf_printable.html.erb has) makes the
+    # page numbers silently vanish. The empty header_template is equally
+    # required: without one Chrome prints its own title-and-date header.
     def letter_options
-      Marketing::SheetRendering::LETTER_GROVER_OPTIONS.merge(
+      base = Marketing::SheetRendering::LETTER_GROVER_OPTIONS
+      return base.merge(display_header_footer: false, margin: 0) unless size == :sheet
+
+      base.merge(
         display_header_footer: true,
         header_template: "<span></span>",
         footer_template: footer_template,

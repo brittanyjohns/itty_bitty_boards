@@ -1,0 +1,28 @@
+<%# One day-to-day care section: a coloured icon, its heading, then a row per
+    resolved field and item. Shared by the sheet and half sizes — the wallet
+    is condensed to plain lines and doesn't use cards at all.
+
+    The colour/icon key comes from CarePlanDocument.style_key_for — a custom
+    section falls back to "trav" (navy) rather than getting a colour of its
+    own, so four parent-authored sections don't turn the sheet into a paint
+    chart.
+
+    `chips:` (default true) is the half-page overflow ladder's middle tier:
+    the same section, still every field, but comma-joined text instead of
+    chips — see Communicators::CarePlanDocument::HALF_CONDENSE_WEIGHT. %>
+<% style_key = Communicators::CarePlanDocument.style_key_for(section) %>
+<% render_chips = local_assigns.fetch(:chips, true) %>
+<section class="card s-<%= style_key %>">
+  <div class="hd">
+    <div class="ico"><svg viewBox="0 0 24 24"><%= CarePlanIcons.svg_for(style_key) %></svg></div>
+    <h3><%= section.label %></h3>
+  </div>
+
+  <% section.fields.each do |field| %>
+    <%= render "communicators/assets/care_plan_row", field: field, chips: render_chips %>
+  <% end %>
+
+  <% section.items.each do |item| %>
+    <%= render "communicators/assets/care_plan_item", item: item %>
+  <% end %>
+</section>

@@ -11,108 +11,46 @@
     sections — it is what someone reaches for in a hurry, and it should not be
     on page 2. %>
 
-<%# One band, not a masthead plus an identity row. The public URL rides in the
-    meta line as plain text, which is what lets the QR come down to 44pt — the
-    sheet still works for someone without a phone camera out. %>
-<%# Painted once per sheet by Chrome, not part of the flow — see .page-frame. %>
+<%# Painted once per sheet by Chrome, not part of the flow — see .page-frame
+    in the layout. .sheet-content carries the padding that keeps page-1
+    content off the frame; every later page gets its clearance from a
+    .card's own padding-top instead (also in the layout). %>
 <div class="page-frame"></div>
 
-<div class="band">
-  <% if @avatar_data_url.present? %>
-    <img class="avatar" src="<%= @avatar_data_url %>" alt="" />
-  <% else %>
-    <div class="avatar-placeholder"></div>
+<div class="sheet-content">
+  <div class="topbar"></div>
+
+  <header class="identity">
+    <%= render "communicators/assets/care_plan_identity" %>
+  </header>
+
+  <% if @emergency %>
+    <%= render "communicators/assets/care_plan_glance" %>
+    <%= render "communicators/assets/care_plan_emergency" %>
   <% end %>
 
-  <%# No brand eyebrow above the name, deliberately: this sheet exists to
-      introduce one person, and the first thing read should be who they are.
-      The mark signs the footnote on every page instead. %>
-  <div class="who">
-    <h1><%= @display_name %></h1>
-    <div class="meta">
-      <%= @title %><% if @pronouns.present? %> · <%= @pronouns %><% end %> · <%= @public_url %>
-    </div>
-  </div>
+  <% if @care_sections.any? %>
+    <%# The heading sits above the loop, outside .cols. It can no longer strand
+        at the foot of a page: what follows it is a two-column flow, not one
+        tall element. %>
+    <div class="care-heading"><%= t("care.document.care_heading") %></div>
 
-  <% if @qr_data_url.present? %>
-    <div class="qr"><img src="<%= @qr_data_url %>" alt="" /></div>
+    <div class="cols">
+      <% @care_sections.each do |section| %>
+        <%= render "communicators/assets/care_plan_card", section: section %>
+      <% end %>
+    </div>
   <% end %>
-</div>
 
-<% if @emergency %>
-  <%# Blank emergency fields are OMITTED and named collectively in the muted
-      line below — see CarePlanDocument::OMIT_BLANK_EMERGENCY_FIELDS, which is
-      the one line to flip to get the per-field "None listed" rows back. %>
-  <section class="emergency">
-    <h2><%= t("care.document.emergency.heading") %></h2>
-
-    <div class="egrid">
-      <% @emergency_fields.each do |field| %>
-        <%# Free-text notes run long enough to want the full width. %>
-        <div class="f<%= " wide" if field.key == "emergency_notes" %>">
-          <span class="k"><%= field.label %></span><%= field.values.first %>
-        </div>
+  <div class="footnote">
+    <span>
+      <%= t("care.document.live_page") %>
+      <% if @emergency %>
+        <%= t("care.document.confidential") %>
       <% end %>
-
-      <% if @blank_emergency_field_names.any? %>
-        <div class="not-provided">
-          <%= t(
-                "care.document.emergency.not_provided",
-                fields: @blank_emergency_field_names.to_sentence(
-                  words_connector: t("care.document.emergency.blank_names_connectors.words_connector"),
-                  two_words_connector: t("care.document.emergency.blank_names_connectors.two_words_connector"),
-                  last_word_connector: t("care.document.emergency.blank_names_connectors.last_word_connector"),
-                ),
-              ) %>
-        </div>
-      <% end %>
-    </div>
-
-    <div class="contacts">
-      <% if @emergency_contacts.any? %>
-        <% @emergency_contacts.each do |contact| %>
-          <div class="contact">
-            <span class="name"><%= contact["name"].presence || t("care.document.emergency.relationship_unknown") %></span><% if contact["relationship"].present? %> <span class="rel">· <%= contact["relationship"] %></span><% end %> — <span class="phone"><%= contact["phone"] %></span>
-          </div>
-        <% end %>
-      <% else %>
-        <div class="contact muted"><%= t("care.document.emergency.no_contacts") %></div>
-      <% end %>
-    </div>
-  </section>
-<% end %>
-
-<% if @care_sections.any? %>
-  <%# The heading sits above the loop, outside .cols. It can no longer strand at
-      the foot of a page: what follows it is a two-column flow, not one tall
-      element. %>
-  <div class="care-heading"><%= t("care.document.care_heading") %></div>
-
-  <div class="cols">
-    <% @care_sections.each do |section| %>
-      <section class="care-section">
-        <h3><%= section.label %></h3>
-
-        <% section.fields.each do |field| %>
-          <%= render "communicators/assets/care_plan_row", field: field %>
-        <% end %>
-
-        <% section.items.each do |item| %>
-          <%= render "communicators/assets/care_plan_item", item: item %>
-        <% end %>
-      </section>
+    </span>
+    <% if @logo.present? %>
+      <img class="mark" src="data:image/png;base64,<%= @logo %>" alt="" />
     <% end %>
   </div>
-<% end %>
-
-<div class="footnote">
-  <span>
-    <%= t("care.document.live_page") %>
-    <% if @emergency %>
-      <%= t("care.document.confidential") %>
-    <% end %>
-  </span>
-  <% if @logo.present? %>
-    <img class="mark" src="data:image/png;base64,<%= @logo %>" alt="" />
-  <% end %>
 </div>
