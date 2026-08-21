@@ -73,6 +73,22 @@ RSpec.describe Communicators::GenerateCarePlan do
     captured
   end
 
+  # The rendered document minus the layout's <style> block — the CSS carries
+  # explanatory comments naming the very strings some of these assertions
+  # check the absence of.
+  def document_body(html)
+    html.split("</style>").last
+  end
+
+  # Each wallet strip as a [back_face, front_face] pair. The strip's markup is
+  # back, fold rule, front — see _care_plan_wallet_strip.html.erb.
+  def wallet_strips(html)
+    document_body(html).split(%(<div class="wstrip">)).drop(1).map do |strip|
+      back, front = strip.split(%(<div class="foldrule"))
+      [back, front]
+    end
+  end
+
   # The PDF call's options specifically. The thumbnail's call carries
   # `format: "png"` and a pixel viewport instead of page options, so capturing
   # the LAST call would quietly assert against the preview rather than the
@@ -255,9 +271,8 @@ RSpec.describe Communicators::GenerateCarePlan do
     end
   end
 
-  # The "At a glance" strip: allergies, how the communicator talks, and the
-  # first contact — only on the :full variant, and allergies renders here and
-  # ONLY here.
+  # The "At a glance" strip: allergies and how the communicator talks — only on
+  # the :full variant, and allergies renders here and ONLY here.
   describe "the at-a-glance strip" do
     it "prints allergies exactly once, in the glance strip, never in the emergency grid" do
       html = render_html(variant: :full)
@@ -265,6 +280,19 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html.scan("zzpeanutszz").length).to eq(1)
       expect(html).not_to include(%(<span class="k">Allergies</span>))
       expect(html).to include(%(<div class="k">Allergies</div>))
+    end
+
+    # The strip used to carry a third "Call first" cell repeating the top
+    # contact's phone number a few millimetres above the contact cards in the
+    # emergency block directly below it, on both sizes that render the strip.
+    it "does not repeat a contact's number above the emergency block" do
+      %i[sheet half].each do |size|
+        body = document_body(render_html(variant: :full, size: size))
+
+        expect(body.scan("555-0100").length).to eq(1)
+        expect(body).not_to include("Call first")
+        expect(body.scan(%(class="cell)).length).to eq(2)
+      end
     end
 
     it "falls back to a neutral cell when a value is unanswered" do
@@ -547,6 +575,95 @@ RSpec.describe Communicators::GenerateCarePlan do
     end
   end
 
+  # The line under the communicator's name. A per-download choice, not stored
+  # data: the words come from `subheader`, `include_subheader: false` drops the
+  # line, and blank or absent means the default copy — which is resolved from
+  # the locale files at render time and never written anywhere.
+  describe "the subheader" do
+    def subheader_line(html)
+      document_body(html)[%r{<div class="says">\s*(.*?)\s*</div>}m, 1]
+    end
+
+    it "prints the default copy when the caller asks for nothing" do
+      expect(subheader_line(render_html)).to eq(CGI.escapeHTML(I18n.t("care.document.subheader.default")))
+    end
+
+    it "prints the caller's own words instead" do
+      html = render_html(subheader: "Please talk to me, not about me.")
+
+      expect(subheader_line(html)).to eq("Please talk to me, not about me.")
+      expect(html).not_to include(I18n.t("care.document.subheader.default"))
+    end
+
+    it "treats a blank subheader as no answer, not as an empty line" do
+      expect(subheader_line(render_html(subheader: "   ")))
+        .to eq(CGI.escapeHTML(I18n.t("care.document.subheader.default")))
+    end
+
+    it "caps the caller's words" do
+      html = render_html(subheader: "z" * (described_class::SUBHEADER_MAX_CHARS + 40))
+
+      expect(subheader_line(html).length).to eq(described_class::SUBHEADER_MAX_CHARS)
+    end
+
+    it "prints no line at all when the caller turns it off" do
+      html = render_html(include_subheader: false)
+
+      expect(document_body(html)).not_to include(%(class="says"))
+      expect(html).not_to include(I18n.t("care.document.subheader.default"))
+    end
+
+    it "renders on the half size too, and not on the wallet" do
+      expect(document_body(render_html(size: :half))).to include(%(class="says"))
+      expect(document_body(render_html(size: :wallet))).not_to include(%(class="says"))
+    end
+
+    # The identity block used to open with "I communicate using AAC device and
+    # gestures…", restating the "How I talk" glance cell a centimetre below it.
+    # (The cell and the Communication card still both name the method — a
+    # summary strip over its own section is the design; an identity line over
+    # that summary was the duplication.)
+    it "does not restate the communication section" do
+      html = render_html
+
+      expect(html).not_to include("I communicate using")
+      expect(identity_text(html).join(" ")).not_to include("AAC device")
+    end
+
+    # Same trap `sections` has: there is one attachment per [variant, size], so
+    # a choice that misses the signature is answered by the cached document and
+    # the control appears to do nothing.
+    it "re-renders when the words change" do
+      render_html(subheader: "One")
+
+      expect_rerender
+      described_class.call(profile.reload, variant: :full, subheader: "Two")
+    end
+
+    it "re-renders when the line is turned off" do
+      render_html
+
+      expect_rerender
+      described_class.call(profile.reload, variant: :full, include_subheader: false)
+    end
+
+    it "does not re-render for the same words" do
+      render_html(subheader: "One")
+
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload, variant: :full, subheader: "One")
+    end
+
+    # Taking the default must leave the signature exactly as it was, or the
+    # option invalidates every document already generated for no change in
+    # output — the same rule the sections term follows.
+    it "adds no signature term when the caller takes the default" do
+      render_html
+
+      expect(profile.reload.care_emergency_plan_pdf.metadata["signature"]).not_to include("subheader")
+    end
+  end
+
   # The section picker. `sections` is an allowlist; nil means all of them, and
   # the selection has to reach the freshness signature or a narrowed download is
   # answered by the cached full document.
@@ -698,6 +815,45 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html.scan(%(class="wstrip")).length).to eq(4)
       lines_per_strip = html.scan(%(class="li")).length / 4
       expect(lines_per_strip).to be <= described_class::WALLET_LINE_LIMIT
+    end
+
+    # One subject per face: the front is who this is and who to call, the back
+    # is day-to-day support. The contacts used to print on the BACK with a
+    # one-line "Call first" repeat of the top one squeezed onto the front.
+    it "prints the wallet's contacts on the front face and the care lines on the back" do
+      strips = wallet_strips(render_html(variant: :full, size: :wallet))
+
+      expect(strips.length).to eq(4)
+
+      strips.each do |back, front|
+        expect(front).to include("zzSamzz").and include("555-0100")
+        expect(front).not_to include(%(class="li"))
+        expect(back).to include(%(class="li"))
+        expect(back).not_to include("555-0100")
+      end
+    end
+
+    it "caps each wallet line's length as well as the number of lines" do
+      profile.update_columns(settings: maxed_out_care_settings)
+
+      html = render_html(variant: :full, size: :wallet)
+
+      values = html.scan(%r{<span class="v">([^<]*)</span>}).flatten
+      expect(values).to be_present
+      expect(values.map(&:length).max).to be <= described_class::WALLET_LINE_MAX_CHARS
+    end
+
+    # Same trap on the half size's last-resort tier: the LINE COUNT bounds
+    # nothing when one maxed-out section joins to hundreds of characters and
+    # wraps to four visual lines on its own, and the panel clips in silence.
+    it "caps each line's length in the half size's truncated tier too" do
+      profile.update_columns(settings: maxed_out_care_settings)
+
+      html = render_html(variant: :full, size: :half)
+
+      values = html.scan(%r{<span class="v">\s*([^<]*?)\s*</span>}).flatten
+      expect(values).to be_present
+      expect(values.map(&:length).max).to be <= described_class::HALF_TRUNCATED_LINE_MAX_CHARS
     end
 
     it "condenses the wallet size the same way for a maxed-out profile" do

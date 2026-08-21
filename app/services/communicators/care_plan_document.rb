@@ -23,10 +23,6 @@ module Communicators
     Section = Struct.new(:key, :label, :custom, :fields, :items, keyword_init: true)
     Field = Struct.new(:key, :label, :type, :values, keyword_init: true)
     Item = Struct.new(:label, :value, keyword_init: true)
-    # The first-person "says" line's resolved parts. `rest` is an array of
-    # labels, not a joined string — grammar (the "and", the comma list) is the
-    # view's job so it can go through I18n; this struct is data only.
-    Says = Struct.new(:primary, :rest, :helps, keyword_init: true)
 
     # The emergency fields, in the order a responder reads them. Contacts are
     # handled separately — they're structured, not free text.
@@ -125,32 +121,19 @@ module Communicators
       all_emergency_fields.find { |field| field.key == "allergies" }&.values&.first
     end
 
-    # The glance strip's "Call first" cell: the same first contact
-    # #emergency_contacts would return, exposed under its own name so a caller
-    # reading the glance data doesn't have to know that's where it comes from.
-    def call_first_contact
-      emergency_contacts.first
-    end
-
-    # The identity block's first-person line and the glance strip's "How I
-    # talk" are both built from the communication section's stored answers —
-    # deliberately independent of `only_sections`. They introduce the person,
-    # they aren't part of the printed detail sections, and narrowing the sheet
-    # to "meals only" shouldn't erase how the sheet's subject talks. A section
-    # the parent explicitly disabled is still respected, though.
-    def says
-      return nil if communication_methods.empty? && communication_what_helps.empty?
-
-      Says.new(
-        primary: communication_methods.first,
-        rest: communication_methods[1..].to_a.map { |v| decapitalize(v) },
-        helps: communication_what_helps.first,
-      )
-    end
-
-    # { primary:, sub: } for the glance strip, or nil when nothing is stored —
-    # the template falls back to a neutral cell in that case, same as an
-    # unanswered allergy field falls back to "None listed".
+    # The glance strip's "How I talk" cell — { primary:, sub: }, or nil when
+    # nothing is stored (the template falls back to a neutral cell, same as an
+    # unanswered allergy field falls back to "None listed").
+    #
+    # Built from the communication section's stored answers but deliberately
+    # independent of `only_sections`: it introduces the person, it isn't part
+    # of the printed detail sections, and narrowing the sheet to "meals only"
+    # shouldn't erase how the sheet's subject talks. A section the parent
+    # explicitly disabled is still respected, though.
+    #
+    # The identity block's line under the name used to be derived from these
+    # same answers ("I communicate using AAC device and gestures…") and is not
+    # any more — it is the caller's `subheader` now. See GenerateCarePlan.
     def glance_how_i_talk
       return nil if communication_methods.empty?
 
@@ -169,15 +152,20 @@ module Communicators
     # custom section's Profile::MAX_CARE_CUSTOM_ITEMS items) joins into one
     # very long string, and even a five-line cap silently overflowed the
     # wallet's 2in half once that string wrapped to several visual lines on
-    # its own. The wallet passes this; the half size's more spacious back
-    # panel does not need to.
+    # its own. Both fixed-height sizes pass it — the half page's back panel is
+    # more spacious, not unbounded.
+    #
+    # It cuts on a WORD boundary. These lines are a comma-joined list of short
+    # care options, so a mid-word cut lands inside one of them and prints a
+    # fragment ("Keep my device close, Wai…") that reads as a different answer
+    # from the one the parent chose — worse than dropping it.
     def condensed_care_lines(limit: nil, truncate_at: nil)
       lines = care_sections.filter_map do |section|
         parts = section.fields.map { |f| f.values.join(", ") } + section.items.map(&:value)
         next if parts.empty?
 
         text = parts.join(", ")
-        text = "#{text[0, truncate_at - 1]}…" if truncate_at && text.length > truncate_at
+        text = text.truncate(truncate_at, separator: " ", omission: "…") if truncate_at
 
         { label: section.label, text: text }
       end
@@ -252,10 +240,6 @@ module Communicators
 
     def communication_methods
       communication_fields.find { |f| f.key == "methods" }&.values || []
-    end
-
-    def communication_what_helps
-      communication_fields.find { |f| f.key == "what_helps" }&.values || []
     end
 
     def glance_how_i_talk_sub

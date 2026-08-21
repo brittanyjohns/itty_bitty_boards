@@ -11,7 +11,7 @@ module Communicators
   #   :care_only "Care Plan"             — care sections, no medical data
   #
   # Three sizes, same class again — they share every derived string
-  # (CarePlanDocument#says, #glance_how_i_talk, ...) and the whole design
+  # (CarePlanDocument#glance_how_i_talk, #allergies, ...) and the whole design
   # system (layouts/pdf_care_plan.html.erb); only the template and the Grover
   # page options change.
   #
@@ -20,7 +20,7 @@ module Communicators
   #   :wallet one Letter page, 4-up strips, cut and folded — lanyard, bus driver
   #
   # `:care_only` + `:wallet` is not offered: strip the emergency block out of a
-  # wallet card and what's left is a name, a photo, and five care lines, which
+  # wallet card and what's left is a name, a photo, and a few care lines, which
   # isn't worth the paper. See .supported?.
   #
   # Each document ships a PDF and a PNG thumbnail, rendered from the SAME HTML
@@ -51,7 +51,12 @@ module Communicators
     # 4: visual redesign (identity card, per-section colour + icons, chips,
     #    "At a glance" strip, red-rail emergency block) plus the half and
     #    wallet sizes.
-    LAYOUT_VERSION = 4
+    # 5: fold-size rebalance — the glance strip's duplicate "Call first" cell
+    #    is gone, the wallet's contacts moved to its front face, and neither
+    #    fold size shrinks-and-clips a face any more.
+    # 6: the line under the name is the caller's `subheader`, not a sentence
+    #    derived from the communication section.
+    LAYOUT_VERSION = 6
 
     SIZES = %w[sheet half wallet].freeze
 
@@ -109,23 +114,56 @@ module Communicators
     # CarePlanDocument#half_condensed?) — chosen so a maxed field
     # (Profile::MAX_CARE_MULTI_SELECT values) still fits a wrapped line.
     HALF_CONDENSED_MAX_VALUES = 6
-    # The wallet card's hard caps: five lines is what a 2in half-strip has
-    # room for without shrinking the type past legibility, and each line is
-    # further capped in length — a maxed-out section's joined values can run
-    # to hundreds of characters on their own, which wraps to several visual
-    # lines and overflows the strip even at five lines.
-    WALLET_LINE_LIMIT = 5
-    WALLET_LINE_MAX_CHARS = 60
+    # The wallet card's hard caps. The back face is day-to-day lines and
+    # nothing else now that the contacts print on the front, which bought
+    # roughly two more lines of room — so the limit went up, not down.
+    #
+    # Each line is ALSO capped in length, and that cap is the load-bearing
+    # half: a maxed-out section's joined values run to hundreds of characters
+    # on their own, and a line that wraps costs the same room as two. The two
+    # numbers are one budget — 62 characters is at most two visual lines in
+    # the value column, and six of those fill the face.
+    WALLET_LINE_LIMIT = 6
+    WALLET_LINE_MAX_CHARS = 62
+    # The line under the communicator's name, on the sheet and half sizes.
+    #
+    # It is a per-download CHOICE, not stored data: `subheader` supplies the
+    # words and `include_subheader: false` drops the line entirely. Blank or
+    # absent means the default copy, which lives in the locale files and is
+    # resolved at RENDER time — never written anywhere. That is the same rule
+    # `profiles.bio` / `profiles.intro` are under: this line prints in the
+    # communicator's own first-person voice, so seeding it would publish words
+    # nobody wrote and make "is there a subheader" stop meaning "did someone
+    # write one".
+    #
+    # It used to be derived from the communication section
+    # ("I communicate using AAC device and gestures. Keep my device close."),
+    # which repeated the "How I talk" cell in the glance strip a centimetre
+    # below it. The glance strip still carries that fact; this line is now
+    # what the person handing the card over wants a stranger to read first.
+    #
+    # The cap exists because the text rides the freshness signature, same
+    # reason `sections` is capped in the controller — and because two printed
+    # lines under the name is the most the identity block can hold before it
+    # starts competing with the name again.
+    SUBHEADER_MAX_CHARS = 160
+
     # The half page's own last-resort tier: more generous than the wallet's,
-    # since a 4.5in back panel has room for it.
+    # since a 4.5in back panel has room for it. It needs the per-line cap for
+    # the same reason the wallet does, though — the line COUNT alone bounds
+    # nothing when one maxed-out section joins to 400-plus characters and wraps
+    # to four visual lines on its own. Eight lines at two wrapped lines each is
+    # what the panel holds under the footnote.
     HALF_TRUNCATED_LINE_LIMIT = 8
+    HALF_TRUNCATED_LINE_MAX_CHARS = 240
 
     class UnknownVariant < ArgumentError; end
     class UnsupportedSize < ArgumentError; end
 
     def self.call(profile, variant: :full, size: :sheet, regenerate: false, locale: I18n.locale,
-                  qr_target_url: nil, sections: nil)
-      new(profile, variant: variant, size: size, locale: locale, qr_target_url: qr_target_url, sections: sections)
+                  qr_target_url: nil, sections: nil, subheader: nil, include_subheader: true)
+      new(profile, variant: variant, size: size, locale: locale, qr_target_url: qr_target_url,
+        sections: sections, subheader: subheader, include_subheader: include_subheader)
         .call(regenerate: regenerate)
     end
 
@@ -161,7 +199,8 @@ module Communicators
       variant_config(variant)[:sizes].fetch(size.to_sym) { raise UnsupportedSize, "unsupported size for this variant" }
     end
 
-    def initialize(profile, variant: :full, size: :sheet, locale: I18n.locale, qr_target_url: nil, sections: nil)
+    def initialize(profile, variant: :full, size: :sheet, locale: I18n.locale, qr_target_url: nil,
+                   sections: nil, subheader: nil, include_subheader: true)
       super(profile, qr_target_url: qr_target_url)
       @variant = variant.to_sym
       @size = size.to_sym
@@ -170,9 +209,13 @@ module Communicators
       @locale = locale
       # nil means every section — see the note on CarePlanDocument#initialize.
       @sections = sections.nil? ? nil : Array(sections).map { |key| key.to_s.strip }.reject(&:empty?)
+      # Blank and absent are the same answer here — both mean "the default
+      # copy" — unlike `sections`, where [] is a real request for none.
+      @subheader = subheader.to_s.strip.presence&.slice(0, SUBHEADER_MAX_CHARS)
+      @include_subheader = include_subheader != false
     end
 
-    attr_reader :variant, :size, :config, :emergency, :locale, :sections
+    attr_reader :variant, :size, :config, :emergency, :locale, :sections, :subheader, :include_subheader
 
     # There is one attachment per [variant, size], not per selection, so a
     # narrowed download replaces the stored document and the URL on
@@ -234,9 +277,32 @@ module Communicators
           "size=#{size}",
           "locale=#{locale}",
           ("sections=#{sections.sort.join(",")}" if sections),
+          subheader_signature,
           "v#{LAYOUT_VERSION}",
         ].compact.join("::"),
       )
+    end
+
+    # Omitted entirely when the caller took the default, so an ordinary
+    # download keeps the signature it has always had — the same rule
+    # `sections` follows. It has to be here at all for the same reason
+    # `sections` does: there is one attachment per [variant, size], so without
+    # it a custom or hidden subheader is answered by the cached document and
+    # the control silently does nothing.
+    def subheader_signature
+      return "subheader=off" unless include_subheader
+      return if subheader.nil?
+
+      "subheader=#{subheader}"
+    end
+
+    # The words that print under the name, or nil for no line at all. The
+    # default is resolved HERE, at render time, and never stored — see the
+    # note on SUBHEADER_MAX_CHARS.
+    def resolved_subheader
+      return nil unless include_subheader
+
+      subheader || I18n.t("care.document.subheader.default", locale: locale)
     end
 
     def document
@@ -263,10 +329,10 @@ module Communicators
 
     def template_assigns
       {
-        # No subtitle: the identity card carries the doctype line and the says
-        # line, and "How to support Rosa day to day" is the one line on the old
-        # sheet a reader already knows. care.document.subtitle is left in the
-        # locale files for whoever brings it back.
+        # No subtitle: the identity card carries the doctype line and the
+        # subheader, and "How to support Rosa day to day" is the one line on
+        # the old sheet a reader already knows. care.document.subtitle is left
+        # in the locale files for whoever brings it back.
         #
         # No prepared-on date either: the sheet lives in a backpack or a school
         # folder for a whole year, and a printed date only makes a still-current
@@ -285,23 +351,26 @@ module Communicators
         blank_emergency_field_names: emergency ? document.blank_emergency_field_names : [],
         emergency_contacts: emergency ? document.emergency_contacts : [],
         care_sections: document.care_sections,
-        # Communication-derived, not emergency data — shown on both variants,
-        # same as the rest of the identity block.
-        says: document.says,
+        # The line under the name. Shown on both variants — it is not emergency
+        # data, it is the introduction the identity block exists to make.
+        # Rendered by the sheet and half sizes; the wallet's 2in front face has
+        # no room for it and doesn't ask for it.
+        subheader: resolved_subheader,
         # The "At a glance" strip only ever renders on the :full variant (see
-        # the templates): allergies and the first contact ARE emergency data,
-        # so they're computed only when this document carries emergency info
-        # at all, mirroring the pattern above rather than trusting the
-        # template's `if @emergency` guard alone.
+        # the templates): allergies IS emergency data, so it's computed only
+        # when this document carries emergency info at all, mirroring the
+        # pattern above rather than trusting the template's `if @emergency`
+        # guard alone.
         glance_how_i_talk: document.glance_how_i_talk,
         allergies: emergency ? document.allergies : nil,
-        call_first_contact: emergency ? document.call_first_contact : nil,
         # Only the half and wallet templates use these; harmless to compute
         # for :sheet too since both are cheap (no rendering happens here).
         half_condensed: document.half_condensed?,
         half_truncated: document.half_truncated?,
         care_sections_condensed: document.care_sections(max_values: HALF_CONDENSED_MAX_VALUES),
-        half_condensed_lines: document.condensed_care_lines(limit: HALF_TRUNCATED_LINE_LIMIT),
+        half_condensed_lines: document.condensed_care_lines(
+          limit: HALF_TRUNCATED_LINE_LIMIT, truncate_at: HALF_TRUNCATED_LINE_MAX_CHARS,
+        ),
         wallet_lines: document.condensed_care_lines(limit: WALLET_LINE_LIMIT, truncate_at: WALLET_LINE_MAX_CHARS),
       }
     end

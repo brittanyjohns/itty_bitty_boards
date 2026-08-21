@@ -162,21 +162,17 @@ es:
       glance:
         allergies: Alergias
         how_i_talk: Cómo me comunico
-        call_first: A quién llamar
         none_listed: No indicado
         plus_one: más %{value}
         plus_many: más %{count}
-      says:
-        intro_html: Me comunico usando %{primary}
-        rest_and_html: " y %{values}"
-        neutral: Cómo me comunico y qué ayuda varía día a día.
+      subheader:
+        default: Me comunico de otra manera. Por favor, ten paciencia y dame tiempo.
       half:
         fold_here: Doblar aquí
         turn_over: Dale la vuelta para ver cómo %{name} come, se mueve, se comunica y qué le ayuda durante el día.
         full_plan_note: "El plan completo está en mi página en línea →"
       wallet:
         my_live_page: MI PÁGINA EN LÍNEA
-        call_first: A quién llamar
         legend_cut: cortar
         legend_fold: doblar
       emergency:

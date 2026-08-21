@@ -1,9 +1,14 @@
 <%# The identity block: avatar, name, pronoun chip (own line, deliberately not
     inline with the h1 — see the layout's .pronoun comment), the first-person
-    "says" line, and the QR. Shared by the sheet (wrapped in <header
+    subheader, and the QR. Shared by the sheet (wrapped in <header
     class="identity">) and the half size's front face (wrapped in <div
     class="fid">) — the CSS scales by that ancestor class, so the markup
     inside is identical between the two sizes.
+
+    @subheader is the caller's choice and arrives already resolved — the
+    default copy when they didn't supply words, nil when they asked for no
+    line. There is nothing to fall back to here; a missing line is a decision,
+    not a gap. The `.says` class name predates the option and is left alone.
 
     The wallet card's front face does not use this partial — it's compact
     enough (photo, name, QR on one row, no doctype line) not to be worth
@@ -22,12 +27,8 @@
   <% if @pronouns.present? %>
     <div><span class="pronoun"><%= @pronouns %></span></div>
   <% end %>
-  <% if @says %>
-    <div class="says">
-      <%= t("care.document.says.intro_html", primary: content_tag(:em, @says.primary)) %><% if @says.rest.any? %><%= t("care.document.says.rest_and_html", values: @says.rest.join(", ")) %><% end %>.<% if @says.helps.present? %> <%= @says.helps %>.<% end %>
-    </div>
-  <% else %>
-    <div class="says muted"><%= t("care.document.says.neutral") %></div>
+  <% if @subheader.present? %>
+    <div class="says"><%= @subheader %></div>
   <% end %>
 </div>
 

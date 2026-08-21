@@ -297,7 +297,7 @@ Each cell also has a `*_preview_png` twin holding the thumbnail — see "Each
 document carries a PNG thumbnail" below.
 
 `:care_only` + `wallet` is deliberately absent — strip the emergency block out
-of a wallet card and what's left is a name, a photo, and five care lines,
+of a wallet card and what's left is a name, a photo, and a few care lines,
 which isn't worth the paper. `GenerateCarePlan.supported?(variant, size)`
 answers this without raising; the endpoint uses it to return 422
 `unsupported_size` rather than emitting the card. An unrecognized size string
@@ -324,6 +324,19 @@ data.
   (`WALLET_LINE_MAX_CHARS`) — a maxed-out section's joined values run to
   hundreds of characters on their own, and capping only the line count let
   one long line silently overflow the 2in strip on its own.
+
+  **The line count and the character cap are ONE budget, and the half size's
+  last-resort tier needs both too** (`HALF_TRUNCATED_LINE_LIMIT` /
+  `HALF_TRUNCATED_LINE_MAX_CHARS`). That tier had only a line cap, on the
+  theory that a 4.5in back panel is roomy — but eight lines that each wrap to
+  four visual lines is thirty-two lines, and the panel clipped the last of
+  them plus its own footnote. Pick the pair together: characters that fit N
+  visual lines, times a count that fits the panel at N.
+
+  `#condensed_care_lines` cuts on a WORD boundary. The lines are a
+  comma-joined list of short care options, so a mid-word cut lands inside one
+  and prints a fragment ("Keep my device close, Wai…") that reads as a
+  different answer from the one the parent picked.
 - **A long unbroken token (a 300-character short_text field with no spaces,
   a URL) needs `overflow-wrap: break-word` on `body`** in
   `layouts/pdf_care_plan.html.erb` — without it such a token doesn't wrap, it
@@ -333,6 +346,30 @@ data.
   additionally needs `flex: 1; min-width: 0` — a flex item's default
   `min-width: auto` refuses to shrink below its own content's natural width,
   which overflows the row even with `break-word` set.
+- **A fixed-height fold face is a flex column, and a flex column SHRINKS
+  before it overflows.** `.fpanel` (half) and `.wstrip .half` (wallet) are
+  fixed-height `overflow: hidden` flex columns, so an over-full face doesn't
+  spill — the flex algorithm takes the height out of whichever child can give,
+  and that child then clips its own content in silence. It picked the glance
+  strip, which printed as a row of half-height cells with "Allergies" and
+  "How I talk" sliced through the middle: a layout bug that looks like a
+  content bug. `.fpanel > *` and `.wstrip .half > *` are pinned to
+  `flex: none` so nothing on either face may shrink. The honest failure for an
+  over-full face is content running past the fold, which is visible; the
+  overflow ladder is what stops it getting there.
+
+  For the same reason, anything that CENTRES content inside such a face uses
+  `justify-content: safe center`, never plain `center` — plain `center` splits
+  an overflow across both edges, and on a back face that means spilling over
+  the fold onto the front.
+- **One subject per face on both fold sizes.** Front: who this is and who to
+  call (identity, allergies, contacts). Back: day-to-day support. The wallet
+  card used to keep the contacts on the back above the care lines with a
+  one-line "Call first" repeat of the top contact squeezed onto the front,
+  which printed the same phone number on both faces of a card small enough to
+  read at a glance, and left the front half-empty while the back overflowed. A
+  reader turning the card over should be answering a different question, not
+  re-reading the last one.
 - **`half` and `wallet` print single-sided; the back face is authored upright
   and rotated 180deg by a `.flip` class** (folding print-side-out applies
   exactly that rotation — see the CSS comment above `.flip` in the layout for
@@ -352,13 +389,41 @@ data.
   no-network rule applies to icons same as fonts). A custom section maps to
   `"trav"` (navy) rather than getting a colour of its own, so four
   parent-authored sections don't turn the sheet into a paint chart.
-- **The identity block's first-person line (`CarePlanDocument#says`) and the
-  glance strip's "How I talk" (`#glance_how_i_talk`) are derived from the
-  communication section independently of `only_sections`.** They introduce the
+- **The glance strip's "How I talk" (`#glance_how_i_talk`) is derived from the
+  communication section independently of `only_sections`.** It introduces the
   person; narrowing the printed sections to "meals only" shouldn't erase how
   the subject talks. A communication section the parent explicitly disabled
   (`enabled: false`) is still respected, though — that's a real "nothing to
   say" state, not a filter.
+- **The line under the name is the CALLER's `subheader`, not derived data, and
+  its default is never stored.** `subheader` supplies the words,
+  `include_subheader: false` drops the line, and blank or absent means the
+  default copy (`care.document.subheader.default`), resolved at RENDER time.
+  Storing that default would break the same rule `profiles.bio` /
+  `profiles.intro` are under — the line prints in the communicator's own
+  first-person voice, so seeding it publishes words nobody wrote and makes "is
+  there a subheader" stop meaning "did someone write one". Blank and absent are
+  the SAME answer here, unlike `sections`, where `[]` is a real request.
+  `SUBHEADER_MAX_CHARS` caps it because it rides the freshness signature.
+
+  It used to be `CarePlanDocument#says`, a sentence built from the
+  communication answers ("I communicate using AAC device and gestures. Keep my
+  device close.") — which restated the "How I talk" glance cell a centimetre
+  below it. The struct, the `care.document.says.*` keys and the derivation are
+  all retired; `#glance_how_i_talk` still carries that fact.
+
+  The controller's `include_subheader` is **absent-means-included**: reading a
+  missing param through `truthy?` would have silently dropped the line from
+  every download made by the client in production, which predates the option
+  and sends neither param. Rendered by `sheet` and `half`; the wallet's 2in
+  front face has no room and doesn't ask for it.
+- **The "At a glance" strip is two cells, not three.** It carried a third
+  "Call first" cell repeating the first contact's phone number — a few
+  millimetres above the contact cards in the emergency block directly below
+  it, on both sizes that render the strip. The contact list is ordered and its
+  first entry IS the one to call, so the cell said nothing the page didn't
+  already say, and on the half size it was part of what pushed the front face
+  over its height budget. `CarePlanDocument#call_first_contact` went with it.
 - **Allergies render in the "At a glance" strip and nowhere else.** The
   emergency grid's field loop explicitly skips `field.key == "allergies"`;
   `CarePlanDocument::EMERGENCY_FIELDS` still includes it (nothing else changes

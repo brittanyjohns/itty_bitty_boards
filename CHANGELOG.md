@@ -21,7 +21,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `half`, or `wallet`); `half` is one Letter page folded once, `wallet` is
   four cut-and-fold strips per Letter page, and both print single-sided. The
   care-only variant is offered at `sheet` and `half` but not `wallet` — a
-  wallet card with no emergency block isn't worth the paper.
+  wallet card with no emergency block isn't worth the paper. Both fold sizes
+  put one subject on each face: who this is and who to call on the front,
+  day-to-day support on the back, so nothing is printed twice and neither
+  face folds down half-empty.
 
 ### Changed
 
@@ -41,9 +44,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   section gets its own colour and icon; the header is a cream identity card
   with a gradient hairline instead of a full gradient band; the emergency
   block is a white card with a red left rail instead of a red-filled box; and
-  a new "At a glance" strip (allergies, how the communicator talks, who to
-  call first) sits above it. Existing downloads keep serving the old look
-  until regenerated.
+  a new "At a glance" strip (allergies and how the communicator talks) sits
+  above it. Existing downloads keep serving the old look until regenerated.
+
+- **The line under the communicator's name is now yours to write, or to turn
+  off.** It used to be assembled from the communication section ("I communicate
+  using AAC device and gestures. Keep my device close."), which repeated the
+  "How I talk" cell in the At a glance strip just below it. It defaults to
+  "I communicate differently. Please be kind & give me time.", and `POST
+  /api/profiles/:id/care_plan` takes `subheader` (your own words, up to 160
+  characters) and `include_subheader=false` (no line at all). Both are
+  per-download choices — nothing is saved to the profile — and both ride the
+  document's freshness signature, so changing either regenerates the PDF. A
+  client that sends neither keeps the default line. It prints on the sheet and
+  half sizes; the wallet card has no room for it.
 
 - **Text tiles render once and are reused.** A text-tile picture is fully
   determined by its settings, so identical renders now share one rendered image

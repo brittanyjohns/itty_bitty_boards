@@ -1,11 +1,19 @@
 <%# The "At a glance" strip — the five-second read. Shared by the sheet and
     half sizes (the wallet's front face has its own, more compact markup).
-    Reads @allergies / @glance_how_i_talk / @call_first_contact directly, the
-    same ivars GenerateCarePlan sets for every size.
+    Reads @allergies / @glance_how_i_talk directly, the same ivars
+    GenerateCarePlan sets for every size.
 
     Allergies print HERE and nowhere else — the emergency block's grid skips
     the allergies field on purpose. Printing it twice was the first mockup's
-    bug. %>
+    bug.
+
+    TWO cells, not three: a "Call first" cell used to sit alongside these, and
+    it repeated the first contact's phone number a few millimetres above the
+    contact cards in the emergency block directly below it. Both sizes that
+    render this strip render those contacts on the SAME face, so the cell was
+    never the only place a reader could find that number — it just made the
+    glance strip say something the page already said. The contact list is
+    ordered, and its first entry is the one to call. %>
 <section class="glance">
   <div class="cell danger">
     <div class="k"><%= t("care.document.glance.allergies") %></div>
@@ -16,15 +24,6 @@
     <% if @glance_how_i_talk %>
       <div class="v"><%= @glance_how_i_talk[:primary] %></div>
       <% if @glance_how_i_talk[:sub] %><div class="sub"><%= @glance_how_i_talk[:sub] %></div><% end %>
-    <% else %>
-      <div class="v muted"><%= t("care.document.glance.none_listed") %></div>
-    <% end %>
-  </div>
-  <div class="cell">
-    <div class="k"><%= t("care.document.glance.call_first") %></div>
-    <% if @call_first_contact %>
-      <div class="v"><%= @call_first_contact["phone"] %></div>
-      <div class="sub"><%= [@call_first_contact["name"], @call_first_contact["relationship"]].select(&:present?).join(" · ") %></div>
     <% else %>
       <div class="v muted"><%= t("care.document.glance.none_listed") %></div>
     <% end %>

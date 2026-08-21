@@ -77,6 +77,8 @@ class API::Profiles::AssetsController < API::ApplicationController
       size: size,
       regenerate: truthy?(params[:regenerate]),
       sections: sections,
+      subheader: subheader_param,
+      include_subheader: include_subheader_param,
     )
 
     attachment = @profile.public_send(
@@ -107,6 +109,26 @@ class API::Profiles::AssetsController < API::ApplicationController
 
     list = raw.is_a?(Array) ? raw : raw.to_s.split(",")
     list.map { |key| key.to_s.strip }.reject(&:empty?).first(MAX_CARE_SECTIONS)
+  end
+
+  # The line under the communicator's name. Blank and absent are the same
+  # answer — both mean "print the default copy" — unlike `sections`, where an
+  # empty list is a real request. Capped because it rides the document's
+  # freshness signature; never validated further, since it is the parent's own
+  # words and the template escapes on output like any ERB tag.
+  def subheader_param
+    params[:subheader].to_s.strip.presence&.slice(
+      0, Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS
+    )
+  end
+
+  # Absent means INCLUDED. `truthy?` alone would read a missing param as
+  # false and silently drop the line from every download made by a client that
+  # predates this option — including the one in production today.
+  def include_subheader_param
+    return true unless params.key?(:include_subheader)
+
+    truthy?(params[:include_subheader])
   end
 
   # `full` can print on emergency info alone, so the two variants run out of

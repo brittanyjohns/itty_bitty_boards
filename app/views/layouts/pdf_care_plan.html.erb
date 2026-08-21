@@ -206,10 +206,15 @@
         text-transform: uppercase; color: var(--blue-mid); background: #fff;
         border: 0.75pt solid #CBDCEA; border-radius: 999pt; padding: 1pt 6pt; margin-top: 3pt;
       }
+      /* The "says" line is a caption under the name, not a second headline.
+         It ran at nearly the body size and in two weights of navy, so on the
+         half size it read as a subtitle competing with the h1 it sits under —
+         the name is what a reader is looking for first. Sized down and set in
+         one weight here; .fid scales it a little for the bigger panel. */
       .identity .says, .fid .says {
-        font-size: 8.3pt; font-weight: 600; color: #3B3A38; margin-top: 3pt; line-height: 1.25;
+        font-size: 7.4pt; font-weight: 600; color: #4A4845; margin-top: 2.5pt; line-height: 1.25;
       }
-      .says em { font-style: normal; font-weight: 800; color: var(--navy); }
+      .says em { font-style: normal; font-weight: 700; color: var(--navy); }
       .says.muted { color: var(--muted); font-style: italic; font-weight: 500; }
 
       .qrblock { flex: none; text-align: center; width: 62pt; }
@@ -222,8 +227,10 @@
       .qrblock .url { font-size: 5pt; font-weight: 600; color: var(--muted); word-break: break-all; line-height: 1.15; margin-top: 1pt; }
 
       /* ================= at a glance (sheet + half) ================= */
+      /* Two cells — allergies and how I talk. The third, "Call first", is gone:
+         see the note in _care_plan_glance.html.erb. */
       .glance {
-        display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 0;
         margin-top: 8pt; border: 1pt solid var(--rule); border-radius: 8pt; overflow: hidden;
       }
       .glance .cell { padding: 6pt 9pt; border-left: 1pt solid var(--rule); }
@@ -349,32 +356,51 @@
       }
 
       /* ================= half-page fold card ================= */
+      /* The fold is at the geometric middle of the sheet — 5.5in of 11in — and
+         each panel is the same 5.5in tall, so a printed copy creases exactly
+         in half. Never trade that for a taller face: the crease is what a
+         reader lines up when they fold it back along an existing fold. */
       .foldsheet { width: 8.5in; height: 11in; position: relative; overflow: hidden; }
       .fpanel { height: 5.5in; padding: 0 0.5in 0.3in; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+      /* A panel is a fixed-height flex column with `overflow: hidden`, which
+         means an over-full face does not simply spill — the flex algorithm
+         SHRINKS whichever child can give, and that child then clips its own
+         content silently. It picked the glance strip, so "Allergies / How I
+         talk" printed as a row of half-height cells with the values sliced
+         through the middle. Nothing on either face may shrink: if a face is
+         over-full the honest failure is content running past the fold, which
+         is visible, and the overflow ladder is what prevents it. */
+      .fpanel > * { flex: none; }
       /* Gradient sits on each face's OUTER edge, not at the fold — two bars
          meeting at the crease made a 12pt band that got creased in half and
          collided with the fold marks. */
       .fbar { position: absolute; left: 0; right: 0; bottom: 0; height: 6pt; background: var(--brand-gradient-hairline); }
 
-      .fid { display: flex; align-items: center; gap: 13pt; padding: 12pt 0 10pt; }
-      .fid .portrait { width: 80pt; height: 80pt; padding: 2.5pt; }
+      .fid { display: flex; align-items: center; gap: 12pt; padding: 9pt 0 7pt; }
+      .fid .portrait { width: 68pt; height: 68pt; padding: 2.5pt; }
       .fid .portrait img { border: 2pt solid #fff; }
-      .fid h1 { font-size: 25pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; color: var(--navy); }
-      .fid .says { font-size: 10.5pt; margin-top: 4pt; }
+      .fid h1 { font-size: 23pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; color: var(--navy); }
+      .fid .says { font-size: 8.6pt; margin-top: 3pt; }
       .fid .qrblock { width: 78pt; }
       .fid .qrblock img { width: 58pt; height: 58pt; }
       .fid .qrblock .cap { font-size: 6pt; }
       .fid .qrblock .url { font-size: 5.4pt; }
 
-      .fpanel .glance { margin-top: 9pt; }
-      .fpanel .glance .v { font-size: 13.5pt; }
+      /* The front face is the tight one — identity, glance, emergency and the
+         footnote all have to land inside 5.5in for a profile with three
+         contacts and a long notes field. Everything below is sized against
+         that budget; trimming the glance or the contact cards is what buys
+         room, never letting a child shrink (see `.fpanel > *`). */
+      .fpanel .glance { margin-top: 7pt; }
+      .fpanel .glance .v { font-size: 12.5pt; }
       .fpanel .glance .k { font-size: 6.5pt; }
       .fpanel .glance .sub { font-size: 7.5pt; }
-      .fpanel .glance .cell { padding: 7pt 11pt; }
+      .fpanel .glance .cell { padding: 6pt 11pt; }
 
-      .fpanel .emergency { margin-top: 9pt; }
-      .fpanel .contact .phone { font-size: 17pt; }
-      .fpanel .contact .name { font-size: 9pt; }
+      .fpanel .emergency { margin-top: 7pt; padding: 6pt 10pt; }
+      .fpanel .contact { padding: 4pt 8pt; }
+      .fpanel .contact .phone { font-size: 15.5pt; }
+      .fpanel .contact .name { font-size: 8.5pt; }
 
       .ffoot { margin-top: auto; padding-top: 7pt; display: flex; align-items: center; gap: 7pt; border-top: 0.75pt solid var(--rule); }
       .ffoot p { flex: 1; font-size: 6.8pt; color: var(--muted); line-height: 1.3; }
@@ -382,8 +408,18 @@
       .ffoot img { width: 14pt; height: 14pt; flex: none; }
       .ffoot .full-plan-note { display: block; font-size: 6.5pt; font-weight: 700; color: var(--navy); margin-top: 2pt; }
 
-      /* Back face is tighter than the sheet — 4.5in of usable height. */
-      .fpanel .care-heading { margin: 8pt 0 5pt; }
+      /* Back face is tighter than the sheet — 4.5in of usable height.
+         .fbody takes whatever the care block doesn't use and splits it above
+         and below, so a profile that answered three sections prints as a
+         balanced face rather than a band of cards jammed against one edge
+         with an inch of white under it. The footnote stays pinned to the
+         bottom (its own margin-top: auto) either way. */
+      /* `safe center` centres only while the content FITS. Plain `center`
+         splits an overflow across both edges, which on the back face means
+         spilling over the fold and onto the front — the one direction an
+         over-full face must never grow. */
+      .fpanel .fbody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: safe center; }
+      .fpanel .care-heading { margin: 0 0 5pt; }
       .fpanel .cols { column-gap: 16pt; }
       .fpanel .card { padding: 5.5pt 8pt; margin-bottom: 5pt; }
       .fpanel .card .hd { margin-bottom: 3pt; }
@@ -416,44 +452,65 @@
         display: grid; grid-template-columns: repeat(2, 3.5in); grid-template-rows: repeat(2, 4in);
         justify-content: center; align-content: center; gap: 0;
       }
+      /* Each strip folds at 2in of 4in — the exact middle, same rule the half
+         size's 5.5in crease follows. Both faces are sized to be FILLED: the
+         front carries identity + allergies + every contact, the back carries
+         the day-to-day lines. See the one-subject-per-face note in
+         _care_plan_wallet_strip.html.erb. */
       .wstrip { width: 3.5in; height: 4in; position: relative; background: #fff; border: 1pt solid #B9B6C4; overflow: hidden; }
-      .wstrip .half { height: 2in; position: relative; overflow: hidden; padding: 7pt 9pt; }
+      .wstrip .half { height: 2in; position: relative; overflow: hidden; padding: 7pt 9pt; display: flex; flex-direction: column; }
+      /* Same rule as .fpanel > *: a fixed-height flex column with hidden
+         overflow shrinks-then-clips instead of spilling, and the clip is
+         silent. Nothing on a wallet face may shrink. */
+      .wstrip .half > * { flex: none; }
       .wstrip .half .wtop { position: absolute; left: 0; right: 0; bottom: 0; top: auto; height: 4pt; background: var(--brand-gradient-hairline); }
 
       .wfront .who { display: flex; gap: 7pt; align-items: center; }
-      .wfront .pic { flex: none; width: 38pt; height: 38pt; border-radius: 999pt; padding: 1.5pt; background: var(--brand-gradient-hairline); }
+      .wfront .pic { flex: none; width: 36pt; height: 36pt; border-radius: 999pt; padding: 1.5pt; background: var(--brand-gradient-hairline); }
       .wfront .pic img { width: 100%; height: 100%; border-radius: 999pt; object-fit: cover; object-position: 50% 22%; display: block; }
       .wfront .nm { flex: 1; min-width: 0; }
       .wfront .nm h4 { font-size: 12pt; font-weight: 900; line-height: 1.05; color: var(--navy); letter-spacing: -0.015em; }
+      /* The live-page URL, moved off the old absolutely-positioned .wfoot at
+         the bottom edge — that strip of the front is contacts now. */
+      .wfront .nm .u { font-size: 4.6pt; font-weight: 700; color: var(--muted); line-height: 1.2; margin-top: 1.5pt; word-break: break-all; }
       .wfront .qr { flex: none; text-align: center; width: 38pt; }
       .wfront .qr img { width: 34pt; height: 34pt; display: block; margin: 0 auto; }
       .wfront .qr .c { font-size: 4.2pt; font-weight: 800; color: var(--muted); letter-spacing: 0.04em; margin-top: 1pt; line-height: 1.1; }
 
-      .wallergy { margin-top: 6pt; background: var(--alert-tint); border-left: 2.5pt solid var(--alert); border-radius: 4pt; padding: 3.5pt 6pt; }
+      .wallergy { margin-top: 5pt; background: var(--alert-tint); border-left: 2.5pt solid var(--alert); border-radius: 4pt; padding: 3pt 6pt; }
       .wallergy .k { font-size: 5.4pt; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alert); }
-      .wallergy .v { font-size: 10pt; font-weight: 900; color: var(--alert); line-height: 1.1; letter-spacing: -0.01em; }
+      .wallergy .v { font-size: 9.5pt; font-weight: 900; color: var(--alert); line-height: 1.1; letter-spacing: -0.01em; }
 
-      .wcall { display: flex; align-items: baseline; gap: 4pt; margin-top: 4pt; }
-      .wcall .k { font-size: 5.4pt; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-      .wcall .p { font-size: 9pt; font-weight: 900; letter-spacing: -0.02em; color: var(--ink); }
-      .wcall .n { font-size: 6pt; font-weight: 700; color: var(--muted); }
+      /* Contacts on the FRONT. One row per contact — the relationship and name
+         on the left, the number right-aligned and set large, because that
+         number is the whole reason the card is in someone's pocket. */
+      /* margin-top: auto settles the contacts against the cut edge, so the
+         face's leftover height falls between the blocks instead of pooling at
+         the bottom — the whitespace this card used to print under a lone
+         "Call first" line. */
+      .wcontacts { margin-top: auto; padding-top: 4pt; border-top: 0.75pt solid var(--rule); }
+      .wcontacts .chead {
+        font-size: 5.2pt; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;
+        color: var(--alert); margin-bottom: 2.5pt;
+      }
+      .wcontacts .c { display: flex; align-items: baseline; justify-content: space-between; gap: 5pt; margin-bottom: 1.5pt; }
+      .wcontacts .c .n { flex: 1; min-width: 0; font-size: 5.8pt; font-weight: 800; color: var(--navy); line-height: 1.15; }
+      .wcontacts .c .p { flex: none; font-size: 9.5pt; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; white-space: nowrap; }
 
-      .wfoot { position: absolute; left: 9pt; right: 9pt; bottom: 5pt; display: flex; align-items: center; justify-content: space-between; gap: 5pt; }
-      .wfoot .u { font-size: 5pt; font-weight: 700; color: var(--muted); }
-      .wfoot img { width: 8pt; height: 8pt; }
-
-      .wback .bhead { font-size: 5.6pt; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: var(--alert); margin-bottom: 3pt; }
-      .wcontacts { display: flex; gap: 6pt; margin-bottom: 5pt; }
-      .wcontacts .c { flex: 1; background: var(--cream); border-radius: 5pt; padding: 3pt 5pt; }
-      .wcontacts .c .n { font-size: 5.6pt; font-weight: 800; color: var(--navy); line-height: 1.1; }
-      .wcontacts .c .p { font-size: 9.5pt; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; }
-      .wlist { border-top: 0.75pt solid var(--rule); padding-top: 4pt; }
-      .wlist .li { display: flex; gap: 4pt; margin-bottom: 2.5pt; align-items: baseline; }
+      .wback .bhead {
+        font-size: 5.6pt; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;
+        color: var(--navy); margin-bottom: 3pt; display: flex; align-items: center; gap: 4pt;
+      }
+      .wback .bhead::after { content: ""; flex: 1; height: 1pt; background: var(--cyan); }
+      /* The back is one block in a 2in face, so it centres in whatever it
+         doesn't fill — same reason .fbody exists on the half size. */
+      .wback .wlist { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: safe center; }
+      .wlist .li { display: flex; gap: 4pt; margin-bottom: 2pt; align-items: baseline; }
       .wlist .li .k {
-        flex: none; width: 58pt; font-size: 4.4pt; font-weight: 900; letter-spacing: 0.04em;
+        flex: none; width: 52pt; font-size: 4.4pt; font-weight: 900; letter-spacing: 0.04em;
         text-transform: uppercase; color: var(--muted); line-height: 1.25;
       }
-      .wlist .li .v { flex: 1; min-width: 0; font-size: 6.8pt; font-weight: 700; line-height: 1.2; color: #2A2724; }
+      .wlist .li .v { flex: 1; min-width: 0; font-size: 6.6pt; font-weight: 700; line-height: 1.18; color: #2A2724; }
 
       /* Cut/fold legend, printed once in the page margin below the 2x2 grid. */
       .wallet-legend {

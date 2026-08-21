@@ -51,7 +51,13 @@ RSpec.describe "API::CareSections", type: :request do
       expect(preferences).not_to have_key("options")
     end
 
-    it "serves every cap the sanitizer enforces" do
+    # Exhaustive on purpose: a cap the editor doesn't know about is a field it
+    # will let a parent overrun and then watch the server truncate.
+    # `subheader_max` is the one here the sanitizer doesn't enforce — it bounds
+    # a per-download param the care plan controller caps, not stored data — but
+    # it is served alongside the rest because it bounds a field in the same
+    # editor.
+    it "serves every cap a care form has to respect" do
       get "/api/care_sections"
       limits = JSON.parse(response.body)["limits"]
 
@@ -63,6 +69,7 @@ RSpec.describe "API::CareSections", type: :request do
         "item_label_max" => Profile::CARE_ITEM_LABEL_MAX,
         "item_value_max" => Profile::CARE_ITEM_VALUE_MAX,
         "short_text_max" => Profile::CARE_SHORT_TEXT_MAX,
+        "subheader_max" => Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS,
       )
     end
 
