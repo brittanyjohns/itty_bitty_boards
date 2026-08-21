@@ -18,7 +18,11 @@ class CommunicationAccountMailer < BaseMailer
     @child_account = child_account
     @profile = child_account.profile
     @child_name = child_account.display_name
-    @download_url = "#{frontend_url}/communicators/#{child_account.id}/safety"
+    # /communicators/:id/... is not a route the frontend declares (and no
+    # Netlify redirect covers it) — that URL 404s. The communicator screen
+    # lives at /communicator-accounts/:id/:tab, and the device tag + safety
+    # cards are in the "Print & share" section of the MySpeak tab.
+    @download_url = "#{frontend_url}/communicator-accounts/#{child_account.id}/myspeak#print-share"
 
     with_user_locale(user) do
       mail(
