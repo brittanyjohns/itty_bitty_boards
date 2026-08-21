@@ -216,6 +216,88 @@ RSpec.describe "API::Profiles care plan", type: :request do
     end
   end
 
+  # The line under the communicator's name. Nothing is persisted — the words
+  # and the on/off ride the request, and the default copy is resolved at render
+  # time from the locale files.
+  describe "the subheader params" do
+    before { profile.update!(settings: care.merge(emergency)) }
+
+    # Both Grover calls of a generate are handed the identical HTML — that is
+    # the point of rendering the ERB once — so the first one is the document.
+    def rendered_html
+      captured = nil
+      allow(Grover).to receive(:new) do |html, **_opts|
+        captured ||= html
+        instance_double(Grover, to_pdf: "%PDF-stub", to_png: "\x89PNG-stub")
+      end
+      yield
+      captured
+    end
+
+    # The default copy has an ampersand in it, so the rendered HTML holds the
+    # escaped form — the same one level of escaping every other output tag
+    # produces.
+    def default_copy
+      CGI.escapeHTML(I18n.t("care.document.subheader.default"))
+    end
+
+    it "prints the default copy when neither param is sent" do
+      html = rendered_html { post_care_plan(parent) }
+
+      expect(html).to include(default_copy)
+    end
+
+    it "prints the caller's own words" do
+      html = rendered_html { post_care_plan(parent, subheader: "Give me time to answer.") }
+
+      expect(html).to include("Give me time to answer.")
+      expect(html).not_to include(default_copy)
+    end
+
+    it "drops the line when include_subheader is false" do
+      html = rendered_html { post_care_plan(parent, include_subheader: "false") }
+
+      expect(html.split("</style>").last).not_to include(%(class="says"))
+      expect(html).not_to include(default_copy)
+    end
+
+    # `truthy?` alone reads an absent param as false, which would have silently
+    # dropped the line from every download made by the client in production
+    # today — it predates this option and sends neither param.
+    it "includes the line for a client that sends neither param" do
+      html = rendered_html { post_care_plan(parent, size: "half") }
+
+      expect(html.split("</style>").last).to include(%(class="says"))
+    end
+
+    it "caps the words it accepts" do
+      long = "z" * (Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS + 50)
+      html = rendered_html { post_care_plan(parent, subheader: long) }
+
+      expect(html).to include("z" * Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS)
+      expect(html).not_to include("z" * (Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS + 1))
+    end
+
+    # The default copy is SERVED, not duplicated into the download form — the
+    # placeholder there would otherwise drift from what actually prints the
+    # first time the copy is edited.
+    it "is served by the care registry alongside its cap" do
+      get "/api/care_sections"
+
+      body = JSON.parse(response.body)
+      expect(body["subheader_default"]).to eq(I18n.t("care.document.subheader.default"))
+      expect(body["limits"]["subheader_max"])
+        .to eq(Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS)
+    end
+
+    it "escapes the parent's own words like any other output" do
+      html = rendered_html { post_care_plan(parent, subheader: "Ask me <first> & wait") }
+
+      expect(html).to include("Ask me &lt;first&gt; &amp; wait")
+      expect(html).not_to include("Ask me <first>")
+    end
+  end
+
   # Refusing beats emitting a sheet of empty headings, which reads as a finished
   # plan asserting this child needs nothing.
   describe "empty states" do

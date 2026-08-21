@@ -354,31 +354,15 @@ RSpec.describe Communicators::CarePlanDocument do
     end
   end
 
-  # The identity block's first-person line and the glance strip's "How I
-  # talk" cell — both derived from the communication section, independent of
-  # `only_sections`.
-  describe "#says and #glance_how_i_talk" do
+  # The glance strip's "How I talk" cell — derived from the communication
+  # section, independent of `only_sections`. (The identity block's line under
+  # the name used to be derived from the same answers; it is the caller's
+  # `subheader` now — see generate_care_plan_spec.rb.)
+  describe "#glance_how_i_talk" do
     it "is nil when nothing is stored for communication" do
       doc = with_care("sections" => { "meals" => { "values" => { "preferences" => "hates cold food" } } })
 
-      expect(doc.says).to be_nil
       expect(doc.glance_how_i_talk).to be_nil
-    end
-
-    it "carries the primary method, the rest, and what helps" do
-      doc = with_care(
-        "sections" => {
-          "communication" => {
-            "values" => { "methods" => %w[aac_device eye_gaze some_speech], "what_helps" => ["wait_and_pause"] },
-          },
-        },
-      )
-
-      says = doc.says
-      expect(says.primary).to eq("AAC device")
-      # Sentence-cased for the middle of a sentence, not the label's own casing.
-      expect(says.rest).to eq(["eye gaze", "some speech"])
-      expect(says.helps).to eq("Wait and pause")
     end
 
     it "builds the glance cell's primary value and a 'plus N more' sub line" do
@@ -402,7 +386,7 @@ RSpec.describe Communicators::CarePlanDocument do
         "sections" => { "communication" => { "enabled" => false, "values" => { "methods" => ["aac_device"] } } },
       )
 
-      expect(doc.says).to be_nil
+      expect(doc.glance_how_i_talk).to be_nil
     end
 
     it "is independent of only_sections — narrowing to another section keeps it" do
@@ -417,11 +401,11 @@ RSpec.describe Communicators::CarePlanDocument do
       )
 
       expect(doc.care_sections.map(&:key)).to eq(%w[meals])
-      expect(doc.says.primary).to eq("AAC device")
+      expect(doc.glance_how_i_talk[:primary]).to eq("AAC device")
     end
   end
 
-  describe "#allergies and #call_first_contact" do
+  describe "#allergies" do
     it "resolves allergies from the emergency data" do
       doc = with_care({ "sections" => {} }, { "allergies" => "peanuts" })
       expect(doc.allergies).to eq("peanuts")
@@ -430,23 +414,6 @@ RSpec.describe Communicators::CarePlanDocument do
     it "is nil when allergies were never answered" do
       doc = with_care({ "sections" => {} }, {})
       expect(doc.allergies).to be_nil
-    end
-
-    it "is the first stored emergency contact" do
-      doc = with_care(
-        { "sections" => {} },
-        {
-          "ice_contact_1" => { "name" => "Sam", "phone" => "555-0100", "relationship" => "Dad" },
-          "ice_contact_2" => { "name" => "Alex", "phone" => "555-0200", "relationship" => "Mom" },
-        },
-      )
-
-      expect(doc.call_first_contact["name"]).to eq("Sam")
-    end
-
-    it "is nil when there are no contacts" do
-      doc = with_care({ "sections" => {} }, {})
-      expect(doc.call_first_contact).to be_nil
     end
   end
 
@@ -466,6 +433,41 @@ RSpec.describe Communicators::CarePlanDocument do
       expect(lines.length).to eq(1)
       expect(lines.first[:label]).to eq("Meals & snacks")
       expect(lines.first[:text]).to eq("Soft, Chopped, watered-down apple juice")
+    end
+
+    # These lines are a comma-joined list of short care options, so a mid-word
+    # cut lands inside one of them and prints a fragment that reads as a
+    # different answer from the one the parent picked.
+    it "truncates on a word boundary, never mid-option" do
+      doc = with_care(
+        "order" => %w[communication],
+        "sections" => {
+          "communication" => {
+            "values" => { "methods" => %w[aac_device sign gestures eye_gaze partner_assisted] },
+          },
+        },
+      )
+
+      text = doc.condensed_care_lines(truncate_at: 30).first[:text]
+
+      kept = text.delete_suffix("…")
+      full = doc.condensed_care_lines.first[:text]
+
+      expect(text.length).to be <= 30
+      expect(text).to end_with("…")
+      # What survives is a prefix of the full line that stops at a space —
+      # i.e. the cut landed between options, not inside one.
+      expect(full).to start_with(kept)
+      expect(full[kept.length]).to eq(" ")
+    end
+
+    it "leaves a line that fits the cap alone" do
+      doc = with_care(
+        "order" => %w[communication],
+        "sections" => { "communication" => { "values" => { "methods" => %w[aac_device] } } },
+      )
+
+      expect(doc.condensed_care_lines(truncate_at: 60).first[:text]).to eq("AAC device")
     end
 
     it "caps the number of lines when a limit is given" do

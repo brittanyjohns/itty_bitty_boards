@@ -3,10 +3,14 @@
     with Grover's margin set to 0 (no Chrome header/footer — a folded card
     doesn't get page numbers).
 
-    Two 5.5in panels. The BACK panel is authored upright here and rotated
-    180deg by the `.flip` class — see the fold-mechanics comment in the
-    layout's <style> block before touching that rotation. Bottom panel = front
-    (what's showing on a table), top panel = back (day-to-day support).
+    Two 5.5in panels — the fold is the sheet's exact middle. The BACK panel is
+    authored upright here and rotated 180deg by the `.flip` class — see the
+    fold-mechanics comment in the layout's <style> block before touching that
+    rotation. Bottom panel = front (what's showing on a table), top panel =
+    back (day-to-day support).
+
+    One subject per face, the same split the wallet size makes: the front is
+    who this is and who to call, the back is day-to-day support.
 
     Fixed height, `overflow: hidden` (in .fpanel) — a maxed-out profile WILL
     silently clip past the fold. The overflow ladder below is what keeps that
@@ -21,36 +25,41 @@
   <div class="fpanel flip">
     <div class="fbar"></div>
 
-    <% if @care_sections.any? %>
-      <div class="care-heading"><%= t("care.document.care_heading") %></div>
+    <%# .fbody absorbs whatever height the care block leaves and centres it,
+        so a lightly-answered profile prints a balanced face rather than a
+        band of cards against one edge. See the .fbody note in the layout. %>
+    <div class="fbody">
+      <% if @care_sections.any? %>
+        <div class="care-heading"><%= t("care.document.care_heading") %></div>
 
-      <% if @half_truncated %>
-        <%# Last-resort tier: even comma-joined text would overflow. Drop to
-            one line per section and say where the rest lives. %>
-        <div class="condensed-lines">
-          <% @half_condensed_lines.each do |line| %>
-            <div class="cline">
-              <span class="k"><%= line[:label] %></span>
-              <span class="v"><%= line[:text] %></span>
-            </div>
-          <% end %>
-        </div>
-      <% elsif @half_condensed %>
-        <%# Middle tier: every section and field, comma-joined text instead of
-            chips — roughly half the height per row. %>
-        <div class="cols">
-          <% @care_sections_condensed.each do |section| %>
-            <%= render "communicators/assets/care_plan_card", section: section, chips: false %>
-          <% end %>
-        </div>
-      <% else %>
-        <div class="cols">
-          <% @care_sections.each do |section| %>
-            <%= render "communicators/assets/care_plan_card", section: section %>
-          <% end %>
-        </div>
+        <% if @half_truncated %>
+          <%# Last-resort tier: even comma-joined text would overflow. Drop to
+              one line per section and say where the rest lives. %>
+          <div class="condensed-lines">
+            <% @half_condensed_lines.each do |line| %>
+              <div class="cline">
+                <span class="k"><%= line[:label] %></span>
+                <span class="v"><%= line[:text] %></span>
+              </div>
+            <% end %>
+          </div>
+        <% elsif @half_condensed %>
+          <%# Middle tier: every section and field, comma-joined text instead of
+              chips — roughly half the height per row. %>
+          <div class="cols">
+            <% @care_sections_condensed.each do |section| %>
+              <%= render "communicators/assets/care_plan_card", section: section, chips: false %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="cols">
+            <% @care_sections.each do |section| %>
+              <%= render "communicators/assets/care_plan_card", section: section %>
+            <% end %>
+          </div>
+        <% end %>
       <% end %>
-    <% end %>
+    </div>
 
     <div class="ffoot">
       <p>

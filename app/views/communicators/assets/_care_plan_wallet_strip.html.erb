@@ -3,21 +3,23 @@
     per page by care_plan_wallet.html.erb — identical copies, so a parent has
     spares to cut out.
 
+    ONE SUBJECT PER FACE. The front is who this is and who to call — photo,
+    name, QR, allergies, every emergency contact; the back is the day-to-day
+    care lines and nothing else. The contacts used to live on the BACK, above
+    the care lines, with a one-line "Call first" repeat of the top contact
+    squeezed onto the front — which left the front half-empty, the back
+    over-full, and the same phone number printed on both faces of a card
+    small enough to read at a glance. Keep the split: a reader turning the
+    card over should be answering a different question, not re-reading the
+    last one.
+
     Always condensed (Communicators::GenerateCarePlan::WALLET_LINE_LIMIT
     lines, no chips) regardless of how much the profile has answered — a
     wallet card has no room for the overflow ladder the half size has. %>
 <div class="wstrip">
   <div class="half flip wback">
     <div class="wtop"></div>
-    <div class="bhead"><%= t("care.document.wallet.call_first") %></div>
-    <div class="wcontacts">
-      <% @emergency_contacts.first(2).each do |contact| %>
-        <div class="c">
-          <div class="n"><%= [contact["name"].presence || t("care.document.emergency.relationship_unknown"), contact["relationship"]].select(&:present?).join(" · ") %></div>
-          <div class="p"><%= contact["phone"] %></div>
-        </div>
-      <% end %>
-    </div>
+    <div class="bhead"><%= t("care.document.care_heading") %></div>
     <div class="wlist">
       <% @wallet_lines.each do |line| %>
         <div class="li"><span class="k"><%= line[:label] %></span><span class="v"><%= line[:text] %></span></div>
@@ -35,6 +37,7 @@
       </div>
       <div class="nm">
         <h4><%= @display_name %></h4>
+        <div class="u"><%= @public_url %></div>
       </div>
       <% if @qr_data_url.present? %>
         <div class="qr">
@@ -51,16 +54,14 @@
       </div>
     <% end %>
 
-    <% if @call_first_contact %>
-      <div class="wcall">
-        <span class="k"><%= t("care.document.wallet.call_first") %></span>
-        <span class="p"><%= @call_first_contact["phone"] %></span>
-        <span class="n"><%= [@call_first_contact["name"], @call_first_contact["relationship"]].select(&:present?).join(" · ") %></span>
-      </div>
-    <% end %>
-
-    <div class="wfoot">
-      <span class="u"><%= @public_url %></span>
+    <div class="wcontacts">
+      <div class="chead"><%= t("care.document.emergency.contacts") %></div>
+      <% @emergency_contacts.first(3).each do |contact| %>
+        <div class="c">
+          <div class="n"><%= [contact["name"].presence || t("care.document.emergency.relationship_unknown"), contact["relationship"]].select(&:present?).join(" · ") %></div>
+          <div class="p"><%= contact["phone"] %></div>
+        </div>
+      <% end %>
     </div>
   </div>
 </div>

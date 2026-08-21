@@ -825,8 +825,15 @@ class Profile < ApplicationRecord
         item_label_max: CARE_ITEM_LABEL_MAX,
         item_value_max: CARE_ITEM_VALUE_MAX,
         short_text_max: CARE_SHORT_TEXT_MAX,
+        subheader_max: Communicators::GenerateCarePlan::SUBHEADER_MAX_CHARS,
       },
       custom_key_format: js_custom_key_format,
+      # The care plan's default line under the name, served rather than
+      # duplicated: the download form shows it as the placeholder for "leave
+      # blank for the default", and a hand-copied string there would drift from
+      # what actually prints the first time the copy is edited. Same reason
+      # custom_key_format is derived above rather than written out.
+      subheader_default: I18n.t("care.document.subheader.default", locale: locale),
     }
   end
 
