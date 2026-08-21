@@ -77,6 +77,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The "Download updated cards" button in the safety-cards email goes to a
+  real page.** It pointed at `/communicators/:id/safety`, a path the app has no
+  route or redirect for, so parents told to reprint their child's safety ID
+  card and device tag landed on a 404. It now opens the Print & share section
+  of the communicator's MySpeak tab, where those cards actually live.
+
 - **Detaching a printable from an Etsy draft no longer loses the draft.**
   "Detach & relist" used to forget the listing id, so the superseded draft was
   left in the shop with nothing naming it. Detaching now keeps the listing on
