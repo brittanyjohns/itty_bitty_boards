@@ -334,4 +334,234 @@ RSpec.describe Communicators::CarePlanDocument do
       expect(doc.care_sections.map(&:key)).to eq(%w[meals sensory])
     end
   end
+
+  describe ".style_key_for" do
+    it "maps every built-in section to its own colour key" do
+      %w[communication personal_care meals sensory mobility transportation].each do |key|
+        section = described_class::Section.new(key: key, label: key, custom: false, fields: [], items: [])
+        expect(described_class.style_key_for(section)).to eq(
+          { "communication" => "comm", "personal_care" => "care", "meals" => "meal",
+            "sensory" => "sens", "mobility" => "move", "transportation" => "trav" }.fetch(key),
+        )
+      end
+    end
+
+    # A custom section shares the navy colour rather than inventing its own —
+    # a parent can add four and the sheet would turn into a paint chart.
+    it "maps a custom section to the transportation colour" do
+      section = described_class::Section.new(key: "c_7f3a91", label: "Bedtime", custom: true, fields: [], items: [])
+      expect(described_class.style_key_for(section)).to eq("trav")
+    end
+  end
+
+  # The identity block's first-person line and the glance strip's "How I
+  # talk" cell — both derived from the communication section, independent of
+  # `only_sections`.
+  describe "#says and #glance_how_i_talk" do
+    it "is nil when nothing is stored for communication" do
+      doc = with_care("sections" => { "meals" => { "values" => { "preferences" => "hates cold food" } } })
+
+      expect(doc.says).to be_nil
+      expect(doc.glance_how_i_talk).to be_nil
+    end
+
+    it "carries the primary method, the rest, and what helps" do
+      doc = with_care(
+        "sections" => {
+          "communication" => {
+            "values" => { "methods" => %w[aac_device eye_gaze some_speech], "what_helps" => ["wait_and_pause"] },
+          },
+        },
+      )
+
+      says = doc.says
+      expect(says.primary).to eq("AAC device")
+      # Sentence-cased for the middle of a sentence, not the label's own casing.
+      expect(says.rest).to eq(["eye gaze", "some speech"])
+      expect(says.helps).to eq("Wait and pause")
+    end
+
+    it "builds the glance cell's primary value and a 'plus N more' sub line" do
+      doc = with_care(
+        "sections" => { "communication" => { "values" => { "methods" => %w[aac_device eye_gaze some_speech] } } },
+      )
+
+      glance = doc.glance_how_i_talk
+      expect(glance[:primary]).to eq("AAC device")
+      expect(glance[:sub]).to eq("plus 2 more")
+    end
+
+    it "says 'plus <value>' rather than 'plus 1 more' for exactly one extra method" do
+      doc = with_care("sections" => { "communication" => { "values" => { "methods" => %w[aac_device eye_gaze] } } })
+
+      expect(doc.glance_how_i_talk[:sub]).to eq("plus eye gaze")
+    end
+
+    it "respects a communication section the parent disabled" do
+      doc = with_care(
+        "sections" => { "communication" => { "enabled" => false, "values" => { "methods" => ["aac_device"] } } },
+      )
+
+      expect(doc.says).to be_nil
+    end
+
+    it "is independent of only_sections — narrowing to another section keeps it" do
+      doc = with_care_only(
+        {
+          "sections" => {
+            "communication" => { "values" => { "methods" => ["aac_device"] } },
+            "meals" => { "values" => { "preferences" => "hates cold food" } },
+          },
+        },
+        %w[meals],
+      )
+
+      expect(doc.care_sections.map(&:key)).to eq(%w[meals])
+      expect(doc.says.primary).to eq("AAC device")
+    end
+  end
+
+  describe "#allergies and #call_first_contact" do
+    it "resolves allergies from the emergency data" do
+      doc = with_care({ "sections" => {} }, { "allergies" => "peanuts" })
+      expect(doc.allergies).to eq("peanuts")
+    end
+
+    it "is nil when allergies were never answered" do
+      doc = with_care({ "sections" => {} }, {})
+      expect(doc.allergies).to be_nil
+    end
+
+    it "is the first stored emergency contact" do
+      doc = with_care(
+        { "sections" => {} },
+        {
+          "ice_contact_1" => { "name" => "Sam", "phone" => "555-0100", "relationship" => "Dad" },
+          "ice_contact_2" => { "name" => "Alex", "phone" => "555-0200", "relationship" => "Mom" },
+        },
+      )
+
+      expect(doc.call_first_contact["name"]).to eq("Sam")
+    end
+
+    it "is nil when there are no contacts" do
+      doc = with_care({ "sections" => {} }, {})
+      expect(doc.call_first_contact).to be_nil
+    end
+  end
+
+  describe "#condensed_care_lines" do
+    it "joins each section's field and item values into one line" do
+      doc = with_care(
+        "order" => %w[meals],
+        "sections" => {
+          "meals" => {
+            "values" => { "textures" => %w[soft chopped] },
+            "items" => [{ "label" => "Drinks", "value" => "watered-down apple juice" }],
+          },
+        },
+      )
+
+      lines = doc.condensed_care_lines
+      expect(lines.length).to eq(1)
+      expect(lines.first[:label]).to eq("Meals & snacks")
+      expect(lines.first[:text]).to eq("Soft, Chopped, watered-down apple juice")
+    end
+
+    it "caps the number of lines when a limit is given" do
+      doc = with_care(
+        "order" => %w[communication meals sensory],
+        "sections" => {
+          "communication" => { "values" => { "methods" => ["aac_device"] } },
+          "meals" => { "values" => { "preferences" => "hates cold food" } },
+          "sensory" => { "values" => { "calming" => "quiet spaces" } },
+        },
+      )
+
+      expect(doc.condensed_care_lines(limit: 2).length).to eq(2)
+    end
+  end
+
+  describe "#care_sections(max_values:)" do
+    it "caps each multi_select field's values without touching short_text or items" do
+      doc = with_care(
+        "sections" => {
+          "meals" => {
+            "values" => { "textures" => %w[regular soft chopped pureed thickened_liquids], "preferences" => "loves soup" },
+            "items" => [{ "label" => "Drinks", "value" => "juice" }],
+          },
+        },
+      )
+
+      capped = doc.care_sections(max_values: 2).first
+      textures = capped.fields.find { |f| f.key == "textures" }
+      preferences = capped.fields.find { |f| f.key == "preferences" }
+
+      expect(textures.values.length).to eq(2)
+      expect(preferences.values).to eq(["loves soup"])
+      expect(capped.items.map(&:value)).to eq(["juice"])
+    end
+
+    it "returns the same sections uncapped when max_values is nil" do
+      doc = with_care("sections" => { "meals" => { "values" => { "textures" => %w[soft chopped] } } })
+
+      expect(doc.care_sections(max_values: nil).first.fields.first.values.length).to eq(2)
+    end
+  end
+
+  # A rough, deterministic proxy for "will this overflow a fixed half-page
+  # panel" — calibrated so a sparse profile lands under both thresholds and a
+  # maxed-out one clears both by a wide margin. See the method's own comment
+  # for why this exists instead of a real layout measurement.
+  describe "#half_condensed? and #half_truncated?" do
+    it "is false for a sparse profile" do
+      doc = with_care(
+        "order" => %w[communication meals],
+        "sections" => {
+          "communication" => {
+            "values" => { "methods" => %w[aac_device eye_gaze], "what_helps" => ["wait_and_pause"] },
+          },
+          "meals" => {
+            "values" => { "textures" => ["thickened_liquids"], "preferences" => "hates cold food" },
+            "items" => [{ "label" => "Drinks", "value" => "watered-down apple juice" }],
+          },
+        },
+      )
+
+      expect(doc.half_condensed?).to be(false)
+      expect(doc.half_truncated?).to be(false)
+    end
+
+    it "is true for a profile with every documented care limit maxed out" do
+      built_in = Profile::CARE_SECTIONS.each_with_object({}) do |(key, spec), acc|
+        values = spec[:fields].each_with_object({}) do |field, values_acc|
+          values_acc[field[:key]] =
+            if field[:type] == :multi_select
+              Array.new(Profile::MAX_CARE_MULTI_SELECT) { |i| "opt_#{i}" }
+            else
+              "x" * Profile::CARE_SHORT_TEXT_MAX
+            end
+        end
+        acc[key] = { "enabled" => true, "values" => values }
+      end
+
+      custom = (0...Profile::MAX_CUSTOM_CARE_SECTIONS).each_with_object({}) do |i, acc|
+        acc[format("c_%06x", i)] = {
+          "custom" => true,
+          "title" => "Custom #{i}",
+          "items" => Array.new(Profile::MAX_CARE_CUSTOM_ITEMS) { |j| { "label" => "Item #{j}", "value" => "v" * 60 } },
+        }
+      end
+
+      sections = built_in.merge(custom)
+      # Written past the sanitizer (see the titleless-custom-section spec
+      # above) — synthetic option keys like "opt_0" aren't accepted options,
+      # so a normal save would strip them before CarePlanDocument ever saw them.
+      profile.update_columns(settings: { "care" => { "order" => sections.keys, "sections" => sections } })
+
+      doc = described_class.new(profile.reload)
+      expect(doc.half_condensed?).to be(true)
+      expect(doc.half_truncated?).to be(true)
+    end
+  end
 end

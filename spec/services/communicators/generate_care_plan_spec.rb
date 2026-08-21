@@ -64,27 +64,70 @@ RSpec.describe Communicators::GenerateCarePlan do
     captured
   end
 
-  def grover_options(variant: :full)
+  def grover_options(variant: :full, size: :sheet)
     captured = nil
     allow(Grover).to receive(:new) do |_html, **opts|
       captured = opts
       instance_double(Grover, to_pdf: "%PDF-stub")
     end
 
-    described_class.call(profile.reload, variant: variant)
+    described_class.call(profile.reload, variant: variant, size: size)
     captured
   end
 
-  # The visible text of the header band, in order — everything from the band to
-  # whatever section follows it, tags stripped. Asserting on the ORDER is the
-  # point: "the name is not preceded by anything" is the claim, and a check for
-  # the absence of one particular string would pass again the moment someone
-  # put a different eyebrow back.
-  def band_text(html)
-    band = html[/<div class="band">.*?(?=<section|<div class="care-heading"|<div class="footnote")/m]
-    raise "no header band in the rendered document" unless band
+  # The visible text of the identity block, in order — everything from the
+  # identity header to whatever section follows it, tags stripped. Asserting on
+  # the ORDER matters: "no SpeakAnyWay brand text here" is the claim, and a
+  # check for the absence of one particular string would pass again the moment
+  # someone put different brand copy back.
+  def identity_text(html)
+    identity = html[/<header class="identity">.*?(?=<section|<div class="care-heading"|<div class="footnote")/m]
+    raise "no identity block in the rendered document" unless identity
 
-    band.gsub(/<[^>]+>/, "\n").split("\n").map(&:strip).reject(&:empty?)
+    identity.gsub(/<[^>]+>/, "\n").split("\n").map { |line| CGI.unescapeHTML(line.strip) }.reject(&:empty?)
+  end
+
+  # A profile with every documented care limit maxed out: all six built-in
+  # sections at Profile::MAX_CARE_MULTI_SELECT values per multi_select field
+  # and Profile::CARE_SHORT_TEXT_MAX characters per short_text field, plus
+  # Profile::MAX_CUSTOM_CARE_SECTIONS custom sections of
+  # Profile::MAX_CARE_CUSTOM_ITEMS items each. Written via update_columns to
+  # bypass Profile#sanitize_care_settings, which would otherwise strip
+  # synthetic option keys that aren't in CareLabels/accepted_care_options —
+  # the resolver only needs a key it can label (falling back to humanize), not
+  # a "real" one.
+  def maxed_out_care_settings
+    built_in = Profile::CARE_SECTIONS.each_with_object({}) do |(key, spec), acc|
+      values = spec[:fields].each_with_object({}) do |field, values_acc|
+        values_acc[field[:key]] =
+          if field[:type] == :multi_select
+            Array.new(Profile::MAX_CARE_MULTI_SELECT) { |i| "opt_#{i}" }
+          else
+            "x" * Profile::CARE_SHORT_TEXT_MAX
+          end
+      end
+      acc[key] = { "enabled" => true, "values" => values }
+    end
+
+    custom = (0...Profile::MAX_CUSTOM_CARE_SECTIONS).each_with_object({}) do |i, acc|
+      acc[format("c_%06x", i)] = {
+        "custom" => true,
+        "title" => "Custom section #{i}",
+        "items" => Array.new(Profile::MAX_CARE_CUSTOM_ITEMS) { |j| { "label" => "Item #{j}", "value" => "v" * 60 } },
+      }
+    end
+
+    sections = built_in.merge(custom)
+
+    {
+      "care" => { "order" => sections.keys, "sections" => sections },
+      "allergies" => "peanuts, shellfish, tree nuts, latex",
+      "medical_conditions" => "x" * Profile::CARE_SHORT_TEXT_MAX,
+      "medications" => "x" * Profile::CARE_SHORT_TEXT_MAX,
+      "emergency_notes" => "x" * Profile::CARE_SHORT_TEXT_MAX,
+      "ice_contact_1" => { "name" => "Parent One", "phone" => "555-0000", "relationship" => "Mom" },
+      "ice_contact_2" => { "name" => "Parent Two", "phone" => "555-0001", "relationship" => "Dad" },
+    }
   end
 
   # settings holds care under "care", plus the emergency keys at the top level.
@@ -121,6 +164,12 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(profile.reload.care_plan_pdf).to be_attached
       expect(profile.care_emergency_plan_pdf).not_to be_attached
     end
+
+    it "is not offered at the wallet size" do
+      expect(described_class.supported?("care_only", "wallet")).to be(false)
+      expect(described_class.supported?("care_only", "sheet")).to be(true)
+      expect(described_class.supported?("care_only", "half")).to be(true)
+    end
   end
 
   describe "the full variant" do
@@ -142,8 +191,9 @@ RSpec.describe Communicators::GenerateCarePlan do
       html = render_html(variant: :full)
 
       # The rendered cell, not the bare word — "Medications" also appears in a
-      # layout comment, and the label is what costs a row.
-      expect(html).to include(%(<span class="k">Allergies</span>))
+      # layout comment, and the label is what costs a row. Allergies is no
+      # longer in this grid at all — see the "at a glance" describe below.
+      expect(html).to include(%(<span class="k">Medical conditions</span>))
       expect(html).not_to include(%(<span class="k">Medications</span>))
       expect(html).to include("No medications or other conditions were provided.")
     end
@@ -174,6 +224,33 @@ RSpec.describe Communicators::GenerateCarePlan do
     end
   end
 
+  # The "At a glance" strip: allergies, how the communicator talks, and the
+  # first contact — only on the :full variant, and allergies renders here and
+  # ONLY here.
+  describe "the at-a-glance strip" do
+    it "prints allergies exactly once, in the glance strip, never in the emergency grid" do
+      html = render_html(variant: :full)
+
+      expect(html.scan("zzpeanutszz").length).to eq(1)
+      expect(html).not_to include(%(<span class="k">Allergies</span>))
+      expect(html).to include(%(<div class="k">Allergies</div>))
+    end
+
+    it "falls back to a neutral cell when a value is unanswered" do
+      profile.update!(settings: { "care" => {} }.merge(emergency.except("allergies")))
+
+      html = render_html(variant: :full)
+
+      expect(html).to include("None listed")
+    end
+
+    it "does not render at all for the care-only variant" do
+      html = render_html(variant: :care_only)
+
+      expect(html).not_to include(%(class="glance"))
+    end
+  end
+
   describe "rendering" do
     it "labels every option rather than printing raw keys" do
       html = render_html
@@ -197,15 +274,15 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to include("off by seven")
     end
 
-    # The URL moved out from under the QR into the band's meta line when the
-    # header was condensed. It still has to be readable text: these get
-    # photocopied and handed to people without a phone camera out.
-    it "prints the public URL as text in the header band" do
+    # The URL moved into the identity block's QR caption when the header was
+    # redesigned. It still has to be readable text: these get photocopied and
+    # handed to people without a phone camera out.
+    it "prints the public URL as text in the identity block" do
       expect(render_html).to include(profile.public_url)
     end
 
     # The sheet lives in a folder for a school year — a printed date only makes
-    # a still-current plan look stale, so the band carries no "Prepared ...".
+    # a still-current plan look stale, so nothing on it says "Prepared ...".
     it "prints no prepared-on date" do
       html = render_html
 
@@ -213,14 +290,14 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).not_to include(I18n.l(Date.current, format: :long))
     end
 
-    # The density change, pinned: one gradient band instead of masthead +
-    # identity, and the care sections in two newspaper columns.
-    it "renders one header band and flows the care sections into columns" do
+    # The redesign: a cream identity card (not a gradient band) and the care
+    # sections as coloured cards in two newspaper columns.
+    it "renders the identity card and flows the care sections into columns" do
       html = render_html
 
-      expect(html).to include(%(class="band"))
+      expect(html).to include(%(class="identity"))
+      expect(html).not_to include(%(class="band"))
       expect(html).not_to include(%(class="masthead"))
-      expect(html).not_to include(%(class="identity"))
       expect(html).to include(%(class="cols"))
       expect(html).to include("column-count: 2")
     end
@@ -237,42 +314,60 @@ RSpec.describe Communicators::GenerateCarePlan do
       expect(html).to match(/\.page-frame\s*\{[^}]*inset:\s*0/m)
     end
 
-    # The sheet exists to introduce one person. The band used to open with a
-    # "SpeakAnyWay" eyebrow, so the brand was the first thing read on a page
-    # whose whole job is to say who this is.
-    it "reads the communicator's name first, with no brand eyebrow above it" do
+    # A small "Care & Emergency Plan" document-type label sits above the name
+    # in the approved redesign — that's a description of the document, not
+    # brand self-promotion, so it doesn't reintroduce the "SpeakAnyWay"
+    # eyebrow LAYOUT_VERSION 3 removed. The mark still signs the sheet only in
+    # the footnote.
+    it "labels the document type above the name, with no SpeakAnyWay brand text in the identity block" do
       html = render_html
 
-      expect(band_text(html).first).to eq("Rosa")
-      expect(html).not_to include(%(class="eyebrow"))
-      # The mark still signs the sheet — in the footnote, at the bottom.
-      expect(band_text(html)).not_to include("SpeakAnyWay")
+      text = identity_text(html)
+      expect(text).not_to include("SpeakAnyWay")
+      expect(text).to include("Rosa")
+      expect(text.first).to eq("Care & Emergency Plan")
+    end
+
+    # Called out specifically in review: inline with the <h1>, a pronoun chip
+    # shares its optical baseline and reads like a suffix.
+    it "renders the pronoun chip on its own line under the name" do
+      profile.update!(settings: profile.settings.merge("pronouns" => "he/him"))
+
+      html = render_html
+
+      expect(html).to match(%r{</h1>\s*<div><span class="pronoun">he/him</span></div>}m)
     end
 
     it "signs the document with the logo in the footnote" do
       html = render_html
 
       expect(html).to include(%(<img class="mark" src="data:image/png;base64,))
-      # Below the care sections, not up in the band — on the gradient the mark
-      # shares its own hues and needs a white pad to survive.
-      expect(html.index(%(class="mark"))).to be > html.index(%(class="band"))
+      # Below the care sections, not up in the identity card — on a gradient
+      # the mark shares its own hues and needs a white pad to survive; down
+      # here on white it needs nothing.
+      expect(html.index(%(class="mark"))).to be > html.index(%(class="identity"))
     end
 
-    # .section-keep and its heading-welding are gone; a whole section is atomic
-    # now. A stray wrapper left behind would silently defeat break-inside.
+    # .section-keep and its heading-welding are gone; a whole section card is
+    # atomic now. A stray wrapper left behind would silently defeat
+    # break-inside.
     it "keeps no section-keep wrapper" do
       expect(render_html).not_to include("section-keep")
     end
 
-    it "joins multi-select values as text rather than chips" do
+    # The hierarchy fix: a picked (multi_select) set is one chip per value,
+    # tinted to its section's colour, not a comma-joined sentence.
+    it "renders multi-select values as chips, tinted to the section colour" do
       html = render_html
 
-      expect(html).to include("AAC device, Eye gaze")
-      expect(html).not_to include(%(class="chip"))
+      expect(html).to include(%(<span class="chip">AAC device</span>))
+      expect(html).to include(%(<span class="chip">Eye gaze</span>))
+      expect(html).to include(%(class="card s-comm"))
     end
 
     # The layout's no-network rule. A font or image fetched mid-render fails
-    # silently into a fallback and nobody notices until it ships.
+    # silently into a fallback and nobody notices until it ships. Icons are
+    # inline SVG for the same reason.
     it "fetches nothing over the network at render time" do
       html = render_html
 
@@ -322,6 +417,19 @@ RSpec.describe Communicators::GenerateCarePlan do
       account.update!(name: %(Ro"><script>alert(1)</script>sa))
 
       expect(grover_options[:footer_template]).not_to include("<script>")
+    end
+
+    # A folded card gets no page numbers, and margin: 0 is what lets the half
+    # and wallet CSS lay content out against the full, untrimmed page — the
+    # fold and cut lines are measured from the physical edge.
+    it "renders half and wallet with no header/footer and zero margin" do
+      %i[half wallet].each do |size|
+        opts = grover_options(size: size)
+
+        expect(opts[:display_header_footer]).to be(false)
+        expect(opts[:margin]).to eq(0)
+        expect(opts).not_to have_key(:footer_template)
+      end
     end
   end
 
@@ -391,6 +499,20 @@ RSpec.describe Communicators::GenerateCarePlan do
       care_only = profile.care_plan_pdf.metadata["signature"]
 
       expect(full).not_to eq(care_only)
+    end
+
+    # A signature that ignored size would serve a wallet card to someone who
+    # asked for a sheet.
+    it "gives different sizes different signatures, and different attachments" do
+      render_html(variant: :full, size: :sheet)
+      render_html(variant: :full, size: :half)
+
+      sheet_sig = profile.reload.care_emergency_plan_pdf.metadata["signature"]
+      half_sig = profile.care_emergency_plan_half_pdf.metadata["signature"]
+
+      expect(sheet_sig).not_to eq(half_sig)
+      expect(profile.care_emergency_plan_pdf).to be_attached
+      expect(profile.care_emergency_plan_half_pdf).to be_attached
     end
   end
 
@@ -493,6 +615,71 @@ RSpec.describe Communicators::GenerateCarePlan do
     end
   end
 
+  describe ".supported?" do
+    it "offers every size for the full variant" do
+      expect(described_class.supported?("full", "sheet")).to be(true)
+      expect(described_class.supported?("full", "half")).to be(true)
+      expect(described_class.supported?("full", "wallet")).to be(true)
+    end
+
+    it "does not offer wallet for care_only" do
+      expect(described_class.supported?("care_only", "wallet")).to be(false)
+    end
+
+    it "is false, not a raise, for an unknown variant" do
+      expect(described_class.supported?("everything", "sheet")).to be(false)
+    end
+  end
+
+  # The half and wallet sizes are fixed single pages with overflow: hidden —
+  # a maxed-out profile WILL silently clip unless the overflow ladder kicks in.
+  # There is no headless Chrome at spec time to actually paginate against, so
+  # this pins the deterministic proxy (CarePlanDocument#half_condensed? /
+  # #half_truncated?) rather than a rendered page count.
+  describe "the half and wallet sizes" do
+    it "renders the half size as two panels with a fold rule between them" do
+      html = render_html(variant: :full, size: :half)
+
+      expect(html).to include(%(class="foldsheet"))
+      expect(html).to include(%(class="fpanel flip"))
+      expect(html).to include("Fold here")
+    end
+
+    it "does not condense a sparse profile's half size" do
+      html = render_html(variant: :full, size: :half)
+
+      expect(html).to include(%(class="chip">AAC device</span>))
+      expect(html).not_to include("Full plan on my live page")
+    end
+
+    it "condenses and truncates a maxed-out profile's half size, pointing to the live page" do
+      profile.update_columns(settings: maxed_out_care_settings)
+
+      html = render_html(variant: :full, size: :half)
+
+      expect(html).not_to include(%(class="chip"))
+      expect(html).to include("Full plan on my live page")
+    end
+
+    it "renders four identical wallet strips, each capped at the wallet line limit" do
+      html = render_html(variant: :full, size: :wallet)
+
+      expect(html.scan(%(class="wstrip")).length).to eq(4)
+      lines_per_strip = html.scan(%(class="li")).length / 4
+      expect(lines_per_strip).to be <= described_class::WALLET_LINE_LIMIT
+    end
+
+    it "condenses the wallet size the same way for a maxed-out profile" do
+      profile.update_columns(settings: maxed_out_care_settings)
+
+      html = render_html(variant: :full, size: :wallet)
+
+      expect(html).to include(%(class="wstrip"))
+      lines_per_strip = html.scan(%(class="li")).length / 4
+      expect(lines_per_strip).to be <= described_class::WALLET_LINE_LIMIT
+    end
+  end
+
   # An ampersand a parent typed used to be PERSISTED escaped, so the printed
   # sheet said "hugs &amp; quiet spaces" in the reader's hands. The template
   # escapes on output like any ERB tag, so the fix is stored text carrying the
@@ -530,5 +717,10 @@ RSpec.describe Communicators::GenerateCarePlan do
   it "refuses an unknown variant" do
     expect { described_class.call(profile, variant: :everything) }
       .to raise_error(described_class::UnknownVariant)
+  end
+
+  it "refuses an unsupported [variant, size] pair" do
+    expect { described_class.call(profile, variant: :care_only, size: :wallet) }
+      .to raise_error(described_class::UnsupportedSize)
   end
 end

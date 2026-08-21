@@ -158,6 +158,29 @@ en:
       confidential: Contains medical information — please keep it somewhere safe.
       care_heading: Day-to-day support
       page_of: Page
+      qr_caption_html: "Scan to open<br>my live page"
+      glance:
+        allergies: Allergies
+        how_i_talk: How I talk
+        call_first: Call first
+        none_listed: None listed
+        plus_one: plus %{value}
+        plus_many: plus %{count} more
+      says:
+        intro_html: I communicate using %{primary}
+        rest_and_html: " and %{values}"
+        neutral: How I communicate and what helps me varies day to day.
+      half:
+        fold_here: Fold here
+        turn_over: Turn me over for how %{name} eats, moves, communicates, and what helps them through the day.
+        full_plan_note: "Full plan on my live page →"
+      wallet:
+        uses_html: I use %{primary} to talk.
+        uses_neutral: I use AAC to communicate.
+        my_live_page: MY LIVE PAGE
+        call_first: Call first
+        legend_cut: cut
+        legend_fold: fold
       emergency:
         heading: Emergency information
         allergies: Allergies

@@ -7,28 +7,38 @@
     1. render_wrappers_spec.rb asserts against pdf_printable's rendered HTML, so
        editing it to serve a second document changes bytes that spec reads.
     2. pdf_printable is architecturally a FIXED-PAGE layout — `@page { margin: 0 }`
-       plus `.sheet { height: 11in; overflow: hidden }`. A care plan is however
-       many pages the parent's answers come to. Rendered through that layout it
-       would be silently clipped at 11 inches with the rest discarded.
+       plus `.sheet { height: 11in; overflow: hidden }`. The `sheet` SIZE of the
+       care plan is however many pages the parent's answers come to, and a fixed
+       height would silently discard the rest. (The `half` and `wallet` sizes
+       below ARE fixed single pages — closer in spirit to pdf_printable — but
+       they still share this layout so all three sizes share one design system
+       and one set of partials.)
 
     The brand tokens below are deliberately DUPLICATED from pdf_printable rather
     than extracted into a shared partial: extracting would change the byte
     content of that layout's <style> block, which is the thing its spec reads.
-    If you edit a token here, edit it there.
+    If you edit one of the SHARED tokens (the ones pdf_printable also defines),
+    edit it there too. --brand-gradient-hairline below is NOT one of those — it
+    is new to this redesign and has no pdf_printable counterpart, so it lives
+    only here.
 
     Two rails carry over unchanged from pdf_printable:
 
     1. Nothing is fetched over the network at render time. Nunito is inlined by
        Boards::Printables::Fonts; anything fetched mid-render fails silently
        into a fallback and nobody notices until it ships. (The avatar is a
-       data: URI resolved BEFORE the render, so it doesn't break this.)
+       data: URI resolved BEFORE the render, so it doesn't break this. Icons are
+       inline SVG — see CarePlanIcons — for the same reason.)
     2. Every colour is print-exact — print-color-adjust on html and body.
 
-    NOTE ON @page: there is deliberately no `margin` here. Grover supplies the
-    page margin, because Chrome renders the header/footer in a SEPARATE document
-    that is clipped to nothing unless the page reserves margin for it. Adding
-    `@page { margin: 0 }` — the obvious thing to copy from pdf_printable — makes
-    the page numbers vanish with no error. %>
+    NOTE ON @page: there is deliberately no `margin` here for the `sheet` size —
+    Grover supplies the page margin, because Chrome renders the header/footer in
+    a SEPARATE document that is clipped to nothing unless the page reserves
+    margin for it. Adding `@page { margin: 0 }` — the obvious thing to copy from
+    pdf_printable — makes the page numbers vanish with no error. `half` and
+    `wallet` have no header/footer at all (a folded card gets no page numbers),
+    so GenerateCarePlan passes `margin: 0` to Grover for those sizes instead, and
+    their CSS positions content against the full untrimmed page. %>
 <!DOCTYPE html>
 <html lang="<%= I18n.locale %>">
   <head>
@@ -50,11 +60,25 @@
         --cyan-tint: #E4F7FB;
         --magenta-tint: #F8EAFD;
         --brand-gradient: linear-gradient(135deg, #4ECDE6 0%, #0163AA 55%, #C857E8 100%);
+        /* The redesign's hairline/ring gradient — 4-stop, horizontal. Kept as
+           its own token rather than repointing --brand-gradient at it, so the
+           token this file shares with pdf_printable stays byte-identical. */
+        --brand-gradient-hairline: linear-gradient(90deg, #4ECDE6 0%, #0163AA 38%, #C857E8 72%, #FFC24B 100%);
 
         --rule: #E2E1DD;
         --muted: #5A5A5A;
         --alert: #B3261E;
         --alert-tint: #FDECEA;
+
+        /* Per-section accent + tint. Keyed by CarePlanDocument's STYLE_KEYS
+           suffix (comm/care/meal/sens/move/trav) — a custom section maps to
+           "trav" rather than getting a colour of its own; see the note there. */
+        --s-comm: #0163AA; --s-comm-t: #E6F0F9; --s-comm-chip: #0B4B7F;
+        --s-care: #B23BD1; --s-care-t: #F8EAFD; --s-care-chip: #7B2394;
+        --s-meal: #B0700A; --s-meal-t: #FBF1DE; --s-meal-chip: #7C4E06;
+        --s-sens: #6D3BE0; --s-sens-t: #EEE9FD; --s-sens-chip: #4B24A8;
+        --s-move: #0E8C80; --s-move-t: #E1F4F2; --s-move-chip: #08635A;
+        --s-trav: #13496F; --s-trav-t: #E7EDF3; --s-trav-chip: #0F3B5A;
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,35 +88,36 @@
         print-color-adjust: exact;
       }
 
-      /* White, not cream: this runs to three sheets on a school printer and a
-         full-bleed tint on every one of them is a lot of toner for no gain.
-         The cream is kept for the banded surfaces that earn it. */
       body {
         font-family: Nunito, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
         color: var(--ink);
         background: #fff;
         font-size: 9.5pt;
         line-height: 1.4;
-        /* Clearance inside .page-frame — see the note there. The frame sits on
-           the page content box and cannot be pushed outward, so the content is
-           pulled inward instead. */
-        padding: 9pt 11pt;
+        /* A parent's own free text has no guaranteed word breaks — a run of
+           digits, a URL, or (in the fixture that caught this) a maxed-out
+           300-character short_text field with no spaces at all. Without this
+           a long unbroken token overflows its box instead of wrapping, and on
+           the fixed-height half/wallet sizes `overflow: hidden` makes the
+           excess vanish silently rather than merely spill visibly. */
+        overflow-wrap: break-word;
       }
 
       @page { size: letter; }
 
-      /* ---- Page-break behaviour ----
+      /* ---- Page-break behaviour (the `sheet` size only) ----
 
-         A whole care section is atomic: `break-inside: avoid` on .care-section.
-         That is safe because a section is now half-width and its fields print
-         one line each — the tallest realistic one (Meals, four fields, one a
-         300-character short_text) is around 1.1in in a column. If one ever does
-         outgrow a column Chrome splits it rather than clipping it, which is the
+         A whole care section card is atomic: `break-inside: avoid` (on .card,
+         below, alongside the rest of the design). That is safe because a
+         section is half-width and its fields print one line each — the
+         tallest realistic one (Meals, four fields, one a 300-character
+         short_text) is around 1.1in in a column. If one ever does outgrow a
+         column Chrome splits it rather than clipping it, which is the
          acceptable failure. Do not add `column-fill: auto`. */
-      .care-section, .row, .item, .contact { break-inside: avoid; }
+      .row, .item, .contact { break-inside: avoid; }
       p { orphans: 3; widows: 3; }
 
-      /* ---- Page frame ----
+      /* ---- Page frame (the `sheet` size only) ----
          Repeats on EVERY page: Chrome paints a position:fixed element once per
          sheet in the print path, and its insets resolve against the page's
          content box — inside the @page margins Grover supplies. A bordered
@@ -104,22 +129,7 @@
          room between the frame and the text, but Chrome clips the fixed layer
          to the page content box and the frame then paints on NO page at all —
          a silent no-op that looks like the CSS was ignored. Verified at -4pt,
-         not just at the larger values that might plausibly overflow the paper.
-
-         So the frame cannot move outward, and clearance has to come from the
-         content. Two different mechanisms are needed, because they cover
-         different pages:
-
-           page 1     body padding, below
-           every page .care-section padding-top, below
-
-         Body padding is laid out once, at the start of the flow, so it does
-         nothing for a page the document merely spills onto. A continuation
-         page begins at the page content box — flush against the frame — and
-         what lands there is always the top of a .care-section, since sections
-         are atomic. Padding on that box is what holds the text off the frame,
-         and it survives the fragmentation break where a margin would be
-         truncated. */
+         not just at the larger values that might plausibly overflow the paper. */
       .page-frame {
         position: fixed;
         inset: 0;
@@ -127,192 +137,306 @@
         border-radius: 10pt;
       }
 
-      /* ---- Header band ----
-         One gradient band carrying the masthead and the identity block that
-         used to sit under it. The URL rides in .meta as plain text — these get
-         photocopied and handed to people who don't have a phone camera out —
-         which is what lets the QR shrink to a glanceable 44pt. */
-      .band {
-        background: var(--brand-gradient);
-        color: #fff;
-        border-radius: 9pt;
-        padding: 9pt 12pt;
-        display: flex;
-        align-items: center;
-        gap: 11pt;
-      }
-      .band .avatar,
-      .band .avatar-placeholder {
-        width: 46pt; height: 46pt;
-        border-radius: 999pt;
-        flex: none;
-        object-fit: cover;
-        background: var(--cyan-tint);
-        border: 2pt solid rgba(255, 255, 255, 0.7);
-      }
-      .band .who { flex: 1 1 auto; min-width: 0; }
-      .band h1 { font-size: 16pt; font-weight: 900; line-height: 1.1; margin: 0 0 2pt; }
-      .band .meta { font-size: 7.5pt; font-weight: 600; opacity: 0.92; }
-      .band .qr {
-        flex: none;
-        background: #fff;
-        border-radius: 5pt;
-        padding: 3pt;
-        line-height: 0;
-      }
-      .band .qr img { width: 44pt; height: 44pt; display: block; }
+      /* Clearance inside .page-frame, on the `sheet` size's own content
+         wrapper rather than on body — half and wallet paint their own fixed
+         pages and must not inherit this padding.
 
-      /* ---- Emergency block ----
-         Two columns, each cell one line: label inline with its value. Long
-         free text (notes) spans both. */
+         Two mechanisms, because they cover different pages: this padding for
+         page 1 (laid out once, at the start of the flow), and .card's own
+         padding-top (below) for every later page — a card is atomic
+         (break-inside: avoid), so whatever a continuation page starts with is
+         always the top of one, flush against .page-frame, and its own padding
+         survives the fragmentation break where a margin would be truncated. */
+      .sheet-content { padding: 9pt 11pt; }
+
+      /* ================= identity header (sheet + half) ================= */
+      .topbar { height: 6pt; background: var(--brand-gradient-hairline); margin: -9pt -11pt 0; }
+
+      .identity {
+        display: flex; align-items: center; gap: 11pt;
+        padding: 10pt 11pt; margin-top: 10pt;
+        background: var(--cream); border-radius: 9pt; border: 0.75pt solid var(--cream-deep);
+      }
+      .identity .portrait, .fid .portrait {
+        flex: none; border-radius: 999pt;
+        background: var(--brand-gradient-hairline);
+      }
+      .identity .portrait { width: 54pt; height: 54pt; padding: 2pt; }
+      .identity .portrait img, .fid .portrait img {
+        width: 100%; height: 100%; border-radius: 999pt; object-fit: cover;
+        object-position: 50% 22%; display: block; border: 1.25pt solid #fff;
+      }
+      .identity .who, .fid .who { flex: 1 1 auto; min-width: 0; }
+      .identity .doctype, .fid .doctype {
+        font-size: 6.3pt; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;
+        color: var(--muted); margin-bottom: 1.5pt;
+      }
+      .identity h1 {
+        font-size: 17pt; font-weight: 900; line-height: 1.02; letter-spacing: -0.015em; color: var(--navy);
+      }
+      /* Pronouns sit on their own line under the name — inline with the h1
+         they compete with it for the same optical baseline and read like a
+         suffix. Called out specifically in review. */
+      .pronoun {
+        display: inline-block; font-size: 6.3pt; font-weight: 800; letter-spacing: 0.08em;
+        text-transform: uppercase; color: var(--blue-mid); background: #fff;
+        border: 0.75pt solid #CBDCEA; border-radius: 999pt; padding: 1pt 6pt; margin-top: 3pt;
+      }
+      .identity .says, .fid .says {
+        font-size: 8.3pt; font-weight: 600; color: #3B3A38; margin-top: 3pt; line-height: 1.25;
+      }
+      .says em { font-style: normal; font-weight: 800; color: var(--navy); }
+      .says.muted { color: var(--muted); font-style: italic; font-weight: 500; }
+
+      .qrblock { flex: none; text-align: center; width: 62pt; }
+      .qrblock .frame {
+        background: #fff; border: 0.75pt solid var(--rule); border-radius: 6pt;
+        padding: 3pt; line-height: 0; display: inline-block;
+      }
+      .qrblock img { width: 46pt; height: 46pt; display: block; }
+      .qrblock .cap { font-size: 5.8pt; font-weight: 800; color: var(--navy); margin-top: 2pt; line-height: 1.15; }
+      .qrblock .url { font-size: 5pt; font-weight: 600; color: var(--muted); word-break: break-all; line-height: 1.15; margin-top: 1pt; }
+
+      /* ================= at a glance (sheet + half) ================= */
+      .glance {
+        display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+        margin-top: 8pt; border: 1pt solid var(--rule); border-radius: 8pt; overflow: hidden;
+      }
+      .glance .cell { padding: 6pt 9pt; border-left: 1pt solid var(--rule); }
+      .glance .cell:first-child { border-left: 0; }
+      .glance .k {
+        font-size: 6pt; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--muted); margin-bottom: 1.5pt;
+      }
+      .glance .v { font-size: 11pt; font-weight: 900; line-height: 1.15; color: var(--navy); letter-spacing: -0.01em; }
+      .glance .cell.danger { background: var(--alert-tint); }
+      .glance .cell.danger .k, .glance .cell.danger .v { color: var(--alert); }
+      .glance .sub { font-size: 6.8pt; font-weight: 600; color: var(--muted); margin-top: 1pt; }
+
+      /* ================= emergency (sheet + half) ================= */
       .emergency {
-        border: 1.5pt solid var(--alert);
-        border-radius: 7pt;
-        padding: 8pt 10pt;
-        margin-top: 10pt;
-        background: var(--alert-tint);
+        margin-top: 9pt; border: 0.75pt solid #EBD4D2; border-left: 3pt solid var(--alert);
+        border-radius: 7pt; padding: 7pt 10pt; background: #fff;
       }
-      .emergency h2 {
-        font-size: 10pt;
-        font-weight: 900;
-        color: var(--alert);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        margin-bottom: 5pt;
-        display: flex;
-        align-items: center;
-        gap: 5pt;
-      }
-      .emergency h2::after { content: ""; flex: 1; height: 1pt; background: rgba(179, 38, 30, 0.28); }
+      .sec-head { display: flex; align-items: center; gap: 5pt; margin-bottom: 5pt; }
+      .sec-head h2 { font-size: 8.5pt; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+      .sec-head .line { flex: 1; height: 1pt; }
+      .emergency .sec-head h2 { color: var(--alert); }
+      .emergency .sec-head .line { background: rgba(179, 38, 30, 0.22); }
 
       .egrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2pt 16pt; }
-      .egrid .f { font-size: 9.5pt; line-height: 1.35; }
+      .egrid .f { font-size: 9pt; line-height: 1.35; }
       .egrid .f .k {
-        font-size: 7.5pt;
-        font-weight: 900;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-        color: var(--alert);
-        margin-right: 4pt;
+        font-size: 6.8pt; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--alert); margin-right: 4pt;
       }
       .egrid .f.wide { grid-column: 1 / -1; }
-      /* One muted line naming the fields nobody answered — the honest signal
-         that the old "None listed" rows carried, at a tenth of the height. */
       .not-provided {
-        grid-column: 1 / -1;
-        font-size: 7.5pt;
-        font-style: italic;
-        color: var(--muted);
-        margin-top: 3pt;
+        grid-column: 1 / -1; font-size: 7pt; font-style: italic; color: var(--muted); margin-top: 3pt;
       }
 
-      .contacts {
-        margin-top: 6pt;
-        padding-top: 5pt;
-        border-top: 1pt solid rgba(179, 38, 30, 0.28);
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 2pt 16pt;
+      .contacts { margin-top: 6pt; padding-top: 5pt; border-top: 1pt solid rgba(179, 38, 30, 0.22); display: grid; grid-template-columns: 1fr 1fr; gap: 4pt 12pt; }
+      .contact {
+        background: var(--cream); border: 0.75pt solid var(--cream-deep); border-radius: 6pt; padding: 5pt 8pt;
       }
-      .contact { font-size: 9.5pt; }
-      .contact .name { font-weight: 800; }
+      .contact.plain { background: none; border: 0; padding: 0; }
+      .contact .name { font-size: 8pt; font-weight: 800; color: var(--navy); }
       .contact .rel { color: var(--muted); font-weight: 600; }
-      .contact .phone { font-weight: 900; white-space: nowrap; }
+      /* The single most important glyph sequence on the sheet — it used to be
+         the same size as "Handwashing". */
+      .contact .phone { font-size: 14.5pt; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; display: block; }
 
-      /* ---- Care sections ---- */
+      /* ================= day-to-day: heading + section cards (sheet + half) ================= */
       .care-heading {
-        font-size: 9.5pt;
-        font-weight: 900;
-        color: var(--navy);
-        text-transform: uppercase;
-        letter-spacing: 0.09em;
-        margin: 12pt 0 6pt;
-        display: flex;
-        align-items: center;
-        gap: 6pt;
+        font-size: 8.5pt; font-weight: 900; color: var(--navy); text-transform: uppercase;
+        letter-spacing: 0.09em; margin: 11pt 0 6pt; display: flex; align-items: center; gap: 6pt;
       }
       .care-heading::after { content: ""; flex: 1; height: 1.5pt; background: var(--cyan); }
 
-      .cols { column-count: 2; column-gap: 20pt; }
-      /* padding-top, not margin-top: this is the clearance a section carries
-         onto a continuation page, where it starts flush against .page-frame.
-         A margin there would be truncated at the fragmentation break. It also
-         does duty as ordinary spacing between sections in a column, so the
-         margin below is trimmed to keep the rhythm even. */
-      .care-section { padding-top: 7pt; margin-bottom: 3pt; }
-      .care-section h3 {
-        font-size: 9.5pt;
-        font-weight: 900;
-        color: var(--navy);
-        padding-bottom: 1.5pt;
-        border-bottom: 1pt solid var(--cyan);
-        margin-bottom: 3pt;
-      }
+      .cols { column-count: 2; column-gap: 16pt; }
 
-      .row { margin-bottom: 2.5pt; line-height: 1.35; }
-      .row .label {
-        font-size: 7.5pt;
-        font-weight: 900;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin-right: 4pt;
+      .card {
+        break-inside: avoid; -webkit-column-break-inside: avoid;
+        border: 0.75pt solid var(--rule); border-radius: 8pt; padding: 7pt 9pt 8pt;
+        margin: 0 0 8pt; background: #fff;
       }
-      .row .value { font-size: 9.5pt; }
+      .card .hd { display: flex; align-items: center; gap: 5pt; margin-bottom: 4pt; }
+      .card .ico { flex: none; width: 15pt; height: 15pt; border-radius: 4.5pt; display: flex; align-items: center; justify-content: center; }
+      .card .ico svg { width: 9pt; height: 9pt; display: block; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .card h3 { font-size: 9pt; font-weight: 900; letter-spacing: -0.01em; }
 
-      /* The alternative treatment: multi_select values as chips rather than a
-         comma-joined sentence. Text won — it is calmer and roughly half the
-         height — but the mockup showed both, so the styles stay. Switching is
-         the :multi_select branch in _care_plan_row.html.erb plus these rules. */
-      /*
-      .row.chips { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2.5pt; }
-      .row.chips .label { flex: none; margin-right: 1pt; }
-      .chip {
-        background: var(--cyan-tint);
-        border: 0.6pt solid var(--cyan);
-        border-radius: 999pt;
-        padding: 0.5pt 5pt;
-        font-size: 8pt;
-        font-weight: 700;
-        color: var(--navy);
+      .row { margin-top: 4pt; }
+      .row:first-of-type { margin-top: 0; }
+      .row .k {
+        display: block; font-size: 6pt; font-weight: 900; letter-spacing: 0.14em;
+        text-transform: uppercase; color: var(--muted); margin-bottom: 2pt;
       }
-      */
+      .chips { display: flex; flex-wrap: wrap; gap: 2.5pt; }
+      .chip { font-size: 7.5pt; font-weight: 700; line-height: 1.25; padding: 1.5pt 5.5pt; border-radius: 4pt; white-space: nowrap; }
+      /* Middle overflow tier on the half size: comma-joined text instead of
+         chips, roughly half the height per row. */
+      .row .text { font-size: 8.5pt; font-weight: 600; line-height: 1.3; color: #332F2B; }
+      .say { font-size: 8.5pt; font-weight: 600; line-height: 1.3; color: #332F2B; }
 
-      .item {
-        padding: 1.5pt 0;
-        border-top: 0.6pt solid var(--rule);
-        font-size: 9pt;
-        line-height: 1.35;
-      }
+      .s-comm .ico { background: var(--s-comm-t); } .s-comm .ico svg { stroke: var(--s-comm); }
+      .s-comm h3 { color: var(--s-comm); } .s-comm .chip { background: var(--s-comm-t); color: var(--s-comm-chip); }
+      .s-care .ico { background: var(--s-care-t); } .s-care .ico svg { stroke: var(--s-care); }
+      .s-care h3 { color: var(--s-care); } .s-care .chip { background: var(--s-care-t); color: var(--s-care-chip); }
+      .s-meal .ico { background: var(--s-meal-t); } .s-meal .ico svg { stroke: var(--s-meal); }
+      .s-meal h3 { color: var(--s-meal); } .s-meal .chip { background: var(--s-meal-t); color: var(--s-meal-chip); }
+      .s-sens .ico { background: var(--s-sens-t); } .s-sens .ico svg { stroke: var(--s-sens); }
+      .s-sens h3 { color: var(--s-sens); } .s-sens .chip { background: var(--s-sens-t); color: var(--s-sens-chip); }
+      .s-move .ico { background: var(--s-move-t); } .s-move .ico svg { stroke: var(--s-move); }
+      .s-move h3 { color: var(--s-move); } .s-move .chip { background: var(--s-move-t); color: var(--s-move-chip); }
+      .s-trav .ico { background: var(--s-trav-t); } .s-trav .ico svg { stroke: var(--s-trav); }
+      .s-trav h3 { color: var(--s-trav); } .s-trav .chip { background: var(--s-trav-t); color: var(--s-trav-chip); }
+
+      .item { padding: 1.5pt 0; border-top: 0.6pt solid var(--rule); font-size: 8.5pt; line-height: 1.35; }
       .item .k { font-weight: 800; }
 
       .muted { color: var(--muted); }
 
-      /* The logo sits here rather than in the band: on the gradient it needed a
-         white pad to stay legible against hues it shares, and down here on
-         white it needs nothing.
-
-         Opposite corner from the note, and centred rather than top-aligned. A
-         14pt mark next to a 7pt line has no top edge worth sharing — aligning
-         their tops hangs the mark most of a line below the text and reads as
-         a mistake. In the corner it answers to nothing but the frame. */
       .footnote {
-        margin-top: 12pt;
-        padding-top: 5pt;
-        border-top: 0.75pt solid var(--rule);
-        font-size: 7pt;
-        color: var(--muted);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10pt;
+        margin-top: 10pt; padding-top: 5pt; border-top: 0.75pt solid var(--rule);
+        font-size: 6.8pt; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 8pt;
       }
-      .footnote .mark {
-        width: 14pt;
-        height: 14pt;
-        display: block;
-        flex: none;
+      .footnote .mark { width: 13pt; height: 13pt; display: block; flex: none; }
+
+      /* ================= fold mechanics (half + wallet) =================
+         Both sizes print SINGLE-SIDED. The sheet is divided into two faces;
+         the half that becomes the back is authored upright and rotated 180deg
+         in the print layout, so folding print-side-OUT lands it reading
+         correctly.
+
+         Rotating about the horizontal fold axis flips content vertically AND
+         puts it on the reverse face; turning the folded card over to read the
+         back then mirrors it horizontally. Vertical flip + horizontal mirror
+         = 180deg, so pre-rotating by 180deg is exactly the correction needed.
+         Never "fix" this rotation later — see the handoff doc's fold-mechanics
+         section for the full derivation. There is no screen-review toggle to
+         un-rotate here (the mockup's was explicitly a review affordance, not a
+         feature) — verify a folded print by folding a printed copy. */
+      .flip { transform: rotate(180deg); }
+
+      .foldrule { position: absolute; left: 0; right: 0; height: 0; border-top: 1pt dashed #A9A5B6; z-index: 5; }
+      .foldrule span {
+        position: absolute; right: 0.42in; left: auto; top: -5pt; background: #fff; padding: 0 6pt;
+        font-size: 6pt; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: #7C7890;
       }
+
+      /* ================= half-page fold card ================= */
+      .foldsheet { width: 8.5in; height: 11in; position: relative; overflow: hidden; }
+      .fpanel { height: 5.5in; padding: 0 0.5in 0.3in; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+      /* Gradient sits on each face's OUTER edge, not at the fold — two bars
+         meeting at the crease made a 12pt band that got creased in half and
+         collided with the fold marks. */
+      .fbar { position: absolute; left: 0; right: 0; bottom: 0; height: 6pt; background: var(--brand-gradient-hairline); }
+
+      .fid { display: flex; align-items: center; gap: 13pt; padding: 12pt 0 10pt; }
+      .fid .portrait { width: 80pt; height: 80pt; padding: 2.5pt; }
+      .fid .portrait img { border: 2pt solid #fff; }
+      .fid h1 { font-size: 25pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; color: var(--navy); }
+      .fid .says { font-size: 10.5pt; margin-top: 4pt; }
+      .fid .qrblock { width: 78pt; }
+      .fid .qrblock img { width: 58pt; height: 58pt; }
+      .fid .qrblock .cap { font-size: 6pt; }
+      .fid .qrblock .url { font-size: 5.4pt; }
+
+      .fpanel .glance { margin-top: 9pt; }
+      .fpanel .glance .v { font-size: 13.5pt; }
+      .fpanel .glance .k { font-size: 6.5pt; }
+      .fpanel .glance .sub { font-size: 7.5pt; }
+      .fpanel .glance .cell { padding: 7pt 11pt; }
+
+      .fpanel .emergency { margin-top: 9pt; }
+      .fpanel .contact .phone { font-size: 17pt; }
+      .fpanel .contact .name { font-size: 9pt; }
+
+      .ffoot { margin-top: auto; padding-top: 7pt; display: flex; align-items: center; gap: 7pt; border-top: 0.75pt solid var(--rule); }
+      .ffoot p { flex: 1; font-size: 6.8pt; color: var(--muted); line-height: 1.3; }
+      .ffoot p b { color: #3B3A38; font-weight: 800; }
+      .ffoot img { width: 14pt; height: 14pt; flex: none; }
+      .ffoot .full-plan-note { display: block; font-size: 6.5pt; font-weight: 700; color: var(--navy); margin-top: 2pt; }
+
+      /* Back face is tighter than the sheet — 4.5in of usable height. */
+      .fpanel .care-heading { margin: 8pt 0 5pt; }
+      .fpanel .cols { column-gap: 16pt; }
+      .fpanel .card { padding: 5.5pt 8pt; margin-bottom: 5pt; }
+      .fpanel .card .hd { margin-bottom: 3pt; }
+      .fpanel .row { margin-top: 3pt; }
+      .fpanel .chips { gap: 2pt; }
+      .fpanel .card h3 { font-size: 9.5pt; }
+      .fpanel .row .k { font-size: 6pt; }
+      .fpanel .chip { font-size: 7.5pt; padding: 1.5pt 5pt; }
+      .fpanel .row .text, .fpanel .say { font-size: 8.5pt; }
+      /* Condensed-lines tier (no chips at all — see care_plan_half's overflow
+         branch). One line per section: label, then comma-joined values. */
+      .fpanel .condensed-lines { margin-top: 2pt; }
+      .fpanel .condensed-lines .cline { display: flex; gap: 5pt; margin-bottom: 4pt; align-items: baseline; break-inside: avoid; }
+      .fpanel .condensed-lines .cline .k {
+        flex: none; width: 64pt; font-size: 6pt; font-weight: 900; letter-spacing: 0.1em;
+        text-transform: uppercase; color: var(--muted);
+      }
+      .fpanel .condensed-lines .cline .v {
+        flex: 1; min-width: 0; font-size: 8pt; font-weight: 700; line-height: 1.3; color: #2A2724;
+      }
+
+      /* ================= wallet fold strip ================= */
+      /* Four identical strips, 2 across x 2 down, 7 x 8in of image centred on
+         the untrimmed 8.5x11in page (Grover's margin: 0 for this size). The
+         outer .wallet-sheet is the positioning context for both the grid and
+         the cut/fold legend below it. */
+      .wallet-sheet { width: 8.5in; height: 11in; position: relative; }
+      .wallet-page {
+        position: absolute; inset: 0;
+        display: grid; grid-template-columns: repeat(2, 3.5in); grid-template-rows: repeat(2, 4in);
+        justify-content: center; align-content: center; gap: 0;
+      }
+      .wstrip { width: 3.5in; height: 4in; position: relative; background: #fff; border: 1pt solid #B9B6C4; overflow: hidden; }
+      .wstrip .half { height: 2in; position: relative; overflow: hidden; padding: 7pt 9pt; }
+      .wstrip .half .wtop { position: absolute; left: 0; right: 0; bottom: 0; top: auto; height: 4pt; background: var(--brand-gradient-hairline); }
+
+      .wfront .who { display: flex; gap: 7pt; align-items: center; }
+      .wfront .pic { flex: none; width: 38pt; height: 38pt; border-radius: 999pt; padding: 1.5pt; background: var(--brand-gradient-hairline); }
+      .wfront .pic img { width: 100%; height: 100%; border-radius: 999pt; object-fit: cover; object-position: 50% 22%; display: block; }
+      .wfront .nm { flex: 1; min-width: 0; }
+      .wfront .nm h4 { font-size: 12pt; font-weight: 900; line-height: 1.05; color: var(--navy); letter-spacing: -0.015em; }
+      .wfront .nm .says { font-size: 6.5pt; font-weight: 700; color: #3B3A38; line-height: 1.2; margin-top: 1pt; }
+      .wfront .qr { flex: none; text-align: center; width: 38pt; }
+      .wfront .qr img { width: 34pt; height: 34pt; display: block; margin: 0 auto; }
+      .wfront .qr .c { font-size: 4.2pt; font-weight: 800; color: var(--muted); letter-spacing: 0.04em; margin-top: 1pt; line-height: 1.1; }
+
+      .wallergy { margin-top: 6pt; background: var(--alert-tint); border-left: 2.5pt solid var(--alert); border-radius: 4pt; padding: 3.5pt 6pt; }
+      .wallergy .k { font-size: 5.4pt; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alert); }
+      .wallergy .v { font-size: 10pt; font-weight: 900; color: var(--alert); line-height: 1.1; letter-spacing: -0.01em; }
+
+      .wcall { display: flex; align-items: baseline; gap: 4pt; margin-top: 4pt; }
+      .wcall .k { font-size: 5.4pt; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+      .wcall .p { font-size: 9pt; font-weight: 900; letter-spacing: -0.02em; color: var(--ink); }
+      .wcall .n { font-size: 6pt; font-weight: 700; color: var(--muted); }
+
+      .wfoot { position: absolute; left: 9pt; right: 9pt; bottom: 5pt; display: flex; align-items: center; justify-content: space-between; gap: 5pt; }
+      .wfoot .u { font-size: 5pt; font-weight: 700; color: var(--muted); }
+      .wfoot img { width: 8pt; height: 8pt; }
+
+      .wback .bhead { font-size: 5.6pt; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: var(--alert); margin-bottom: 3pt; }
+      .wcontacts { display: flex; gap: 6pt; margin-bottom: 5pt; }
+      .wcontacts .c { flex: 1; background: var(--cream); border-radius: 5pt; padding: 3pt 5pt; }
+      .wcontacts .c .n { font-size: 5.6pt; font-weight: 800; color: var(--navy); line-height: 1.1; }
+      .wcontacts .c .p { font-size: 9.5pt; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; }
+      .wlist { border-top: 0.75pt solid var(--rule); padding-top: 4pt; }
+      .wlist .li { display: flex; gap: 4pt; margin-bottom: 2.5pt; align-items: baseline; }
+      .wlist .li .k { flex: none; width: 54pt; font-size: 5.2pt; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+      .wlist .li .v { flex: 1; min-width: 0; font-size: 6.8pt; font-weight: 700; line-height: 1.2; color: #2A2724; }
+
+      /* Cut/fold legend, printed once in the page margin below the 2x2 grid. */
+      .wallet-legend {
+        position: absolute; left: 0.5in; right: 0.5in; bottom: 0.35in;
+        font-size: 6.5pt; color: var(--muted); display: flex; gap: 14pt; align-items: center;
+      }
+      .wallet-legend .keyline { display: inline-flex; align-items: center; gap: 4pt; font-weight: 800; }
+      .wallet-legend i { display: inline-block; width: 16pt; height: 0; border-top: 1pt solid #B9B6C4; }
+      .wallet-legend i.dash { border-top-style: dashed; border-top-color: #A9A5B6; }
     </style>
   </head>
   <body>

@@ -158,6 +158,29 @@ es:
       confidential: Contiene información médica — guárdelo en un lugar seguro.
       care_heading: Apoyo diario
       page_of: Página
+      qr_caption_html: "Escanea para abrir<br>mi página en línea"
+      glance:
+        allergies: Alergias
+        how_i_talk: Cómo me comunico
+        call_first: A quién llamar
+        none_listed: No indicado
+        plus_one: más %{value}
+        plus_many: más %{count}
+      says:
+        intro_html: Me comunico usando %{primary}
+        rest_and_html: " y %{values}"
+        neutral: Cómo me comunico y qué ayuda varía día a día.
+      half:
+        fold_here: Doblar aquí
+        turn_over: Dale la vuelta para ver cómo %{name} come, se mueve, se comunica y qué le ayuda durante el día.
+        full_plan_note: "El plan completo está en mi página en línea →"
+      wallet:
+        uses_html: Uso %{primary} para comunicarme.
+        uses_neutral: Uso un dispositivo de CAA para comunicarme.
+        my_live_page: MI PÁGINA EN LÍNEA
+        call_first: A quién llamar
+        legend_cut: cortar
+        legend_fold: doblar
       emergency:
         heading: Información de emergencia
         allergies: Alergias

@@ -162,6 +162,57 @@ RSpec.describe "API::Profiles care plan", type: :request do
     end
   end
 
+  describe "the size param" do
+    before { profile.update!(settings: care.merge(emergency)) }
+
+    it "defaults to sheet" do
+      post_care_plan(parent)
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_emergency_plan_pdf).to be_attached
+      expect(profile.care_emergency_plan_half_pdf).not_to be_attached
+    end
+
+    it "builds the half size when asked" do
+      post_care_plan(parent, size: "half")
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_emergency_plan_half_pdf).to be_attached
+      expect(profile.care_emergency_plan_pdf).not_to be_attached
+    end
+
+    it "builds the wallet size when asked" do
+      post_care_plan(parent, size: "wallet")
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_emergency_plan_wallet_pdf).to be_attached
+    end
+
+    it "rejects an unknown size" do
+      post_care_plan(parent, size: "poster")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("unknown_size")
+    end
+
+    # care_only + wallet isn't offered — a wallet card with no emergency block
+    # is a name, a photo, and five care lines, which isn't worth the paper.
+    it "rejects care_only + wallet as unsupported rather than emitting it" do
+      post_care_plan(parent, variant: "care_only", size: "wallet")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("unsupported_size")
+      expect(profile.reload.care_plan_pdf).not_to be_attached
+    end
+
+    it "still offers care_only at the half size" do
+      post_care_plan(parent, variant: "care_only", size: "half")
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.care_plan_half_pdf).to be_attached
+    end
+  end
+
   # Refusing beats emitting a sheet of empty headings, which reads as a finished
   # plan asserting this child needs nothing.
   describe "empty states" do
@@ -211,6 +262,9 @@ RSpec.describe "API::Profiles care plan", type: :request do
       expect(view).to have_key(:care_plan_url)
       expect(view[:care_plan_url]).to be_nil
       expect(view[:care_emergency_plan_url]).to be_nil
+      expect(view[:care_plan_half_url]).to be_nil
+      expect(view[:care_emergency_plan_half_url]).to be_nil
+      expect(view[:care_emergency_plan_wallet_url]).to be_nil
     end
 
     it "carries the URL once generated" do
@@ -219,6 +273,15 @@ RSpec.describe "API::Profiles care plan", type: :request do
       view = account.reload.api_view(parent)
       expect(view[:care_plan_url]).to eq("https://cdn.example.test/care-plan.pdf")
       expect(view[:care_emergency_plan_url]).to be_nil
+    end
+
+    it "carries the half and wallet URLs once those sizes are generated" do
+      post_care_plan(parent, size: "half")
+      post_care_plan(parent, size: "wallet")
+
+      view = account.reload.api_view(parent)
+      expect(view[:care_emergency_plan_half_url]).to eq("https://cdn.example.test/care-plan.pdf")
+      expect(view[:care_emergency_plan_wallet_url]).to eq("https://cdn.example.test/care-plan.pdf")
     end
   end
 end

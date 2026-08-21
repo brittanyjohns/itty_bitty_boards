@@ -1,9 +1,21 @@
-<%# One resolved care field, on one line: an uppercase label inline with its
-    value. Picked sets join with commas rather than "and" — this is a list of
-    what applies, not a sentence — and CareLabels already sentence-cases each
-    option. short_text is the parent's own words and prints verbatim.
+<%# One resolved care field: an uppercase label on its own line — not inline
+    with its value, which is the hierarchy fix this redesign turns on — then
+    the value. A picked (multi_select) set renders as one chip per value,
+    tinted to the section's colour; short_text is the parent's own words and
+    always prints as a sentence, never chipped.
 
-    The chip treatment is the commented-out alternative in the layout. %>
+    `chips:` is false in the half-page's middle overflow tier: same field,
+    same values, comma-joined text instead of chips (roughly half the height
+    per row) — see _care_plan_card.html.erb. %>
 <div class="row">
-  <span class="label"><%= field.label %></span><span class="value"><%= field.type == :short_text ? field.values.first : field.values.join(", ") %></span>
+  <span class="k"><%= field.label %></span>
+  <% if field.type == :short_text %>
+    <div class="say"><%= field.values.first %></div>
+  <% elsif chips %>
+    <div class="chips">
+      <% field.values.each do |value| %><span class="chip"><%= value %></span><% end %>
+    </div>
+  <% else %>
+    <div class="text"><%= field.values.join(", ") %></div>
+  <% end %>
 </div>

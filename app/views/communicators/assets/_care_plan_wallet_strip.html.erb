@@ -1,0 +1,67 @@
+<%# One wallet fold-strip: front (bottom half) and back (top half, rotated
+    180deg — see the fold-mechanics comment in the layout). Rendered 4 times
+    per page by care_plan_wallet.html.erb — identical copies, so a parent has
+    spares to cut out.
+
+    Always condensed (Communicators::GenerateCarePlan::WALLET_LINE_LIMIT
+    lines, no chips) regardless of how much the profile has answered — a
+    wallet card has no room for the overflow ladder the half size has. %>
+<div class="wstrip">
+  <div class="half flip wback">
+    <div class="wtop"></div>
+    <div class="bhead"><%= t("care.document.wallet.call_first") %></div>
+    <div class="wcontacts">
+      <% @emergency_contacts.first(2).each do |contact| %>
+        <div class="c">
+          <div class="n"><%= [contact["name"].presence || t("care.document.emergency.relationship_unknown"), contact["relationship"]].select(&:present?).join(" · ") %></div>
+          <div class="p"><%= contact["phone"] %></div>
+        </div>
+      <% end %>
+    </div>
+    <div class="wlist">
+      <% @wallet_lines.each do |line| %>
+        <div class="li"><span class="k"><%= line[:label] %></span><span class="v"><%= line[:text] %></span></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="foldrule" style="top:2in"><span><%= t("care.document.half.fold_here") %></span></div>
+
+  <div class="half wfront">
+    <div class="wtop"></div>
+    <div class="who">
+      <div class="pic">
+        <% if @avatar_data_url.present? %><img src="<%= @avatar_data_url %>" alt="" /><% end %>
+      </div>
+      <div class="nm">
+        <h4><%= @display_name %></h4>
+        <div class="says"><%= @says ? t("care.document.wallet.uses_html", primary: @says.primary) : t("care.document.wallet.uses_neutral") %></div>
+      </div>
+      <% if @qr_data_url.present? %>
+        <div class="qr">
+          <img src="<%= @qr_data_url %>" alt="" />
+          <div class="c"><%= t("care.document.wallet.my_live_page") %></div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @allergies %>
+      <div class="wallergy">
+        <div class="k"><%= t("care.document.glance.allergies") %></div>
+        <div class="v"><%= @allergies %></div>
+      </div>
+    <% end %>
+
+    <% if @call_first_contact %>
+      <div class="wcall">
+        <span class="k"><%= t("care.document.wallet.call_first") %></span>
+        <span class="p"><%= @call_first_contact["phone"] %></span>
+        <span class="n"><%= [@call_first_contact["name"], @call_first_contact["relationship"]].select(&:present?).join(" · ") %></span>
+      </div>
+    <% end %>
+
+    <div class="wfoot">
+      <span class="u"><%= @public_url %></span>
+    </div>
+  </div>
+</div>
