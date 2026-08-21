@@ -175,8 +175,6 @@ en:
         turn_over: Turn me over for how %{name} eats, moves, communicates, and what helps them through the day.
         full_plan_note: "Full plan on my live page →"
       wallet:
-        uses_html: I use %{primary} to talk.
-        uses_neutral: I use AAC to communicate.
         my_live_page: MY LIVE PAGE
         call_first: Call first
         legend_cut: cut

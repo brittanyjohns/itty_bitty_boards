@@ -35,7 +35,6 @@
       </div>
       <div class="nm">
         <h4><%= @display_name %></h4>
-        <div class="says"><%= @says ? t("care.document.wallet.uses_html", primary: @says.primary) : t("care.document.wallet.uses_neutral") %></div>
       </div>
       <% if @qr_data_url.present? %>
         <div class="qr">

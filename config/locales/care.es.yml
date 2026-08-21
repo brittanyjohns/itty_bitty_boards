@@ -175,8 +175,6 @@ es:
         turn_over: Dale la vuelta para ver cómo %{name} come, se mueve, se comunica y qué le ayuda durante el día.
         full_plan_note: "El plan completo está en mi página en línea →"
       wallet:
-        uses_html: Uso %{primary} para comunicarme.
-        uses_neutral: Uso un dispositivo de CAA para comunicarme.
         my_live_page: MI PÁGINA EN LÍNEA
         call_first: A quién llamar
         legend_cut: cortar
