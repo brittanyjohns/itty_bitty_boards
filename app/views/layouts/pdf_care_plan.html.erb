@@ -149,6 +149,30 @@
          survives the fragmentation break where a margin would be truncated. */
       .sheet-content { padding: 9pt 11pt; }
 
+      /* ---- Preview rendering (the PNG thumbnail only) ----
+
+         The thumbnail is a SCREENSHOT, not a print. Grover's `margin:` option
+         is what insets the `sheet` size's content on paper, and a screenshot
+         gets none of it — so without this the frame hugs the image edge and
+         the text starts hard against it, which is not what prints.
+
+         Chrome emulates PRINT media for to_pdf and SCREEN media for to_png, so
+         a @media screen block reaches the preview and nothing else. That is
+         the whole mechanism: if anyone ever sets `emulate_media: "screen"` on
+         the PDF path these rules would start applying to paper and the sheet
+         would be double-margined. Don't.
+
+         Keep these values identical to the `sheet` margins in
+         GenerateCarePlan#letter_options. `half` and `wallet` render at
+         `margin: 0` and lay themselves out in physical units against the full
+         untrimmed page, so at a Letter-sized viewport they already match the
+         PDF exactly and must NOT be padded — neither selector below exists in
+         those two templates, which is what keeps them out of it. */
+      @media screen {
+        .page-frame { inset: 0.5in 0.5in 0.55in; }
+        .sheet-content { padding: calc(9pt + 0.5in) calc(11pt + 0.5in) calc(9pt + 0.55in); }
+      }
+
       /* ================= identity header (sheet + half) ================= */
       .topbar { height: 6pt; background: var(--brand-gradient-hairline); margin: -9pt -11pt 0; }
 

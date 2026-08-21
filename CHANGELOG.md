@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Every care plan now has a preview picture.** Each document is generated
+  with a PNG thumbnail of itself, served alongside the download URL on the
+  communicator payload, so the Print & share tab can show what a plan looks
+  like at the size you picked rather than just a Download button. The
+  thumbnail is rendered from the same HTML as the PDF and shares its freshness
+  signature, so it can never show a document you no longer have; on the full
+  sheet, which flows to as many pages as it needs, the picture is page one.
+
 - **The Care & Emergency Plan can be downloaded as a half-page fold card or a
   wallet fold strip, not just the full Letter sheet.** `POST
   /api/profiles/:id/care_plan` takes a new `size` param (`sheet` default,
@@ -16,6 +24,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   wallet card with no emergency block isn't worth the paper.
 
 ### Changed
+
+- **The Safety ID card is no longer offered.** It printed the same allergies,
+  medical needs, medications and emergency contacts as the Care & Emergency
+  Plan's front page, so once that plan gained a wallet size — the same
+  information on something you can actually clip to a bag — the card was a
+  second copy competing with it. Cards already generated still exist and the
+  endpoint can still build one; nothing is built unprompted any more. A side
+  effect: saving a communicator's page (an avatar, a theme change) now runs two
+  headless-Chrome renders instead of four, so it finishes noticeably sooner.
 
 - **The care plan PDF has a new look.** Field labels sit on their own line in
   small caps above their value instead of inline with it; a picked

@@ -275,9 +275,10 @@ the free-text bio.
   written before this shipped round-trips unchanged.
 - **Care fields are never eligible for writing suggestions** — same rule as
   `SAFETY_SENSITIVE_KEYS`. Nothing here goes to OpenAI.
-- Care info is deliberately **not** on the Safety ID card or device tag; those
-  are emergency artifacts. The **care plan PDF** is the artifact that carries
-  it — see below.
+- Care info is deliberately **not** on the device tag; that is an emergency
+  artifact and a finder's route back to the owner. The **care plan** is what
+  carries it — see below. This rule used to name the Safety ID card too; that
+  card is no longer offered — see "The retired Safety ID card".
 
 ## The care plan PDFs
 
@@ -291,6 +292,9 @@ times three sizes, minus one:
 |---|---|---|---|
 | `:full` | `care_emergency_plan_pdf` | `care_emergency_plan_half_pdf` | `care_emergency_plan_wallet_pdf` |
 | `:care_only` | `care_plan_pdf` | `care_plan_half_pdf` | *(not offered)* |
+
+Each cell also has a `*_preview_png` twin holding the thumbnail — see "Each
+document carries a PNG thumbnail" below.
 
 `:care_only` + `wallet` is deliberately absent — strip the emergency block out
 of a wallet card and what's left is a name, a photo, and five care lines,
@@ -441,6 +445,66 @@ Things that will bite a future change:
   exists twice, because one renders server-side and one client-side. Change
   both.
 
+### Each document carries a PNG thumbnail
+
+Every `[variant, size]` pair has a `preview:` attachment beside its
+`attachment:`, in the same `VARIANTS` table — a size added without one attaches
+nothing and shows a placeholder forever, which is why they travel together.
+`ChildAccount#api_view` serves them as `*_preview_url` (never
+`#index_api_view`: ten attachment lookups per communicator multiply across a
+dashboard).
+
+- **One render, two Grover calls.** `#call` evaluates the ERB once and hands
+  the same HTML string to the PDF and to `HtmlToPng`. The render is the
+  expensive, side-effect-carrying half — it resolves the avatar to a data: URI
+  and walks the whole care blob — and rendering per output would also let a
+  document and its own thumbnail drift apart.
+- **The freshness check covers BOTH, and that is what backfills previews.**
+  `#up_to_date?` requires the PDF *and* the preview to be attached and fresh;
+  checking only the PDF would leave every document cached before previews
+  existed "fresh" forever, with a working download beside a placeholder and no
+  way for the owner to force one. This is also why previews shipped with **no
+  `LAYOUT_VERSION` bump** — the PDF bytes did not change, and a bump would
+  rebuild every cached document to no purpose.
+- **Margin parity is a `@media screen` block** in
+  `layouts/pdf_care_plan.html.erb`. Chrome emulates PRINT media for `to_pdf`
+  and SCREEN media for `to_png`, so that block reaches the thumbnail and
+  nothing else — it reproduces the page margins Grover's `margin:` option gives
+  the `sheet` size on paper, which a screenshot otherwise gets none of. Setting
+  `emulate_media: "screen"` on the PDF path would double-margin the sheet.
+  `half` and `wallet` render at `margin: 0` in physical units against the full
+  page, so at a Letter-sized viewport they already match and are deliberately
+  left alone.
+- The viewport is Letter at 96dpi (`PREVIEW_WIDTH`/`PREVIEW_HEIGHT`, 816×1056)
+  at 2x. `HtmlToPng` captures the viewport rather than the full page, so on the
+  flowing `sheet` size the thumbnail is page one.
+
+
+## The retired Safety ID card
+
+`Communicators::GenerateSafetyIdCard` printed exactly
+`CarePlanDocument::EMERGENCY_FIELDS` plus `profile.safety_contacts` — the same
+data as the care plan's emergency page, on a 1200×1800 portrait poster. Once
+the `wallet` size shipped, that card was a strict content subset of a document
+someone can actually carry, so it came off the Print & share tab.
+
+**Nothing was deleted.** `safety_id_png` / `safety_id_pdf`,
+`POST /api/profiles/:id/safety_id`, and `communicators/assets/safety_id_card`
+all remain, so no already-generated card is orphaned and re-offering it is a
+UI change. What changed is that nothing builds one *unprompted*:
+
+- `Profile#generate_attachments!` no longer calls it. That method runs
+  synchronously on every safety-profile save, so this halved it from four
+  headless-Chrome renders to two — paid for by an avatar upload or a theme
+  tweak.
+- `RegenerateSafetyCardsJob` no longer re-renders it after a slug change.
+- `API::Internal::ProfilesController`'s **`qr_target_url` branch still does**,
+  explicitly. That is the AAC Classroom Kit pointing sample tags at
+  `/classroom`, and it is the reason the generator and endpoint stay.
+
+`Marketing::SafetyTagSheet` is unrelated and unaffected — it is the fillable
+clip-on kit tag, with no per-child data.
+
 
 ## Generating the printables is owner-only
 
@@ -471,7 +535,7 @@ conflated:
   permits `:bio`).
 - **Emergency notes = `settings["emergency_notes"]`** — one of the
   `SAFETY_SENSITIVE_KEYS`, withheld from page-open and revealed only by the
-  gated `safety_view` POST. Also printed on the Safety ID card.
+  gated `safety_view` POST. Also printed on the care plan's `full` variant.
 
 **Onboarding writes them separately** (`API::V1::Onboarding::MyspeakController`):
 `about_me` → `bio`, `emergency_notes` → `settings["emergency_notes"]`.
@@ -529,9 +593,9 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
   validations/callbacks) and enqueues `RegenerateSafetyCardsJob` for **only the
   profiles migrated in that run** (so a re-run / scoped run doesn't re-email
   parents whose cards are current).
-  That job re-renders the safety ID card + device tag with the new QR target
-  (`Communicators::GenerateSafetyIdCard`/`GenerateDeviceTag` with
-  `regenerate: true`) and emails the parent via
-  `CommunicationAccountMailer#safety_cards_updated`. Run after deploy so the
-  legacy fallback is live before slugs change.
+  That job re-renders the device tag with the new QR target
+  (`Communicators::GenerateDeviceTag` with `regenerate: true`) and emails the
+  parent via `CommunicationAccountMailer#safety_cards_updated`. Run after
+  deploy so the legacy fallback is live before slugs change. It no longer
+  re-renders the Safety ID card — see "The retired Safety ID card".
 

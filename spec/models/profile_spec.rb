@@ -919,4 +919,30 @@ RSpec.describe Profile, type: :model do
       end
     end
   end
+
+  # Runs synchronously on every safety-profile save, so what it builds is paid
+  # for by an avatar upload or a theme tweak. It used to build the Safety ID
+  # card too, at two more headless-Chrome renders per save.
+  describe "#generate_attachments!" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Emma") }
+    let!(:profile) { Profile.new(profileable: child, username: "emma", slug: "s-p4t9wq").tap(&:save!) }
+
+    before do
+      allow(Communicators::GenerateSafetyIdCard).to receive(:call)
+      allow(Communicators::GenerateDeviceTag).to receive(:call)
+    end
+
+    it "builds the device tag" do
+      profile.generate_attachments!
+
+      expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
+    end
+
+    it "does not build the retired Safety ID card" do
+      profile.generate_attachments!
+
+      expect(Communicators::GenerateSafetyIdCard).not_to have_received(:call)
+    end
+  end
 end

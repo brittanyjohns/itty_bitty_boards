@@ -1158,6 +1158,11 @@ class ChildAccount < ApplicationRecord
       care_plan_half_url: care_plan_half_url,
       care_emergency_plan_half_url: care_emergency_plan_half_url,
       care_emergency_plan_wallet_url: care_emergency_plan_wallet_url,
+      care_plan_preview_url: care_plan_preview_url,
+      care_emergency_plan_preview_url: care_emergency_plan_preview_url,
+      care_plan_half_preview_url: care_plan_half_preview_url,
+      care_emergency_plan_half_preview_url: care_emergency_plan_half_preview_url,
+      care_emergency_plan_wallet_preview_url: care_emergency_plan_wallet_preview_url,
       voice: voice,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
@@ -1363,11 +1368,11 @@ class ChildAccount < ApplicationRecord
     profile.url_for_attachment(profile.device_tag_png)
   end
 
-  # Care plan documents. Nil until the owner generates one — unlike the tags,
-  # these are built on demand rather than on every profile save. Exposed on
-  # #api_view only, never on #index_api_view: that serializer backs list
-  # payloads and two more attachment lookups per communicator multiply across
-  # a dashboard.
+  # Care plan documents, and the preview thumbnail the Print & share tab shows
+  # for each. Nil until the owner generates one — unlike the device tag, these
+  # are built on demand rather than on every profile save. Exposed on #api_view
+  # only, never on #index_api_view: that serializer backs list payloads, and
+  # ten attachment lookups per communicator multiply across a dashboard.
   def care_plan_url
     return nil unless profile&.care_plan_pdf&.attached?
     profile.url_for_attachment(profile.care_plan_pdf)
@@ -1391,5 +1396,30 @@ class ChildAccount < ApplicationRecord
   def care_emergency_plan_wallet_url
     return nil unless profile&.care_emergency_plan_wallet_pdf&.attached?
     profile.url_for_attachment(profile.care_emergency_plan_wallet_pdf)
+  end
+
+  def care_plan_preview_url
+    return nil unless profile&.care_plan_preview_png&.attached?
+    profile.url_for_attachment(profile.care_plan_preview_png)
+  end
+
+  def care_emergency_plan_preview_url
+    return nil unless profile&.care_emergency_plan_preview_png&.attached?
+    profile.url_for_attachment(profile.care_emergency_plan_preview_png)
+  end
+
+  def care_plan_half_preview_url
+    return nil unless profile&.care_plan_half_preview_png&.attached?
+    profile.url_for_attachment(profile.care_plan_half_preview_png)
+  end
+
+  def care_emergency_plan_half_preview_url
+    return nil unless profile&.care_emergency_plan_half_preview_png&.attached?
+    profile.url_for_attachment(profile.care_emergency_plan_half_preview_png)
+  end
+
+  def care_emergency_plan_wallet_preview_url
+    return nil unless profile&.care_emergency_plan_wallet_preview_png&.attached?
+    profile.url_for_attachment(profile.care_emergency_plan_wallet_preview_png)
   end
 end

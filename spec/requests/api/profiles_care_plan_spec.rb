@@ -30,7 +30,10 @@ RSpec.describe "API::Profiles care plan", type: :request do
   let(:emergency) { { "allergies" => "peanuts" } }
 
   before do
-    allow(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+    # Two calls per generate: the document, and the PNG thumbnail rendered
+    # from the same HTML.
+    allow(Grover).to receive(:new)
+      .and_return(instance_double(Grover, to_pdf: "%PDF-stub", to_png: "\x89PNG-stub"))
     allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
     allow_any_instance_of(Profile).to receive(:enqueue_audio_job_if_needed).and_return(true)
     allow_any_instance_of(Profile).to receive(:url_for_attachment)
@@ -265,6 +268,39 @@ RSpec.describe "API::Profiles care plan", type: :request do
       expect(view[:care_plan_half_url]).to be_nil
       expect(view[:care_emergency_plan_half_url]).to be_nil
       expect(view[:care_emergency_plan_wallet_url]).to be_nil
+    end
+
+    it "carries no preview URLs until one is generated" do
+      view = account.reload.api_view(parent)
+
+      expect(view).to have_key(:care_plan_preview_url)
+      expect(view[:care_plan_preview_url]).to be_nil
+      expect(view[:care_emergency_plan_preview_url]).to be_nil
+      expect(view[:care_plan_half_preview_url]).to be_nil
+      expect(view[:care_emergency_plan_half_preview_url]).to be_nil
+      expect(view[:care_emergency_plan_wallet_preview_url]).to be_nil
+    end
+
+    # The thumbnail arrives with the document, on the SAME payload the screen
+    # refetches after a download — nothing has to ask for it separately.
+    it "carries the preview URL alongside the document once generated" do
+      post_care_plan(parent, size: "wallet")
+
+      view = account.reload.api_view(parent)
+      expect(view[:care_emergency_plan_wallet_url]).to be_present
+      expect(view[:care_emergency_plan_wallet_preview_url]).to be_present
+      expect(view[:care_emergency_plan_preview_url]).to be_nil
+    end
+
+    # Ten attachment lookups per communicator multiply across a dashboard, and
+    # this serializer backs the list payloads.
+    it "keeps the preview URLs off the list payload" do
+      post_care_plan(parent)
+
+      view = account.reload.index_api_view
+
+      expect(view).not_to have_key(:care_emergency_plan_preview_url)
+      expect(view).not_to have_key(:care_emergency_plan_url)
     end
 
     it "carries the URL once generated" do

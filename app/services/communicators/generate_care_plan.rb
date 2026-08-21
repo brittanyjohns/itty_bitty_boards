@@ -23,9 +23,16 @@ module Communicators
   # wallet card and what's left is a name, a photo, and five care lines, which
   # isn't worth the paper. See .supported?.
   #
-  # PDF only, no PNG. Every other communicator asset ships both, but a PNG of a
-  # multi-page or fixed-layout document is either meaningless or redundant with
-  # the PDF, and there is nothing that would display it.
+  # Each document ships a PDF and a PNG thumbnail, rendered from the SAME HTML
+  # string in one call so the ERB is evaluated once and the two can never
+  # disagree. The PNG is a preview, not a second deliverable: it is what the
+  # Print & share tab shows, and it captures the viewport rather than the whole
+  # page, so on the flowing :sheet size it is page one. That is the honest
+  # thing to show for a document whose length depends on how much the parent
+  # filled in — the earlier objection to a PNG here was that a multi-page
+  # document rasterizes to either an impossibly tall image or a silently
+  # cropped first page, which is true only while nothing tells the reader which
+  # one they are looking at. A thumbnail beside a Download button does.
   #
   # NOT generated from Profile#generate_attachments!. That runs synchronously on
   # every safety-profile save — an avatar upload, a theme tweak — and is already
@@ -48,24 +55,54 @@ module Communicators
 
     SIZES = %w[sheet half wallet].freeze
 
+    # `preview` sits beside `attachment` rather than in a parallel table, so the
+    # [variant, size] lookup stays the one place a pair resolves. A size added
+    # here without a preview would attach nothing and show a placeholder
+    # forever, which is why they travel together.
     VARIANTS = {
       full: {
         emergency: true,
         sizes: {
-          sheet: { attachment: :care_emergency_plan_pdf, filename: "care-and-emergency-plan" },
-          half: { attachment: :care_emergency_plan_half_pdf, filename: "care-and-emergency-plan-half" },
-          wallet: { attachment: :care_emergency_plan_wallet_pdf, filename: "care-and-emergency-plan-wallet" },
+          sheet: {
+            attachment: :care_emergency_plan_pdf,
+            preview: :care_emergency_plan_preview_png,
+            filename: "care-and-emergency-plan",
+          },
+          half: {
+            attachment: :care_emergency_plan_half_pdf,
+            preview: :care_emergency_plan_half_preview_png,
+            filename: "care-and-emergency-plan-half",
+          },
+          wallet: {
+            attachment: :care_emergency_plan_wallet_pdf,
+            preview: :care_emergency_plan_wallet_preview_png,
+            filename: "care-and-emergency-plan-wallet",
+          },
         },
       },
       care_only: {
         emergency: false,
         sizes: {
-          sheet: { attachment: :care_plan_pdf, filename: "care-plan" },
-          half: { attachment: :care_plan_half_pdf, filename: "care-plan-half" },
+          sheet: {
+            attachment: :care_plan_pdf,
+            preview: :care_plan_preview_png,
+            filename: "care-plan",
+          },
+          half: {
+            attachment: :care_plan_half_pdf,
+            preview: :care_plan_half_preview_png,
+            filename: "care-plan-half",
+          },
           # No :wallet here, deliberately — see the class comment.
         },
       },
     }.freeze
+
+    # The preview's pixel size: US Letter at 96dpi, the ratio every one of these
+    # documents prints at. Rendered at 2x for a crisp thumbnail on a retina
+    # screen, matching the device tag's scale.
+    PREVIEW_WIDTH = 816
+    PREVIEW_HEIGHT = 1056
 
     # How many values the half page's middle overflow tier shows per
     # multi_select field before falling back to comma-joined text (see
@@ -143,16 +180,29 @@ module Communicators
     # That is deliberate — the screen regenerates on every click, so it
     # self-corrects — and an attachment per selection would be unbounded.
     def call(regenerate: false)
-      return profile if !regenerate && attached_and_fresh?(config[:attachment], signature: signature)
+      return profile if !regenerate && up_to_date?
 
-      pdf = generate_pdf(rendered_document)
+      # Rendered ONCE and handed to Grover twice. The ERB is the expensive,
+      # side-effect-carrying half (it resolves the avatar to a data: URI and
+      # walks the whole care blob); rendering it per output would double that
+      # work and let the PDF and its own thumbnail drift apart.
+      html = rendered_document
 
       attach_binary(
         record: profile,
         attachment_name: config[:attachment],
-        bytes: pdf,
+        bytes: generate_pdf(html),
         filename: "#{config[:filename]}-#{profile.id}.pdf",
         content_type: "application/pdf",
+        metadata: { signature: signature },
+      )
+
+      attach_binary(
+        record: profile,
+        attachment_name: config[:preview],
+        bytes: generate_preview(html),
+        filename: "#{config[:filename]}-#{profile.id}-preview.png",
+        content_type: "image/png",
         metadata: { signature: signature },
       )
 
@@ -271,6 +321,31 @@ module Communicators
     # page size.
     def generate_pdf(html)
       Grover.new(html, **letter_options).to_pdf
+    end
+
+    # Both artifacts, or neither. Checking only the PDF would mean a document
+    # generated before previews existed is "fresh" forever and never grows one
+    # — the download would keep working and the thumbnail beside it would stay
+    # a placeholder, with no way for the owner to force it but a section change.
+    # This is what backfills previews onto already-cached documents, which is
+    # why no LAYOUT_VERSION bump ships with them: the PDF bytes are unchanged,
+    # and a bump would rebuild every cached document to no purpose.
+    def up_to_date?
+      attached_and_fresh?(config[:attachment], signature: signature) &&
+        attached_and_fresh?(config[:preview], signature: signature)
+    end
+
+    # A screenshot, not a print — see the @media screen block in
+    # layouts/pdf_care_plan.html.erb, which is what gives the `sheet` size the
+    # page margins Grover's PDF options supply on paper.
+    #
+    # HtmlToPng captures the VIEWPORT rather than the full page, which is the
+    # useful behaviour here: `sheet` flows to however many pages the parent's
+    # answers come to, and one Letter-shaped viewport of it is page one.
+    # `half` and `wallet` are single Letter pages already, so the same viewport
+    # captures them whole.
+    def generate_preview(html)
+      HtmlToPng.call(html: html, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT)
     end
 
     # :sheet keeps the header/footer Chrome renders in a separate document —

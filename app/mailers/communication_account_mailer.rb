@@ -11,8 +11,11 @@ class CommunicationAccountMailer < BaseMailer
   end
 
   # Sent after a communicator's safety profile gets a new secure link (the
-  # random-slug migration), so the printed safety ID card + device tag QR codes
-  # are regenerated. Tells the parent to download the refreshed cards.
+  # random-slug migration), so the printed device tag's QR code is regenerated.
+  # Tells the parent to download the refreshed tag. The method name is broader
+  # than what it now covers — it also rebuilt the Safety ID card until that card
+  # was retired — and is kept because RegenerateSafetyCardsJob and the template
+  # share it.
   def safety_cards_updated(user, child_account)
     @user = user
     @child_account = child_account
@@ -27,7 +30,7 @@ class CommunicationAccountMailer < BaseMailer
     with_user_locale(user) do
       mail(
         to: user.email,
-        subject: "#{@child_name}'s safety cards have been updated",
+        subject: "#{@child_name}'s device tag has been updated",
       )
     end
   end

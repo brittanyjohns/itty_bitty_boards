@@ -121,7 +121,7 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
 
     it "addresses the owner" do
       expect(mail.to).to eq([owner.email])
-      expect(mail.subject).to eq("Sam Carter's safety cards have been updated")
+      expect(mail.subject).to eq("Sam Carter's device tag has been updated")
       expect(body).to include("Sam Carter")
     end
 
@@ -139,6 +139,12 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
 
     it "does not use the /communicators/ prefix, which the frontend never declares" do
       expect(body).not_to include("/communicators/")
+    end
+
+    # The card is no longer offered, so the mail must not tell the owner to
+    # reprint one. Only the device tag is rebuilt after a slug change now.
+    it "does not promise a refreshed Safety ID card" do
+      expect(body).not_to include("safety ID card")
     end
   end
 end

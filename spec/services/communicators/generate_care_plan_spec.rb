@@ -52,27 +52,58 @@ RSpec.describe Communicators::GenerateCarePlan do
     }
   end
 
-  # Captures the HTML handed to Grover instead of rendering a PDF.
+  # A generate makes TWO Grover calls off ONE render — the PDF, and the PNG
+  # thumbnail rasterized from the same HTML string — so every stub here has to
+  # answer both messages, and "it re-rendered" is two calls rather than one.
+  def grover_double
+    instance_double(Grover, to_pdf: "%PDF-stub", to_png: "\x89PNG-stub")
+  end
+
+  # Captures the HTML handed to Grover instead of rendering anything. Both
+  # calls are handed the identical string — that is the point of rendering the
+  # ERB once — so the first one is the document.
   def render_html(variant: :full, **kwargs)
     captured = nil
     allow(Grover).to receive(:new) do |html, **_opts|
-      captured = html
-      instance_double(Grover, to_pdf: "%PDF-stub")
+      captured ||= html
+      grover_double
     end
 
     described_class.call(profile.reload, variant: variant, **kwargs)
     captured
   end
 
+  # The PDF call's options specifically. The thumbnail's call carries
+  # `format: "png"` and a pixel viewport instead of page options, so capturing
+  # the LAST call would quietly assert against the preview rather than the
+  # document — and every page-option expectation below would go green while
+  # testing nothing.
   def grover_options(variant: :full, size: :sheet)
     captured = nil
     allow(Grover).to receive(:new) do |_html, **opts|
-      captured = opts
-      instance_double(Grover, to_pdf: "%PDF-stub")
+      captured ||= opts unless opts[:format].to_s == "png"
+      grover_double
     end
 
     described_class.call(profile.reload, variant: variant, size: size)
     captured
+  end
+
+  # The thumbnail's own Grover options, for the preview expectations.
+  def preview_grover_options(variant: :full, size: :sheet)
+    captured = nil
+    allow(Grover).to receive(:new) do |_html, **opts|
+      captured ||= opts if opts[:format].to_s == "png"
+      grover_double
+    end
+
+    described_class.call(profile.reload, variant: variant, size: size)
+    captured
+  end
+
+  # A re-render is the PDF call plus the thumbnail's.
+  def expect_rerender
+    expect(Grover).to receive(:new).twice.and_return(grover_double)
   end
 
   # The visible text of the identity block, in order — everything from the
@@ -464,7 +495,7 @@ RSpec.describe Communicators::GenerateCarePlan do
     it "re-renders when regenerate is asked for" do
       render_html
 
-      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      expect_rerender
       described_class.call(profile.reload, variant: :full, regenerate: true)
     end
 
@@ -474,7 +505,7 @@ RSpec.describe Communicators::GenerateCarePlan do
         "care" => { "sections" => { "meals" => { "values" => { "preferences" => "loves soup" } } } },
       ))
 
-      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      expect_rerender
       described_class.call(profile.reload, variant: :full)
     end
 
@@ -484,7 +515,7 @@ RSpec.describe Communicators::GenerateCarePlan do
       render_html
       stub_const("#{described_class}::LAYOUT_VERSION", 99)
 
-      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      expect_rerender
       described_class.call(profile.reload, variant: :full)
     end
 
@@ -547,7 +578,7 @@ RSpec.describe Communicators::GenerateCarePlan do
     it "re-renders when the selection changes" do
       render_html(sections: %w[meals])
 
-      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      expect_rerender
       described_class.call(profile.reload, variant: :full, sections: %w[communication])
     end
 
@@ -722,5 +753,94 @@ RSpec.describe Communicators::GenerateCarePlan do
   it "refuses an unsupported [variant, size] pair" do
     expect { described_class.call(profile, variant: :care_only, size: :wallet) }
       .to raise_error(described_class::UnsupportedSize)
+  end
+
+  # The thumbnail the Print & share tab shows beside each Download button.
+  describe "the preview thumbnail" do
+    # Every supported pair, so a size added without a `preview:` key fails here
+    # rather than shipping a card that shows a placeholder forever.
+    described_class::VARIANTS.each do |variant, variant_config|
+      variant_config[:sizes].each do |size, size_config|
+        it "attaches a PNG for #{variant}/#{size}" do
+          render_html(variant: variant, size: size)
+
+          preview = profile.reload.public_send(size_config[:preview])
+          expect(preview).to be_attached
+          expect(preview.content_type).to eq("image/png")
+          expect(preview.filename.to_s).to end_with("-preview.png")
+        end
+      end
+    end
+
+    it "renders the thumbnail from the same HTML as the PDF, rendering the ERB once" do
+      seen = []
+      allow(Grover).to receive(:new) do |html, **_opts|
+        seen << html
+        grover_double
+      end
+
+      described_class.call(profile.reload, variant: :full)
+
+      expect(seen.length).to eq(2)
+      expect(seen.uniq.length).to eq(1)
+    end
+
+    it "rasterizes at Letter proportions" do
+      opts = preview_grover_options
+
+      expect(opts[:format]).to eq("png")
+      expect(opts[:viewport]).to eq(
+        { width: described_class::PREVIEW_WIDTH, height: described_class::PREVIEW_HEIGHT },
+      )
+      # 8.5 x 11in. A thumbnail at any other ratio is a crop of the page, not a
+      # picture of it.
+      expect(described_class::PREVIEW_WIDTH.to_f / described_class::PREVIEW_HEIGHT).to be_within(0.001).of(8.5 / 11)
+    end
+
+    it "shares the document's freshness signature" do
+      render_html
+
+      profile.reload
+      expect(profile.care_emergency_plan_preview_png.metadata["signature"])
+        .to eq(profile.care_emergency_plan_pdf.metadata["signature"])
+    end
+
+    it "is not re-rendered when the document is already fresh" do
+      render_html
+
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload, variant: :full)
+    end
+
+    # The reason no LAYOUT_VERSION bump ships with previews: a document cached
+    # before they existed is otherwise "fresh" forever, so the download keeps
+    # working while the thumbnail beside it stays a placeholder with no way for
+    # the owner to force one. Simulated by purging the preview and leaving the
+    # PDF and its signature exactly as they were.
+    it "is backfilled onto a document cached before previews existed" do
+      render_html
+      profile.reload.care_emergency_plan_preview_png.purge
+      pdf_signature = profile.reload.care_emergency_plan_pdf.metadata["signature"]
+
+      described_class.call(profile.reload, variant: :full)
+
+      profile.reload
+      expect(profile.care_emergency_plan_preview_png).to be_attached
+      expect(profile.care_emergency_plan_pdf.metadata["signature"]).to eq(pdf_signature)
+    end
+
+    # Each pair has its own preview, for the same reason each has its own PDF:
+    # the picker switches between them and a shared thumbnail would show the
+    # wrong document.
+    it "keeps each size's thumbnail separate" do
+      render_html(variant: :full, size: :sheet)
+      render_html(variant: :full, size: :wallet)
+
+      profile.reload
+      expect(profile.care_emergency_plan_preview_png).to be_attached
+      expect(profile.care_emergency_plan_wallet_preview_png).to be_attached
+      expect(profile.care_emergency_plan_preview_png.metadata["signature"])
+        .not_to eq(profile.care_emergency_plan_wallet_preview_png.metadata["signature"])
+    end
   end
 end
