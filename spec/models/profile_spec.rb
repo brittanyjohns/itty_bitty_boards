@@ -428,6 +428,110 @@ RSpec.describe Profile, type: :model do
         end
       end
 
+      describe "custom chips on a preset row" do
+        # A chip the parent typed themselves, stored in the same array as the
+        # registry keys behind Profile::CARE_CUSTOM_OPTION_PREFIX.
+        def custom(text)
+          Profile::CARE_CUSTOM_OPTION_PREFIX + text
+        end
+
+        def methods_for(*values)
+          care(
+            "communication" => { "enabled" => true, "values" => { "methods" => values } },
+          ).dig("sections", "communication", "values", "methods")
+        end
+
+        it "keeps a custom chip alongside the presets, in the order given" do
+          expect(methods_for("aac_device", custom("Loud crowds"), "sign"))
+            .to eq(["aac_device", custom("Loud crowds"), "sign"])
+        end
+
+        it "strips markup and squishes whitespace, like every other care value" do
+          expect(methods_for(custom("  <b>No</b>   straw  ")))
+            .to eq([custom("No straw")])
+        end
+
+        it "truncates a chip to the chip cap" do
+          long = "z" * (Profile::CARE_CUSTOM_OPTION_MAX + 20)
+          stored = methods_for(custom(long)).first
+
+          expect(stored.delete_prefix(Profile::CARE_CUSTOM_OPTION_PREFIX).length)
+            .to eq(Profile::CARE_CUSTOM_OPTION_MAX)
+        end
+
+        it "drops a chip that is blank once stripped" do
+          expect(methods_for("aac_device", custom("   "), custom("<i></i>")))
+            .to eq(%w[aac_device])
+        end
+
+        it "collapses case-insensitive duplicates, keeping the first spelling" do
+          # The first spelling is the one already on the page.
+          expect(methods_for(custom("No straw"), custom("no straw"), custom("NO STRAW")))
+            .to eq([custom("No straw")])
+        end
+
+        it "caps how many custom chips one field can hold" do
+          typed = Array.new(Profile::MAX_CARE_CUSTOM_OPTIONS + 3) { |i| custom("chip #{i}") }
+
+          expect(methods_for(*typed).length).to eq(Profile::MAX_CARE_CUSTOM_OPTIONS)
+        end
+
+        it "counts customs inside the multi-select cap, not on top of it" do
+          presets = Profile::CARE_SECTIONS["communication"][:fields]
+                    .find { |f| f[:key] == "methods" }[:options]
+          typed = Array.new(Profile::MAX_CARE_CUSTOM_OPTIONS) { |i| custom("chip #{i}") }
+
+          expect(methods_for(*presets, *typed).length).to eq(Profile::MAX_CARE_MULTI_SELECT)
+        end
+
+        it "still drops an unprefixed value that isn't a registry option" do
+          # The prefix is the whole licence. Without it this is exactly the
+          # unknown-option case, and a whitelist drops it.
+          expect(methods_for("aac_device", "Loud crowds")).to eq(%w[aac_device])
+        end
+
+        it "renders as the parent's own words, never humanized" do
+          field = Profile::CARE_SECTIONS["communication"][:fields].find { |f| f[:key] == "methods" }
+
+          expect(CareLabels.option("communication", "methods", custom("no_straw cups")))
+            .to eq("no_straw cups")
+          expect(CareLabels.options_map("communication", field).keys)
+            .not_to include(a_string_starting_with(Profile::CARE_CUSTOM_OPTION_PREFIX))
+        end
+      end
+
+      describe "detail lines on a built-in section, after the editor stopped offering them" do
+        it "still round-trips a stored line through an unrelated save" do
+          # THE regression guard for this feature. sanitize_care_settings is a
+          # before_save over the whole blob, so dropping clean_care_items from
+          # clean_builtin_care_section would erase every stored line the next
+          # time anything saved the profile — an avatar upload is enough.
+          care(
+            "personal_care" => {
+              "enabled" => true,
+              "values" => { "toileting" => %w[needs_reminders] },
+              "items" => [{ "label" => "Bathroom", "value" => "needs a five-minute warning" }],
+            },
+          )
+
+          profile.update!(username: profile.username + "-x")
+
+          expect(profile.reload.settings.dig("care", "sections", "personal_care", "items"))
+            .to eq([{ "label" => "Bathroom", "value" => "needs a five-minute warning" }])
+        end
+
+        it "keeps a section alive on its stored lines alone" do
+          result = care(
+            "mobility" => {
+              "enabled" => true,
+              "items" => [{ "label" => "Ramp", "value" => "back door only" }],
+            },
+          )
+
+          expect(result["sections"]).to have_key("mobility")
+        end
+      end
+
       it "drops unknown sections, unknown fields, and out-of-registry options" do
         result = care(
           "communication" => {

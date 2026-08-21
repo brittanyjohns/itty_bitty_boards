@@ -42,6 +42,24 @@ RSpec.describe Communicators::CarePlanDocument do
       expect(section.fields.first.values).to eq(["AAC device", "Eye gaze"])
     end
 
+    it "prints a custom chip as the parent typed it" do
+      # A chip the parent typed themselves is already words. It must reach paper
+      # verbatim — humanizing it would eat the underscores out of their own text.
+      doc = with_care(
+        "sections" => {
+          "communication" => {
+            "enabled" => true,
+            "values" => {
+              "methods" => ["aac_device", "#{Profile::CARE_CUSTOM_OPTION_PREFIX}taps_my arm"],
+            },
+          },
+        },
+      )
+
+      expect(doc.care_sections.first.fields.first.values)
+        .to eq(["AAC device", "taps_my arm"])
+    end
+
     it "renders short_text verbatim rather than labeling it" do
       doc = with_care(
         "sections" => {

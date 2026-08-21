@@ -32,11 +32,13 @@ es:
       communication:
         methods: How I communicate
         what_helps: What helps me
+        notes: Algo más que valga la pena saber
       personal_care:
         toileting: Toileting
         schedule: Schedule
         hygiene: Help with hygiene
         dressing: Dressing
+        notes: Algo más que valga la pena saber
       meals:
         eating: What helps at meals
         textures: Textures
@@ -50,6 +52,7 @@ es:
       mobility:
         equipment: Equipment I use
         support: Help I need moving around
+        notes: Algo más que valga la pena saber
       transportation:
         school_travel: To & from school
         seating: Seating
