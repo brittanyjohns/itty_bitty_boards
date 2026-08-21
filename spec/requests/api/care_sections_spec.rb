@@ -65,6 +65,8 @@ RSpec.describe "API::CareSections", type: :request do
         "max_custom_sections" => Profile::MAX_CUSTOM_CARE_SECTIONS,
         "max_custom_items" => Profile::MAX_CARE_CUSTOM_ITEMS,
         "max_multi_select" => Profile::MAX_CARE_MULTI_SELECT,
+        "max_custom_options" => Profile::MAX_CARE_CUSTOM_OPTIONS,
+        "custom_option_max" => Profile::CARE_CUSTOM_OPTION_MAX,
         "title_max" => Profile::CARE_TITLE_MAX,
         "item_label_max" => Profile::CARE_ITEM_LABEL_MAX,
         "item_value_max" => Profile::CARE_ITEM_VALUE_MAX,

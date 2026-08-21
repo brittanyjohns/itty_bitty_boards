@@ -609,12 +609,25 @@ class Profile < ApplicationRecord
   #      "independent / some help / full help" scales, which said little on
   #      their own, into concrete supports someone can actually act on.
   #   2. Presets stay SHORT (3-4 options) and answer "which of these applies".
-  #      Anything specific or provisional belongs in the section's detail lines
-  #      ("Bus: back left seat, by the window"), which every section carries.
-  #      That is what makes a short option list lossless rather than lossy.
+  #      A parent whose answer isn't on the list adds their OWN chip — stored in
+  #      the same array behind CARE_CUSTOM_OPTION_PREFIX — and anything longer
+  #      than a chip goes in the section's `short_text` field. That is what makes
+  #      a short option list lossless rather than lossy.
   #
-  # There is deliberately no per-section `notes` field: the detail lines are the
-  # free-text surface, and two of them side by side just split the same answer.
+  # EVERY section carries exactly one `short_text` field, and that is the whole
+  # free-text surface. It used to be the per-section detail lines (label/value
+  # rows) instead, on the reasoning that two free-text surfaces side by side just
+  # split the same answer. That reasoning still holds — what changed is which one
+  # survived. Custom chips absorbed the short answers, "Your own sections" already
+  # did label/value rows better, and a sentence field is simpler than a row
+  # builder repeated under all six sections. So the editor stopped offering detail
+  # lines on a built-in section.
+  #
+  # It stopped OFFERING them. It did not stop accepting them, and clean_care_items
+  # below is deliberately still wired up for built-in sections — see the note
+  # there. sanitize_care_settings is a before_save over the whole blob, so
+  # deleting that handling erases every stored line on the next save of each
+  # profile, for any reason. Same two-step rule as DEPRECATED_CARE_OPTIONS.
   CARE_SECTIONS = {
     "communication" => {
       fields: [
@@ -627,6 +640,7 @@ class Profile < ApplicationRecord
         { key: "what_helps", type: :multi_select,
           options: %w[keep_my_device_close model_on_my_device wait_and_pause
                       offer_choices] },
+        { key: "notes", type: :short_text },
       ],
     },
     "personal_care" => {
@@ -640,6 +654,7 @@ class Profile < ApplicationRecord
           options: %w[handwashing toothbrushing face_and_hands hair_brushing] },
         { key: "dressing", type: :multi_select,
           options: %w[independent some_help full_help] },
+        { key: "notes", type: :short_text },
       ],
     },
     "meals" => {
@@ -685,6 +700,7 @@ class Profile < ApplicationRecord
         { key: "support", type: :multi_select,
           options: %w[independent standby_supervision hands_on_help
                       help_with_transfers] },
+        { key: "notes", type: :short_text },
       ],
     },
     "transportation" => {
@@ -705,6 +721,26 @@ class Profile < ApplicationRecord
   # A parent-added section. The key is generated client-side; the format is what
   # keeps an arbitrary attacker-chosen key out of the settings hash.
   CARE_CUSTOM_KEY_FORMAT = /\Ac_[0-9a-f]{6}\z/.freeze
+
+  # A chip a parent typed themselves, stored in the SAME multi_select array as
+  # the registry keys and told apart by this prefix. The colon is what makes it
+  # safe: a registry option key is /\A[a-z_]+\z/, so a custom value can never
+  # collide with a present or future one, and the sanitizer can partition the
+  # array without a second column or a sibling key.
+  #
+  # In-array rather than beside it, deliberately. A deployed client that predates
+  # this feature round-trips `values[<field>]` verbatim, so a custom chip survives
+  # an older build editing the same profile — it even renders as a removable
+  # selected chip, since the editor already shows a stored-but-unoffered option
+  # that way for retired options. A sibling key would instead be dropped by the
+  # frontend's settingsFromCareValue on the next save from any older build, which
+  # is silent data loss on the long-lived iOS/Android bundles.
+  CARE_CUSTOM_OPTION_PREFIX = "custom:"
+  # A chip has to stay chip-sized — one line, next to presets like "AAC device".
+  # Anything longer is what the section's `short_text` field is for.
+  CARE_CUSTOM_OPTION_MAX = 40
+  # Per field, and inside MAX_CARE_MULTI_SELECT rather than on top of it.
+  MAX_CARE_CUSTOM_OPTIONS = 4
 
   MAX_CUSTOM_CARE_SECTIONS = 4
   MAX_CARE_CUSTOM_ITEMS = 8
@@ -821,6 +857,8 @@ class Profile < ApplicationRecord
         max_custom_sections: MAX_CUSTOM_CARE_SECTIONS,
         max_custom_items: MAX_CARE_CUSTOM_ITEMS,
         max_multi_select: MAX_CARE_MULTI_SELECT,
+        max_custom_options: MAX_CARE_CUSTOM_OPTIONS,
+        custom_option_max: CARE_CUSTOM_OPTION_MAX,
         title_max: CARE_TITLE_MAX,
         item_label_max: CARE_ITEM_LABEL_MAX,
         item_value_max: CARE_ITEM_VALUE_MAX,
@@ -834,6 +872,10 @@ class Profile < ApplicationRecord
       # what actually prints the first time the copy is edited. Same reason
       # custom_key_format is derived above rather than written out.
       subheader_default: I18n.t("care.document.subheader.default", locale: locale),
+      # A SIBLING key, like `label`/`option_labels` above and for the same
+      # reason: an older client ignores it and keeps working. It never appears
+      # inside `options`, which must stay an array of plain strings.
+      custom_option_prefix: CARE_CUSTOM_OPTION_PREFIX,
     }
   end
 
@@ -1370,9 +1412,7 @@ class Profile < ApplicationRecord
         case field[:type]
         when :multi_select
           next unless raw_value.is_a?(Array)
-          raw_value.map(&:to_s).uniq
-                   .select { |v| accepted.include?(v) }
-                   .first(MAX_CARE_MULTI_SELECT)
+          clean_care_multi_select(raw_value, accepted)
         when :single_select
           value = raw_value.to_s
           value if accepted.include?(value)
@@ -1383,12 +1423,19 @@ class Profile < ApplicationRecord
       clean_values[field[:key]] = cleaned if cleaned.present?
     end
 
-    # Detail lines. The preset chips answer "which of these applies"; the real
-    # thing a parent needs to hand a substitute is usually specific and
-    # provisional — "Bus: back left seat, by the window". That doesn't compress
-    # into a chip, so a built-in section carries the same label/value rows a
-    # custom one does. These are the ONLY free-text surface on a built-in
-    # section, which is why the option lists above can stay short.
+    # Detail lines on a BUILT-IN section: accepted, no longer offered.
+    #
+    # These label/value rows were once the only free-text surface here. Custom
+    # chips and the per-section `short_text` field replaced them, and the editor
+    # stopped rendering "+ Add a line" — but real profiles still hold rows, and
+    # this method runs on EVERY save of a profile for any reason. Deleting the
+    # call erases them all, silently, with nothing to restore from.
+    #
+    # So it stays until `rake care:audit_items` reports zero, exactly like the
+    # two-step rule for DEPRECATED_CARE_OPTIONS. The editor still renders stored
+    # rows so a parent can clear their own; the card and the printed plan still
+    # show them. Custom sections keep offering rows — that is now the only place
+    # a label/value pair is authored.
     items = clean_care_items(section["items"])
 
     return nil if clean_values.empty? && items.empty?
@@ -1396,6 +1443,49 @@ class Profile < ApplicationRecord
     cleaned = { "enabled" => care_enabled?(section["enabled"]), "values" => clean_values }
     cleaned["items"] = items if items.any?
     cleaned
+  end
+
+  # One multi_select answer: registry keys and the parent's own chips, in one
+  # array, told apart by CARE_CUSTOM_OPTION_PREFIX.
+  #
+  # Walks the array ONCE and appends in the order given, so the parent's chip
+  # order survives the round trip — partitioning into presets-then-customs would
+  # silently reorder the row on every save. Everything that is neither an
+  # accepted option nor a well-formed custom value is dropped, same as before:
+  # this is a whitelist, and an unknown value has never been a 422.
+  def clean_care_multi_select(raw_value, accepted)
+    out = []
+    seen_presets = Set.new
+    seen_customs = Set.new
+
+    raw_value.each do |value|
+      break if out.length >= MAX_CARE_MULTI_SELECT
+
+      value = value.to_s
+
+      if value.start_with?(CARE_CUSTOM_OPTION_PREFIX)
+        next if seen_customs.size >= MAX_CARE_CUSTOM_OPTIONS
+
+        # care_text is the shared stripper — strip_tags + squish + truncate. A
+        # custom chip renders as text on an unauthenticated page like every other
+        # care value, so it gets exactly the same treatment.
+        text = care_text(value.delete_prefix(CARE_CUSTOM_OPTION_PREFIX),
+                         CARE_CUSTOM_OPTION_MAX)
+        next if text.blank?
+        # Case-insensitively: "no straw" and "No straw" are one chip, and the
+        # first spelling wins because it is the one already on the page.
+        next unless seen_customs.add?(text.downcase)
+
+        out << CARE_CUSTOM_OPTION_PREFIX + text
+      else
+        next unless accepted.include?(value)
+        next unless seen_presets.add?(value)
+
+        out << value
+      end
+    end
+
+    out
   end
 
   # Shared by built-in and custom sections — same caps, same stripping, same

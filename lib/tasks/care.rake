@@ -122,4 +122,41 @@ namespace :care do
       "\nDRY RUN — #{changed} profile(s) would change. Re-run with DRY_RUN=false to apply." :
       "\nDone — #{changed} profile(s) updated."
   end
+  desc "Report profiles still holding detail lines on a BUILT-IN care section"
+  task audit_items: :environment do
+    # The editor stopped offering "+ Add a line" on built-in sections when
+    # custom chips landed, but clean_builtin_care_section still ACCEPTS the rows
+    # so nobody loses what they already wrote. Same two-step rule as
+    # care:audit_options: only once this reports zero is it safe to delete the
+    # clean_care_items call from clean_builtin_care_section — before that, the
+    # before_save would erase every stored line on the next save of each row.
+    #
+    # Custom sections are excluded. Rows are still authored there, and that is
+    # now the only place they are.
+    counts = Hash.new(0)
+    profiles = 0
+
+    Profile.where.not(settings: nil).find_each do |profile|
+      sections = profile.settings.dig("care", "sections")
+      next unless sections.is_a?(Hash)
+
+      held = sections.select do |key, section|
+        Profile::CARE_SECTIONS.key?(key) && section.is_a?(Hash) && section["items"].present?
+      end
+      next if held.empty?
+
+      profiles += 1
+      held.each_key { |key| counts[key] += 1 }
+    end
+
+    if counts.empty?
+      puts "No profile holds detail lines on a built-in section. Safe to drop " \
+           "clean_care_items from Profile#clean_builtin_care_section."
+      next
+    end
+
+    puts "#{profiles} profile(s) still hold built-in detail lines:"
+    counts.sort_by { |_, n| -n }.each { |section, n| puts "  #{section}: #{n}" }
+    puts "\nLeave clean_care_items wired up until this reports zero."
+  end
 end

@@ -166,6 +166,39 @@ the free-text bio.
   **drops rather than rejects** — a stale frontend must not be able to 422 a
   parent out of saving. If nothing survives, the key is deleted so
   `has_care_info?` stays honest.
+- **A parent can add their OWN chip to a preset row, stored in the same array
+  behind `Profile::CARE_CUSTOM_OPTION_PREFIX` (`custom:`).** The preset lists are
+  deliberately short, so an answer that isn't on the list is typed rather than
+  missing. Three things make the sentinel work. The prefix contains a colon and a
+  registry option key is `/\A[a-z_]+\z/`, so a custom value can never collide
+  with a present or future key. It lives IN the array rather than beside it,
+  because a deployed client — the iOS/Android bundles live a long time —
+  round-trips `values[<field>]` verbatim and so preserves a chip it has never
+  heard of, while a sibling key would be dropped by the frontend's
+  `settingsFromCareValue` on that client's next save. And `CareLabels.option`
+  guards the prefix in ONE place, returning the parent's words verbatim, so the
+  printed plan and anything else server-side gets it right without knowing the
+  feature exists — `humanize` would otherwise eat the underscores out of their
+  own text. Custom chips are capped per field (`MAX_CARE_CUSTOM_OPTIONS`) INSIDE
+  `MAX_CARE_MULTI_SELECT`, deduped case-insensitively, and cleaned through
+  `CareText` like every other free-text value.
+- **Detail lines on a BUILT-IN section are accepted but no longer offered.** The
+  label/value rows under each built-in section were once its only free-text
+  surface; custom chips and a per-section `short_text` field replaced them and
+  the editor stopped rendering "+ Add a line". `clean_care_items` is still wired
+  into `clean_builtin_care_section` on purpose, and removing it is the same
+  silent-erasure trap as deleting an option from `CARE_SECTIONS`:
+  `sanitize_care_settings` is a `before_save` over the whole blob, so the rows
+  would vanish from every profile on its next save for any reason. `rake
+  care:audit_items` is the gate — only once it reports zero is the call safe to
+  delete. The editor still renders stored rows so a parent can clear their own,
+  and the card and printed plan still show them. Custom sections keep offering
+  rows; that is now the only place a label/value pair is authored.
+- **Every built-in section carries exactly one `short_text` field.** Retiring the
+  detail lines left Communication, Personal care and Moving around with no
+  free-text surface at all, so each gained a `notes` field. The "exactly one"
+  rule is asserted in `spec/models/care_preset_reshape_spec.rb` — two free-text
+  boxes side by side just split the same answer.
 - **The text cleaner strips markup and stores it UNESCAPED — `CareText.clean` is
   the single rule.** The trap is that `strip_tags` escapes entities on *output*,
   and the cleaner runs in a `before_save`, so a lone `strip_tags` PERSISTS

@@ -14,6 +14,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   thumbnail is rendered from the same HTML as the PDF and shares its freshness
   signature, so it can never show a document you no longer have; on the full
   sheet, which flows to as many pages as it needs, the picture is page one.
+- **Care & routines: add your own chip to any preset row.** The preset lists
+  ("AAC device", "Toilet training") are deliberately short, so a parent whose
+  answer isn't on the list can now type their own and it becomes a chip on the
+  same row — shown on the care card and printed on the care plan like any other.
+- **Communication, Personal care and Moving around gained an "Anything else
+  worth knowing" field**, so every care section now has one place for a
+  sentence. Meals, Sensory and Getting around already had theirs.
 
 - **The Care & Emergency Plan can be downloaded as a half-page fold card or a
   wallet fold strip, not just the full Letter sheet.** `POST
@@ -36,6 +43,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   endpoint can still build one; nothing is built unprompted any more. A side
   effect: saving a communicator's page (an avatar, a theme change) now runs two
   headless-Chrome renders instead of four, so it finishes noticeably sooner.
+- **The per-section "Anything else worth knowing" detail lines are no longer
+  offered on the built-in care sections** — custom chips cover the short
+  answers, the new sentence field covers the rest, and "Your own sections" is
+  still there for anything that genuinely wants a label and a value. Lines
+  already saved are kept: they still show on the card and the printed plan, and
+  the editor still lets you edit or clear them.
 
 - **The care plan PDF has a new look.** Field labels sit on their own line in
   small caps above their value instead of inline with it; a picked

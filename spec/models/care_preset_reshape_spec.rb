@@ -8,8 +8,10 @@ require "rails_helper"
 # next person adding one finds out here rather than on a public page:
 #
 #   * every preset is multi-select
-#   * option lists stay short — specifics go in the detail lines
-#   * no built-in section carries a `notes` catch-all
+#   * option lists stay short — an answer that isn't on the list is a chip the
+#     parent types themselves, and anything longer than a chip is the section's
+#     one free-text field
+#   * every built-in section carries exactly one short_text field
 #
 # The content assertions below are deliberate too. They landed before the
 # feature was announced, when deleting an option destroyed nothing because
@@ -73,10 +75,19 @@ RSpec.describe "the care presets" do
       end
     end
 
-    it "gives no built-in section a `notes` catch-all" do
-      # The detail lines ARE the free-text surface. Two of them side by side
-      # just split the same answer across two boxes.
-      expect(every_field.map { |_, f| f[:key] }).not_to include("notes")
+    it "gives every built-in section exactly one free-text field" do
+      # This used to assert the opposite — no `notes` field anywhere — because
+      # the per-section detail lines were the free-text surface and two of them
+      # side by side just split the same answer across two boxes. The editor
+      # stopped offering detail lines when custom chips landed, so a single
+      # short_text is now that surface. The "exactly one" half of the rule is
+      # the part that carried over unchanged.
+      Profile::CARE_SECTIONS.each_key do |section_key|
+        short_texts = fields_for(section_key).select { |f| f[:type] == :short_text }
+
+        expect(short_texts.length).to eq(1),
+                                      "#{section_key} has #{short_texts.length} free-text fields, expected exactly 1"
+      end
     end
 
     it "has no duplicate field keys inside a section" do
@@ -112,7 +123,7 @@ RSpec.describe "the care presets" do
     it "separates mobility from getting around" do
       # A wheelchair or a pair of AFOs is true all day, in every room. It is
       # not a fact about the trip to school.
-      expect(fields_for("mobility").map { |f| f[:key] }).to eq(%w[equipment support])
+      expect(fields_for("mobility").map { |f| f[:key] }).to eq(%w[equipment support notes])
       expect(field("mobility", "equipment")[:options]).to include("wheelchair", "braces_or_afos")
     end
   end

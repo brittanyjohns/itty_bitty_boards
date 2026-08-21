@@ -25,6 +25,14 @@ module CareLabels
     # and `mobility.equipment` are different fields with entirely different
     # option sets. Never key an option label on the option alone.
     def option(section_key, field_key, option_key, locale: I18n.locale)
+      # A chip the parent typed themselves is already words, in whatever
+      # language they wrote it. It is never translated and never humanized —
+      # humanize would eat the underscores out of their own text. Guarding here
+      # rather than at each caller is what gets CarePlanDocument (and any future
+      # server-rendered sheet) the right string for free.
+      custom = custom_option_text(option_key)
+      return custom if custom
+
       translate(
         "care.options.#{section_key}.#{field_key}.#{option_key}",
         option_key,
@@ -40,6 +48,16 @@ module CareLabels
       Profile.accepted_care_options(section_key, field).index_with do |option_key|
         option(section_key, field[:key], option_key, locale: locale)
       end
+    end
+
+    # The parent's own words out of a `custom:`-prefixed option value, or nil
+    # when this isn't one. Mirrors customOptionText in the frontend's
+    # src/data/careSections.ts.
+    def custom_option_text(option_key)
+      key = option_key.to_s
+      return nil unless key.start_with?(Profile::CARE_CUSTOM_OPTION_PREFIX)
+
+      key.delete_prefix(Profile::CARE_CUSTOM_OPTION_PREFIX).strip.presence
     end
 
     # Deliberately NOT String#humanize: that strips a trailing `_id` and

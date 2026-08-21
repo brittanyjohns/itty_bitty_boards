@@ -35,9 +35,16 @@ module CareTextRepair
       spec = Profile::CARE_SECTIONS[section_key]
 
       if spec
-        # Only short_text fields. Select values are registry KEYS, not prose —
-        # re-cleaning them is a no-op today, but running the caps over them is
-        # not something this task has any business doing.
+        # Only short_text fields.
+        #
+        # A multi_select array is mostly registry KEYS, and running this task's
+        # caps over a key is not something it has any business doing. It can
+        # also hold a custom chip, which IS prose — but custom chips were added
+        # after CareText fixed the escaping, and every one of them was written
+        # through it, so no stored chip can be escaped and there is nothing here
+        # to repair. If that ever stops being true, walk the array and re-clean
+        # only the CARE_CUSTOM_OPTION_PREFIX entries, at CARE_CUSTOM_OPTION_MAX
+        # — never the whole array at the short_text cap.
         values = section["values"]
         if values.is_a?(Hash)
           spec[:fields].each do |field|
