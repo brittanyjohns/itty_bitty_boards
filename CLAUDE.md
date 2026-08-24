@@ -670,6 +670,30 @@ an explicit decision, not a drive-by edit.
   to the default tag rather than strand the lead. And the download always comes
   from `BoardPrintable#files_view`, the PDF ALLOWLIST, so a listing image or the
   listing video can never be handed to a visitor as the product.
+- **Every buyer-facing file carries TWO urls, and the split is load-bearing.**
+  `files_view` serves `url` (CDN, cached, previews in the browser) *and*
+  `download_url` (presigned, `Content-Disposition: attachment`, saves the file).
+  The second exists because `/kit/:slug`'s Download button opened a PDF viewer
+  instead of downloading: our CDN sends no `Content-Disposition`, and neither
+  frontend workaround applies — an anchor's `download` attribute is ignored
+  cross-origin and fetch+blob dies on CORS. Two traps behind it:
+  - **`file.url(disposition: :attachment)` silently does nothing here.** The
+    `amazon` service is `public: true`, and `ActiveStorage::Service#url` routes
+    a public service to `public_url`, which drops `disposition` on the floor.
+    `BoardPrintable#download_url_for_file` therefore presigns the object
+    directly, mirroring what `S3Service#private_url` would have done.
+  - **It addresses the BUCKET, not `CDN_HOST`.** CloudFront ignores query
+    strings (the same fact that forces versioned keys in
+    `#versioned_storage_key_for`), so a `response-content-disposition` sent
+    through the distribution would never reach S3. A download link skipping the
+    CDN is the deliberate trade.
+
+  It is opt-in per call (`view_for(..., with_download_url: true)`) so
+  `listing_images_view` doesn't sign a URL per gallery image that nothing
+  follows, and it returns nil rather than raising — same contract as
+  `url_for_file`, since a bad credential must not 500 the admin status poll.
+  **Dev and test are the Disk service, which honours `disposition` through the
+  ordinary URL builder and hides this entire problem** — verify on staging.
 - **The PRODUCT is gated; a PICTURE of it is not.** `public_view` also carries
   `images`, the printable's rendered marketplace mockups, and that is not a hole
   in the bullet above — a lead magnet no one can see converts nothing, and these

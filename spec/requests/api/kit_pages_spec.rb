@@ -143,6 +143,10 @@ RSpec.describe "API kit_pages", type: :request do
       expect(files.map { |f| f["variant"] }).to eq(["color"])
       expect(files.first["filename"]).to eq("at-school.color.pdf")
       expect(files.first["url"]).to be_present
+      # The URL the Download button actually uses. `url` previews (the CDN sends
+      # no Content-Disposition); this one carries `attachment`, so the browser
+      # saves the PDF instead of opening a viewer tab.
+      expect(files.first["download_url"]).to be_present
 
       lead = DownloadLead.last
       expect(lead.email).to eq("teacher@example.com")
