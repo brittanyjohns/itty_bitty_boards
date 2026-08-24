@@ -1,6 +1,22 @@
 # app/models/ai_board_formatter.rb
 # frozen_string_literal: true
 
+# Orders the words already on a board so the grid reads well, and nothing else.
+#
+# **This returns an ORDER.** It does not choose tile sizes, positions, columns
+# or rows, and it never adds or drops a word. `Board#format_board_with_ai` lays
+# the returned order out row-major at a uniform 1x1, then hands it to
+# `Boards::TileArrangement` for the part-of-speech banding — so the only thing
+# this class can get wrong is the sequence.
+#
+# It used to be allowed to make "up to 2" tiles two cells wide. The model took
+# that permission on every run and picked which two, which put a board's tile
+# count out of step with its grid: 48 tiles on 8 columns stopped being 6 exact
+# rows and became 7, the last one holding two tiles. That extra row is also what
+# broke `settings["disable_scroll"]` — the frontend locks a board to the screen
+# only while a row stays readable, and an inflated row count pushes it under the
+# floor, so the board silently starts scrolling. A tile size is a grid-wide
+# decision; it is not the sort of thing to let a language model take per word.
 class AiBoardFormatter
   FREQUENCIES = %w[high medium low].freeze
 
@@ -9,7 +25,7 @@ class AiBoardFormatter
   # name: Board name (for context only)
   # columns: max grid columns for the largest screen (Integer, informational)
   # rows: hint only (Integer, informational)
-  # existing: [{ word:, size: [w,h], board_type: <optional> }, ...]
+  # existing: [{ word:, board_type: <optional> }, ...]
   # maintain_existing: true/false (informational; placement is now deterministic)
   def initialize(name:, columns:, rows:, existing:, maintain_existing:)
     @name = name.to_s
@@ -22,7 +38,7 @@ class AiBoardFormatter
   # Returns a parsed Hash like:
   # {
   #   "ordered_words" => [
-  #     { "word"=>"I", "size"=>[1,1], "frequency"=>"high", "part_of_speech"=>"pronoun" },
+  #     { "word"=>"I", "frequency"=>"high", "part_of_speech"=>"pronoun" },
   #     ...
   #   ],
   #   "personable_explanation"  => "...",
@@ -31,8 +47,7 @@ class AiBoardFormatter
   #
   # Returns nil on error.
   def call
-    text = prompt
-    raw = request_openai(text)
+    raw = request_openai(prompt)
     payload = parse_jsonish(raw)
     normalize(payload)
   rescue => e
@@ -46,70 +61,98 @@ class AiBoardFormatter
     words = @existing.map { |w| w[:word].to_s }.reject(&:blank?)
 
     <<~PROMPT
-      You are organizing words for an AAC communication board.
+      Order the words on an AAC communication board called "#{@name}".
 
-      Return ONLY a single valid JSON object. No prose, no markdown, no comments.
+      Your job is to ORDER the supplied words and give each one a part of
+      speech. You do NOT choose tile sizes and you do NOT assign x/y positions:
+      every tile is exactly one cell, and placement is computed downstream from
+      the order you return.
 
-      Your job is to ORDER the supplied words and assign each one a tile size.
-      You do NOT assign x/y positions — placement is computed downstream.
-
-      AAC ordering rules (apply in this priority):
-      1. Communication starters and high-frequency core words first
-         (e.g. "I", "you", "want", "more", "stop", "help", "yes", "no", "go").
-      2. Common action words next (verbs like "eat", "play", "look").
-      3. Descriptive words next (adjectives, feelings, colors).
-      4. Specific or lower-frequency words last (nouns, named items).
-
-      Tile sizing rules:
-      - Default size is [1, 1].
-      - You may use [2, 1] for up to 2 of the most important phrase-style
-        tiles (e.g. "I want", "help"). Only when it clearly helps motor
-        planning.
-      - Never use [2, 2] or any size larger than [2, 1].
-      - Keep sizing consistent and predictable — most tiles should be [1, 1].
+      #{Prompts::Aac.part_of_speech_rules(arrangement_rule: Boards::TileArrangement::PROMPT_RULE)}
+      Within each group, order the words yourself:
+      - Highest-frequency core words first — the ones a communicator reaches for
+        under pressure ("I", "you", "want", "more", "stop", "help", "go").
+      - Keep words that are used together next to each other, so a communicator
+        learns one motor path for the pair: up/down, hot/cold, happy/sad,
+        here/there, big/little.
+      - Specific, lower-frequency words last.
 
       Word inclusion rules:
       - Use every supplied word exactly once.
       - Do not invent, drop, duplicate, or rename words.
       - Preserve the original spelling and casing of each word.
 
-      Frequency values must be one of: "high", "medium", "low".
+      Frequency values must be one of: #{FREQUENCIES.join(", ")}.
 
-      Give every word a part_of_speech from exactly this list:
-      #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
-      Classify by communicative function, not strict grammar: "more", "yes" and
-      "please" are social; "no", "not" and "stop" are important_function; "what",
-      "where" and "who" are question. It sets the tile's Modified Fitzgerald Key
-      colour, so a value outside this list miscolours the board.
-
-      Grid hint (informational only — placement is computed downstream):
-      - Target columns: #{@columns}
+      Grid (informational only — placement is computed downstream):
+      - Columns: #{@columns}
       - Approximate rows: #{@rows}
 
       Words to order:
       #{words.join(", ")}
-
-      Required JSON shape:
-      {
-        "ordered_words": [
-          { "word": "I",    "size": [1,1], "frequency": "high", "part_of_speech": "pronoun" },
-          { "word": "want", "size": [1,1], "frequency": "high", "part_of_speech": "verb" },
-          { "word": "stop", "size": [1,1], "frequency": "high", "part_of_speech": "important_function" }
-        ],
-        "personable_explanation":  "One short sentence the caregiver will read.",
-        "professional_explanation": "One short sentence explaining the AAC reasoning."
-      }
     PROMPT
   end
 
+  # Pins the response shape with Structured Outputs rather than a sentence
+  # describing JSON: `json_object` only says "some JSON", and a well-formed
+  # object with the wrong keys is legal — which is what `parse_jsonish` below
+  # grew up to paper over.
+  #
+  # Deliberately carries no `size`: a size the model cannot express is a size it
+  # cannot get wrong.
+  RESPONSE_SCHEMA = {
+    name: "ai_board_order",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: %w[ordered_words personable_explanation professional_explanation],
+      properties: {
+        "ordered_words" => {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: %w[word frequency part_of_speech],
+            properties: {
+              "word" => { type: "string" },
+              "frequency" => { type: "string", enum: FREQUENCIES },
+              "part_of_speech" => { type: "string", enum: ColorHelper::PARTS_OF_SPEECH },
+            },
+          },
+        },
+        "personable_explanation" => { type: "string" },
+        "professional_explanation" => { type: "string" },
+      },
+    },
+  }.freeze
+
+  # Retries once without the schema for the same reason every other
+  # schema-using caller does: not every model accepts a `json_schema`, and
+  # `create_completion` turns an API error into nil content, so a rejected
+  # parameter is indistinguishable from "the model had nothing to say".
   def request_openai(text)
-    messages = [{ role: "user", content: [{ type: "text", text: text }] }]
-    OpenAiClient.new({
-      messages: messages,
-      response_format: { type: "json_object" },
-    }).create_completion&.dig(:content)
+    messages = [
+      { role: "system", content: Prompts::Aac::SYSTEM_PROMPT },
+      { role: "user", content: text },
+    ]
+
+    result = completion(messages, { type: "json_schema", json_schema: RESPONSE_SCHEMA })
+    return result if result.present?
+
+    Rails.logger.warn("[AiBoardFormatter] no content with a json schema — retrying without it")
+    completion(messages, { type: "json_object" })
   end
 
+  def completion(messages, response_format)
+    OpenAiClient.new({
+      messages: messages,
+      response_format: response_format,
+      temperature: OpenAiClient::WORD_SUGGESTION_TEMPERATURE.presence,
+    }.compact).create_completion&.dig(:content)
+  end
+
+  # Only reachable on the no-schema retry rung now, but kept for exactly that:
   # 1) strips ``` and ```json fences
   # 2) tries strict JSON
   # 3) retries after removing trailing commas
@@ -146,6 +189,9 @@ class AiBoardFormatter
   # Accepts either the new "ordered_words" shape or the legacy "grid" shape
   # (back-compat with prompts/responses that still include "position").
   # Always returns a hash with "ordered_words" populated.
+  #
+  # Any `size` an older response still carries is read and discarded here: the
+  # grid is uniform, so there is nothing for a caller to honour.
   def normalize(payload)
     return nil if payload.blank?
 
@@ -163,15 +209,8 @@ class AiBoardFormatter
       word = item["word"].to_s.strip
       next if word.blank?
 
-      size = Array(item["size"])
-      w = size[0].to_i
-      h = size[1].to_i
-      w = 1 if w < 1
-      h = 1 if h < 1
-
       {
         "word" => word,
-        "size" => [w, h],
         "frequency" => FREQUENCIES.include?(item["frequency"]) ? item["frequency"] : nil,
         "part_of_speech" => validated_part_of_speech(item["part_of_speech"]),
       }

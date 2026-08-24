@@ -7,9 +7,9 @@ RSpec.describe AiBoardFormatter do
       columns: 8,
       rows: 2,
       existing: [
-        { word: "I",    size: [1, 1] },
-        { word: "want", size: [1, 1] },
-        { word: "more", size: [1, 1] },
+        { word: "I" },
+        { word: "want" },
+        { word: "more" },
       ],
       maintain_existing: false,
     }
@@ -30,23 +30,22 @@ RSpec.describe AiBoardFormatter do
 
       described_class.call(**args)
 
-      prompt = captured[:messages].first[:content].first[:text]
+      prompt = captured[:messages].last[:content]
       ColorHelper::PARTS_OF_SPEECH.each { |pos| expect(prompt).to include(pos) }
       # These are what the prompt used to offer as part_of_speech values. None
       # exist in ColorHelper::PARTS_OF_SPEECH, so background_color_for answered
       # "gray". ("phrase" still appears in the tile-sizing rules, which is why
       # this asserts on the POS list rather than the whole prompt.)
-      pos_section = prompt[/Give every word a part_of_speech.*?colours the board\./m]
-      expect(pos_section).to be_present
-      expect(pos_section).not_to include("interjection")
-      expect(pos_section).not_to include("phrase")
+      expect(prompt).to include("Give every tile a part_of_speech")
+      expect(prompt).not_to include("interjection")
+      expect(prompt).not_to include("phrase")
     end
 
     it "keeps a part_of_speech that background_color_for actually understands" do
       stub_openai_response(<<~JSON)
         {
           "ordered_words": [
-            { "word": "I", "size": [1,1], "frequency": "high", "part_of_speech": "important_function" }
+            { "word": "I", "frequency": "high", "part_of_speech": "important_function" }
           ]
         }
       JSON
@@ -60,7 +59,7 @@ RSpec.describe AiBoardFormatter do
       stub_openai_response(<<~JSON)
         {
           "ordered_words": [
-            { "word": "I", "size": [1,1], "frequency": "high", "part_of_speech": "interjection" }
+            { "word": "I", "frequency": "high", "part_of_speech": "interjection" }
           ]
         }
       JSON
@@ -76,7 +75,7 @@ RSpec.describe AiBoardFormatter do
       stub_openai_response(<<~JSON)
         {
           "ordered_words": [
-            { "word": "I", "size": [1,1], "frequency": "constant", "part_of_speech": "pronoun" }
+            { "word": "I", "frequency": "constant", "part_of_speech": "pronoun" }
           ]
         }
       JSON
@@ -90,9 +89,9 @@ RSpec.describe AiBoardFormatter do
       stub_openai_response(<<~JSON)
         {
           "ordered_words": [
-            { "word": "I", "size": [1,1], "frequency": "high", "part_of_speech": "pronoun" },
-            { "word": "want", "size": [1,1], "frequency": "high", "part_of_speech": "verb" },
-            { "word": "more", "size": [1,1], "frequency": "high", "part_of_speech": "adjective" }
+            { "word": "I", "frequency": "high", "part_of_speech": "pronoun" },
+            { "word": "want", "frequency": "high", "part_of_speech": "verb" },
+            { "word": "more", "frequency": "high", "part_of_speech": "adjective" }
           ],
           "personable_explanation": "Easy to use.",
           "professional_explanation": "Core words first."
@@ -103,7 +102,6 @@ RSpec.describe AiBoardFormatter do
 
       expect(result).to be_a(Hash)
       expect(result["ordered_words"].map { |w| w["word"] }).to eq(%w[I want more])
-      expect(result["ordered_words"].first["size"]).to eq([1, 1])
       expect(result["personable_explanation"]).to eq("Easy to use.")
       expect(result["professional_explanation"]).to eq("Core words first.")
     end
@@ -113,7 +111,7 @@ RSpec.describe AiBoardFormatter do
         ```json
         {
           "ordered_words": [
-            { "word": "I", "size": [1,1] }
+            { "word": "I" }
           ]
         }
         ```
@@ -128,7 +126,7 @@ RSpec.describe AiBoardFormatter do
       stub_openai_response(<<~JSON)
         {
           "ordered_words": [
-            { "word": "I", "size": [1,1], },
+            { "word": "I", },
           ],
         }
       JSON
@@ -141,8 +139,8 @@ RSpec.describe AiBoardFormatter do
       stub_openai_response(<<~JSON)
         {
           "grid": [
-            { "word": "I",    "position": [0,0], "size": [1,1], "frequency": "high" },
-            { "word": "want", "position": [1,0], "size": [1,1], "frequency": "high" }
+            { "word": "I",    "position": [0,0], "frequency": "high" },
+            { "word": "want", "position": [1,0], "frequency": "high" }
           ]
         }
       JSON
@@ -151,21 +149,53 @@ RSpec.describe AiBoardFormatter do
       expect(result["ordered_words"].map { |w| w["word"] }).to eq(%w[I want])
     end
 
-    it "drops items with blank words and clamps sizes below 1" do
+    it "drops items with blank words" do
       stub_openai_response(<<~JSON)
         {
           "ordered_words": [
-            { "word": "",    "size": [1,1] },
-            { "word": "I",   "size": [0,0] },
-            { "word": "more","size": [2,1] }
+            { "word": "" },
+            { "word": "I" },
+            { "word": "more" }
           ]
         }
       JSON
 
       result = described_class.call(**args)
-      expect(result["ordered_words"].length).to eq(2)
-      expect(result["ordered_words"][0]).to include("word" => "I", "size" => [1, 1])
-      expect(result["ordered_words"][1]).to include("word" => "more", "size" => [2, 1])
+      expect(result["ordered_words"].map { |w| w["word"] }).to eq(%w[I more])
+    end
+
+    # The model used to be told it could make "up to 2" tiles two cells wide,
+    # and it took that permission every run. A size it cannot express is a size
+    # it cannot get wrong — but an older response, or a legacy "grid" payload,
+    # can still carry one, so normalize has to swallow it rather than pass it on.
+    it "never returns a tile size, even when the model sends one" do
+      stub_openai_response(<<~JSON)
+        {
+          "ordered_words": [
+            { "word": "help",     "size": [2,1], "frequency": "high", "part_of_speech": "verb" },
+            { "word": "all done", "size": [2,2], "frequency": "high", "part_of_speech": "social" }
+          ]
+        }
+      JSON
+
+      result = described_class.call(**args)
+
+      expect(result["ordered_words"].map { |w| w["word"] }).to eq(["help", "all done"])
+      result["ordered_words"].each { |w| expect(w).not_to have_key("size") }
+    end
+
+    it "never asks the model for a tile size" do
+      captured = nil
+      fake_client = instance_double(OpenAiClient)
+      allow(OpenAiClient).to receive(:new) { |opts| captured = opts; fake_client }
+      allow(fake_client).to receive(:create_completion).and_return({ role: "assistant", content: "{}" })
+
+      described_class.call(**args)
+
+      prompt = captured[:messages].last[:content]
+      expect(prompt).to include("every tile is exactly one cell")
+      expect(prompt).not_to include("[2, 1]")
+      expect(prompt).not_to include("Tile sizing rules")
     end
 
     it "returns nil on unparseable output" do
@@ -178,12 +208,59 @@ RSpec.describe AiBoardFormatter do
       expect(described_class.call(**args)).to be_nil
     end
 
-    it "passes response_format: json_object to OpenAiClient" do
+    it "pins the response with a Structured Outputs schema that has no size" do
+      captured = nil
       fake_client = instance_double(OpenAiClient)
+      allow(OpenAiClient).to receive(:new) { |opts| captured = opts; fake_client }
       allow(fake_client).to receive(:create_completion).and_return({ content: '{"ordered_words": []}' })
-      expect(OpenAiClient).to receive(:new).with(hash_including(response_format: { type: "json_object" })).and_return(fake_client)
 
       described_class.call(**args)
+
+      schema = captured.dig(:response_format, :json_schema, :schema)
+      expect(captured.dig(:response_format, :type)).to eq("json_schema")
+      item_properties = schema.dig(:properties, "ordered_words", :items, :properties)
+      expect(item_properties.keys).to contain_exactly("word", "frequency", "part_of_speech")
+      expect(item_properties.dig("part_of_speech", :enum)).to eq(ColorHelper::PARTS_OF_SPEECH)
+    end
+
+    # create_completion swallows an API error into nil content, so a rejected
+    # json_schema is indistinguishable from "the model had nothing to say".
+    it "retries once without the schema when the schema call comes back empty" do
+      formats = []
+      fake_client = instance_double(OpenAiClient)
+      allow(OpenAiClient).to receive(:new) { |opts| formats << opts[:response_format]; fake_client }
+      allow(fake_client).to receive(:create_completion).and_return(
+        { content: nil },
+        { content: '{"ordered_words": [{ "word": "I" }]}' },
+      )
+
+      result = described_class.call(**args)
+
+      expect(formats.map { |f| f[:type] }).to eq(["json_schema", "json_object"])
+      expect(result["ordered_words"].map { |w| w["word"] }).to eq(["I"])
+    end
+
+    it "sends the shared AAC persona in the system slot" do
+      captured = nil
+      fake_client = instance_double(OpenAiClient)
+      allow(OpenAiClient).to receive(:new) { |opts| captured = opts; fake_client }
+      allow(fake_client).to receive(:create_completion).and_return({ content: "{}" })
+
+      described_class.call(**args)
+
+      expect(captured[:messages].first).to eq(role: "system", content: Prompts::Aac::SYSTEM_PROMPT)
+    end
+
+    it "asks for the same band order Ruby then enforces" do
+      captured = nil
+      fake_client = instance_double(OpenAiClient)
+      allow(OpenAiClient).to receive(:new) { |opts| captured = opts; fake_client }
+      allow(fake_client).to receive(:create_completion).and_return({ content: "{}" })
+
+      described_class.call(**args)
+
+      expect(captured[:messages].last[:content])
+        .to include(Boards::TileArrangement::BAND_ORDER.join(", "))
     end
   end
 end

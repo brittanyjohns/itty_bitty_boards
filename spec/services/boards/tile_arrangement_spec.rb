@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Boards::AdminBuilder::TileArrangement do
+RSpec.describe Boards::TileArrangement do
   def tile(label, part_of_speech, links_to: nil)
     { label: label, part_of_speech: part_of_speech }.tap do |raw|
       raw[:links_to] = links_to if links_to
@@ -128,6 +128,15 @@ RSpec.describe Boards::AdminBuilder::TileArrangement do
 
       expect(arranged.first[:part_of_speech]).to eq("noun")
       expect(arranged.first[:links_to]).to eq("stop")
+    end
+  end
+
+  describe "the legacy admin-namespace name" do
+    # Drafters and their specs still say `Boards::AdminBuilder::TileArrangement`.
+    # Zeitwerk resolves it through the stub at the old path; if that file goes
+    # away, every drafter prompt loses its arrangement rule silently.
+    it "still resolves to the same module" do
+      expect(Boards::AdminBuilder::TileArrangement).to be(described_class)
     end
   end
 end
