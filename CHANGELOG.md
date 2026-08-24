@@ -20,6 +20,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Modified Fitzgerald category now, so the colours read as blocks (pronouns and
   quick words first, nouns last) rather than as confetti, and word pairs like
   up/down and hot/cold stay side by side.
+- **"Format with AI" no longer scatters a board set's navigation row.** On a
+  board built with the Board Builder — or imported as an OBF/OBZ set —
+  formatting the board used to move the bottom navigation strip, including the
+  small words at its ends, out into the middle of the board. The strip is the
+  same on every page of a set on purpose, so a communicator can learn where a
+  category lives; formatting one page broke that. The navigation row now stays
+  exactly where it is and the words are rearranged around it, on tablets and
+  phones too.
 
 ### Added
 

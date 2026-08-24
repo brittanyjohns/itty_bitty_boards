@@ -28,6 +28,67 @@ module Boards
 
     EMPTY = Result.new(rows: [], cells: [])
 
+    # The tiles this board reserves for NAVIGATION — the strip
+    # Boards::NavRowSync reproduces cell-for-cell on every page of a set.
+    #
+    # A re-layout must write these back at their own cells rather than permute
+    # them with the words. The strip is a motor path a communicator has learned,
+    # and it is identical on every OTHER page of the set — none of which a
+    # re-layout of one board touches — so scattering it here breaks the set even
+    # though only one board changed.
+    #
+    # Two ways to know, in order of precision:
+    #
+    #   - A synced PAGE carries the flags NavRowSync owns, so the region is
+    #     exactly those tiles. No geometry, no guessing.
+    #   - A set ROOT carries no flags — the sync writes children, and the root's
+    #     own row is authored in the seed .obf — so it falls back to the
+    #     geometric read, gated on the two pins that mean "top of a set":
+    #     `builder_root?` (Board Builder) and `pinned_main_board?` (an imported
+    #     OBF/OBZ set, per Boards::ImportedSetClassifier).
+    #
+    # Anything else — an ordinary board that happens to hold a folder tile —
+    # gets EMPTY. The geometric read calls "the row holding the most folder
+    # tiles" the nav row, which is only true of a set; on a board of categories
+    # it would pin an arbitrary row. Such a board keeps the pre-existing
+    # behaviour, where doors band last (Boards::TileArrangement::LINK_BAND) and
+    # land in the closing cells on their own.
+    def for_board(board)
+      flagged = flagged_region(board)
+      return flagged unless flagged.empty?
+      return EMPTY unless set_root?(board)
+
+      for_root(board)
+    end
+
+    # The region as the tiles NavRowSync flagged, at their stored lg cells.
+    # Rows are whatever rows those tiles occupy — a synced page's strip is
+    # already where the sync put it, so there is nothing to infer.
+    def flagged_region(board)
+      flags = [Boards::NavRowSync::NAV_TILE_KEY, Boards::NavRowSync::NAV_WORD_KEY]
+
+      owned = board.board_images.filter_map do |bi|
+        data = bi.data
+        next unless data.is_a?(Hash) && flags.any? { |flag| data[flag] == true }
+
+        bi.id
+      end.to_set
+      return EMPTY if owned.empty?
+
+      tiles = placed_tiles(board).select { |t| owned.include?(t.board_image_id) }
+      return EMPTY if tiles.empty?
+
+      Result.new(rows: tiles.map(&:y).uniq.sort, cells: tiles)
+    end
+
+    # The top of a set, and so a board whose bottom row is navigation rather
+    # than vocabulary. Both pins are written by exactly one caller each
+    # (BuildBoardSetJob, Boards::ImportedSetClassifier), which is what makes
+    # them safe to key the geometric read on.
+    def set_root?(board)
+      board.builder_root? || board.pinned_main_board?
+    end
+
     def for_root(root)
       for_tiles(align(placed_tiles(root)))
     end

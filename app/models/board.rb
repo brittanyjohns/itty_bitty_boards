@@ -1985,6 +1985,11 @@ class Board < ApplicationRecord
   # a board rather than squash its rows below a readable height. A partial last
   # row is a word-count problem, not a layout one.
   #
+  # **A set's NAV STRIP is reserved, not permuted.** On a board that is part of
+  # a nav-synced set the region's cells are written back untouched and the words
+  # flow around them — see #reserved_nav_cells. Everywhere else the region is
+  # empty and this is a straight row-major pack.
+  #
   # screen_size is accepted for back-compat with callers but no longer affects
   # behavior — all three screens are always written.
   def format_board_with_ai(screen_size: "lg", maintain_existing_layout: false)
@@ -2041,11 +2046,21 @@ class Board < ApplicationRecord
 
     ordered_items = arrange_into_part_of_speech_bands(ordered_items)
 
+    # A set's nav strip is navigation chrome, not vocabulary, and is not this
+    # method's to permute — see #reserved_nav_cells.
+    reserved = reserved_nav_cells
+    ordered_items = float_nav_tiles_last(ordered_items, reserved) if reserved.any?
+
     # Pack a layout per screen size using the same ordering.
     packed_by_screen = {}
     SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
       columns = get_number_of_columns(screen)
-      packed_by_screen[screen] = pack_layout_row_major(ordered_items, columns: columns)
+      packed_by_screen[screen] =
+        if screen == "lg" && reserved.any?
+          pack_layout_around_reserved_cells(ordered_items, columns: columns, reserved: reserved)
+        else
+          pack_layout_row_major(ordered_items, columns: columns)
+        end
     end
 
     ActiveRecord::Base.transaction do
@@ -2166,6 +2181,83 @@ class Board < ApplicationRecord
     end
   end
   private :pack_layout_row_major
+
+  # The cells this board holds for its set's NAV STRIP, keyed by board_image id.
+  # Empty for any board that isn't part of a nav-synced set, which is the
+  # pre-existing code path.
+  #
+  # The strip is reproduced cell-for-cell on every page of a set so a category
+  # is the same reach from anywhere (Boards::NavRowSync). A format run touches
+  # ONE board, so permuting the strip here desyncs it from every other page —
+  # the row a communicator has learned as a fixed motor path stops matching.
+  # Doors alone were nearly right after banding (LINK_BAND puts them last, which
+  # is roughly the bottom row), but a nav-row WORD (`this`, `that`) is correctly
+  # not a door and banded off into the content area by its part of speech.
+  # Reserving the region covers both without widening `nav_tile` to a word —
+  # the exact mistake NavRowSync already made once.
+  #
+  # Coordinates come from Boards::NavRegion, so a root's are ALIGNED (the
+  # authored nav row rotated back to the bottom) — the same cells NavRowSync
+  # would persist, and the bottom of the grid either way.
+  def reserved_nav_cells
+    region = Boards::NavRegion.for_board(self)
+    return {} if region.empty?
+
+    region.cells.each_with_object({}) do |tile, acc|
+      acc[tile.board_image_id] = { "x" => tile.x, "y" => tile.y }
+    end
+  end
+  private :reserved_nav_cells
+
+  # Move the nav tiles to the END of the reading order, in their own
+  # left-to-right row order. Two things ride on this:
+  #
+  #   - `bi.position` is written from this index, so the stored reading order
+  #     keeps matching what the grid shows.
+  #   - md/sm are packed row-major from this same list, and a trailing tile
+  #     lands in a trailing cell — so the strip stays bottom-pinned on a
+  #     narrower grid, wrapping if it must. That is what Boards::ScreenReflow's
+  #     `pinned_rows` already does for a built set; lg is the only screen whose
+  #     exact cells can be honoured, because it is the only screen the region
+  #     is expressed in.
+  def float_nav_tiles_last(ordered_items, reserved)
+    nav, content = ordered_items.partition { |item| reserved.key?(item[:board_image].id) }
+    nav = nav.sort_by do |item|
+      cell = reserved[item[:board_image].id]
+      [cell["y"], cell["x"]]
+    end
+    content + nav
+  end
+  private :float_nav_tiles_last
+
+  # #pack_layout_row_major with the reserved cells held back: a nav tile is
+  # written at its own cell, and the words flow row-major THROUGH the gaps
+  # rather than over them. Still a uniform 1x1 and still the natural row count
+  # — the region is the bottom row(s), so the words occupy exactly the rows they
+  # would have anyway.
+  def pack_layout_around_reserved_cells(ordered_items, columns:, reserved:)
+    columns = columns.to_i
+    columns = 1 if columns < 1
+
+    taken = reserved.values.map { |cell| [cell["x"], cell["y"]] }.to_set
+    cursor = 0
+
+    ordered_items.map do |item|
+      board_image = item[:board_image]
+      cell = reserved[board_image.id]
+
+      if cell
+        { "i" => board_image.id.to_s, "x" => cell["x"], "y" => cell["y"], "w" => 1, "h" => 1 }
+      else
+        cursor += 1 while taken.include?([cursor % columns, cursor / columns])
+        x = cursor % columns
+        y = cursor / columns
+        cursor += 1
+        { "i" => board_image.id.to_s, "x" => x, "y" => y, "w" => 1, "h" => 1 }
+      end
+    end
+  end
+  private :pack_layout_around_reserved_cells
 
   def tmp_board_type
     case resource_type

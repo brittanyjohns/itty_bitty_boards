@@ -116,4 +116,60 @@ RSpec.describe Boards::NavRegion do
       expect(described_class.authored_nav_y(described_class.placed_tiles(root))).to eq(1)
     end
   end
+
+  describe ".for_board" do
+    it "reserves nothing on an ordinary board that merely holds folder tiles" do
+      build_core_60!
+
+      expect(described_class.for_board(root)).to be_empty
+    end
+
+    it "reads a Board Builder root geometrically" do
+      build_core_60!
+      root.update_columns(settings: (root.settings || {}).merge("builder_root" => true))
+
+      expect(described_class.for_board(root).cells.map(&:label)).to contain_exactly(
+        "this", "People", "Feelings", "Food", "Drinks", "that"
+      )
+    end
+
+    it "reads an imported set's pinned root geometrically" do
+      build_core_60!
+      root.update_columns(settings: (root.settings || {}).merge(Board::MAIN_BOARD_PIN => true))
+
+      expect(described_class.for_board(root).cells.map(&:label)).to include("People", "that")
+    end
+
+    # A synced page carries the flags NavRowSync owns, so the region is exactly
+    # those tiles — no geometry, and no need for the page to be pinned.
+    it "reads a synced page from its nav flags" do
+      build_core_60!
+      root.board_images.each do |bi|
+        next unless %w[People Feelings Food Drinks this that].include?(bi.label)
+
+        flag = bi.predictive_board_id ? "nav_tile" : "nav_word"
+        bi.update_column(:data, (bi.data || {}).merge(flag => true))
+      end
+      root.board_images.reset
+
+      result = described_class.for_board(root)
+
+      expect(result.rows).to eq([1])
+      expect(result.cells.map(&:label)).to contain_exactly(
+        "this", "People", "Feelings", "Food", "Drinks", "that"
+      )
+    end
+
+    # The flags say exactly which tiles the sync owns, so they win outright —
+    # a page whose strip has been moved is still described by its flags.
+    it "prefers the flags over the geometric read" do
+      build_core_60!
+      root.update_columns(settings: (root.settings || {}).merge("builder_root" => true))
+      people = root.board_images.find { |bi| bi.label == "People" }
+      people.update_column(:data, (people.data || {}).merge("nav_tile" => true))
+      root.board_images.reset
+
+      expect(described_class.for_board(root).cells.map(&:label)).to eq(["People"])
+    end
+  end
 end

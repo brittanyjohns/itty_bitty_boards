@@ -544,6 +544,19 @@ an explicit decision, not a drive-by edit.
   never a reason to re-pick the column count, which would re-flow the board and
   stale every cached cover and printable render. Repair for boards formatted
   before the fix: `rake board_layouts:normalize_tile_sizes`.
+  **A set's NAV STRIP is reserved from the permutation**, because a format run
+  touches ONE board while `Boards::NavRowSync` reproduces that strip
+  cell-for-cell on every other page — so permuting it desyncs pages nobody asked
+  to change. `Boards::NavRegion.for_board` is the single answer to "which cells
+  are navigation here": a synced PAGE by the `nav_tile`/`nav_word` flags the sync
+  owns, a set ROOT by geometry gated on `builder_root?` / `pinned_main_board?`,
+  and EMPTY for everything else — an ordinary board holding a folder tile must
+  not have an arbitrary row pinned. Banding was never enough on its own: a
+  nav-row WORD (`this`, `that`) is correctly not a door, so `LINK_BAND` doesn't
+  catch it and flagging it `nav_tile` to make it one is the mistake `NavRowSync`
+  already made. Only `lg` can honour the region's exact cells (it is the only
+  screen the region is expressed in); md/sm pack the strip last so it stays
+  bottom-pinned, the same rule `Boards::ScreenReflow`'s `pinned_rows` uses.
 - **`Boards::TileArrangement` is the ONE part-of-speech band order, and it is
   shared.** It was `Boards::AdminBuilder::TileArrangement` until "Format with
   AI" started using it too; the old constant is a Zeitwerk-visible alias at the
