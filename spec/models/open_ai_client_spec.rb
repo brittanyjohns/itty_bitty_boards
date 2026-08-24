@@ -149,6 +149,22 @@ RSpec.describe OpenAiClient do
         .to eq(schema)
     end
 
+    # Every temperature in this app is ENV-tunable, and ENV values are Strings.
+    # An un-coerced one reaches the API as "0.4" and is rejected with a 400,
+    # which create_chat swallows into nil content — so a type error looked
+    # exactly like "the model had nothing to say" and took every word
+    # suggestion in production down.
+    it "sends temperature as a decimal, not a string" do
+      temperature = captured_parameters(messages: messages, temperature: "0.4")[:temperature]
+
+      expect(temperature).to be_a(Float)
+      expect(temperature).to eq(0.4)
+    end
+
+    it "leaves temperature out entirely when none is given" do
+      expect(captured_parameters(messages: messages)).not_to have_key(:temperature)
+    end
+
     # `model:` used to be accepted and silently ignored, so AacWordCategorizer
     # asked for gpt-4o-mini and every call ran on GTP_MODEL instead.
     it "uses the model the caller asked for" do
@@ -216,6 +232,18 @@ RSpec.describe OpenAiClient do
           expect(system_content).to include("a way to object and a way to redirect")
         end
       end
+    end
+
+    it "sends the configured temperature as a decimal" do
+      captured = nil
+      allow(client).to receive(:create_chat) do
+        captured = client.instance_variable_get(:@opts)[:temperature]
+        { content: "{}" }
+      end
+
+      client.get_word_suggestions("drink", 5)
+
+      expect(captured).to be_a(Float)
     end
 
     describe "#get_additional_words" do

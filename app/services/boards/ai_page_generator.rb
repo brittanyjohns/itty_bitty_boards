@@ -71,7 +71,7 @@ module Boards
           { role: "system", content: system_prompt },
           { role: "user", content: build_prompt },
         ],
-        temperature: OpenAiClient::WORD_SUGGESTION_TEMPERATURE.presence,
+        temperature: OpenAiClient::WORD_SUGGESTION_TEMPERATURE.presence&.to_f,
       }.compact
       opts[:response_format] = { type: "json_schema", json_schema: schema } if schema
 
