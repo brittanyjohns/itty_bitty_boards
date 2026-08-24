@@ -3089,7 +3089,7 @@ class Board < ApplicationRecord
       else
         Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
       end
-      words_to_include = words["additional_words"] || []
+      words_to_include = (words.is_a?(Hash) ? words["additional_words"] : nil) || []
       words_to_include = words_to_include.map { |w| w.downcase }
       words_to_include = words_to_include - words_to_exclude
       words_to_include = words_to_include.uniq
@@ -3143,7 +3143,9 @@ class Board < ApplicationRecord
       else
         Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
       end
-      word_suggestions["words"]
+      # nil when the call failed above — indexing it raised NoMethodError and
+      # turned a soft AI failure into an exception in the caller's rescue.
+      word_suggestions.is_a?(Hash) ? word_suggestions["words"] : nil
     rescue => e
       Rails.logger.error "Error getting word suggestions: #{e}"
     end
@@ -3169,7 +3171,7 @@ class Board < ApplicationRecord
       else
         Rails.logger.error "*** ERROR - get_social_story_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
       end
-      word_suggestions["words"]
+      word_suggestions.is_a?(Hash) ? word_suggestions["words"] : nil
     rescue => e
       Rails.logger.error "Error getting social story word suggestions: #{e}"
     end
@@ -3210,7 +3212,9 @@ class Board < ApplicationRecord
       else
         Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
       end
-      word_suggestions["words"]
+      # nil when the call failed above — indexing it raised NoMethodError and
+      # turned a soft AI failure into an exception in the caller's rescue.
+      word_suggestions.is_a?(Hash) ? word_suggestions["words"] : nil
     rescue => e
       Rails.logger.error "Error getting word suggestions: #{e}"
     end

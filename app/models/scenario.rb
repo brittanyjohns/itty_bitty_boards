@@ -168,7 +168,7 @@ class Scenario < ApplicationRecord
       else
         Rails.logger.error "*** ERROR - get_words_for_scenario *** \nDid not receive valid response. Response: #{response}\n"
       end
-      words_to_include = words["words"] || []
+      words_to_include = (words.is_a?(Hash) ? words["words"] : nil) || []
       words_to_include = words_to_include.map { |w| w.downcase }
       words_to_include = words_to_include.uniq
       words_to_include

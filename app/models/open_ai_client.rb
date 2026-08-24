@@ -318,7 +318,9 @@ class OpenAiClient
       { role: "system", content: system_prompt },
       { role: "user", content: text },
     ]
-    @opts[:temperature] = WORD_SUGGESTION_TEMPERATURE if @opts[:temperature].blank? && WORD_SUGGESTION_TEMPERATURE.present?
+    if @opts[:temperature].blank? && WORD_SUGGESTION_TEMPERATURE.present?
+      @opts[:temperature] = WORD_SUGGESTION_TEMPERATURE.to_f
+    end
 
     schema = Prompts::Aac.word_list_schema(key: response_key, name: schema_name)
     @opts[:response_format] = { type: "json_schema", json_schema: schema }
@@ -327,6 +329,20 @@ class OpenAiClient
 
     Rails.logger.warn("[OpenAiClient] no content from #{@model} with a json schema — retrying without it")
     @opts.delete(:response_format)
+    result = create_chat
+    return result if result[:content].present?
+
+    # Last rung: drop the temperature too. Both parameters are ENV-tunable, so
+    # either can be rejected by a model the value was never checked against —
+    # and create_chat turns any 400 into nil content, so a rejected parameter
+    # is indistinguishable from an empty answer. Without this rung a bad
+    # temperature takes every word suggestion in the app down, which is exactly
+    # what it did. Same ladder as AdminBuilder::Drafting.
+    return result if @opts[:temperature].blank?
+
+    Rails.logger.warn("[OpenAiClient] no content from #{@model} at temperature " \
+                      "#{@opts[:temperature]} — retrying without it")
+    @opts.delete(:temperature)
     create_chat
   end
 
@@ -576,7 +592,11 @@ class OpenAiClient
     end
     # Opt-in only, same shape as create_completion: every existing caller sends
     # nothing and keeps the provider default it has always had.
-    opts[:temperature] = @opts[:temperature] if @opts[:temperature].present?
+    # to_f, always. Every temperature in this app is ENV-tunable and ENV values
+    # are Strings, so an un-coerced one reaches the API as "0.4" and is rejected
+    # with a 400 — which this method then swallows into nil content, making a
+    # type error look exactly like "the model had nothing to say".
+    opts[:temperature] = @opts[:temperature].to_f if @opts[:temperature].present?
     # Reasoning models (gpt-5, o-series) spend as long thinking as the effort
     # asks for; a caller on a request-cycle timeout needs to be able to turn
     # that down. Ignored by non-reasoning models' callers, who never send it.
@@ -609,7 +629,7 @@ class OpenAiClient
       messages: @messages, # Required.
     }
     opts[:response_format] = @opts[:response_format] if @opts[:response_format].present?
-    opts[:temperature] = @opts[:temperature] if @opts[:temperature].present?
+    opts[:temperature] = @opts[:temperature].to_f if @opts[:temperature].present?
     begin
       response = openai_client.chat(
         parameters: opts,
