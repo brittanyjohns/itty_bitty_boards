@@ -239,13 +239,22 @@ module ImageHelper
       if valid_json?(next_words)
         next_words = JSON.parse(next_words)
       else
-        puts "INVALID JSON: #{next_words}"
-        next_words = transform_into_json(next_words)
+        Rails.logger.warn "[ImageHelper] invalid JSON in next-words response"
+        next_words = transform_into_json(next_words, fallback_key: "next_words")
       end
     else
       Rails.logger.error "*** ERROR - get_next_words *** \nDid not receive valid response. Response: #{response}\n"
+      return
     end
-    next_words["next_words"]
+
+    # nil, not [], when there is nothing to suggest. Image#set_next_words! tests
+    # the result for truthiness to decide whether to set `no_next`, and an empty
+    # array is truthy — it would store an empty list, leave no_next false, and
+    # re-ask OpenAI for this label on every subsequent call.
+    words = next_words["next_words"]
+    return if words.blank?
+
+    words
   end
 
   def background_color_for(category)

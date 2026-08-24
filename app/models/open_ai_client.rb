@@ -225,149 +225,29 @@ class OpenAiClient
     end
   end
 
-  def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
-    @model = GTP_MODEL
-    Rails.logger.debug "generate_formatted_board - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: format_board_prompt(name, num_of_columns, words, max_num_of_rows, maintain_existing) }] }]
-    response = create_completion
-    Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
-    response[:content] if response
-  end
-
-  # def categorize_word(word)
-  #   @model = QUICK_GTP_MODEL
-  #   @messages = [{ role: "user",
-  #                 content: [{ type: "text",
-  #                             text: "Categorize the word '#{word}' into one of the following parts of speech: #{Image.valid_parts_of_speech} If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json. Example: {\"part_of_speech\": \"noun\"}" }] }]
-  #   response = create_chat
-  #   Rails.logger.debug "*** ERROR *** Invaild Categorize Word Response: #{response}" unless response
-  #   response
-  # end
-
-  AAC_OVERRIDES = {
-    "more" => "social",
-    "again" => "social",
-    "finished" => "social",
-    "all done" => "social",
-    "yes" => "social",
-    "no" => "important_function",
-    "not" => "important_function",
-    "don't" => "important_function",
-    "this" => "determiner",
-    "that" => "determiner",
-    "here" => "determiner",
-    "there" => "determiner",
-  }.freeze
-
-  AAC_PHRASE_OVERRIDES = {
-    "excuse me" => "social",
-    "thank you" => "social",
-    "all done" => "social",
-  }.freeze
-
-  def categorize_word(word)
-    normalized = word.to_s.downcase.strip
-    normalized = normalized.gsub(/\s+/, " ")
-
-    if AAC_PHRASE_OVERRIDES.key?(normalized)
-      return({ "part_of_speech" => AAC_PHRASE_OVERRIDES[normalized] }.to_json)
-    end
-
-    # then single-word overrides, then GPT fallback...
-  end
-
-  def gpt_categorize(input)
-    @model = QUICK_GTP_MODEL
-    safe = input.to_s.strip
-
-    @messages = [
-      {
-        role: "system",
-        content: <<~TEXT,
-          You categorize AAC words/phrases into exactly ONE category.
-          Output MUST be valid JSON with EXACTLY this schema:
-          {"part_of_speech":"adjective|verb|pronoun|noun|conjunction|preposition|social|question|adverb|important_function|determiner|default"}
-          No other keys. No explanations. No multiple fields.
-          If input has multiple words, categorize the whole phrase as one category (usually social or default).
-        TEXT
-      },
-      {
-        role: "user",
-        content: "Input: #{safe.inspect}\nReturn JSON only.",
-      },
-    ]
-
-    create_chat
-  end
-
   def next_words_prompt(label)
-    "Given a specific context or emotion, such as '#{label}', 
-    provide a list of 24 foundational words or short phrases (2 words max) that are crucial for basic communication in an AAC (Augmentative and Alternative Communication) device. 
-    These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
-    Determine if the word '#{label}' typically leads to specific follow-up words in everyday communication. If not, respond with 'NO NEXT WORDS'. 
-    This will help in populating an AAC (Augmentative and Alternative Communication) device with contextually appropriate vocabulary.
-    Don't include contractions or words that are too specific to a particular context. Two-word phrases are acceptable but should be kept to a minimum.
-    The goal is to populate an AAC device with versatile vocabulary. '#{label}' shoule not be included in the list of next words or phrases.
-    Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-  end
+    <<~PROMPT
+      The last word or phrase a communicator selected was "#{label}".
 
-  def maintain_existing_instructions(existing_grid)
-    "The existing grid layout is as follows: #{existing_grid}. Please maintain the existing size of each word, changing only the position of the words as needed.
-    Give priority to the words with the 'board_type' of 'category' when placing them on the grid. If the word is a 'category' word, it should be placed in the top or around top side of the grid."
-  end
+      Give 24 words or short phrases (2 words max) that are most likely to be
+      selected NEXT, so they can keep building what they are saying. Prefer
+      words that can continue many different sentences over ones that only fit
+      this topic. Do not include contractions. "#{label}" must not appear in the
+      list.
 
-  def format_board_prompt(name, num_of_columns, existing_grid = [], max_num_of_rows = 4, maintain_existing = false)
-    words = existing_grid.map { |word_obj| word_obj[:word] }
+      Some words do not lead anywhere in particular. If "#{label}" has no common
+      follow-on words, return an empty array rather than padding the list.
 
-    Rails.logger.debug "\nName: #{name} -- Num of Columns: #{num_of_columns} -- Max Num of Rows: #{max_num_of_rows} -- Existing Grid: #{existing_grid.count} -- Maintain Existing: #{maintain_existing}"
-    word_str = words.join(", ") unless words.blank?
-    word_count = words.size
-    text = <<-PROMPT
-      Create an AAC communication board formatted as a grid layout.
-
-      Organize the words based on these guidelines:
-      1. Core words should be placed first and grouped together, prioritizing high-frequency words - Stating with the coordinate [0,0].
-      2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
-      3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
-      4. Use a grid layout with a MAXIMUM of #{num_of_columns} columns and MAX rows: #{max_num_of_rows}.
-      5. Each entry should include the word, its grid position as [x, y], its part of speech, its size, and its frequency of use.
-      6. The size of each word should be based on its frequency of use, with high-frequency words being larger. Size is represented as number of grid spaces the word occupies. [1,1] is a single grid space. [2,2] is a 2x2 grid space. & so on.
-      7. Do not overlap words or exceed the grid size.
-      #{maintain_existing_instructions(existing_grid) if maintain_existing}
-
-      Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
-      It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.
-             Please respond as a valid JSON object with the following structure:
-
-      {
-        "grid": [
-          {"word": "I", "position": [0,0], "part_of_speech": "pronoun", "frequency": "medium", "size": [1,1]},
-          {"word": "banana", "position": [0,1], "part_of_speech": "noun", "frequency": "low", "size": [1,1]},
-          {"word": "more", "position": [2,4], "part_of_speech": "adverb", "frequency": "high", "size": [1,1]},
-          ...
-          {"word": "elevator", "position": [5,10], "part_of_speech": "noun", "frequency": "low", "size": [1,1]}
-        ],
-              }
+      Respond with a JSON object in the following format:
+      {"next_words": ["word1", "word2", "word3", ...]}
     PROMPT
-  end
-
-  def explanation_prompt
-    'Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
-    {"professional_explanation": "This layout is designed to help users quickly find and use the most common words in AAC communication. The words are grouped by parts of speech and arranged in a grid to make it easy to locate and select the right word.
-    "personable_explanation": "This board is set up to help you find the words you need to communicate quickly and easily. The words are grouped by type and placed in a grid so you can find them easily.}'
   end
 
   def get_next_words(label)
     @model = GTP_MODEL
-    @messages = [{ role: "user",
-                  content: [{
-      type: "text",
-      text: next_words_prompt(label),
-    }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Next Words Response: #{response}" unless response
+    response = aac_word_chat(next_words_prompt(label), response_key: "next_words",
+                                                       schema_name: "aac_next_words")
+    Rails.logger.debug "*** ERROR *** Invalid Next Words Response" if response[:content].blank?
     response
   end
 
@@ -402,6 +282,54 @@ class OpenAiClient
     "#{text} Respond in #{formatted_language}."
   end
 
+  # Word selection is a counting exercise as much as a creative one — "exactly
+  # N words, no duplicates, include a way to refuse" — and the provider default
+  # wanders on all three. Same value and same reasoning as
+  # Boards::AdminBuilder::Drafting::TEMPERATURE. Set to "" to send none.
+  WORD_SUGGESTION_TEMPERATURE = ENV.fetch("OPENAI_WORD_TEMPERATURE", "0.4").freeze
+
+  # The system message every word-suggestion prompt now carries: who is
+  # choosing the words, and what makes one earn a cell. Built once rather than
+  # per call — it is the same string for all of them.
+  WORD_SUGGESTION_SYSTEM_PROMPT = <<~PROMPT.freeze
+    #{Prompts::Aac::WORD_LIST_SYSTEM_PROMPT}
+    Word selection rules:
+    #{Prompts::Aac::WORD_RULES}
+  PROMPT
+
+  # Sends a word-suggestion prompt with the shared AAC kernel in the system
+  # slot and a Structured Outputs schema pinning the response key.
+  #
+  # These prompts used to be a single user message with no persona and no
+  # rules, so the model was asked for a topical vocabulary list — the exact
+  # failure Prompts::Aac::WORD_LIST_SYSTEM_PROMPT names.
+  #
+  # Retries once without the schema for the same reason Drafting does: not
+  # every model accepts a json_schema, `create_chat` swallows an API error into
+  # nil content, and a rejected parameter is otherwise indistinguishable from
+  # "the model had nothing to say".
+  # `system_prompt:` is selectable because not every list is a vocabulary list.
+  # Social-story steps are a sequence of instructions, where WORD_RULES ("no
+  # near-duplicates", "include a way to refuse") would actively fight the task —
+  # those callers pass the persona alone.
+  def aac_word_chat(text, response_key:, schema_name: "aac_word_list",
+                    system_prompt: WORD_SUGGESTION_SYSTEM_PROMPT)
+    @messages = [
+      { role: "system", content: system_prompt },
+      { role: "user", content: text },
+    ]
+    @opts[:temperature] = WORD_SUGGESTION_TEMPERATURE if @opts[:temperature].blank? && WORD_SUGGESTION_TEMPERATURE.present?
+
+    schema = Prompts::Aac.word_list_schema(key: response_key, name: schema_name)
+    @opts[:response_format] = { type: "json_schema", json_schema: schema }
+    result = create_chat
+    return result if result[:content].present?
+
+    Rails.logger.warn("[OpenAiClient] no content from #{@model} with a json schema — retrying without it")
+    @opts.delete(:response_format)
+    create_chat
+  end
+
   def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en", profile: nil)
     prompt = <<~PROMPT
       I have a scenario description: "#{scenario_description}".
@@ -415,42 +343,43 @@ class OpenAiClient
     prompt = append_profile_guidance(prompt, profile)
 
     @model = GTP_MODEL
-    @messages = [{ role: "user",
-                   content: [{ type: "text", text: prompt }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Words for Scenario Response: #{response}" unless response
-    Rails.logger.debug "Words for Scenario Response: #{response.inspect}"
+    response = aac_word_chat(prompt, response_key: "words", schema_name: "aac_scenario_words")
+    Rails.logger.debug "*** ERROR *** Invalid Words for Scenario Response" if response[:content].blank?
     response
   end
 
   def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en", profile: nil)
-    exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
+    # A bare list, not a sentence. This used to be a full sentence ("and no
+    # words to exclude.") that was then nested inside three other sentences,
+    # so with nothing to exclude the model was told, literally,
+    # "DO NOT INCLUDE [and no words to exclude.]".
+    existing_words = Array(exclude_words).map { |w| w.to_s.strip }.reject(&:blank?)
+    existing_words_list = existing_words.blank? ? "none yet" : existing_words.join(", ")
 
     text = ""
     if board&.dynamic?
       Rails.logger.debug "** Dynamic Board"
       first_sentence = "I have the initial communication board displayed to the user."
-      word_instructions = " #{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
+      word_instructions = " #{first_sentence} with the current words: [#{existing_words_list}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
       static_instructions = "These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates."
       text = "#{word_instructions} #{static_instructions}"
-      ending = "Use the existing words on the board as a guide for the type of words that should be added. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+      ending = "Use the existing words on the board as a guide for the type of words that should be added."
     elsif board&.static?
       Rails.logger.debug "** Static Board"
       first_sentence = "I have an existing AAC board titled, '#{name}'"
-      word_instructions = " #{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
+      word_instructions = " #{first_sentence} with the current words: [#{existing_words_list}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
       static_instructions = "These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates."
       text = "#{word_instructions} #{static_instructions}"
       ending = "If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
         If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate.
         If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-        Use the existing words on the board as a guide for the type of words that should be added. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+        Use the existing words on the board as a guide for the type of words that should be added."
     elsif board&.predictive?
       Rails.logger.debug "** Predictive Board"
       text = "I have an AAC board & the last word/phrase selected was '#{name}'. Please provide #{number_of_words} words/phrases that are most likely to be used next in conversation after the word/phrase '#{name}'."
       ending = "If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
         If the board is 'we', words like 'are', 'can', 'will', etc. would be appropriate.
-        If the board is 'will', words like 'you', 'go', 'eat', etc. would be appropriate.
-        Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+        If the board is 'will', words like 'you', 'go', 'eat', etc. would be appropriate."
     elsif board&.category?
       Rails.logger.debug "** Category Board"
       text = "I have an AAC button labeled '#{name}'. Please provide #{number_of_words} words that are related to the category '#{name}'."
@@ -458,19 +387,18 @@ class OpenAiClient
         If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
         If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate."
     end
-    format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    format_instructions = "Provide exactly #{number_of_words} words, with no duplicates."
+    if existing_words.present?
+      format_instructions += " None of them may be a word already on the board. Do not include any of: #{existing_words_list}."
+    end
+    format_instructions += " Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
     format_instructions = append_language_instruction(format_instructions, language)
     text = "#{text} #{format_instructions} #{ending}"
     text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{
-      type: "text",
-      text: text,
-    }] }]
 
     @model = GTP_MODEL
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
+    response = aac_word_chat(text, response_key: "additional_words", schema_name: "aac_additional_words")
+    Rails.logger.debug "*** ERROR *** Invalid Additional Words Response" if response[:content].blank?
     response
   end
 
@@ -491,12 +419,8 @@ class OpenAiClient
     text += format_instructions
     text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: text }] }]
 
-    response = create_chat
-    response
+    aac_word_chat(text, response_key: "words", schema_name: "aac_board_words")
   end
 
   def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [], language: "en")
@@ -513,20 +437,20 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                                                                            I am creating a social story titled "#{name}".
+      I am creating a social story titled "#{name}".
 
-    Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
+      Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
-    These should represent actions or steps in the story.
+      These should represent actions or steps in the story.
 
-    Requirements:
-    - each item should be a short instruction or step (#{min_number_of_words}-#{max_number_of_words} words)
-    - simple language appropriate for children
-    - represent a sequence of events in the story
-    - avoid long sentences
-    - avoid punctuation
-    - lowercase only (except for proper nouns if necessary)
-    - no duplicates
+      Requirements:
+      - each item should be a short instruction or step (#{min_number_of_words}-#{max_number_of_words} words)
+      - simple language appropriate for children
+      - represent a sequence of events in the story
+      - avoid long sentences
+      - avoid punctuation
+      - lowercase only (except for proper nouns if necessary)
+      - no duplicates
     TEXT
 
     unless words_to_exclude.blank?
@@ -545,12 +469,10 @@ class OpenAiClient
 
     text = append_language_instruction(text, language)
 
-    @messages = [{
-      role: "user",
-      content: [{ type: "text", text: text }],
-    }]
-
-    create_chat
+    # Persona only, no WORD_RULES: these are ordered story steps, not a
+    # vocabulary list, and the selection rules would pull against the sequence.
+    aac_word_chat(text, response_key: "words", schema_name: "aac_social_story_steps",
+                        system_prompt: Prompts::Aac::WORD_LIST_SYSTEM_PROMPT)
   end
 
   def get_word_suggestions_from_prompt(prompt, language: "en", profile: nil)
@@ -560,11 +482,8 @@ class OpenAiClient
     text += format_instructions
     text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: text }] }]
 
-    create_chat
+    aac_word_chat(text, response_key: "words", schema_name: "aac_prompt_words")
   end
 
   # Appends communicator-profile guidance (age / AAC level / vocab type) to a
@@ -633,13 +552,12 @@ class OpenAiClient
     response
   end
 
-  def save_response_locally(response)
-    Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
-    File.open("response.json", "w") { |f| f.write(response) }
-  end
-
   def create_chat(format_json = true)
-    @model ||= GTP_MODEL
+    # `model:` used to be accepted and silently ignored — @model was only ever
+    # set by instance_variable_set or by a method on this class, so a caller
+    # that passed `model:` got GTP_MODEL and no warning. AacWordCategorizer
+    # asked for gpt-4o-mini that way for months and never got it.
+    @model ||= @opts[:model].presence || GTP_MODEL
     Rails.logger.debug "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
       model: @model, # Required.
@@ -684,7 +602,7 @@ class OpenAiClient
   end
 
   def create_completion
-    @model ||= GTP_MODEL
+    @model ||= @opts[:model].presence || GTP_MODEL
     Rails.logger.error "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
       model: @model, # Required.

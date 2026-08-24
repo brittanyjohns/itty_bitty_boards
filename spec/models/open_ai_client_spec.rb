@@ -148,6 +148,110 @@ RSpec.describe OpenAiClient do
       expect(captured_parameters(messages: messages, response_format: schema)[:response_format])
         .to eq(schema)
     end
+
+    # `model:` used to be accepted and silently ignored, so AacWordCategorizer
+    # asked for gpt-4o-mini and every call ran on GTP_MODEL instead.
+    it "uses the model the caller asked for" do
+      expect(captured_parameters(messages: messages, model: "gpt-4o-mini")[:model]).to eq("gpt-4o-mini")
+    end
+
+    it "falls back to the general default when no model is given" do
+      expect(captured_parameters(messages: messages)[:model]).to eq(described_class::GTP_MODEL)
+    end
+
+    # AdminBuilder::Drafting sets @model directly before calling; an opts model
+    # must not override a model a caller has already pinned.
+    it "keeps a model pinned directly on the instance" do
+      client = described_class.new(messages: messages, model: "gpt-4o-mini")
+      client.instance_variable_set(:@model, "gpt-5-mini")
+      chat_client = instance_double(OpenAI::Client)
+      allow(client).to receive(:openai_client).and_return(chat_client)
+
+      captured = nil
+      allow(chat_client).to receive(:chat) do |parameters:|
+        captured = parameters
+        { "choices" => [{ "message" => { "role" => "assistant", "content" => "{}" } }] }
+      end
+
+      client.create_chat
+      expect(captured[:model]).to eq("gpt-5-mini")
+    end
+  end
+
+  # The word-selection rules were written for the admin Board Builder and lived
+  # inside it, so every user-facing suggestion path asked for a topical
+  # vocabulary list with no persona and no rules at all.
+  describe "the shared AAC prompt kernel" do
+    subject(:client) { described_class.new({}) }
+
+    before { allow(client).to receive(:create_chat).and_return({ content: "{}" }) }
+
+    def messages
+      client.instance_variable_get(:@messages)
+    end
+
+    def system_content
+      messages.find { |m| m[:role] == "system" }[:content]
+    end
+
+    {
+      "#get_word_suggestions" => -> (c) { c.get_word_suggestions("drink", 5) },
+      "#get_word_suggestions_from_prompt" => -> (c) { c.get_word_suggestions_from_prompt("a park trip") },
+      "#get_words_for_scenario" => -> (c) { c.get_words_for_scenario("a park trip", 5) },
+      "#get_next_words" => -> (c) { c.get_next_words("want") },
+    }.each do |name, invoke|
+      describe name do
+        before { invoke.call(client) }
+
+        it "sends a system message ahead of the user prompt" do
+          expect(messages.map { |m| m[:role] }).to eq(%w[system user])
+        end
+
+        it "carries the shared word-selection rules" do
+          expect(system_content).to include(Prompts::Aac::WORD_RULES)
+        end
+
+        # The rule that separates a board from a word list.
+        it "asks for a way to object and a way to redirect" do
+          expect(system_content).to include("a way to object and a way to redirect")
+        end
+      end
+    end
+
+    describe "#get_additional_words" do
+      let(:board) { instance_double(Board, dynamic?: false, static?: true, predictive?: false, category?: false) }
+
+      it "carries the shared word-selection rules" do
+        client.get_additional_words(board, "drink", 5, ["water"])
+
+        expect(system_content).to include(Prompts::Aac::WORD_RULES)
+      end
+
+      it "lists the existing words plainly instead of nesting a sentence" do
+        client.get_additional_words(board, "drink", 5, ["water", "milk"])
+        user_content = messages.last[:content]
+
+        expect(user_content).to include("water, milk")
+        expect(user_content).not_to include("and no words to exclude")
+      end
+
+      it "does not tell the model to exclude nothing when there is nothing to exclude" do
+        client.get_additional_words(board, "drink", 5, [])
+
+        expect(messages.last[:content]).not_to include("DO NOT INCLUDE")
+      end
+    end
+
+    # Social-story steps are an ordered sequence, not a vocabulary list, so the
+    # selection rules would pull against the task.
+    describe "#get_social_story_word_suggestions" do
+      it "sends the persona without the word-selection rules" do
+        client.get_social_story_word_suggestions("brushing teeth", 5, 4)
+
+        expect(system_content).to include("speech-language pathologist")
+        expect(system_content).not_to include(Prompts::Aac::WORD_RULES)
+      end
+    end
   end
 
   describe "language-aware prompts" do

@@ -84,12 +84,29 @@ RSpec.describe Boards::AiPageGenerator do
       profile = CommunicatorProfile.new(aac_level: "emerging", age_band: "4-6")
       expect_any_instance_of(OpenAiClient).to receive(:create_chat) do |client|
         messages = client.instance_variable_get(:@messages)
-        prompt_text = messages.first[:content]
-        expect(prompt_text).to include("core vocabulary")
+        user_prompt = messages.last[:content]
+        expect(user_prompt).to include("core vocabulary")
         { role: "assistant", content: valid_ai_response }
       end
 
       described_class.new(interests: ["dinosaur"], profile: profile).call
+    end
+
+    # An interest page is the same job the admin Board Builder does, so it gets
+    # the same brief. This prompt used to be one user message carrying its own
+    # hand-written subset of the rules.
+    it "sends the shared AAC system prompt and word rules" do
+      expect_any_instance_of(OpenAiClient).to receive(:create_chat) do |client|
+        messages = client.instance_variable_get(:@messages)
+
+        expect(messages.map { |m| m[:role] }).to eq(%w[system user])
+        expect(messages.first[:content]).to include(Prompts::Aac::SYSTEM_PROMPT)
+        expect(messages.first[:content]).to include(Prompts::Aac::WORD_RULES)
+
+        { role: "assistant", content: valid_ai_response }
+      end
+
+      described_class.new(interests: ["dinosaur"]).call
     end
 
     it "filters blank labels from the response" do

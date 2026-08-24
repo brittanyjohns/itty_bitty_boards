@@ -89,10 +89,23 @@ class CoachingPromptGenerator
       return nil if content.blank?
 
       parsed = JSON.parse(content)
+      strategies = Array(parsed["strategies"]).map { |s| normalize_strategy(s) }.compact
+
+      # A set with no strategies is worse than no set at all: persist! caches
+      # its id on board.metadata, so an empty one is pinned to that board
+      # forever and the curated fallback is never reached again. The "4 to 6
+      # strategies" rule is prompt-only, and normalize_strategy drops anything
+      # malformed, so an empty list is a reachable outcome — treat it as a
+      # failed generation and let the caller fall back.
+      if strategies.empty?
+        Rails.logger.warn "[CoachingPromptGenerator] no usable strategies for board #{board.id}"
+        return nil
+      end
+
       {
         name: parsed["name"] || board.name,
         description: parsed["description"],
-        strategies: Array(parsed["strategies"]).map { |s| normalize_strategy(s) }.compact,
+        strategies: strategies,
       }
     rescue JSON::ParserError => e
       Rails.logger.warn "[CoachingPromptGenerator] bad JSON: #{e.message}"

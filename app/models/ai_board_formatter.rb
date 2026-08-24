@@ -2,6 +2,8 @@
 # frozen_string_literal: true
 
 class AiBoardFormatter
+  FREQUENCIES = %w[high medium low].freeze
+
   def self.call(...) = new(...).call
 
   # name: Board name (for context only)
@@ -72,9 +74,13 @@ class AiBoardFormatter
       - Preserve the original spelling and casing of each word.
 
       Frequency values must be one of: "high", "medium", "low".
-      Part of speech should be one of: "pronoun", "noun", "verb",
-      "adjective", "adverb", "preposition", "conjunction", "interjection",
-      "determiner", "phrase", "other".
+
+      Give every word a part_of_speech from exactly this list:
+      #{ColorHelper::PARTS_OF_SPEECH.join(", ")}
+      Classify by communicative function, not strict grammar: "more", "yes" and
+      "please" are social; "no", "not" and "stop" are important_function; "what",
+      "where" and "who" are question. It sets the tile's Modified Fitzgerald Key
+      colour, so a value outside this list miscolours the board.
 
       Grid hint (informational only — placement is computed downstream):
       - Target columns: #{@columns}
@@ -86,8 +92,9 @@ class AiBoardFormatter
       Required JSON shape:
       {
         "ordered_words": [
-          { "word": "I",    "size": [1,1], "frequency": "high",   "part_of_speech": "pronoun" },
-          { "word": "want", "size": [1,1], "frequency": "high",   "part_of_speech": "verb" }
+          { "word": "I",    "size": [1,1], "frequency": "high", "part_of_speech": "pronoun" },
+          { "word": "want", "size": [1,1], "frequency": "high", "part_of_speech": "verb" },
+          { "word": "stop", "size": [1,1], "frequency": "high", "part_of_speech": "important_function" }
         ],
         "personable_explanation":  "One short sentence the caregiver will read.",
         "professional_explanation": "One short sentence explaining the AAC reasoning."
@@ -126,6 +133,16 @@ class AiBoardFormatter
     nil
   end
 
+  # An unrecognised part_of_speech is dropped rather than passed through. It
+  # reaches background_color_for downstream, which answers "gray" for anything
+  # it does not know — so an out-of-list value does not fail loudly, it silently
+  # paints a tile the wrong colour. nil means "we did not learn a POS for this
+  # tile", which the caller already skips.
+  def validated_part_of_speech(value)
+    v = value.to_s.strip.downcase
+    ColorHelper::PARTS_OF_SPEECH.include?(v) ? v : nil
+  end
+
   # Accepts either the new "ordered_words" shape or the legacy "grid" shape
   # (back-compat with prompts/responses that still include "position").
   # Always returns a hash with "ordered_words" populated.
@@ -155,8 +172,8 @@ class AiBoardFormatter
       {
         "word" => word,
         "size" => [w, h],
-        "frequency" => item["frequency"].presence,
-        "part_of_speech" => item["part_of_speech"].presence,
+        "frequency" => FREQUENCIES.include?(item["frequency"]) ? item["frequency"] : nil,
+        "part_of_speech" => validated_part_of_speech(item["part_of_speech"]),
       }
     end
 

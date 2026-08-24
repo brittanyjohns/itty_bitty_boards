@@ -2,20 +2,10 @@
 # Purpose: Categorize a word/phrase into Modified Fitzgerald Key categories for AAC color coding.
 
 class AacWordCategorizer
-  PARTS_OF_SPEECH = %w[
-    adjective
-    verb
-    pronoun
-    noun
-    conjunction
-    preposition
-    social
-    question
-    adverb
-    important_function
-    determiner
-    default
-  ].freeze
+  # ColorHelper::PARTS_OF_SPEECH is the single POS vocabulary in this app — it
+  # is what background_color_for switches on, so a list maintained in parallel
+  # here could only ever drift toward miscoloured tiles.
+  PARTS_OF_SPEECH = ColorHelper::PARTS_OF_SPEECH
 
   # High-confidence overrides (no API call, consistent, cheap)
   # NOTE: Put AAC-functional classifications here (not traditional grammar).
@@ -78,7 +68,7 @@ class AacWordCategorizer
     Use Modified Fitzgerald Key functional AAC meaning (not traditional grammar).
 
     Output MUST be valid JSON with EXACTLY this schema:
-    {"part_of_speech":"adjective|verb|pronoun|noun|conjunction|preposition|social|question|adverb|important_function|determiner|default"}
+    {"part_of_speech":"#{PARTS_OF_SPEECH.join("|")}"}
 
     No other keys. No explanations. If uncertain, use "default".
     If input contains multiple words, categorize the whole phrase as ONE category.
@@ -89,9 +79,20 @@ class AacWordCategorizer
     Return JSON only.
   TEXT
 
+  # This is the highest-call-volume AI surface in the app — one call per word,
+  # from four call sites — so the model is an explicit, ENV-tunable decision.
+  #
+  # It defaults to GTP_MODEL, which is what this path has ACTUALLY been running.
+  # The default argument used to read "gpt-4o-mini", but OpenAiClient ignored a
+  # `model:` opt entirely, so that model was never once used. Now that the opt
+  # is honoured, keeping the stated default would have quietly switched the
+  # busiest AI call in the app to a different model — a change there is no eval
+  # harness to validate. Set OPENAI_CATEGORIZER_MODEL to move it deliberately.
+  MODEL = ENV.fetch("OPENAI_CATEGORIZER_MODEL", OpenAiClient::GTP_MODEL).freeze
+
   # ---- Public API ----
   # Returns a String category from PARTS_OF_SPEECH (always valid).
-  def self.categorize(input, model: "gpt-4o-mini", cache_ttl: 30.days)
+  def self.categorize(input, model: MODEL, cache_ttl: 30.days)
     normalized = normalize(input)
     return "default" if normalized.blank?
 
@@ -127,10 +128,6 @@ class AacWordCategorizer
       { role: "user", content: format(USER_PROMPT_TEMPLATE, input: normalized) }
     ]
 
-    # IMPORTANT: Replace this with your actual LLM call.
-    # You said you already have create_chat — adjust signature as needed.
-    #
-    # Example expected: create_chat(model: model, messages: messages) -> string content
     OpenAiClient.new(model: model, messages: messages).create_chat
   rescue => e
     Rails.logger.error("[AacWordCategorizer] LLM call failed: #{e.class} #{e.message}")

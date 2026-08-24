@@ -77,6 +77,41 @@ RSpec.describe CoachingPromptGenerator do
       expect(result2.id).to eq(board.metadata["coaching_prompt_set_id"])
     end
 
+    # An empty set is worse than no set: persist! pins its id on board.metadata,
+    # so it is cached forever and the curated fallback is never reached again.
+    it "falls back rather than persisting a set with no usable strategies" do
+      board.update!(tags: ["unknown_topic"])
+      allow(AppEnv).to receive(:staging?).and_return(false)
+      fallback = CoachingPromptSet.find_or_create_by!(slug: CoachingPromptGenerator::FALLBACK_SLUG) do |set|
+        set.name = "Fallback"
+        set.published = false
+        set.match_tags = []
+      end
+
+      fake_client = instance_double(OpenAI::Client)
+      allow(OpenAI::Client).to receive(:new).and_return(fake_client)
+      allow(fake_client).to receive(:chat).and_return(
+        "choices" => [
+          {
+            "message" => {
+              "content" => {
+                "name" => "Made up",
+                "description" => "desc",
+                # Every entry is malformed, so normalize_strategy drops them all.
+                "strategies" => [{ "hint" => "no label" }, "not a hash"],
+              }.to_json,
+            },
+          },
+        ],
+      )
+
+      expect {
+        expect(described_class.for(board)).to eq(fallback)
+      }.not_to change(CoachingPromptSet, :count)
+
+      expect(board.reload.metadata["coaching_prompt_set_id"]).to be_nil
+    end
+
     it "returns the fallback when OpenAI raises an error" do
       board.update!(tags: ["unknown_topic"])
       allow(AppEnv).to receive(:staging?).and_return(false)

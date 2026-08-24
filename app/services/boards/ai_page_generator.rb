@@ -21,17 +21,71 @@ module Boards
 
     private
 
+    # The shared AAC kernel goes in the system slot, and the page-specific
+    # instructions in the user slot. This prompt used to be one user message
+    # with its own hand-written version of the rules, so an interest page was
+    # drafted by a model that had been told less about AAC than the admin
+    # builder tells it — for the same job.
+    SCHEMA = {
+      name: "aac_interest_page",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: %w[name tiles],
+        properties: {
+          name: { type: "string" },
+          tiles: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["label"],
+              properties: { label: { type: "string" } },
+            },
+          },
+        },
+      },
+    }.freeze
+
     def generate_via_openai
-      client = OpenAiClient.new(
-        prompt: @interests.first,
-        messages: [{ role: "user", content: build_prompt }],
-      )
-      client.instance_variable_set(:@model, OpenAiClient::GTP_MODEL)
-      result = client.create_chat(true)
+      result = chat(schema: SCHEMA)
+
+      # Not every model accepts a json_schema, and create_chat swallows an API
+      # error into nil content — so a rejected schema is indistinguishable from
+      # "the model had nothing to say". Same ladder as AdminBuilder::Drafting.
+      if result[:content].blank?
+        Rails.logger.warn("[AiPageGenerator] no content with a json schema — retrying without it")
+        result = chat(schema: nil)
+      end
 
       raise GenerationError, "OpenAI returned no content" if result[:content].blank?
 
       result[:content]
+    end
+
+    def chat(schema:)
+      opts = {
+        prompt: @interests.first,
+        messages: [
+          { role: "system", content: system_prompt },
+          { role: "user", content: build_prompt },
+        ],
+        temperature: OpenAiClient::WORD_SUGGESTION_TEMPERATURE.presence,
+      }.compact
+      opts[:response_format] = { type: "json_schema", json_schema: schema } if schema
+
+      client = OpenAiClient.new(**opts)
+      client.instance_variable_set(:@model, OpenAiClient::GTP_MODEL)
+      client.create_chat(true)
+    end
+
+    def system_prompt
+      <<~PROMPT
+        #{Prompts::Aac::SYSTEM_PROMPT}
+        Word selection rules:
+        #{Prompts::Aac::WORD_RULES}
+      PROMPT
     end
 
     def build_prompt
@@ -47,10 +101,7 @@ module Boards
 
         Requirements:
         - Include a MIX of word types: nouns (things), verbs (actions), and adjectives (descriptors)
-        - Words should support COMMUNICATION, not just labeling — include action words and descriptors, not just "types of #{@interests.first}"
-        - Keep words short (1-2 words max per tile)
-        - Make words age-appropriate and concrete
-        - Include the original interest word(s) if they make good tiles
+        - Make words concrete, and include the original interest word(s) if they make good tiles
         #{guidance ? "- #{guidance}" : ""}
 
         Respond in JSON format:

@@ -28,9 +28,7 @@ class OpenaiPrompt < ApplicationRecord
   def send_prompt_to_openai
     return if Rails.env.test?
     opts = open_ai_opts.merge({ messages: messages })
-    puts "\nsend_prompt_to_openai\n\nopts: #{opts}\n\n"
     response = OpenAiClient.new(opts).create_chat
-    puts "response: #{response}"
     if response
       update!(sent_at: Time.now)
     end
@@ -73,23 +71,21 @@ class OpenaiPrompt < ApplicationRecord
       { role: "user", content: describe_scenario_prompt },
     ] }).create_chat
 
-    response_text = nil
-    if response
-      response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-      if valid_json?(response_text)
-        response_text
-      else
-        puts "INVALID JSON: #{response_text}"
-        response_text = transform_into_json(response_text)
-      end
-    else
-      Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
+    # create_chat swallows an API error into { role: nil, content: nil }, so a
+    # blank content here means "call failed" just as often as "model said
+    # nothing". Either way there is no description to set — this used to run
+    # nil.gsub and then JSON.parse(nil) and take the whole request down.
+    content = response && response[:content]
+    if content.blank?
+      Rails.logger.error "*** ERROR - set_scenario_description *** Did not receive a usable response."
+      return self
     end
-    puts "set_scenario_description - response_text: #{response_text}"
-    description = JSON.parse(response_text)["description"]
-    # description = JSON.parse(parsed_response)["description"]
-    puts "description: #{description}"
-    self.description = description
+
+    cleaned = content.gsub("```json", "").gsub("```", "").strip
+    parsed = valid_json?(cleaned) ? JSON.parse(cleaned) : transform_into_json(cleaned, fallback_key: "description")
+    parsed = {} unless parsed.is_a?(Hash)
+
+    self.description = parsed["description"]
     self
   end
 
@@ -105,33 +101,44 @@ class OpenaiPrompt < ApplicationRecord
     "You are a speech expert and have done extensive research of people with special needs & how they communicate in various scenarios."
   end
 
+  # The default used when no PromptTemplate row is configured, or the row has
+  # no prompt_text. It was duplicated verbatim in both branches below.
+  def default_word_list_prompt
+    "Please generate a list of exactly #{number_of_images} unique words or short phrases " \
+      "(2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. " \
+      "Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant " \
+      "to the activities and items involved in #{name} using the following description for " \
+      "additional context. Please make the words appropriate for a person at the age given. " \
+      "You can use common/core words if not able to meet number requirement of " \
+      "#{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+  end
+
   def word_list_prompt
     prompt_template = PromptTemplate.find_by(method_name: "word_list_prompt")
-    unless prompt_template
-      puts "PromptTemplate not found for 'word_list_prompt'"
-      return "Please generate a list of exactly #{number_of_images} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    if prompt_template.nil?
+      Rails.logger.warn "[OpenaiPrompt] PromptTemplate not found for 'word_list_prompt'"
+      return default_word_list_prompt
     end
 
-    text = prompt_template&.prompt_text
-
-    unless text
-      puts "PromptTemplate 'word_list_prompt' does not have prompt_text"
-      return "Please generate a list of exactly #{number_of_images} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    text = prompt_template.prompt_text
+    if text.blank?
+      Rails.logger.warn "[OpenaiPrompt] PromptTemplate 'word_list_prompt' has no prompt_text"
+      return default_word_list_prompt
     end
 
-    num_of_imgs = number_of_images
-    puts "text: #{text}"
-    name_to_send = name || "the scenario"
-    prompt_text = text.gsub!("{QUANTITY}", num_of_imgs.to_s)
-    prompt_text.gsub!("{SCENARIO}", scenario)
-    prompt_text.gsub!("{AGE_RANGE}", age_range)
-    prompt_text.gsub!("{NAME}", name_to_send)
+    # gsub, not gsub! — the bang form returns nil when a placeholder is absent,
+    # so a template row missing {QUANTITY} used to blow up the next line with
+    # NoMethodError on nil. PromptTemplate rows are admin-editable, so a
+    # template without every placeholder is an ordinary thing to have.
+    prompt_text = text
+      .gsub("{QUANTITY}", number_of_images.to_s)
+      .gsub("{SCENARIO}", scenario.to_s)
+      .gsub("{AGE_RANGE}", age_range.to_s)
+      .gsub("{NAME}", (name || "the scenario").to_s)
+
     self.prompt_template_id = prompt_template.id
     save!
 
-    puts "****prompt_text: #{prompt_text}"
-    # "You will be given a scenario description and age range of the USER. Please provide EXACTLY #{num_of_imgs} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
-    # "Please generate a list of exactly #{num_of_imgs} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{num_of_imgs} words/phrases. Please respond in JSON with the array key 'words_phrases'."
     prompt_text
   end
 
@@ -171,8 +178,8 @@ class OpenaiPrompt < ApplicationRecord
     if valid_json?(response)
       json_word_list = JSON.parse(response)
     else
-      puts "INVALID JSON: #{response}"
-      json_word_list = transform_into_json(response)
+      Rails.logger.warn "[OpenaiPrompt] invalid JSON in word-list response"
+      json_word_list = transform_into_json(response, fallback_key: "words_phrases")
     end
     # json_word_list = JSON.parse(response)
     images = []
@@ -210,7 +217,7 @@ class OpenaiPrompt < ApplicationRecord
         minutes_to_wait += 1
       end
     rescue => e
-      puts "ERROR - create_images_from_response: #{e.message} \n#{e.backtrace}"
+      Rails.logger.error "[OpenaiPrompt] create_images_from_response: #{e.class}: #{e.message}"
       board.update(status: "error") if board
     end
     self.user.remove_tokens(tokens_used)
@@ -225,10 +232,11 @@ class OpenaiPrompt < ApplicationRecord
   # end
 
   def prompt_image_name(item_name)
-    item_name.downcase!
-    # Strip out any non-alphanumeric characters
-    item_name.gsub(/[^a-z ]/i, "")
-    item_name
+    # The non-alphanumeric strip that used to sit here discarded its own return
+    # value, so it has never run. Deliberately not "fixed" into place: it would
+    # also eat digits and apostrophes ("don't" -> "dont"), changing which Image
+    # every label resolves to. Image#set_label owns label normalisation.
+    item_name.to_s.downcase.strip
   end
 
   def api_view_with_images(user)

@@ -2069,9 +2069,12 @@ class Board < ApplicationRecord
         bi.save!
         bi.clean_up_layout
 
-        if item[:part_of_speech].present? && bi.image && bi.image.part_of_speech.blank?
-          bi.image.update!(part_of_speech: item[:part_of_speech])
-        end
+        # Deliberately does NOT write part_of_speech back to bi.image. `images`
+        # is a shared library row — one "apple" is on thousands of boards across
+        # unrelated accounts — so a POS this user's layout run guessed would
+        # repaint everyone else's tile. The tile keeps its own answer in
+        # bi.data["part_of_speech"] / bi.data["bg_color"] above, which is all
+        # this board needs to render.
       end
 
       # Mirror per-image layout up to board.layout for each screen so
@@ -3081,7 +3084,7 @@ class Board < ApplicationRecord
           start_index = words.index("{")
           end_index = words.rindex("}")
           words = words[start_index..end_index]
-          words = transform_into_json(words)
+          words = transform_into_json(words, fallback_key: "additional_words")
         end
       else
         Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"

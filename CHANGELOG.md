@@ -140,7 +140,40 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the brand was the first thing a reader saw. The mark still signs the footnote
   on every page.
 
+### Changed
+
+- **Word suggestions now get the same AAC brief the Board Builder gets.** The
+  rules that decide whether a word earns a place on a board — favour words that
+  finish many different sentences, every board needs a way to object and a way
+  to redirect, no filler runs of colours or days of the week, no near-duplicates
+  — were written for the admin board builder and only ever reached it. Every
+  suggestion a parent or therapist can trigger ("suggest words for this board",
+  "add more words", the scenario builder, interest pages) was asking for a
+  topical vocabulary list instead, which is the thing those rules exist to
+  prevent: a board full of correct words you cannot say anything with. All of
+  them now share one brief, and the reply shape is pinned rather than described,
+  so a malformed answer is refused instead of silently half-read.
+
 ### Fixed
+
+- **AI board layout can produce the AAC colours again.** "Format with AI"
+  asked the model for parts of speech from a list that did not match the app's
+  own — it offered "interjection", "phrase" and "other", and left out
+  `social`, `question` and `important_function` entirely. Since the colour
+  resolver answers grey for anything it does not recognise, an AI-laid-out
+  board could never render a red (no / stop), pink (please / yes) or purple
+  (what / where) tile, which is most of the point of the Modified Fitzgerald
+  Key. The prompt now asks for the app's real categories and anything outside
+  them is discarded rather than quietly painted grey.
+- **Choosing a layout with AI no longer changes other people's boards.** The
+  part of speech the model guessed was written back to the shared picture
+  library, so one person's layout run could recolour the same word on
+  unrelated accounts' boards. The tile keeps its own answer; the shared row is
+  left alone.
+- **Scenario word lists are no longer cut short.** The request for a list of
+  words capped the reply at a length that truncated it mid-list, and read the
+  result as plain text, so a conversational opening line ("Sure! Here are 12
+  words:") could be turned into the first word on the board.
 
 - **The "Download updated cards" button in the safety-cards email goes to a
   real page.** It pointed at `/communicators/:id/safety`, a path the app has no
