@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_20_160000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_24_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -576,6 +576,40 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_20_160000) do
     t.index ["user_id"], name: "index_feedback_items_on_user_id"
   end
 
+  create_table "image_merge_batches", force: :cascade do |t|
+    t.string "status", default: "planned", null: false
+    t.jsonb "plan", default: {}, null: false
+    t.jsonb "report", default: {}, null: false
+    t.jsonb "filters", default: {}, null: false
+    t.bigint "created_by_id"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_image_merge_batches_on_created_by_id"
+    t.index ["status"], name: "index_image_merge_batches_on_status"
+  end
+
+  create_table "image_merges", force: :cascade do |t|
+    t.bigint "image_merge_batch_id", null: false
+    t.integer "group_index", null: false
+    t.string "status", default: "merged", null: false
+    t.bigint "survivor_id"
+    t.bigint "merged_image_id"
+    t.string "label"
+    t.jsonb "merged_attributes", default: {}, null: false
+    t.bigint "doc_ids", default: [], null: false, array: true
+    t.bigint "board_image_ids", default: [], null: false, array: true
+    t.bigint "user_doc_ids", default: [], null: false, array: true
+    t.bigint "reparented_board_ids", default: [], null: false, array: true
+    t.text "skip_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["image_merge_batch_id", "group_index"], name: "index_image_merges_on_batch_and_group", unique: true
+    t.index ["image_merge_batch_id"], name: "index_image_merges_on_image_merge_batch_id"
+    t.index ["merged_image_id"], name: "index_image_merges_on_merged_image_id"
+    t.index ["survivor_id"], name: "index_image_merges_on_survivor_id"
+  end
+
   create_table "images", force: :cascade do |t|
     t.string "label"
     t.text "image_prompt"
@@ -609,8 +643,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_20_160000) do
     t.jsonb "language_settings", default: {}
     t.string "language", default: "en"
     t.string "display_label"
+    t.bigint "display_doc_id"
     t.index "lower((label)::text)", name: "index_images_on_lower_label"
     t.index ["category"], name: "index_images_on_category"
+    t.index ["display_doc_id"], name: "index_images_on_display_doc_id"
     t.index ["label"], name: "index_images_on_label"
     t.index ["language_settings"], name: "index_images_on_language_settings_gin", using: :gin
     t.index ["obf_id"], name: "index_images_on_obf_id"
@@ -1237,6 +1273,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_20_160000) do
   add_foreign_key "contest_entries", "events"
   add_foreign_key "credit_transactions", "users"
   add_foreign_key "feedback_items", "users"
+  add_foreign_key "image_merges", "image_merge_batches"
+  add_foreign_key "images", "docs", column: "display_doc_id", on_delete: :nullify
   add_foreign_key "kit_pages", "board_printables"
   add_foreign_key "kit_pages", "users", column: "etsy_override_by_id"
   add_foreign_key "menus", "users"

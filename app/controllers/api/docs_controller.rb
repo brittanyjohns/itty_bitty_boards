@@ -199,11 +199,25 @@ class API::DocsController < API::ApplicationController
 
   # DELETE /docs/1 or /docs/1.json
   def destroy
+    # Broken-access-control gate, the same one #update carries (#469): set_doc
+    # uses Doc.unscoped.find, so without this any authenticated user could
+    # delete any doc — including the shared library art every board falls back
+    # to. #update was fixed and destroy was missed.
+    unless current_user&.can_edit?(@doc)
+      respond_to do |format|
+        format.html { redirect_back_or_to root_url, notice: "You do not have permission to delete this doc." }
+        format.json { render json: { error: "Unauthorized" }, status: :forbidden }
+      end
+      return
+    end
+
     documentable = @doc.documentable
     if params[:hard_delete]
       @doc.destroy
     else
-      @doc.hide
+      # `hide!`, not `hide` — the model defines only the bang form, so this
+      # raised NoMethodError and the soft-delete path never worked at all.
+      @doc.hide!
     end
 
     respond_to do |format|

@@ -69,7 +69,18 @@ module ImageHelper
         doc.queue_tile_variant_render!
       end
 
-      self.update(status: "finished", src_url: doc.tile_url)
+      # src_url is the LIBRARY DEFAULT — it is what BoardImage#set_defaults
+      # snapshots onto every tile created from this Image afterwards. This
+      # Image is shared, so a save by someone who may not edit it (a user
+      # picking a Google result for a word the library already has) must not
+      # move it; their own pick is the UserDoc the caller writes. Only fill it
+      # when it is blank, i.e. the Image had no default at all.
+      self.fanout_actor_id = user_id
+      if src_url.blank?
+        self.update(status: "finished", src_url: doc.tile_url)
+      else
+        self.update(status: "finished")
+      end
       update_all_boards_image_belongs_to(doc.tile_url, false, user_id)
     rescue => e
       Rails.logger.error "ImageHelper ERROR: #{e.inspect}"

@@ -115,7 +115,16 @@ class API::ImagesController < API::ApplicationController
     user_doc = UserDoc.create!(user_id: current_user.id, doc_id: @doc.id, image_id: @doc.documentable_id)
     # The LIBRARY default, not "this user's pick" — the UserDoc above is that.
     # Images are shared, so only someone who may edit this one moves it.
-    @image.set_library_default_doc!(@doc, actor: @current_user)
+    #
+    # src_url follows the default when — and only when — the default actually
+    # moved, because BoardImage#set_defaults snapshots it onto every FUTURE
+    # tile. save_from_url no longer writes it for a non-owner, so this is the
+    # gated path that keeps the two in step (same shape as
+    # API::DocsController#mark_as_current).
+    if @image.set_library_default_doc!(@doc, actor: @current_user)
+      @image.fanout_actor_id = @current_user.id
+      @image.update(src_url: @doc.tile_url)
+    end
 
     if @doc.save
       if check_update_board_image(saved_image_url)
@@ -769,23 +778,20 @@ class API::ImagesController < API::ApplicationController
         @image.fanout_actor_id = current_user.id
         @image.update(src_url: replacement)
       end
-      @image.docs.delete(@doc)
-      @image.docs.reload
+      # NOT `@image.docs.delete(@doc)`: the association is `dependent: :destroy`,
+      # so `.delete` DESTROYS the row — which made the soft branch below dead
+      # code operating on an already-destroyed record, and is what the rescue
+      # for FrozenError was papering over. Detach explicitly instead.
       if params[:hard_delete]
         Rails.logger.info("Hard deleting document: #{@doc.id} for image: #{@image.id}")
         @doc.destroy
       else
         @doc.hide!
       end
+      @image.docs.reload
       @image.reload
       @image_with_display_doc = @image.with_display_doc(current_user)
       render json: { image: @image_with_display_doc, status: "ok" } and return
-    rescue FrozenError => e
-      render json: { image: @image_with_display_doc, status: "ok" }
-
-      # render json: { image: @image_with_display_doc, status: "ok" } and return
-      # Ignore frozen error
-      # render json: { status: "ok", message: e.message } and return
     rescue StandardError => e
       render json: { status: "error", message: e.message } and return
     end

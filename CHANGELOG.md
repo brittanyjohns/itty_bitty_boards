@@ -5,8 +5,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Admins can now set the library's default picture for a word, and remove a
+  picture from the library for good.** Both were previously only possible as a
+  side effect of a user-shaped action. On the image edit screen there is now a
+  "Library default picture" panel: pick which picture a word falls back to for
+  everyone who hasn't chosen their own, or delete one outright — hidden ones
+  included. Changing the default never repaints a picture someone already
+  chose; it changes what empty tiles fall back to and what new tiles start with.
+- **A safe way to condense duplicate library images.** The seeded library
+  carries several rows for the same word, and when only one of them has art the
+  others show up blank. `rake library_images:scan` now reports the duplicates
+  and stores a reviewable plan without changing anything;
+  `rake library_images:apply[ID]` merges them in the background, keeping every
+  picture, every board, and every saved preference.
+
 ### Fixed
 
+- **Deleting a picture from an image no longer deletes it permanently by
+  mistake.** "Remove" was documented as a hide you could undo, but every remove
+  destroyed the file for good.
+- **A picture you saved from an image search no longer changes what everyone
+  else's new tiles start with.** Saving art onto a shared library word moved the
+  library-wide default even when you weren't the one who owns it.
 - **Free kit downloads now actually download.** The Download button on a
   `/kit/...` landing page used to open the PDF in the browser's viewer instead
   of saving it — a long wait on a blank tab for a big printable, and then you
