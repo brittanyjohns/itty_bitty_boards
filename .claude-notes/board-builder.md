@@ -1292,7 +1292,7 @@ Its own invariants:
   textarea is what an admin sees laid out and what a communicator scans. Left to
   the model's own ordering, the Modified Fitzgerald colours the builder already
   applies per tile came out as confetti: verb, noun, pronoun, noun.
-  `Boards::AdminBuilder::TileArrangement` is the single authority on that order —
+  `Boards::TileArrangement` is the single authority on that order —
   a stable sort into `BAND_ORDER` (quick words first: pronoun, social,
   important_function, question; then the sentence: verb, adverb, adjective,
   preposition, determiner, conjunction, noun, default), with anything carrying
@@ -1304,6 +1304,12 @@ Its own invariants:
   `BackTileAlignment` mirroring — has to re-check it. Column-free on purpose:
   bands can't be made to break on row boundaries without padding, and the grid
   must be exactly full.
+  - It lives at `Boards::TileArrangement` now, not
+    `Boards::AdminBuilder::TileArrangement`: the user-facing "Format with AI"
+    path (`Board#format_board_with_ai`) bands its tiles with the same module, so
+    the admin namespace was a lie. The old constant survives as an alias in a
+    stub file at the old path — Zeitwerk needs the file to exist for the name to
+    autoload — and every drafter still says the old name.
   - Arrangement runs **inside the drafters**, never in the controller.
     `FolderTiles.link` runs on every form round-trip, and re-sorting a
     hand-edited list because the admin pressed a button is not the deal. For the

@@ -527,6 +527,40 @@ an explicit decision, not a drive-by edit.
   of every `Board#api_view` grew with the whole table. Nothing reads the index
   positions; every consumer reads each cell's own `x`/`y`. The memo it now
   keeps is cleared wherever tile layouts are rewritten (`board_images.reset`).
+- **"Format with AI" is a PERMUTATION at a uniform 1x1.** `AiBoardFormatter`
+  chooses an ORDER and nothing else: no tile size, no x/y, no column count, and
+  it never adds or drops a word. `Board#pack_layout_row_major` is the single
+  enforcement point — it writes `w: 1, h: 1` for every cell, so a size a model
+  or an older layout asked for cannot survive a format. It used to permit "up to
+  2" tiles at `[2, 1]`, which the model took on every run, and the damage was
+  never local to those two tiles: `rows_for_screen_size` is `max(y + h)`, so two
+  wide tiles turned a 48-tile / 8-column board from 6 exact rows into 7. That
+  inflated row count is what silently defeats `settings["disable_scroll"]` — the
+  frontend locks a board to the screen only while a row stays readable
+  (`max(56px, cellWidth / 2)`), and an extra row pushes it under the floor, so
+  the board starts scrolling with the setting still true. Never let a model pick
+  a tile size: it is a grid-wide decision. A partial last row is a WORD-COUNT
+  problem — `Prompts::Aac::SYSTEM_PROMPT` already says the grid is fixed —
+  never a reason to re-pick the column count, which would re-flow the board and
+  stale every cached cover and printable render. Repair for boards formatted
+  before the fix: `rake board_layouts:normalize_tile_sizes`.
+- **`Boards::TileArrangement` is the ONE part-of-speech band order, and it is
+  shared.** It was `Boards::AdminBuilder::TileArrangement` until "Format with
+  AI" started using it too; the old constant is a Zeitwerk-visible alias at the
+  old path, so drafters keep resolving it. Both callers turn a position straight
+  into a cell, so the arranged order IS the layout. Two things ride on it. The
+  sort is STABLE, which is what preserves whatever order the model chose inside
+  a band — that is how `up`/`down`, `hot`/`cold` and `here`/`there` stay
+  adjacent, and it is the only pairing the app does: a cross-band pair
+  (`stop` is `important_function`, `go` is a verb) is deliberately NOT kept
+  together, because contiguous colour blocks beat antonym adjacency on a
+  Fitzgerald board. And `arrange` corrects the part of speech through
+  `AacWordCategorizer::OVERRIDES` (a table lookup, never the paid per-word
+  `categorize`) before banding — so the value a tile is COLOURED by must be the
+  one it was SORTED by, or a red protest word ends up green in the verb block.
+  Feed it `links_to` from `BoardImage#door_tile?`, never from
+  `predictive_board_id`: predictive and dynamic WORD tiles carry that column
+  too, and banding one as navigation drags a spoken word to the bottom row.
 - **Never seed `profiles.bio` or `profiles.intro` with instructional copy.**
   Both are PUBLIC — `/my/:slug` prints the bio as "About me" and speaks the
   intro aloud on "Hear my intro" — so placeholder text stored there is

@@ -1971,12 +1971,19 @@ class Board < ApplicationRecord
     (screen_dimension / num_of_columns).to_i
   end
 
-  # Format the board's layout using AI for word ordering + tile sizing, then
-  # deterministically pack tiles in Ruby so we never persist overlapping or
-  # gap-ridden layouts. Writes per-board_image layouts (primary source of
-  # truth for ViewBoard / EditBoardScreen via DraggableGrid) AND the board's
-  # aggregate layout (source of truth for BoardNativeGridPage) for all three
-  # screen sizes in one pass.
+  # Format the board's layout using AI for word ORDER only, then lay the result
+  # out deterministically in Ruby. Writes per-board_image layouts (primary
+  # source of truth for ViewBoard / EditBoardScreen via DraggableGrid) AND the
+  # board's aggregate layout (source of truth for BoardNativeGridPage) for all
+  # three screen sizes in one pass.
+  #
+  # **This is a PERMUTATION at a uniform 1x1.** No tile is added, dropped or
+  # resized, and the column count is never changed, so the row count can only
+  # ever be `(tiles / columns).ceil` — the natural minimum. That matters beyond
+  # tidiness: `rows_for_screen_size` is `max(y + h)`, and an inflated row count
+  # silently defeats `settings["disable_scroll"]` on the frontend, which unlocks
+  # a board rather than squash its rows below a readable height. A partial last
+  # row is a word-count problem, not a layout one.
   #
   # screen_size is accepted for back-compat with callers but no longer affects
   # behavior — all three screens are always written.
@@ -1987,11 +1994,12 @@ class Board < ApplicationRecord
     lg_columns = get_number_of_columns("lg")
     rows_hint = (images.size / lg_columns.to_f).ceil
 
+    # Deliberately carries no size. Feeding the current w/h back to the model
+    # made a multi-cell tile STICKY across re-runs, so a board that had picked
+    # up wide tiles could never be formatted back to a clean grid.
     existing = images.map do |bi|
-      layout = (bi.layout || {}).dig("lg") || {}
       {
         word: bi.label,
-        size: [layout["w"], layout["h"]].compact.presence || [1, 1],
         board_type: bi.predictive_board_id ? Board.find_by(id: bi.predictive_board_id)&.board_type : nil,
       }
     end
@@ -2009,7 +2017,7 @@ class Board < ApplicationRecord
     ordered = Array(payload["ordered_words"])
     by_label = images.index_by { |bi| bi.label.to_s.downcase }
 
-    # Build ordered (board_image, w, h, meta) tuples from the AI output.
+    # Build ordered (board_image, meta) tuples from the AI output.
     ordered_items = []
     seen_ids = Set.new
     ordered.each do |item|
@@ -2018,16 +2026,8 @@ class Board < ApplicationRecord
       next if bi.nil? || seen_ids.include?(bi.id)
       seen_ids << bi.id
 
-      size = Array(item["size"])
-      w = size[0].to_i
-      h = size[1].to_i
-      w = 1 if w < 1
-      h = 1 if h < 1
-
       ordered_items << {
         board_image: bi,
-        w: w,
-        h: h,
         frequency: item["frequency"],
         part_of_speech: item["part_of_speech"],
       }
@@ -2036,8 +2036,10 @@ class Board < ApplicationRecord
     # Append any board_images the AI dropped so we never lose tiles.
     images.each do |bi|
       next if seen_ids.include?(bi.id)
-      ordered_items << { board_image: bi, w: 1, h: 1, frequency: nil, part_of_speech: nil }
+      ordered_items << { board_image: bi, frequency: nil, part_of_speech: nil }
     end
+
+    ordered_items = arrange_into_part_of_speech_bands(ordered_items)
 
     # Pack a layout per screen size using the same ordering.
     packed_by_screen = {}
@@ -2052,8 +2054,11 @@ class Board < ApplicationRecord
 
         bi.data ||= {}
         bi.data["label"] = bi.label.to_s
-        bi.data["part_of_speech"] = item[:part_of_speech] if item[:part_of_speech].present?
-        bi.data["bg_color"] = bi.background_color_for(item[:part_of_speech]) if item[:part_of_speech].present?
+        # The CORRECTED part of speech from the banding pass, not the model's
+        # raw answer, so a tile's colour and its band cannot disagree.
+        pos = item[:part_of_speech]
+        bi.data["part_of_speech"] = pos if pos.present?
+        bi.data["bg_color"] = bi.background_color_for(pos) if pos.present?
 
         bi.layout ||= {}
         SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
@@ -2104,43 +2109,61 @@ class Board < ApplicationRecord
   SCREEN_SIZES_FOR_AI_LAYOUT = %w[sm md lg].freeze
   private_constant :SCREEN_SIZES_FOR_AI_LAYOUT
 
-  # Row-major packer with occupancy tracking. Walks ordered items, places
-  # each tile at the first free top-left cell that fits its w×h footprint
-  # without overlap. Clamps w to the column count and h to 2 (frontend assumes
-  # short tiles).
+  # A stable permutation into Modified Fitzgerald bands, so like colours land
+  # contiguous instead of as confetti and the words reached for under pressure
+  # sit in the opening cells. `Boards::TileArrangement` is shared with the admin
+  # Board Builder, which is where the band order and its reasoning live.
   #
-  # ordered_items: array of { board_image:, w:, h:, ... }
+  # Stable, so whatever order the model chose WITHIN a band survives — that is
+  # what keeps up/down, hot/cold and here/there next to each other.
+  #
+  # `links_to:` is `door_tile?`, never `predictive_board_id`: predictive and
+  # dynamic WORD tiles carry that column too, and banding one of those as
+  # navigation would drag a spoken word to the bottom of the board.
+  def arrange_into_part_of_speech_bands(ordered_items)
+    tiles = ordered_items.each_with_index.map do |item, index|
+      bi = item[:board_image]
+      {
+        label: bi.label.to_s,
+        part_of_speech: item[:part_of_speech],
+        links_to: (bi.door_tile? ? bi.predictive_board_id : nil),
+        item_index: index,
+      }
+    end
+
+    # `arrange` corrects a wrong part of speech (`AacWordCategorizer::OVERRIDES`,
+    # a table lookup, no API call) before banding — carry that correction back
+    # so the tile is coloured by the same value it was sorted by.
+    Boards::TileArrangement.arrange(tiles).map do |tile|
+      ordered_items[tile[:item_index]].merge(part_of_speech: tile[:part_of_speech])
+    end
+  end
+  private :arrange_into_part_of_speech_bands
+
+  # Lays ordered items out in reading order at a uniform one cell each — the
+  # same arithmetic `Boards::AdminBuilder::Build#apply_reading_order!` uses.
+  #
+  # This is the single enforcement point for the uniform grid: whatever a model
+  # or an older layout asked for, what gets persisted is 1x1. It replaced a
+  # first-fit occupancy packer, which existed only to place multi-cell tiles and
+  # whose hole back-filling could pull a later tile forward, scrambling reading
+  # order relative to the order it was handed.
+  #
+  # ordered_items: array of { board_image:, ... }
   # returns: array of { "i", "x", "y", "w", "h" } in the same order as input.
   def pack_layout_row_major(ordered_items, columns:)
     columns = columns.to_i
     columns = 1 if columns < 1
-    occupied = Set.new
-    out = []
 
-    ordered_items.each do |item|
-      w = item[:w].to_i.clamp(1, columns)
-      h = item[:h].to_i.clamp(1, 2)
-
-      placed = false
-      y = 0
-      until placed
-        (0..(columns - w)).each do |x|
-          cells = []
-          w.times do |dx|
-            h.times { |dy| cells << [x + dx, y + dy] }
-          end
-          if cells.none? { |c| occupied.include?(c) }
-            cells.each { |c| occupied << c }
-            out << { "i" => item[:board_image].id.to_s, "x" => x, "y" => y, "w" => w, "h" => h }
-            placed = true
-            break
-          end
-        end
-        y += 1 unless placed
-      end
+    ordered_items.each_with_index.map do |item, idx|
+      {
+        "i" => item[:board_image].id.to_s,
+        "x" => idx % columns,
+        "y" => idx / columns,
+        "w" => 1,
+        "h" => 1,
+      }
     end
-
-    out
   end
   private :pack_layout_row_major
 

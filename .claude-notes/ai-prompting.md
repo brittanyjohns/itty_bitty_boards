@@ -32,6 +32,23 @@ always a vocabulary list.** Social-story steps are an ordered sequence, where
 callers pass the persona alone via `aac_word_chat(system_prompt:)`. Ask whether
 the rules fit before adding a caller.
 
+## Who uses the kernel
+
+Every text prompt that drafts tiles or picks words, including
+`AiBoardFormatter` — the "Format with AI" button. That one was the last holdout:
+a single user message with no persona, its own restatement of the
+part-of-speech list in prose, and `json_object` instead of a schema. It now
+sends `SYSTEM_PROMPT` in the system slot, interpolates
+`Prompts::Aac.part_of_speech_rules(arrangement_rule: Boards::TileArrangement::PROMPT_RULE)`,
+and pins its response with a `json_schema` plus the usual retry-without-schema
+rung. Asking for the same band order Ruby then enforces is the point: the prompt
+and `TileArrangement.arrange` cannot drift.
+
+It also no longer asks for a tile SIZE. It used to permit "up to 2" tiles at
+`[2, 1]`, which the model took every run — see the invariant in `CLAUDE.md`.
+A size the prompt cannot express is a size the model cannot get wrong; that is
+the general shape of the fix when a model keeps taking an optional permission.
+
 ## What is shared and what is not
 
 `AdminBuilder::Drafting` keeps its own `MODEL`, `TEMPERATURE`,

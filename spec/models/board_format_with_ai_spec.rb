@@ -12,7 +12,9 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
     )
   end
 
-  # Words chosen so we can predict the AAC ordering used by the stub.
+  # Words chosen so we can predict the part-of-speech banding: a pronoun, two
+  # words AacWordCategorizer::OVERRIDES recategorises ("stop" and "more" come
+  # back from models as a verb and a determiner), and a block of plain verbs.
   let(:words) { %w[I want help more stop go yes no] }
 
   let!(:board_images) do
@@ -28,14 +30,14 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
   let(:ai_payload) do
     {
       "ordered_words" => [
-        { "word" => "I",     "size" => [1, 1], "frequency" => "high", "part_of_speech" => "pronoun" },
-        { "word" => "want",  "size" => [2, 1], "frequency" => "high", "part_of_speech" => "verb" },
-        { "word" => "help",  "size" => [2, 1], "frequency" => "high", "part_of_speech" => "verb" },
-        { "word" => "more",  "size" => [1, 1], "frequency" => "high", "part_of_speech" => "determiner" },
-        { "word" => "stop",  "size" => [1, 1], "frequency" => "high", "part_of_speech" => "verb" },
-        { "word" => "go",    "size" => [1, 1], "frequency" => "high", "part_of_speech" => "verb" },
-        { "word" => "yes",   "size" => [1, 1], "frequency" => "high", "part_of_speech" => "interjection" },
-        { "word" => "no",    "size" => [1, 1], "frequency" => "high", "part_of_speech" => "interjection" },
+        { "word" => "I",     "frequency" => "high", "part_of_speech" => "pronoun" },
+        { "word" => "want",  "frequency" => "high", "part_of_speech" => "verb" },
+        { "word" => "help",  "frequency" => "high", "part_of_speech" => "verb" },
+        { "word" => "more",  "frequency" => "high", "part_of_speech" => "determiner" },
+        { "word" => "stop",  "frequency" => "high", "part_of_speech" => "verb" },
+        { "word" => "go",    "frequency" => "high", "part_of_speech" => "verb" },
+        { "word" => "yes",   "frequency" => "high", "part_of_speech" => "interjection" },
+        { "word" => "no",    "frequency" => "high", "part_of_speech" => "interjection" },
       ],
       "personable_explanation" => "Friendly summary.",
       "professional_explanation" => "AAC reasoning.",
@@ -83,40 +85,80 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
     end
   end
 
-  it "sets board_image#position to match the AI ordering" do
+  it "groups tiles into Modified Fitzgerald bands rather than the AI's raw order" do
     board.format_board_with_ai
     board.reload
 
-    expect(board.board_images.order(:position).pluck(:display_label)).to eq(words)
+    # pronoun | social | important_function | verb. "more" and "yes" are social
+    # and "stop" is important_function via AacWordCategorizer::OVERRIDES, even
+    # though the payload above called them a determiner, an interjection and a
+    # verb. Within each band the model's own order survives — the sort is stable.
+    expect(board.board_images.order(:position).pluck(:display_label))
+      .to eq(%w[I more yes stop no want help go])
   end
 
-  it "does not place a w=2 tile so it overlaps the previous tile (regression)" do
+  it "sorts a door tile after every word band" do
+    page = FactoryBot.create(:board, user: user, name: "Food")
+    door = board.board_images.find_by(label: "want")
+    door.update!(predictive_board_id: page.id)
+    door.update!(data: (door.data || {}).merge("mute_name" => true))
+
     board.format_board_with_ai
     board.reload
 
-    # On lg (6 cols): I(1) at (0,0), want(2) at (1,0), help(2) at (3,0),
-    # more(1) at (5,0), stop(1) wraps to (0,1), etc. No overlap.
-    lg = board.layout["lg"]
-    want = lg.find { |c| c["i"] == board.board_images.find_by(label: "want").id.to_s }
-    help = lg.find { |c| c["i"] == board.board_images.find_by(label: "help").id.to_s }
-
-    expect(want["w"]).to eq(2)
-    expect(help["w"]).to eq(2)
-    expect(want["x"] + want["w"]).to be <= help["x"]
+    expect(board.board_images.order(:position).last.label).to eq("want")
   end
 
-  it "wraps a w=2 tile to the next row when it would not fit on the current row" do
-    # Force small column count so wrapping is deterministic.
-    board.update!(large_screen_columns: 3)
+  it "lays every tile out at exactly one cell on every screen" do
+    board.format_board_with_ai
+    board.reload
+
+    %w[sm md lg].each do |screen|
+      expect(board.layout[screen].map { |c| [c["w"], c["h"]] }.uniq).to eq([[1, 1]])
+      board.board_images.each do |bi|
+        expect(bi.layout[screen].values_at("w", "h")).to eq([1, 1]), "#{bi.label} is multi-cell on #{screen}"
+      end
+    end
+  end
+
+  # The live failure this fixes: AiBoardFormatter was allowed "up to 2" tiles at
+  # [2,1], which put a 48-tile / 8-column board on 7 rows instead of 6. Because
+  # `rows_for_screen_size` is `max(y + h)`, that extra row silently defeated the
+  # board's `settings["disable_scroll"]` on the frontend.
+  it "uses no more rows than the tile count needs" do
+    board.format_board_with_ai
+    board.reload
+
+    expect(board.rows_for_screen_size("lg")).to eq((words.length / 6.0).ceil)
+  end
+
+  it "flattens tiles that are already multi-cell (regression)" do
+    wide = board.board_images.find_by(label: "help")
+    wide.layout = wide.layout.transform_values { |cell| cell.merge("w" => 2, "h" => 2) }
+    wide.skip_create_voice_audio = true
+    wide.save!
 
     board.format_board_with_ai
     board.reload
 
-    lg = board.layout["lg"]
-    # 3 columns: I(1) at (0,0), want(2) at (1,0). help(2) can't fit at (?,0) — wraps to (0,1).
-    help = lg.find { |c| c["i"] == board.board_images.find_by(label: "help").id.to_s }
-    expect(help["y"]).to be >= 1
-    expect(help["x"]).to eq(0)
+    expect(board.board_images.find_by(label: "help").layout["lg"].values_at("w", "h")).to eq([1, 1])
+  end
+
+  # Feeding the current w/h back to the model made a wide tile STICKY: every
+  # re-run was told the tile was already two cells, so no re-format could ever
+  # return the board to a clean grid.
+  it "never tells the formatter what size a tile currently is" do
+    wide = board.board_images.find_by(label: "help")
+    wide.layout = wide.layout.transform_values { |cell| cell.merge("w" => 2) }
+    wide.skip_create_voice_audio = true
+    wide.save!
+
+    captured = nil
+    allow(AiBoardFormatter).to receive(:call) { |**kwargs| captured = kwargs; ai_payload }
+
+    board.format_board_with_ai
+
+    expect(captured[:existing]).to all(satisfy { |entry| !entry.key?(:size) })
   end
 
   it "writes the explanation fields and seeds description when blank" do
@@ -167,9 +209,9 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
     let(:ai_payload) do
       {
         "ordered_words" => [
-          { "word" => "no",   "size" => [1, 1], "frequency" => "high", "part_of_speech" => "important_function" },
-          { "word" => "yes",  "size" => [1, 1], "frequency" => "high", "part_of_speech" => "social" },
-          { "word" => "stop", "size" => [1, 1], "frequency" => "high", "part_of_speech" => "important_function" },
+          { "word" => "no",   "frequency" => "high", "part_of_speech" => "important_function" },
+          { "word" => "yes",  "frequency" => "high", "part_of_speech" => "social" },
+          { "word" => "stop", "frequency" => "high", "part_of_speech" => "verb" },
         ],
       }
     end
@@ -186,6 +228,18 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
       expect(yes_tile.data["bg_color"]).to eq(ColorHelper::PRESET_HEX["pink"])
     end
 
+    # A tile is coloured by the value it was SORTED by, or a red protest word
+    # ends up sitting in the verb block painted green.
+    it "colours a tile from the corrected category, not the model's answer" do
+      board.format_board_with_ai
+      board.reload
+
+      stop_tile = board.board_images.find { |bi| bi.label == "stop" }
+
+      expect(stop_tile.data["part_of_speech"]).to eq("important_function")
+      expect(stop_tile.data["bg_color"]).to eq(ColorHelper::PRESET_HEX["red"])
+    end
+
     # `images` is a shared library row — one "no" is on boards across unrelated
     # accounts — so a POS this user's layout run guessed must not repaint
     # everyone else's tile.
@@ -200,6 +254,51 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
       expect(shared.reload.part_of_speech).to eq("noun")
       expect(board.board_images.find { |bi| bi.label == "no" }.data["part_of_speech"])
         .to eq("important_function")
+    end
+  end
+
+  # The reported failure, end to end: 48 tiles on 8 columns with
+  # settings["disable_scroll"] set. Two [2,1] tiles turned that into 7 rows with
+  # two tiles on the last one, and the frontend then unlocked the board and let
+  # it scroll rather than squash seven rows below a readable height.
+  describe "a full grid whose tile count divides evenly" do
+    let(:wide_board) do
+      FactoryBot.create(:board, user: user, large_screen_columns: 8,
+                                medium_screen_columns: 6, small_screen_columns: 3,
+                                settings: { "disable_scroll" => true })
+    end
+    let(:park_words) do
+      %w[yes no stop help more want go look play sit run slide swing climb wait
+         watch push pull throw catch hide find laugh share like again not] +
+        ["all done"] +
+        %w[different tired hot cold fun scared happy sad fast slow here there up
+           down ball friend tree water picnic bug]
+    end
+
+    before do
+      park_words.each do |word|
+        bi = FactoryBot.build(:board_image, board: wide_board,
+                                            image: FactoryBot.create(:image, user: user, label: word))
+        bi.skip_create_voice_audio = true
+        bi.save!
+      end
+      allow(AiBoardFormatter).to receive(:call).and_return(
+        "ordered_words" => park_words.map do |word|
+          { "word" => word, "frequency" => "high", "part_of_speech" => "verb" }
+        end,
+      )
+    end
+
+    it "uses six full rows and leaves disable_scroll honourable" do
+      expect(park_words.length).to eq(48)
+
+      wide_board.format_board_with_ai
+      fresh = Board.find(wide_board.id)
+
+      expect(fresh.rows_for_screen_size("lg")).to eq(6)
+      expect(fresh.layout["lg"].count { |cell| cell["y"] == 5 }).to eq(8)
+      expect(fresh.layout["lg"].map { |cell| [cell["w"], cell["h"]] }.uniq).to eq([[1, 1]])
+      expect(fresh.settings["disable_scroll"]).to be(true)
     end
   end
 end

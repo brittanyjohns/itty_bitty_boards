@@ -13,6 +13,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   still had to find the viewer's own save button. Each file is now served with
   a second, signed link that tells the browser to save it, alongside the
   original link for anyone who'd rather preview it first.
+- **"Format with AI" lays boards out cleanly again.** It no longer makes two
+  tiles double-width — every tile is one cell, so a board stops ending on a
+  ragged half-empty row, and a board set to "no scrolling" keeps fitting the
+  screen instead of quietly starting to scroll. Tiles are also grouped by
+  Modified Fitzgerald category now, so the colours read as blocks (pronouns and
+  quick words first, nouns last) rather than as confetti, and word pairs like
+  up/down and hot/cold stay side by side.
 
 ### Added
 
