@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Free kit downloads now actually download.** The Download button on a
+  `/kit/...` landing page used to open the PDF in the browser's viewer instead
+  of saving it — a long wait on a blank tab for a big printable, and then you
+  still had to find the viewer's own save button. Each file is now served with
+  a second, signed link that tells the browser to save it, alongside the
+  original link for anyone who'd rather preview it first.
+
 ### Added
 
 - **Every care plan now has a preview picture.** Each document is generated

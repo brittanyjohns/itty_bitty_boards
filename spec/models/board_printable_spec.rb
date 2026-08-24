@@ -25,6 +25,64 @@ RSpec.describe BoardPrintable do
       expect(printable.files_view.map { |f| f[:filename] }).to eq(["core.pdf"])
     end
 
+    # The bug this exists to stop: the CDN serves these PDFs with no
+    # Content-Disposition, so a browser inlines them and /kit/:slug's Download
+    # button opened a viewer tab instead of downloading. The test env is the
+    # Disk service, which honours disposition through the ordinary URL builder
+    # and so hides the whole problem — hence the S3 double below.
+    it "offers a separate download_url alongside the preview url" do
+      file = printable.files_view.first
+
+      expect(file[:download_url]).to be_present
+      expect(file[:download_url]).not_to eq(file[:url])
+    end
+
+    it "does not sign a download_url for listing images, which nothing downloads" do
+      expect(printable.listing_images_view.first).not_to have_key(:download_url)
+    end
+
+    context "on a public S3 service (production)" do
+      # `public: true` makes ActiveStorage's own file.url(disposition:) return a
+      # bare public URL with the disposition DROPPED, so the header can only come
+      # from a presigned request. This asserts we presign rather than trusting it.
+      let(:bucket) { instance_double("Aws::S3::Bucket") }
+      let(:object) { instance_double("Aws::S3::Object") }
+      let(:service) { instance_double("ActiveStorage::Service::S3Service", bucket: bucket) }
+
+      before do
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:service).and_return(service)
+        allow(bucket).to receive(:object).and_return(object)
+        allow(object).to receive(:presigned_url).and_return("https://s3.example/signed")
+      end
+
+      it "presigns the object with an attachment Content-Disposition naming the file" do
+        expect(printable.files_view.first[:download_url]).to eq("https://s3.example/signed")
+
+        expect(object).to have_received(:presigned_url).with(
+          :get,
+          expires_in: described_class::DOWNLOAD_URL_EXPIRES_IN.to_i,
+          response_content_disposition: a_string_matching(/\Aattachment;.*core\.pdf/),
+        )
+      end
+
+      it "addresses the bucket directly, since CloudFront drops the query string" do
+        printable.files_view
+
+        expect(bucket).to have_received(:object).with(a_string_including("core.pdf"))
+      end
+
+      # A download URL must never break the status response — same contract as
+      # url_for_file. Without this the whole admin poll 500s on a bad credential.
+      it "falls back to nil rather than raising when presigning fails" do
+        allow(object).to receive(:presigned_url).and_raise(StandardError, "no credentials")
+
+        file = nil
+        expect { file = printable.files_view.first }.not_to raise_error
+        expect(file[:download_url]).to be_nil
+        expect(file[:url]).to be_present
+      end
+    end
+
     it "exposes the images separately, in listing rank order" do
       printable.attach_image!(bytes: "png", variant: described_class::IMAGE_ABOUT)
       printable.attach_image!(bytes: "png", variant: described_class::IMAGE_WHATS_INCLUDED)
