@@ -21,6 +21,70 @@ RSpec.describe AiBoardFormatter do
     allow(fake_client).to receive(:create_completion).and_return({ role: "assistant", content: content })
   end
 
+  describe "part_of_speech vocabulary" do
+    it "asks for the canonical Fitzgerald Key categories and no others" do
+      captured = nil
+      fake_client = instance_double(OpenAiClient)
+      allow(OpenAiClient).to receive(:new) { |opts| captured = opts; fake_client }
+      allow(fake_client).to receive(:create_completion).and_return({ role: "assistant", content: "{}" })
+
+      described_class.call(**args)
+
+      prompt = captured[:messages].first[:content].first[:text]
+      ColorHelper::PARTS_OF_SPEECH.each { |pos| expect(prompt).to include(pos) }
+      # These are what the prompt used to offer as part_of_speech values. None
+      # exist in ColorHelper::PARTS_OF_SPEECH, so background_color_for answered
+      # "gray". ("phrase" still appears in the tile-sizing rules, which is why
+      # this asserts on the POS list rather than the whole prompt.)
+      pos_section = prompt[/Give every word a part_of_speech.*?colours the board\./m]
+      expect(pos_section).to be_present
+      expect(pos_section).not_to include("interjection")
+      expect(pos_section).not_to include("phrase")
+    end
+
+    it "keeps a part_of_speech that background_color_for actually understands" do
+      stub_openai_response(<<~JSON)
+        {
+          "ordered_words": [
+            { "word": "I", "size": [1,1], "frequency": "high", "part_of_speech": "important_function" }
+          ]
+        }
+      JSON
+
+      result = described_class.call(**args)
+
+      expect(result["ordered_words"].first["part_of_speech"]).to eq("important_function")
+    end
+
+    it "drops a part_of_speech outside the canonical list rather than passing it through" do
+      stub_openai_response(<<~JSON)
+        {
+          "ordered_words": [
+            { "word": "I", "size": [1,1], "frequency": "high", "part_of_speech": "interjection" }
+          ]
+        }
+      JSON
+
+      result = described_class.call(**args)
+
+      # nil, not "interjection" — the caller skips a nil POS, where an unknown
+      # value would have reached background_color_for and painted the tile gray.
+      expect(result["ordered_words"].first["part_of_speech"]).to be_nil
+    end
+
+    it "drops a frequency outside high/medium/low" do
+      stub_openai_response(<<~JSON)
+        {
+          "ordered_words": [
+            { "word": "I", "size": [1,1], "frequency": "constant", "part_of_speech": "pronoun" }
+          ]
+        }
+      JSON
+
+      expect(described_class.call(**args)["ordered_words"].first["frequency"]).to be_nil
+    end
+  end
+
   describe ".call" do
     it "returns a normalized hash for valid ordered_words JSON" do
       stub_openai_response(<<~JSON)

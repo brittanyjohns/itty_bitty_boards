@@ -213,7 +213,6 @@ class API::ScenariosController < API::ApplicationController
           { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
-        max_tokens: 100,
         temperature: 0.7,
       },
     )
@@ -243,10 +242,9 @@ class API::ScenariosController < API::ApplicationController
       parameters: {
         model: GPT_4_MODEL,
         messages: [
-          # { role: "system", content: system_message },
+          { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
-        max_tokens: 100,
         temperature: 0.7,
       },
     )
@@ -272,25 +270,38 @@ class API::ScenariosController < API::ApplicationController
 
     prompt = <<~PROMPT
       The scenario is: #{initial_scenario}. The age range is: #{age_range}.
-        Based on the following details: 
+        Based on the following details:
         #{question_1}: #{answer_1},
         #{question_2}: #{answer_2},
-        please return an array of exactly #{number_of_images} words or short phrases (2 words max) that a #{age_range} year old person would likely use in conversation during this scenario.
+        please return exactly #{number_of_images} words or short phrases (2 words max) that a #{age_range} year old person would likely use in conversation during this scenario.
+
+      Respond with a JSON object in the following format:
+      {"words": ["word1", "word2", "word3", ...]}
     PROMPT
 
+    # No max_tokens. This asks for a list of N items and used to cap the reply
+    # at 100 tokens, so a larger N was silently truncated mid-list. And it is
+    # JSON mode now rather than a comma-split over prose — the old parse turned
+    # a preamble ("Sure! Here are 12 words: apple, ...") into the first "word".
     response = client.chat(
       parameters: {
         model: GPT_4_MODEL,
         messages: [
-          # { role: "system", content: system_message },
+          { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
-        max_tokens: 100,
+        response_format: { type: "json_object" },
         temperature: 0.7,
       },
     )
 
-    response.dig("choices", 0, "message", "content").split(",").map(&:strip)
+    content = response.dig("choices", 0, "message", "content")
+    return [] if content.blank?
+
+    Array(JSON.parse(content)["words"]).map { |w| w.to_s.strip }.reject(&:blank?)
+  rescue JSON::ParserError => e
+    Rails.logger.warn "[ScenariosController] bad JSON in word list: #{e.message}"
+    []
   end
 
   def generate_scenario_description(name, age_range, language: "en")

@@ -240,7 +240,7 @@ module ImageHelper
         next_words = JSON.parse(next_words)
       else
         puts "INVALID JSON: #{next_words}"
-        next_words = transform_into_json(next_words)
+        next_words = transform_into_json(next_words, fallback_key: "next_words")
       end
     else
       Rails.logger.error "*** ERROR - get_next_words *** \nDid not receive valid response. Response: #{response}\n"

@@ -291,6 +291,22 @@ an explicit decision, not a drive-by edit.
   — it just stops becoming everyone else's. `BoardImage#set_defaults` snapshots
   `image.src_url` at create, which is how a library change legitimately reaches
   *future* boards, so `src_url` must still move when the default does.
+- **`ColorHelper::PARTS_OF_SPEECH` is the ONLY part-of-speech vocabulary, and a
+  prompt must interpolate it rather than restate it.** It is what
+  `ImageHelper#background_color_for` switches on, and that switch ends in `else
+  "gray"` — so an unrecognised value does not fail, it silently miscolours a
+  tile. `AiBoardFormatter` listed its own set in prose ("interjection",
+  "phrase", "other") and omitted `social`, `question` and `important_function`,
+  so the AI layout path could never produce a red, pink or purple tile: the
+  Modified Fitzgerald Key categories an AAC board leans on hardest. Interpolate
+  the constant (`Drafting.part_of_speech_rules` is the pattern) and validate the
+  answer against it before it reaches a colour resolver; `nil` means "no POS
+  learned" and every caller already skips it, which is the safe way to drop a
+  bad value. Classification is by communicative FUNCTION, not grammar — "more"
+  and "yes" are `social`, "no" and "stop" are `important_function`. And a POS
+  the model guessed belongs to the TILE (`board_images.data`), never written
+  back to the shared `images` row: same cross-account contamination rule the
+  tile-art fan-out follows, one column over.
 - **`images.label` is a lowercase matching key; `display_label` is the text.**
   `Image#set_label` downcases and strips `label` on every write and captures
   the authored casing into `display_label`. Never look an image up with

@@ -148,6 +148,34 @@ RSpec.describe OpenAiClient do
       expect(captured_parameters(messages: messages, response_format: schema)[:response_format])
         .to eq(schema)
     end
+
+    # `model:` used to be accepted and silently ignored, so AacWordCategorizer
+    # asked for gpt-4o-mini and every call ran on GTP_MODEL instead.
+    it "uses the model the caller asked for" do
+      expect(captured_parameters(messages: messages, model: "gpt-4o-mini")[:model]).to eq("gpt-4o-mini")
+    end
+
+    it "falls back to the general default when no model is given" do
+      expect(captured_parameters(messages: messages)[:model]).to eq(described_class::GTP_MODEL)
+    end
+
+    # AdminBuilder::Drafting sets @model directly before calling; an opts model
+    # must not override a model a caller has already pinned.
+    it "keeps a model pinned directly on the instance" do
+      client = described_class.new(messages: messages, model: "gpt-4o-mini")
+      client.instance_variable_set(:@model, "gpt-5-mini")
+      chat_client = instance_double(OpenAI::Client)
+      allow(client).to receive(:openai_client).and_return(chat_client)
+
+      captured = nil
+      allow(chat_client).to receive(:chat) do |parameters:|
+        captured = parameters
+        { "choices" => [{ "message" => { "role" => "assistant", "content" => "{}" } }] }
+      end
+
+      client.create_chat
+      expect(captured[:model]).to eq("gpt-5-mini")
+    end
   end
 
   describe "language-aware prompts" do

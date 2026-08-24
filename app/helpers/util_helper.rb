@@ -13,33 +13,35 @@ module UtilHelper
     return false
   end
 
-  def transform_into_json(content_str)
+  # Best-effort repair of a model reply that is not valid JSON.
+  #
+  # ALWAYS returns a Hash. It used to return a JSON *String* on its success
+  # path, while every caller indexes the result by key — so `words["words"]`
+  # was a String#[] substring lookup that answered "words" or nil, never a
+  # list. The repair path therefore never actually worked for anyone.
+  #
+  # `fallback_key` is the key the caller reads. It was hardcoded to
+  # "next_words", so the one unparseable-content branch that did build a list
+  # filed it under a key only ImageHelper ever looks at.
+  def transform_into_json(content_str, fallback_key: "words")
+    return content_str if content_str.is_a?(Hash)
+    return { fallback_key => content_str } if content_str.is_a?(Array)
+
     unless content_str.is_a?(String)
-      puts "Content is not a string: #{content_str.class}"
-      if content_str.is_a?(Hash) || content_str.is_a?(Array)
-        return content_str.to_json
-      end
-      return {}.to_json
+      Rails.logger.warn "[transform_into_json] unexpected content: #{content_str.class}"
+      return {}
     end
-    json_str = content_str.gsub(/:([a-zA-z_]+)/, '"\1"') # Convert symbols to strings
-    json_str = json_str.gsub("=>", ": ") # Replace hash rockets with colons
 
-    # Now parse the string as JSON
-    puts "json_str: #{json_str}"
+    json_str = content_str.gsub(/:([a-zA-Z_]+)/, '"\1"') # Convert symbols to strings
+    json_str = json_str.gsub("=>", ": ")                  # Replace hash rockets with colons
+
     begin
-      data = JSON.parse(json_str)
+      parsed = JSON.parse(json_str)
+      parsed.is_a?(Hash) ? parsed : { fallback_key => Array(parsed) }
     rescue JSON::ParserError => e
-      puts "Error parsing JSON: #{e.message}"
-      result = {}
-      result["next_words"] = json_str.split(", ")
-      return result
-      # Handle invalid JSON here
+      Rails.logger.warn "[transform_into_json] could not parse response: #{e.message}"
+      { fallback_key => json_str.split(",").map(&:strip).reject(&:blank?) }
     end
-
-    # If necessary, convert back to JSON string for output or further processing
-    json_output = data.to_json
-    puts "json_output: #{json_output}"
-    json_output
   end
 
   def should_generate_image(image, user, tokens_used, total_cost = 0, rerun = false)

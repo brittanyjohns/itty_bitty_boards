@@ -162,4 +162,44 @@ RSpec.describe Board, "#format_board_with_ai", type: :model do
     expect { empty_board.format_board_with_ai }.not_to raise_error
     expect(empty_board.layout || {}).to satisfy { |h| h["lg"].blank? }
   end
+
+  describe "part of speech and tile colour" do
+    let(:ai_payload) do
+      {
+        "ordered_words" => [
+          { "word" => "no",   "size" => [1, 1], "frequency" => "high", "part_of_speech" => "important_function" },
+          { "word" => "yes",  "size" => [1, 1], "frequency" => "high", "part_of_speech" => "social" },
+          { "word" => "stop", "size" => [1, 1], "frequency" => "high", "part_of_speech" => "important_function" },
+        ],
+      }
+    end
+
+    it "colours a tile from the Modified Fitzgerald Key category it was given" do
+      board.format_board_with_ai
+      board.reload
+
+      no_tile = board.board_images.find { |bi| bi.label == "no" }
+      yes_tile = board.board_images.find { |bi| bi.label == "yes" }
+
+      expect(no_tile.data["part_of_speech"]).to eq("important_function")
+      expect(no_tile.data["bg_color"]).to eq(ColorHelper::PRESET_HEX["red"])
+      expect(yes_tile.data["bg_color"]).to eq(ColorHelper::PRESET_HEX["pink"])
+    end
+
+    # `images` is a shared library row — one "no" is on boards across unrelated
+    # accounts — so a POS this user's layout run guessed must not repaint
+    # everyone else's tile.
+    it "does not write the AI's part_of_speech back to the shared Image" do
+      shared = board.board_images.find { |bi| bi.label == "no" }.image
+      shared.update_columns(part_of_speech: "noun")
+
+      expect { board.format_board_with_ai }
+        .not_to change { shared.reload.part_of_speech }
+
+      # The tile learned "important_function"; the shared library row did not.
+      expect(shared.reload.part_of_speech).to eq("noun")
+      expect(board.board_images.find { |bi| bi.label == "no" }.data["part_of_speech"])
+        .to eq("important_function")
+    end
+  end
 end
