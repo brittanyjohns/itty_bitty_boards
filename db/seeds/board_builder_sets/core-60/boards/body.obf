@@ -23,37 +23,37 @@
         11,
         12,
         13,
+        33,
+        34,
+        35,
+        17,
         14,
         15,
-        16,
-        17,
+        16
+      ],
+      [
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
         18,
         19,
         20
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52
       ],
       [
         null,
@@ -148,6 +148,26 @@
       "part_of_speech": "noun"
     },
     {
+      "id": 33,
+      "label": "back",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 34,
+      "label": "finger",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 35,
+      "label": "toes",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "potty",
+      "part_of_speech": "noun"
+    },
+    {
       "id": 14,
       "label": "hurt",
       "part_of_speech": "verb"
@@ -163,9 +183,39 @@
       "part_of_speech": "verb"
     },
     {
-      "id": 17,
-      "label": "potty",
-      "part_of_speech": "noun"
+      "id": 36,
+      "label": "touch",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 37,
+      "label": "rest",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 38,
+      "label": "sleep",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 39,
+      "label": "cough",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 40,
+      "label": "sneeze",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 41,
+      "label": "wipe",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 42,
+      "label": "hold",
+      "part_of_speech": "verb"
     },
     {
       "id": 18,
@@ -181,6 +231,61 @@
       "id": 20,
       "label": "cold",
       "part_of_speech": "adjective"
+    },
+    {
+      "id": 43,
+      "label": "sick",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 44,
+      "label": "tired",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 45,
+      "label": "sore",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 46,
+      "label": "better",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 47,
+      "label": "hungry",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 48,
+      "label": "thirsty",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 49,
+      "label": "stop",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 50,
+      "label": "all done",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 51,
+      "label": "help",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 52,
+      "label": "please",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 29,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 22,
@@ -207,6 +312,14 @@
       }
     },
     {
+      "id": 30,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
       "id": 25,
       "label": "Play",
       "part_of_speech": "noun",
@@ -223,32 +336,19 @@
       }
     },
     {
-      "id": 28,
-      "label": "More",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 29,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 30,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
-      }
-    },
-    {
       "id": 31,
       "label": "Body",
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/core-60.obf"
+      }
+    },
+    {
+      "id": 28,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/more.obf"
       }
     },
     {

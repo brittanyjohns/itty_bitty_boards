@@ -129,6 +129,44 @@ RSpec.describe "Board Builder seed sets" do
             expect(dupes).to be_empty, "TileDeduper would collapse: #{dupes.keys}"
           end
 
+          # A page carrying twenty words in a sixty-cell grid opens mostly empty
+          # next to a home board that fills every cell. Pages fill whole rows
+          # from the top, and leave the last content row free — a PARTIAL final
+          # row is worse than a short board, because rows are derived from the
+          # tiles, so the gap sits at the right end of the last row rather than
+          # shortening the page.
+          describe "fullness" do
+            let(:columns) { child.dig("grid", "columns") }
+            # Cells above the nav row that the root pins for a folder tile
+            # (Core 84's More), which content must lay itself out around.
+            let(:pinned_cells) { root_off_nav.map { |y, x, _tile| [x, y] } }
+
+            let(:content_cells) do
+              child.dig("grid", "order").take(nav_y).flat_map.with_index do |row, y|
+                row.filter_map.with_index { |id, x| [x, y, id] unless pinned_cells.include?([x, y]) }
+              end
+            end
+
+            it "fills whole rows from the top, with no gaps" do
+              placed = content_cells.map { |_x, _y, id| id }
+              filled = placed.compact.size
+              expect(placed.first(filled)).to all(be_present), "content is not contiguous from (0, 0)"
+              expect(filled % columns).to eq(0),
+                "#{filled} words in a #{columns}-wide grid leaves a partial final row"
+            end
+
+            # `More` is the drawer Boards::FolderPlacer tucks every build-added
+            # page into (the authored home grid has no open cell), so it needs
+            # more headroom than one row — see the README.
+            it "leaves the last content row free (two, on the More drawer)" do
+              spare_rows = child["name"].to_s.casecmp?("More") ? 2 : 1
+              used_rows = content_cells.count { |_x, _y, id| id } / columns
+              expect(used_rows).to be <= (nav_y - spare_rows),
+                "#{child['name']} uses #{used_rows} of #{nav_y} content rows; " \
+                "#{spare_rows} must stay free"
+            end
+          end
+
           it "gives every authored button a unique id and a cell" do
             ids = child["buttons"].map { |b| b["id"] }
             expect(ids.uniq).to eq(ids)
@@ -136,6 +174,27 @@ RSpec.describe "Board Builder seed sets" do
             placed = child.dig("grid", "order").flatten.compact
             expect(placed.uniq.sort).to eq(ids.sort)
           end
+        end
+      end
+    end
+  end
+
+  # The standalone interest-routing templates are cloned into a set and stretched
+  # to the root's columns, so a 12-word page lands sparser than any seeded one.
+  describe "fringe-pages templates" do
+    Dir.glob(H::DIR.join("fringe-pages", "*.obf")).sort.each do |path|
+      context File.basename(path) do
+        let(:obf) { H.load_obf(path) }
+
+        it "fills its whole grid" do
+          cells = obf.dig("grid", "order").flatten
+          expect(cells.compact.size).to eq(cells.size)
+          expect(cells.compact.size).to eq(obf["buttons"].size)
+        end
+
+        it "never authors the same label twice" do
+          labels = obf["buttons"].map { |b| b["label"].to_s.strip.downcase }
+          expect(labels.uniq).to eq(labels)
         end
       end
     end

@@ -172,6 +172,41 @@ finishes adding pages (prebuilt fringe, AI-generated, My Favorites, Phrases).
 That is also why the standalone `fringe-pages/*.obf` templates carry **no** nav
 row: they're cloned into arbitrary sets and can't know their future root's.
 
+## How full a page should be
+
+A page that fills two rows of a six-row grid reads as broken on a classroom TV,
+and it wastes the thing the set is for — the authored root grids are 100% full,
+so a fringe page ought to look like it belongs to them. Every page therefore
+fills **whole rows from the top**, with the last content row left empty:
+
+| page | grid | content cells | authored words |
+|---|---|---|---|
+| Core 60 fringe | 10×6, nav row 5 | 50 | **40** (rows 0–3) |
+| Core 84 fringe | 12×7, nav row 6 + pinned `More` | 71 | **60** (rows 0–4) |
+| `fringe-pages/*` | authored 10×4 | — | **40** |
+
+A partial final row is worse than a short board: rows aren't stored
+(`Board#rows_for_screen_size` derives them from the tiles), so the leftover
+cells sit at the right end of the last row rather than shortening the page.
+Fill whole rows or don't fill the row.
+
+The Core 84 page for a category is a **superset** of the Core 60 one, and the
+same word sits in the same part-of-speech block on both — moving up a set is a
+widening, not a relearn.
+
+### `More` is the exception: it is the build's overflow drawer
+
+`Boards::FolderPlacer` tucks every page a build ADDS (prebuilt fringe,
+AI-generated, My Favorites, Phrases, the GLP function boards) into the set's
+`More` page, because the authored home grid has no open cell and growing it
+loses the seed's single-screen `disable_scroll`. A build can add up to
+`max_pages` (15 on `extended`) of them.
+
+So `More` keeps **two** spare rows, not one — Core 60's More is 30 words, Core
+84's is 48. Filling it like any other page leaves one row for fifteen pages and
+silently pushes the overflow back onto the home grid. This is the one page
+where white space is load-bearing.
+
 ## Fringe board names are load-bearing
 
 A child's interest words are routed into fringe pages by **board name**. The

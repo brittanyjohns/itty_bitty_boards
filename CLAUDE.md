@@ -359,6 +359,18 @@ an explicit decision, not a drive-by edit.
   set, so keying direction off it would stop a builder root cascading its own
   pages. Following an unflagged back tile is what made deleting a page inside an
   imported set offer to delete that set's home board.
+- **A nav region holds WORDS as well as folders, and only the folders are
+  chrome.** A built set's bottom strip is `this | People | … | More | that` —
+  the determiners at its ends are vocabulary that happens to sit in the nav row,
+  reproduced on every page for the same motor-planning reason the folders are.
+  `Boards::NavRowSync` treated every region cell as a folder, so on each child
+  it relocated the authored `this` into the content area as a colliding occupant
+  and created a SECOND one at the nav cell — carrying `mute_name`, which is what
+  makes `BoardImage#door_tile?` true, so the tile in the strip was a silent door
+  and the speaking one had wandered. A word cell is ADOPTED by label and stays a
+  plain word tile, flagged `data["nav_word"]` rather than `data["nav_tile"]`:
+  same ownership and idempotency, none of the door/back semantics. Never widen
+  `nav_tile` to cover a word — `door_tile?` and `back_tile_data?` both key on it.
 - **A CLONED tile's text is defaulted, not authored.** It carries whatever the
   source board happened to store, so it gets the same casing rule as any other
   defaulted tile — `BoardImage#cloned_display_label_from` folds it, and only

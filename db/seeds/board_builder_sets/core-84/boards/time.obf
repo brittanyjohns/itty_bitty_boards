@@ -10,72 +10,72 @@
       [
         1,
         2,
+        8,
         3,
         4,
+        32,
+        11,
+        12,
+        13,
+        33,
+        34,
+        35
+      ],
+      [
+        36,
+        37,
+        38,
+        39,
         5,
+        40,
         6,
         7,
-        8,
-        9,
-        10,
-        11,
-        12
+        41,
+        42,
+        43,
+        44
       ],
       [
-        13,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        9,
+        55
+      ],
+      [
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        10,
+        16,
+        64,
+        65
+      ],
+      [
+        66,
+        67,
+        68,
+        69,
         14,
         15,
-        16,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        70,
+        71,
+        72,
+        73,
+        74,
+        75
       ],
       [
         null,
@@ -119,18 +119,83 @@
       "part_of_speech": "adverb"
     },
     {
+      "id": 8,
+      "label": "soon",
+      "part_of_speech": "adverb"
+    },
+    {
       "id": 3,
       "label": "today",
-      "part_of_speech": "noun"
+      "part_of_speech": "adverb"
     },
     {
       "id": 4,
       "label": "tomorrow",
-      "part_of_speech": "noun"
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 32,
+      "label": "yesterday",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 11,
+      "label": "first",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 12,
+      "label": "then",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 13,
+      "label": "next",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 33,
+      "label": "again",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 34,
+      "label": "always",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 35,
+      "label": "never",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 36,
+      "label": "early",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 37,
+      "label": "late",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 38,
+      "label": "still",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 39,
+      "label": "almost",
+      "part_of_speech": "adverb"
     },
     {
       "id": 5,
       "label": "morning",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 40,
+      "label": "afternoon",
       "part_of_speech": "noun"
     },
     {
@@ -144,9 +209,74 @@
       "part_of_speech": "noun"
     },
     {
-      "id": 8,
-      "label": "soon",
-      "part_of_speech": "adverb"
+      "id": 41,
+      "label": "week",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 42,
+      "label": "weekend",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 43,
+      "label": "month",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 44,
+      "label": "year",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 45,
+      "label": "minute",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 46,
+      "label": "hour",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 47,
+      "label": "time",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 48,
+      "label": "clock",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 49,
+      "label": "calendar",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 50,
+      "label": "birthday",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 51,
+      "label": "holiday",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 52,
+      "label": "bedtime",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 53,
+      "label": "snack time",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 54,
+      "label": "nap",
+      "part_of_speech": "noun"
     },
     {
       "id": 9,
@@ -154,24 +284,89 @@
       "part_of_speech": "verb"
     },
     {
+      "id": 55,
+      "label": "start",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 56,
+      "label": "hurry",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 57,
+      "label": "stay",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 58,
+      "label": "rest",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 59,
+      "label": "sleep",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 60,
+      "label": "wake up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 61,
+      "label": "count down",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 62,
+      "label": "take turns",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 63,
+      "label": "clean up",
+      "part_of_speech": "verb"
+    },
+    {
       "id": 10,
       "label": "finished",
-      "part_of_speech": "social"
+      "part_of_speech": "adjective"
     },
     {
-      "id": 11,
-      "label": "first",
-      "part_of_speech": "determiner"
+      "id": 16,
+      "label": "done",
+      "part_of_speech": "adjective"
     },
     {
-      "id": 12,
-      "label": "then",
-      "part_of_speech": "adverb"
+      "id": 64,
+      "label": "ready",
+      "part_of_speech": "adjective"
     },
     {
-      "id": 13,
-      "label": "next",
-      "part_of_speech": "determiner"
+      "id": 65,
+      "label": "busy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 66,
+      "label": "long",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 67,
+      "label": "short",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 68,
+      "label": "fast",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 69,
+      "label": "slow",
+      "part_of_speech": "adjective"
     },
     {
       "id": 14,
@@ -184,9 +379,47 @@
       "part_of_speech": "preposition"
     },
     {
-      "id": 16,
-      "label": "done",
-      "part_of_speech": "social"
+      "id": 70,
+      "label": "until",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 71,
+      "label": "during",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 72,
+      "label": "at",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 73,
+      "label": "in a minute",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 74,
+      "label": "when",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 75,
+      "label": "how long",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 24,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/more.obf"
+      }
+    },
+    {
+      "id": 26,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 18,
@@ -213,6 +446,14 @@
       }
     },
     {
+      "id": 27,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
       "id": 21,
       "label": "Play",
       "part_of_speech": "noun",
@@ -234,27 +475,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/body.obf"
-      }
-    },
-    {
-      "id": 24,
-      "label": "More",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 26,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 27,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
       }
     },
     {

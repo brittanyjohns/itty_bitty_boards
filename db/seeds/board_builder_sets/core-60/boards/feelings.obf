@@ -26,34 +26,34 @@
         14,
         15,
         16,
-        17,
         18,
+        20,
+        33,
+        34
+      ],
+      [
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        17,
+        41,
+        42,
+        43
+      ],
+      [
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
         19,
-        20
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        50,
+        51,
+        52
       ],
       [
         null,
@@ -163,14 +163,104 @@
       "part_of_speech": "adjective"
     },
     {
+      "id": 18,
+      "label": "ok",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 20,
+      "label": "better",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 33,
+      "label": "worried",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 34,
+      "label": "nervous",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 35,
+      "label": "lonely",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 36,
+      "label": "brave",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "hot",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "cold",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "sleepy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 40,
+      "label": "disappointed",
+      "part_of_speech": "adjective"
+    },
+    {
       "id": 17,
       "label": "love",
       "part_of_speech": "verb"
     },
     {
-      "id": 18,
-      "label": "ok",
-      "part_of_speech": "social"
+      "id": 41,
+      "label": "like",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 42,
+      "label": "feel",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 43,
+      "label": "cry",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 44,
+      "label": "need",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 45,
+      "label": "want",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 46,
+      "label": "stop",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 47,
+      "label": "no",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 48,
+      "label": "not",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 49,
+      "label": "don't like",
+      "part_of_speech": "important_function"
     },
     {
       "id": 19,
@@ -178,9 +268,24 @@
       "part_of_speech": "social"
     },
     {
-      "id": 20,
-      "label": "better",
-      "part_of_speech": "adjective"
+      "id": 50,
+      "label": "thank you",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 51,
+      "label": "please",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 52,
+      "label": "help me",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 29,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 22,
@@ -191,11 +296,27 @@
       }
     },
     {
+      "id": 30,
+      "label": "Feelings",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
+      }
+    },
+    {
       "id": 24,
       "label": "Food",
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/food.obf"
+      }
+    },
+    {
+      "id": 31,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
       }
     },
     {
@@ -228,27 +349,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 29,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 30,
-      "label": "Feelings",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-60.obf"
-      }
-    },
-    {
-      "id": 31,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
       }
     },
     {

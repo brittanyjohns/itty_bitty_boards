@@ -738,6 +738,19 @@ still works for backward compat.
     inbound links, so the back-links keep working as navigation while the root
     stays a main board. `rake board_builder:reclassify_builder_sets` re-saves
     existing roots, so the guard heals already-built sets too.
+- **A fringe page fills whole rows, and `More` deliberately does not.** The
+  authored root grids are 100% full, so a page carrying twenty words in a
+  sixty-cell grid reads as broken next to them. Core 60 fringe pages are 40
+  words (rows 0–3 of 50 content cells), Core 84's are 60 (rows 0–4 of 71), and
+  the standalone `fringe-pages/*.obf` templates are 40 in a 10×4 grid. A partial
+  final row is worse than a short board — rows are derived from the tiles, so
+  the leftover cells sit at the right end of the last row instead of shortening
+  the page. **`More` is the exception**: it is the drawer `Boards::FolderPlacer`
+  tucks every build-added page into, so it keeps **two** spare rows (30 words on
+  Core 60, 48 on Core 84). Filling it leaves one row for up to `max_pages` (15
+  on `extended`) additions and silently pushes the overflow back onto the home
+  grid, losing `disable_scroll`. Table and authoring rules:
+  `db/seeds/board_builder_sets/README.md`.
 - **The nav row is identical on every board in a set (motor planning).** The
   seeded set's root authors a bottom **nav row** of folder tiles; every child
   reproduces it **cell-for-cell** at the root's grid dimensions, so a category is
@@ -763,6 +776,23 @@ still works for backward compat.
     `More` — is **not** a nav row; that tile is pinned at its own cell instead.
     `NavRegion.align` first rotates the authored nav row back to the bottom,
     since `Board#add_image` appends growth *below* it.
+  - **A nav region holds WORDS as well as folders.** The authored row is
+    `this | People | … | More | that`: the two determiners at its ends are
+    vocabulary that happens to live in the nav row, reproduced on every page for
+    the same motor-planning reason the folders are. `NavRowSync` treated every
+    region cell as a folder, so on each child it relocated the authored `this`
+    into the content area as a colliding occupant and then created a **second**
+    one at the nav cell — and the copy carried `mute_name`, which is what makes
+    `BoardImage#door_tile?` true, so the tile sitting in the nav row was a silent
+    door while the speaking one had wandered. Every page of every built set
+    carried two `this` and two `that` (a seeded Core 60 is 221 authored words; a
+    built one reported 237 = 221 + 2 × 8 pages).
+    A word cell is now **adopted** — matched by label, kept as a plain word tile
+    (`predictive_board_id` nil, no `mute_name`) and flagged `data["nav_word"]`
+    rather than `data["nav_tile"]`, which is the same ownership and idempotency
+    without the door/back semantics. `#collapse_nav_word_duplicates!` removes the
+    copies an earlier sync left, keeping the authored (lowest-position) tile, so
+    `rake board_builder:sync_nav_rows` heals sets already in the wild.
   - **Only a legacy nav tile is replaced.** A folder tile is destroyed only when
     it carries a nav category's label (the pre-sync copy, often shifted a cell
     left) or links back to the root (the old `Home` way-home tile). A page's own

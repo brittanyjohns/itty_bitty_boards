@@ -215,6 +215,7 @@ namespace :board_builder do
     tiles = 0
     folders = 0
     words = 0
+    deduped = 0
 
     roots.find_each do |root|
       result = Boards::NavRowSync.call(root, dry_run: dry_run)
@@ -224,10 +225,12 @@ namespace :board_builder do
       tiles += result.tiles_written
       folders += result.folders_deleted
       words += result.words_relocated
+      deduped += result.words_deduped
 
       puts "#{dry_run ? '[DRY RUN] ' : ''}set ##{root.id} #{root.name.inspect} (owner #{root.user_id}): " \
            "#{result.boards_synced} page(s), #{result.tiles_written} nav tile(s), " \
-           "#{result.folders_deleted} legacy nav tile(s) removed, #{result.words_relocated} tile(s) relocated"
+           "#{result.folders_deleted} legacy nav tile(s) removed, #{result.words_relocated} tile(s) relocated, " \
+           "#{result.words_deduped} duplicate nav word(s) removed"
 
       next if dry_run
 
@@ -249,7 +252,8 @@ namespace :board_builder do
     if dry_run
       puts "Dry run only — #{sets} built set(s) to sync (#{tiles} nav tile(s), #{folders} legacy nav tile(s), #{words} relocation(s)). Re-run with DRY_RUN=false to apply."
     else
-      puts "Synced #{sets} set(s): #{tiles} nav tile(s) written, #{folders} legacy nav tile(s) removed, #{words} tile(s) relocated."
+      puts "Synced #{sets} set(s): #{tiles} nav tile(s) written, #{folders} legacy nav tile(s) removed, " \
+           "#{words} tile(s) relocated, #{deduped} duplicate nav word(s) removed."
     end
   end
 

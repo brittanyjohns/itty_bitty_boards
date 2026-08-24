@@ -3,18 +3,261 @@
   "id": "fringe:technology",
   "locale": "en",
   "name": "Technology",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,null,null]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        11,
+        12,
+        13
+      ],
+      [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      [
+        24,
+        25,
+        5,
+        6,
+        10,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      [
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "tablet", "part_of_speech": "noun" },
-    { "id": 2, "label": "phone", "part_of_speech": "noun" },
-    { "id": 3, "label": "computer", "part_of_speech": "noun" },
-    { "id": 4, "label": "movie", "part_of_speech": "noun" },
-    { "id": 5, "label": "watch", "part_of_speech": "verb" },
-    { "id": 6, "label": "play", "part_of_speech": "verb" },
-    { "id": 7, "label": "video", "part_of_speech": "noun" },
-    { "id": 8, "label": "game", "part_of_speech": "noun" },
-    { "id": 9, "label": "screen", "part_of_speech": "noun" },
-    { "id": 10, "label": "charge", "part_of_speech": "verb" }
+    {
+      "id": 1,
+      "label": "tablet",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 2,
+      "label": "phone",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 3,
+      "label": "computer",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "movie",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 7,
+      "label": "video",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "game",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "screen",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 11,
+      "label": "tv",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 12,
+      "label": "headphones",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 13,
+      "label": "app",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 14,
+      "label": "mouse",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 15,
+      "label": "keyboard",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 16,
+      "label": "camera",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "photo",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 18,
+      "label": "remote",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 19,
+      "label": "charger",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "battery",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "robot",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "show",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "song",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "button",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "wifi",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 5,
+      "label": "watch",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 6,
+      "label": "play",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 10,
+      "label": "charge",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 26,
+      "label": "turn on",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 27,
+      "label": "turn off",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 28,
+      "label": "tap",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 29,
+      "label": "swipe",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 30,
+      "label": "pause",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 31,
+      "label": "look",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 32,
+      "label": "listen",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 33,
+      "label": "take a picture",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 34,
+      "label": "call",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 35,
+      "label": "loud",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 36,
+      "label": "quiet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "broken",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "done",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "new",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 40,
+      "label": "favorite",
+      "part_of_speech": "adjective"
+    }
   ],
   "images": [],
   "sounds": []

@@ -10,13 +10,27 @@ module Boards
   # AI-generated, My Favorites, Phrases, the GLP function boards — and repairs
   # the seeded pages whose nav row went stale when the build grew the root.
   #
-  # Idempotent: tiles this service owns carry data["nav_tile"] = true.
+  # Idempotent: folder tiles this service owns carry data["nav_tile"] = true,
+  # word tiles data["nav_word"] = true.
+  #
+  # **A nav region holds WORDS as well as folders, and the two are not
+  # interchangeable.** The authored row is `this | People | … | More | that` —
+  # the two determiners at its ends are vocabulary that happens to sit in the
+  # nav row, and they are reproduced on every page for the same motor-planning
+  # reason the folders are. Treating them as folders wrote a SECOND `this` and
+  # `that` onto every child page (the authored one was relocated into the
+  # content area as a colliding occupant, then a fresh nav copy was created at
+  # its cell) — and the copy carried `mute_name`, which is what makes
+  # `BoardImage#door_tile?` true, so the tile in the nav row was a silent door
+  # and the speaking one had wandered. Hence `nav_word`: same ownership and
+  # idempotency, none of the door/back semantics.
   class NavRowSync
     MAX_DEPTH = 2
     NAV_TILE_KEY = "nav_tile".freeze
+    NAV_WORD_KEY = "nav_word".freeze
 
     Result = Struct.new(:boards_synced, :tiles_written, :folders_deleted,
-                        :words_relocated, keyword_init: true)
+                        :words_relocated, :words_deduped, keyword_init: true)
 
     def self.call(root, dry_run: false)
       new(root, dry_run: dry_run).call
@@ -26,7 +40,8 @@ module Boards
       @root = root
       @dry_run = dry_run
       @result = Result.new(boards_synced: 0, tiles_written: 0,
-                           folders_deleted: 0, words_relocated: 0)
+                           folders_deleted: 0, words_relocated: 0,
+                           words_deduped: 0)
     end
 
     def call
@@ -80,6 +95,7 @@ module Boards
 
       child.update_column(:large_screen_columns, @root.large_screen_columns) if @root.large_screen_columns.to_i.positive?
 
+      collapse_nav_word_duplicates!(child)
       evict_occupants!(child)
       drop_orphaned_nav_tiles!(child)
       region.cells.each { |cell| upsert_nav_tile!(child, cell) }
@@ -180,7 +196,7 @@ module Boards
       nav_labels = region.cells.map { |c| c.label.to_s.downcase }.to_set
 
       child.board_images.reload.each do |bi|
-        next if bi.data&.dig(NAV_TILE_KEY) # ours; upsert handles it
+        next if owned?(bi) # ours; upsert handles it
 
         if bi.predictive_board_id.present? &&
            (nav_labels.include?(bi.label.to_s.downcase) || bi.predictive_board_id == @root.id)
@@ -188,6 +204,11 @@ module Boards
           @result.folders_deleted += 1
           next
         end
+
+        # The page's authored copy of a nav-row WORD (`this`, `that`). It is the
+        # tile the upsert adopts, so leave it alone — relocating it into the
+        # content area is exactly what produced the duplicate.
+        next if nav_word_labels.include?(bi.label.to_s.downcase)
 
         cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
         next if cell.nil?
@@ -250,7 +271,7 @@ module Boards
       labels = region.cells.map { |c| c.label.downcase }.to_set
 
       child.board_images.reload.each do |bi|
-        next unless bi.data&.dig(NAV_TILE_KEY)
+        next unless owned?(bi)
         next if labels.include?(bi.label.to_s.downcase)
         # A drawer-tucked page's way home (#ensure_home_tile!) is flagged like a
         # nav tile but its label is deliberately NOT in the region. Keep it, or
@@ -263,8 +284,17 @@ module Boards
     end
 
     def upsert_nav_tile!(child, cell)
+      self_tile = cell.label.to_s.strip.casecmp?(child.name.to_s.strip)
+      word_cell = !self_tile && cell.target_board_id.blank?
+
       existing = child.board_images.reload.find do |bi|
-        bi.data&.dig(NAV_TILE_KEY) && bi.label.to_s.casecmp?(cell.label)
+        next false unless bi.label.to_s.casecmp?(cell.label)
+        # A word cell also adopts the page's own AUTHORED copy of the word —
+        # the seed .obf carries `this`/`that` in every page's nav row, and
+        # creating a second one is the duplicate this service used to produce.
+        next true if word_cell && bi.predictive_board_id.blank?
+
+        owned?(bi)
       end
 
       board_image = existing || begin
@@ -273,10 +303,11 @@ module Boards
       end
       return if board_image.nil?
 
-      self_tile = cell.label.to_s.strip.casecmp?(child.name.to_s.strip)
-      data = (board_image.data || {}).merge(NAV_TILE_KEY => true)
-      # Folder tiles navigate silently; the self-tile speaks its own label.
-      data = self_tile ? data.except("mute_name") : data.merge("mute_name" => true)
+      own_key = word_cell ? NAV_WORD_KEY : NAV_TILE_KEY
+      data = (board_image.data || {}).except(NAV_TILE_KEY, NAV_WORD_KEY).merge(own_key => true)
+      # Folder tiles navigate silently; the self-tile speaks its own label, and
+      # a nav-row word is vocabulary — it must speak or it isn't a word.
+      data = (self_tile || word_cell) ? data.except("mute_name") : data.merge("mute_name" => true)
 
       board_image.update!(
         # BoardImage#set_defaults derives the label from the resolved Image
@@ -288,6 +319,42 @@ module Boards
       )
       write_cell!(board_image, cell.x, cell.y)
       @result.tiles_written += 1
+    end
+
+    # Labels the region carries as WORDS rather than folders (`this`, `that`).
+    # A cell pointing at no board is a word — except the page's own self tile,
+    # which is resolved per-child in #upsert_nav_tile!.
+    def nav_word_labels
+      @nav_word_labels ||= region.cells.reject(&:target_board_id)
+                                 .map { |c| c.label.to_s.downcase }.to_set
+    end
+
+    def owned?(board_image)
+      data = board_image.data
+      return false unless data.is_a?(Hash)
+
+      data[NAV_TILE_KEY] == true || data[NAV_WORD_KEY] == true
+    end
+
+    # Heals the pages an earlier sync duplicated: one authored `this` in the
+    # content area and one muted nav copy in the nav row. Keeps the authored
+    # tile (lowest position) — the upsert then adopts and re-flags it.
+    #
+    # Scoped to nav-word labels rather than delegating to Boards::TileDeduper:
+    # a page's other duplicates are a seeding concern, and this runs over every
+    # page of every built set.
+    def collapse_nav_word_duplicates!(child)
+      child.board_images.reload
+           .select { |bi| bi.predictive_board_id.blank? && nav_word_labels.include?(bi.label.to_s.downcase) }
+           .group_by { |bi| bi.label.to_s.downcase }
+           .each_value do |tiles|
+             next if tiles.size < 2
+
+             tiles.sort_by { |bi| [bi.position || Float::INFINITY, bi.id] }.drop(1).each do |bi|
+               bi.destroy!
+               @result.words_deduped += 1
+             end
+           end
     end
   end
 end

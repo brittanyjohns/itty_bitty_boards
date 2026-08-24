@@ -26,56 +26,56 @@
         14,
         15,
         16,
-        17,
         18,
-        19,
         20,
-        null,
-        null,
-        null,
-        null
+        37,
+        38,
+        39,
+        40,
+        41,
+        42
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        55,
+        17,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        66,
+        67,
+        68,
+        69,
+        70,
+        19,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
       ],
       [
         null,
@@ -189,14 +189,189 @@
       "part_of_speech": "adjective"
     },
     {
+      "id": 18,
+      "label": "ok",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 20,
+      "label": "better",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "worried",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "nervous",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "lonely",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 40,
+      "label": "brave",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 41,
+      "label": "hot",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 42,
+      "label": "cold",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 43,
+      "label": "sleepy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 44,
+      "label": "jealous",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 45,
+      "label": "confused",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 46,
+      "label": "shy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 47,
+      "label": "grumpy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 48,
+      "label": "cranky",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 49,
+      "label": "upset",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 50,
+      "label": "safe",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 51,
+      "label": "comfy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 52,
+      "label": "uncomfortable",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 53,
+      "label": "sore",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 54,
+      "label": "embarrassed",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 55,
+      "label": "disappointed",
+      "part_of_speech": "adjective"
+    },
+    {
       "id": 17,
       "label": "love",
       "part_of_speech": "verb"
     },
     {
-      "id": 18,
-      "label": "ok",
-      "part_of_speech": "social"
+      "id": 56,
+      "label": "like",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 57,
+      "label": "feel",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 58,
+      "label": "cry",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 59,
+      "label": "need",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 60,
+      "label": "want",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 61,
+      "label": "hate",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 62,
+      "label": "care",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 63,
+      "label": "relax",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 64,
+      "label": "laugh",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 65,
+      "label": "smile",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 66,
+      "label": "stop",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 67,
+      "label": "no",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 68,
+      "label": "not",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 69,
+      "label": "don't like",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 70,
+      "label": "too much",
+      "part_of_speech": "important_function"
     },
     {
       "id": 19,
@@ -204,9 +379,47 @@
       "part_of_speech": "social"
     },
     {
-      "id": 20,
-      "label": "better",
-      "part_of_speech": "adjective"
+      "id": 71,
+      "label": "thank you",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 72,
+      "label": "please",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 73,
+      "label": "help me",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 74,
+      "label": "leave me alone",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 75,
+      "label": "really",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 76,
+      "label": "a little",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 28,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/more.obf"
+      }
+    },
+    {
+      "id": 30,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 22,
@@ -217,11 +430,27 @@
       }
     },
     {
+      "id": 31,
+      "label": "Feelings",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-84.obf"
+      }
+    },
+    {
       "id": 24,
       "label": "Food",
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/food.obf"
+      }
+    },
+    {
+      "id": 32,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
       }
     },
     {
@@ -246,35 +475,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/body.obf"
-      }
-    },
-    {
-      "id": 28,
-      "label": "More",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 30,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 31,
-      "label": "Feelings",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-84.obf"
-      }
-    },
-    {
-      "id": 32,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
       }
     },
     {

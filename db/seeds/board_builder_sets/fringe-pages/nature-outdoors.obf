@@ -3,20 +3,261 @@
   "id": "fringe:nature-outdoors",
   "locale": "en",
   "name": "Nature & Outdoors",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        13,
+        14
+      ],
+      [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      [
+        25,
+        26,
+        27,
+        28,
+        9,
+        10,
+        29,
+        30,
+        31,
+        32
+      ],
+      [
+        33,
+        34,
+        35,
+        36,
+        11,
+        12,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "tree", "part_of_speech": "noun" },
-    { "id": 2, "label": "flower", "part_of_speech": "noun" },
-    { "id": 3, "label": "sun", "part_of_speech": "noun" },
-    { "id": 4, "label": "rain", "part_of_speech": "noun" },
-    { "id": 5, "label": "snow", "part_of_speech": "noun" },
-    { "id": 6, "label": "garden", "part_of_speech": "noun" },
-    { "id": 7, "label": "rock", "part_of_speech": "noun" },
-    { "id": 8, "label": "sky", "part_of_speech": "noun" },
-    { "id": 9, "label": "plant", "part_of_speech": "verb" },
-    { "id": 10, "label": "dig", "part_of_speech": "verb" },
-    { "id": 11, "label": "wet", "part_of_speech": "adjective" },
-    { "id": 12, "label": "cold", "part_of_speech": "adjective" }
+    {
+      "id": 1,
+      "label": "tree",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 2,
+      "label": "flower",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 3,
+      "label": "sun",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "rain",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 5,
+      "label": "snow",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 6,
+      "label": "garden",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 7,
+      "label": "rock",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "sky",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 13,
+      "label": "leaf",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 14,
+      "label": "grass",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 15,
+      "label": "dirt",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 16,
+      "label": "mud",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "stick",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 18,
+      "label": "bug",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 19,
+      "label": "cloud",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "wind",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "puddle",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "sand",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "water",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "hill",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "moon",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "star",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "bird",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "park",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "plant",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 10,
+      "label": "dig",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 29,
+      "label": "climb",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 30,
+      "label": "walk",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 31,
+      "label": "run",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 32,
+      "label": "look",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 33,
+      "label": "pick",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 34,
+      "label": "splash",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 35,
+      "label": "jump",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 36,
+      "label": "explore",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 11,
+      "label": "wet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 12,
+      "label": "cold",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "hot",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "muddy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "pretty",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 40,
+      "label": "windy",
+      "part_of_speech": "adjective"
+    }
   ],
   "images": [],
   "sounds": []
