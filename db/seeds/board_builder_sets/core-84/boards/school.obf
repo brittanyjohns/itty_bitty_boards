@@ -11,71 +11,71 @@
         1,
         2,
         3,
+        14,
         4,
+        34,
         5,
         6,
+        35,
         7,
+        36,
+        37
+      ],
+      [
+        38,
+        39,
+        40,
+        17,
+        41,
+        11,
+        10,
+        12,
+        13,
+        42,
+        43,
+        44
+      ],
+      [
+        45,
+        46,
         8,
         9,
-        10,
-        11,
-        12
-      ],
-      [
-        13,
-        14,
-        15,
         16,
-        17,
+        47,
+        48,
+        15,
+        49,
+        50,
+        51,
+        52
+      ],
+      [
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64
+      ],
+      [
+        65,
+        66,
+        67,
+        68,
+        69,
         18,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        70,
+        71,
+        72,
+        73,
+        74,
+        75
       ],
       [
         null,
@@ -124,8 +124,18 @@
       "part_of_speech": "noun"
     },
     {
+      "id": 14,
+      "label": "friend",
+      "part_of_speech": "noun"
+    },
+    {
       "id": 4,
       "label": "desk",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 34,
+      "label": "chair",
       "part_of_speech": "noun"
     },
     {
@@ -139,28 +149,58 @@
       "part_of_speech": "noun"
     },
     {
+      "id": 35,
+      "label": "pen",
+      "part_of_speech": "noun"
+    },
+    {
       "id": 7,
       "label": "paper",
       "part_of_speech": "noun"
     },
     {
-      "id": 8,
-      "label": "read",
-      "part_of_speech": "verb"
+      "id": 36,
+      "label": "crayon",
+      "part_of_speech": "noun"
     },
     {
-      "id": 9,
-      "label": "write",
-      "part_of_speech": "verb"
+      "id": 37,
+      "label": "marker",
+      "part_of_speech": "noun"
     },
     {
-      "id": 10,
-      "label": "math",
+      "id": 38,
+      "label": "scissors",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 39,
+      "label": "glue",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 40,
+      "label": "backpack",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "bus",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 41,
+      "label": "notebook",
       "part_of_speech": "noun"
     },
     {
       "id": 11,
       "label": "computer",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 10,
+      "label": "math",
       "part_of_speech": "noun"
     },
     {
@@ -174,13 +214,38 @@
       "part_of_speech": "noun"
     },
     {
-      "id": 14,
-      "label": "friend",
+      "id": 42,
+      "label": "library",
       "part_of_speech": "noun"
     },
     {
-      "id": 15,
-      "label": "help",
+      "id": 43,
+      "label": "gym",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 44,
+      "label": "art",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 45,
+      "label": "music",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 46,
+      "label": "homework",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "read",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 9,
+      "label": "write",
       "part_of_speech": "verb"
     },
     {
@@ -189,14 +254,172 @@
       "part_of_speech": "verb"
     },
     {
-      "id": 17,
-      "label": "bus",
-      "part_of_speech": "noun"
+      "id": 47,
+      "label": "listen",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 48,
+      "label": "look",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 15,
+      "label": "help",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 49,
+      "label": "ask",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 50,
+      "label": "answer",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 51,
+      "label": "draw",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 52,
+      "label": "color",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 53,
+      "label": "cut",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 54,
+      "label": "count",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 55,
+      "label": "spell",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 56,
+      "label": "finish",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 57,
+      "label": "line up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 58,
+      "label": "sit",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 59,
+      "label": "hard",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 60,
+      "label": "easy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 61,
+      "label": "right",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 62,
+      "label": "wrong",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 63,
+      "label": "done",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 64,
+      "label": "next",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 65,
+      "label": "please",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 66,
+      "label": "thank you",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 67,
+      "label": "my turn",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 68,
+      "label": "hi",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 69,
+      "label": "bye",
+      "part_of_speech": "social"
     },
     {
       "id": 18,
       "label": "question",
-      "part_of_speech": "noun"
+      "part_of_speech": "question"
+    },
+    {
+      "id": 70,
+      "label": "what",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 71,
+      "label": "where",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 72,
+      "label": "why",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 73,
+      "label": "stop",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 74,
+      "label": "all done",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 75,
+      "label": "no",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 26,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/more.obf"
+      }
+    },
+    {
+      "id": 28,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 20,
@@ -223,6 +446,14 @@
       }
     },
     {
+      "id": 29,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
       "id": 23,
       "label": "Play",
       "part_of_speech": "noun",
@@ -244,27 +475,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/body.obf"
-      }
-    },
-    {
-      "id": 26,
-      "label": "More",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 28,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 29,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
       }
     },
     {

@@ -9,9 +9,11 @@ module Boards
   #
   # Instead the overflow is tucked into the set's **"More" drawer**. More is on
   # the nav row of every page in the set, so the page stays two taps from
-  # anywhere, and it ships with most of its grid empty (Core 60's More: 31 tiles
-  # in 60 cells). The authored home grid is never grown while the drawer has
-  # room.
+  # anywhere, and it is authored with two spare rows for exactly this (Core 60's
+  # More: 40 tiles in 60 cells, against 50 on every other fringe page). That
+  # headroom is the drawer's job — see db/seeds/board_builder_sets/README.md
+  # before filling More up like any other page. The authored home grid is never
+  # grown while the drawer has room.
   class FolderPlacer
     DRAWER_NAME = "More".freeze
 
@@ -74,10 +76,9 @@ module Boards
       !nav_labels.include?(name.to_s.strip.downcase)
     end
 
-    # Overflow pages read as their own band rather than filling the gaps in an
-    # authored sentence-word row (Core 60's More has two open cells mid-way
-    # through its top row, between "for" and "here"). So, scanning the rows
-    # ABOVE the drawer's nav row top-down, prefer:
+    # Overflow pages read as their own band rather than filling whatever gaps an
+    # authored content row happens to leave. So, scanning the rows ABOVE the
+    # drawer's nav row top-down, prefer:
     #
     #   1. a row already holding nothing but folder tiles — the band a previous
     #      call started, so successive pages pack left-to-right into one row;

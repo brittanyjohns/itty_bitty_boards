@@ -3,20 +3,261 @@
   "id": "fringe:animals",
   "locale": "en",
   "name": "Animals",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        13,
+        14
+      ],
+      [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      [
+        25,
+        26,
+        27,
+        28,
+        9,
+        10,
+        29,
+        30,
+        31,
+        32
+      ],
+      [
+        33,
+        34,
+        35,
+        36,
+        11,
+        12,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "dog", "part_of_speech": "noun" },
-    { "id": 2, "label": "cat", "part_of_speech": "noun" },
-    { "id": 3, "label": "bird", "part_of_speech": "noun" },
-    { "id": 4, "label": "fish", "part_of_speech": "noun" },
-    { "id": 5, "label": "horse", "part_of_speech": "noun" },
-    { "id": 6, "label": "bear", "part_of_speech": "noun" },
-    { "id": 7, "label": "turtle", "part_of_speech": "noun" },
-    { "id": 8, "label": "rabbit", "part_of_speech": "noun" },
-    { "id": 9, "label": "feed", "part_of_speech": "verb" },
-    { "id": 10, "label": "pet", "part_of_speech": "verb" },
-    { "id": 11, "label": "big", "part_of_speech": "adjective" },
-    { "id": 12, "label": "little", "part_of_speech": "adjective" }
+    {
+      "id": 1,
+      "label": "dog",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 2,
+      "label": "cat",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 3,
+      "label": "bird",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "fish",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 5,
+      "label": "horse",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 6,
+      "label": "bear",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 7,
+      "label": "turtle",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "rabbit",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 13,
+      "label": "cow",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 14,
+      "label": "pig",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 15,
+      "label": "sheep",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 16,
+      "label": "duck",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "frog",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 18,
+      "label": "mouse",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 19,
+      "label": "lion",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "tiger",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "elephant",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "monkey",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "snake",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "bug",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "bee",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "butterfly",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "puppy",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "kitten",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "feed",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 10,
+      "label": "pet",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 29,
+      "label": "look",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 30,
+      "label": "hear",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 31,
+      "label": "ride",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 32,
+      "label": "run",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 33,
+      "label": "jump",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 34,
+      "label": "swim",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 35,
+      "label": "fly",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 36,
+      "label": "hide",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 11,
+      "label": "big",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 12,
+      "label": "little",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "soft",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "loud",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "fast",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 40,
+      "label": "scary",
+      "part_of_speech": "adjective"
+    }
   ],
   "images": [],
   "sounds": []

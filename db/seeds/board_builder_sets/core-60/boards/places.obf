@@ -8,52 +8,52 @@
     "columns": 10,
     "order": [
       [
+        13,
+        33,
+        34,
+        35,
+        36,
         1,
         2,
         3,
         4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10
+        7
       ],
       [
+        8,
+        9,
+        10,
         11,
         12,
-        13,
+        37,
+        38,
+        39,
+        40,
+        41
+      ],
+      [
+        42,
         14,
         15,
         16,
+        19,
+        20,
         17,
         18,
-        19,
-        20
+        43,
+        44
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        45,
+        46,
+        47,
+        5,
+        6,
+        48,
+        49,
+        50,
+        51,
+        52
       ],
       [
         null,
@@ -83,6 +83,31 @@
   },
   "buttons": [
     {
+      "id": 13,
+      "label": "go",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 33,
+      "label": "come",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 34,
+      "label": "walk",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 35,
+      "label": "ride",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 36,
+      "label": "wait",
+      "part_of_speech": "verb"
+    },
+    {
       "id": 1,
       "label": "home",
       "part_of_speech": "noun"
@@ -100,16 +125,6 @@
     {
       "id": 4,
       "label": "park",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 5,
-      "label": "outside",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 6,
-      "label": "inside",
       "part_of_speech": "noun"
     },
     {
@@ -143,24 +158,59 @@
       "part_of_speech": "noun"
     },
     {
-      "id": 13,
-      "label": "go",
-      "part_of_speech": "verb"
+      "id": 37,
+      "label": "pool",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 38,
+      "label": "beach",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 39,
+      "label": "zoo",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 40,
+      "label": "doctor",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 41,
+      "label": "playground",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 42,
+      "label": "dentist",
+      "part_of_speech": "noun"
     },
     {
       "id": 14,
       "label": "here",
-      "part_of_speech": "determiner"
+      "part_of_speech": "preposition"
     },
     {
       "id": 15,
       "label": "there",
-      "part_of_speech": "determiner"
+      "part_of_speech": "preposition"
     },
     {
       "id": 16,
       "label": "away",
-      "part_of_speech": "adverb"
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 19,
+      "label": "in",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 20,
+      "label": "out",
+      "part_of_speech": "preposition"
     },
     {
       "id": 17,
@@ -173,14 +223,69 @@
       "part_of_speech": "preposition"
     },
     {
-      "id": 19,
-      "label": "in",
+      "id": 43,
+      "label": "on",
       "part_of_speech": "preposition"
     },
     {
-      "id": 20,
-      "label": "out",
+      "id": 44,
+      "label": "off",
       "part_of_speech": "preposition"
+    },
+    {
+      "id": 45,
+      "label": "under",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 46,
+      "label": "over",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 47,
+      "label": "next to",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 5,
+      "label": "outside",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 6,
+      "label": "inside",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 48,
+      "label": "back",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 49,
+      "label": "far",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 50,
+      "label": "where",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 51,
+      "label": "stop",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 52,
+      "label": "no",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 29,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 22,
@@ -207,11 +312,27 @@
       }
     },
     {
+      "id": 30,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
       "id": 25,
       "label": "Play",
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/play.obf"
+      }
+    },
+    {
+      "id": 31,
+      "label": "Places",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
       }
     },
     {
@@ -228,27 +349,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 29,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 30,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
-      }
-    },
-    {
-      "id": 31,
-      "label": "Places",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-60.obf"
       }
     },
     {

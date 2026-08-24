@@ -24,7 +24,7 @@ RSpec.describe Boards::NavRowSync do
   end
 
   def nav_cells(board)
-    board.board_images.reload.select { |bi| bi.data&.dig("nav_tile") }.map do |bi|
+    board.board_images.reload.select { |bi| bi.data&.dig("nav_tile") || bi.data&.dig("nav_word") }.map do |bi|
       { label: bi.label, x: bi.layout["lg"]["x"], y: bi.layout["lg"]["y"],
         target: bi.predictive_board_id, muted: bi.data["mute_name"] }
     end.sort_by { |c| [c[:y], c[:x]] }
@@ -93,6 +93,45 @@ RSpec.describe Boards::NavRowSync do
     expect(survivor).to be_present
     expect(survivor.predictive_board_id).to eq(greetings.id)
     expect(survivor.layout["lg"]["y"]).to be < 1 # relocated out of the nav cell
+  end
+
+  # The nav row's two determiners are vocabulary, not chrome. Every seeded page
+  # already authors them at the same cells, so the sync must ADOPT that tile —
+  # relocating it and writing a fresh one gave every page two `this` and two
+  # `that`, and the copy in the nav row was the muted one.
+  describe "the nav row's word cells" do
+    it "adopts a page's authored copy instead of writing a second one" do
+      authored = tile(food, "this", x: 0, y: 1, position: 1)
+
+      described_class.call(root)
+
+      this_tiles = food.board_images.reload.select { |bi| bi.label == "this" }
+      expect(this_tiles.map(&:id)).to eq([authored.id])
+      expect([authored.reload.layout["lg"]["x"], authored.layout["lg"]["y"]]).to eq([0, 1])
+    end
+
+    it "leaves them speaking and out of the door/back semantics" do
+      described_class.call(root)
+
+      word = food.board_images.reload.find { |bi| bi.label == "this" }
+      expect(word.data["nav_word"]).to be(true)
+      expect(word.data["nav_tile"]).to be_nil
+      expect(word.data.to_h["mute_name"]).not_to be(true)
+      expect(word.predictive_board_id).to be_nil
+      expect(word.door_tile?).to be(false)
+      expect(word.back_tile?).to be(false)
+    end
+
+    it "collapses duplicates an earlier sync left behind" do
+      authored = tile(food, "this", x: 2, y: 0, position: 1)
+      tile(food, "this", x: 0, y: 1, position: 99, data: { "nav_tile" => true, "mute_name" => true })
+
+      result = described_class.call(root)
+
+      this_tiles = food.board_images.reload.select { |bi| bi.label == "this" }
+      expect(this_tiles.map(&:id)).to eq([authored.id])
+      expect(result.words_deduped).to eq(1)
+    end
   end
 
   it "relocates a user's word tile out of a nav cell instead of deleting it" do

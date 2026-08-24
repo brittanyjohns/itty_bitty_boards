@@ -35,6 +35,27 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Board Builder pages are full pages now.** Every category page in the Core 60
+  and Core 84 starter sets — People, Feelings, Food, Drinks, Play, Places, Body,
+  School, Time, Describe — was carrying about twenty words in a sixty- or
+  eighty-four-cell grid, so it opened mostly empty next to a home board that
+  fills every cell. Core 60 pages now hold 40 words, Core 84 pages 60, and the
+  eleven interest pages (Animals, Sports, Music, Bathroom, Clothing and the
+  rest) 40 apiece, laid out in whole rows from the top. The Core 84 page for a
+  category is a superset of the Core 60 one and keeps each word in the same
+  block, so moving up a set widens the vocabulary instead of moving it around.
+  The "More" page stays deliberately roomier — it is where extra pages a build
+  adds are tucked away.
+
+### Fixed
+
+- **Board Builder pages no longer show "this" and "that" twice.** The strip
+  along the bottom of every page carries those two words at its ends, and the
+  build was re-adding them instead of recognising the ones already there — so
+  each page ended up with a duplicate pair, and the copy sitting in the strip
+  was the one that had gone silent. Existing sets are repaired by
+  `rake board_builder:sync_nav_rows`.
+
 - **The Safety ID card is no longer offered.** It printed the same allergies,
   medical needs, medications and emergency contacts as the Care & Emergency
   Plan's front page, so once that plan gained a wallet size — the same

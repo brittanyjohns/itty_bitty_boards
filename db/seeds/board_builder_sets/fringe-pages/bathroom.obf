@@ -3,18 +3,261 @@
   "id": "fringe:bathroom",
   "locale": "en",
   "name": "Bathroom",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,null,null]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        5,
+        6,
+        7,
+        8,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      [
+        17,
+        18,
+        19,
+        20,
+        1,
+        21,
+        2,
+        3,
+        4,
+        22
+      ],
+      [
+        23,
+        24,
+        9,
+        10,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      [
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "toilet", "part_of_speech": "noun" },
-    { "id": 2, "label": "soap", "part_of_speech": "noun" },
-    { "id": 3, "label": "towel", "part_of_speech": "noun" },
-    { "id": 4, "label": "toothbrush", "part_of_speech": "noun" },
-    { "id": 5, "label": "wash", "part_of_speech": "verb" },
-    { "id": 6, "label": "flush", "part_of_speech": "verb" },
-    { "id": 7, "label": "brush", "part_of_speech": "verb" },
-    { "id": 8, "label": "wipe", "part_of_speech": "verb" },
-    { "id": 9, "label": "bath", "part_of_speech": "noun" },
-    { "id": 10, "label": "shower", "part_of_speech": "noun" }
+    {
+      "id": 5,
+      "label": "wash",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 6,
+      "label": "flush",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 7,
+      "label": "brush",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 8,
+      "label": "wipe",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 11,
+      "label": "dry off",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 12,
+      "label": "rinse",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 13,
+      "label": "go potty",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 14,
+      "label": "pee",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 15,
+      "label": "poop",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 16,
+      "label": "sit",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 17,
+      "label": "stand",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 18,
+      "label": "wait",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 19,
+      "label": "help",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 20,
+      "label": "clean up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 1,
+      "label": "toilet",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "potty",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 2,
+      "label": "soap",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 3,
+      "label": "towel",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "toothbrush",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "toothpaste",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "sink",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "mirror",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "bath",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 10,
+      "label": "shower",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "water",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "tissue",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "toilet paper",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "hairbrush",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "comb",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "diaper",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "wipes",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 32,
+      "label": "bathroom",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 33,
+      "label": "dirty",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 34,
+      "label": "clean",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 35,
+      "label": "wet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 36,
+      "label": "dry",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "hot",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "cold",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "all done",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 40,
+      "label": "no",
+      "part_of_speech": "important_function"
+    }
   ],
   "images": [],
   "sounds": []

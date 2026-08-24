@@ -8,8 +8,18 @@
     "columns": 10,
     "order": [
       [
+        13,
+        14,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
         1,
-        2,
+        2
+      ],
+      [
         3,
         4,
         5,
@@ -17,43 +27,33 @@
         7,
         8,
         9,
-        10
+        10,
+        11,
+        12
       ],
       [
-        11,
-        12,
-        13,
-        14,
         15,
         16,
-        null,
-        null,
-        null,
-        null
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52
       ],
       [
         null,
@@ -82,6 +82,46 @@
     ]
   },
   "buttons": [
+    {
+      "id": 13,
+      "label": "me",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 14,
+      "label": "you",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 29,
+      "label": "he",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 30,
+      "label": "she",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 31,
+      "label": "we",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 32,
+      "label": "they",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 33,
+      "label": "everybody",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 34,
+      "label": "mine",
+      "part_of_speech": "pronoun"
+    },
     {
       "id": 1,
       "label": "mom",
@@ -143,16 +183,6 @@
       "part_of_speech": "noun"
     },
     {
-      "id": 13,
-      "label": "me",
-      "part_of_speech": "pronoun"
-    },
-    {
-      "id": 14,
-      "label": "you",
-      "part_of_speech": "pronoun"
-    },
-    {
       "id": 15,
       "label": "boy",
       "part_of_speech": "noun"
@@ -161,6 +191,109 @@
       "id": 16,
       "label": "girl",
       "part_of_speech": "noun"
+    },
+    {
+      "id": 35,
+      "label": "aunt",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 36,
+      "label": "uncle",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 37,
+      "label": "cousin",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 38,
+      "label": "help",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 39,
+      "label": "play with",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 40,
+      "label": "talk to",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 41,
+      "label": "share",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 42,
+      "label": "hug",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 43,
+      "label": "miss",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 44,
+      "label": "listen",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 45,
+      "label": "wait for",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 46,
+      "label": "know",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 47,
+      "label": "nice",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 48,
+      "label": "funny",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 49,
+      "label": "favorite",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 50,
+      "label": "hi",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 51,
+      "label": "bye",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 52,
+      "label": "who",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 25,
+      "label": "this",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 26,
+      "label": "People",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
+      }
     },
     {
       "id": 19,
@@ -176,6 +309,14 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/food.obf"
+      }
+    },
+    {
+      "id": 27,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
       }
     },
     {
@@ -208,27 +349,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 25,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 26,
-      "label": "People",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-60.obf"
-      }
-    },
-    {
-      "id": 27,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
       }
     },
     {

@@ -3,20 +3,261 @@
   "id": "fringe:sports",
   "locale": "en",
   "name": "Sports",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        8,
+        13,
+        14,
+        15
+      ],
+      [
+        16,
+        17,
+        18,
+        12,
+        7,
+        9,
+        10,
+        19,
+        20,
+        21
+      ],
+      [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      [
+        11,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "run", "part_of_speech": "verb" },
-    { "id": 2, "label": "swim", "part_of_speech": "verb" },
-    { "id": 3, "label": "kick", "part_of_speech": "verb" },
-    { "id": 4, "label": "throw", "part_of_speech": "verb" },
-    { "id": 5, "label": "catch", "part_of_speech": "verb" },
-    { "id": 6, "label": "jump", "part_of_speech": "verb" },
-    { "id": 7, "label": "ball", "part_of_speech": "noun" },
-    { "id": 8, "label": "race", "part_of_speech": "noun" },
-    { "id": 9, "label": "soccer", "part_of_speech": "noun" },
-    { "id": 10, "label": "basketball", "part_of_speech": "noun" },
-    { "id": 11, "label": "fast", "part_of_speech": "adjective" },
-    { "id": 12, "label": "win", "part_of_speech": "verb" }
+    {
+      "id": 1,
+      "label": "run",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 2,
+      "label": "swim",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 3,
+      "label": "kick",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 4,
+      "label": "throw",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 5,
+      "label": "catch",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 6,
+      "label": "jump",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 8,
+      "label": "race",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 13,
+      "label": "play",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 14,
+      "label": "score",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 15,
+      "label": "pass",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 16,
+      "label": "dribble",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 17,
+      "label": "climb",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 18,
+      "label": "cheer",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 12,
+      "label": "win",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 7,
+      "label": "ball",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "soccer",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 10,
+      "label": "basketball",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 19,
+      "label": "baseball",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "football",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "bat",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "glove",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "net",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "goal",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "team",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "coach",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "game",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "bike",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "helmet",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "field",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "pool",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 11,
+      "label": "fast",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 32,
+      "label": "slow",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 33,
+      "label": "strong",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 34,
+      "label": "tired",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 35,
+      "label": "fun",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 36,
+      "label": "hard",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "lose",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 38,
+      "label": "all done",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 39,
+      "label": "my turn",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 40,
+      "label": "your turn",
+      "part_of_speech": "social"
+    }
   ],
   "images": [],
   "sounds": []

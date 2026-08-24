@@ -3,20 +3,261 @@
   "id": "fringe:art-craft",
   "locale": "en",
   "name": "Art & Craft",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        5,
+        6,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      [
+        18,
+        19,
+        7,
+        20,
+        21,
+        8,
+        9,
+        4,
+        10,
+        11
+      ],
+      [
+        12,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      [
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "draw", "part_of_speech": "verb" },
-    { "id": 2, "label": "paint", "part_of_speech": "verb" },
-    { "id": 3, "label": "cut", "part_of_speech": "verb" },
-    { "id": 4, "label": "glue", "part_of_speech": "verb" },
-    { "id": 5, "label": "color", "part_of_speech": "verb" },
-    { "id": 6, "label": "make", "part_of_speech": "verb" },
-    { "id": 7, "label": "crayon", "part_of_speech": "noun" },
-    { "id": 8, "label": "paper", "part_of_speech": "noun" },
-    { "id": 9, "label": "scissors", "part_of_speech": "noun" },
-    { "id": 10, "label": "stickers", "part_of_speech": "noun" },
-    { "id": 11, "label": "clay", "part_of_speech": "noun" },
-    { "id": 12, "label": "glitter", "part_of_speech": "noun" }
+    {
+      "id": 1,
+      "label": "draw",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 2,
+      "label": "paint",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 3,
+      "label": "cut",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 5,
+      "label": "color",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 6,
+      "label": "make",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 13,
+      "label": "build",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 14,
+      "label": "fold",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 15,
+      "label": "rip",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 16,
+      "label": "stick",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 17,
+      "label": "mix",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 18,
+      "label": "trace",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 19,
+      "label": "clean up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 7,
+      "label": "crayon",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "marker",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "pencil",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "paper",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "scissors",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "glue",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 10,
+      "label": "stickers",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 11,
+      "label": "clay",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 12,
+      "label": "glitter",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "brush",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "tape",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "chalk",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "easel",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "apron",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "picture",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "card",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "box",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "string",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "beads",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 32,
+      "label": "ribbon",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 33,
+      "label": "messy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 34,
+      "label": "pretty",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 35,
+      "label": "sticky",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 36,
+      "label": "wet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "dry",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "done",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "help",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 40,
+      "label": "my turn",
+      "part_of_speech": "social"
+    }
   ],
   "images": [],
   "sounds": []

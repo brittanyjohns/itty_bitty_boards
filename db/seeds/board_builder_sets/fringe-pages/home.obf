@@ -3,20 +3,261 @@
   "id": "fringe:home",
   "locale": "en",
   "name": "Home",
-  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "grid": {
+    "rows": 4,
+    "columns": 10,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      [
+        23,
+        24,
+        25,
+        26,
+        11,
+        12,
+        27,
+        28,
+        29,
+        30
+      ],
+      [
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    ]
+  },
   "buttons": [
-    { "id": 1, "label": "bed", "part_of_speech": "noun" },
-    { "id": 2, "label": "table", "part_of_speech": "noun" },
-    { "id": 3, "label": "chair", "part_of_speech": "noun" },
-    { "id": 4, "label": "door", "part_of_speech": "noun" },
-    { "id": 5, "label": "window", "part_of_speech": "noun" },
-    { "id": 6, "label": "couch", "part_of_speech": "noun" },
-    { "id": 7, "label": "kitchen", "part_of_speech": "noun" },
-    { "id": 8, "label": "room", "part_of_speech": "noun" },
-    { "id": 9, "label": "light", "part_of_speech": "noun" },
-    { "id": 10, "label": "blanket", "part_of_speech": "noun" },
-    { "id": 11, "label": "open", "part_of_speech": "verb" },
-    { "id": 12, "label": "close", "part_of_speech": "verb" }
+    {
+      "id": 1,
+      "label": "bed",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 2,
+      "label": "table",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 3,
+      "label": "chair",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "door",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 5,
+      "label": "window",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 6,
+      "label": "couch",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 7,
+      "label": "kitchen",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "room",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "light",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 10,
+      "label": "blanket",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 13,
+      "label": "pillow",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 14,
+      "label": "tv",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 15,
+      "label": "stairs",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 16,
+      "label": "floor",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "bathroom",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 18,
+      "label": "bedroom",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 19,
+      "label": "yard",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "garage",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "fridge",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "sink",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "toy box",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "closet",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "lamp",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "rug",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 11,
+      "label": "open",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 12,
+      "label": "close",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 27,
+      "label": "sit",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 28,
+      "label": "sleep",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 29,
+      "label": "eat",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 30,
+      "label": "watch",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 31,
+      "label": "clean up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 32,
+      "label": "come in",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 33,
+      "label": "go out",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 34,
+      "label": "help",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 35,
+      "label": "cozy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 36,
+      "label": "dark",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 37,
+      "label": "bright",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 38,
+      "label": "messy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 39,
+      "label": "quiet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 40,
+      "label": "loud",
+      "part_of_speech": "adjective"
+    }
   ],
   "images": [],
   "sounds": []

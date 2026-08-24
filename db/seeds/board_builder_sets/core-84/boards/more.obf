@@ -11,57 +11,57 @@
         1,
         2,
         3,
+        40,
+        41,
+        42,
         4,
         5,
+        33,
+        43,
         6,
-        7,
-        null,
-        null,
-        10,
-        11,
-        12
+        7
       ],
       [
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
+        44,
+        45,
+        46,
+        47,
+        11,
         20,
+        12,
+        13,
+        48,
+        49,
+        10,
+        50
+      ],
+      [
+        51,
+        17,
+        16,
+        15,
+        14,
+        52,
+        19,
+        53,
+        54,
+        55,
+        56,
+        57
+      ],
+      [
+        58,
+        59,
+        60,
+        61,
         31,
         32,
-        33,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        62,
+        63,
+        64,
+        65,
+        66,
+        18
       ],
       [
         null,
@@ -124,6 +124,21 @@
       "part_of_speech": "question"
     },
     {
+      "id": 40,
+      "label": "where",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 41,
+      "label": "what",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 42,
+      "label": "who",
+      "part_of_speech": "question"
+    },
+    {
       "id": 4,
       "label": "because",
       "part_of_speech": "conjunction"
@@ -131,6 +146,16 @@
     {
       "id": 5,
       "label": "but",
+      "part_of_speech": "conjunction"
+    },
+    {
+      "id": 33,
+      "label": "and",
+      "part_of_speech": "conjunction"
+    },
+    {
+      "id": 43,
+      "label": "so",
       "part_of_speech": "conjunction"
     },
     {
@@ -144,23 +169,33 @@
       "part_of_speech": "preposition"
     },
     {
-      "id": 8,
-      "label": "this",
-      "part_of_speech": "determiner"
+      "id": 44,
+      "label": "to",
+      "part_of_speech": "preposition"
     },
     {
-      "id": 9,
-      "label": "that",
-      "part_of_speech": "determiner"
+      "id": 45,
+      "label": "after",
+      "part_of_speech": "preposition"
     },
     {
-      "id": 10,
-      "label": "here",
-      "part_of_speech": "determiner"
+      "id": 46,
+      "label": "before",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 47,
+      "label": "from",
+      "part_of_speech": "preposition"
     },
     {
       "id": 11,
       "label": "now",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 20,
+      "label": "later",
       "part_of_speech": "adverb"
     },
     {
@@ -174,19 +209,29 @@
       "part_of_speech": "adverb"
     },
     {
-      "id": 14,
-      "label": "mine",
-      "part_of_speech": "pronoun"
+      "id": 48,
+      "label": "again",
+      "part_of_speech": "adverb"
     },
     {
-      "id": 15,
-      "label": "different",
-      "part_of_speech": "adjective"
+      "id": 49,
+      "label": "maybe",
+      "part_of_speech": "adverb"
     },
     {
-      "id": 16,
-      "label": "same",
-      "part_of_speech": "adjective"
+      "id": 10,
+      "label": "here",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 50,
+      "label": "too",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 51,
+      "label": "really",
+      "part_of_speech": "adverb"
     },
     {
       "id": 17,
@@ -194,9 +239,24 @@
       "part_of_speech": "determiner"
     },
     {
-      "id": 18,
-      "label": "finished",
-      "part_of_speech": "social"
+      "id": 16,
+      "label": "same",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 15,
+      "label": "different",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 14,
+      "label": "mine",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 52,
+      "label": "yours",
+      "part_of_speech": "determiner"
     },
     {
       "id": 19,
@@ -204,9 +264,102 @@
       "part_of_speech": "verb"
     },
     {
-      "id": 20,
-      "label": "later",
-      "part_of_speech": "adverb"
+      "id": 53,
+      "label": "start",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 54,
+      "label": "try",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 55,
+      "label": "need",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 56,
+      "label": "think",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 57,
+      "label": "know",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 58,
+      "label": "help",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 59,
+      "label": "change",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 60,
+      "label": "guess",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 61,
+      "label": "remember",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 31,
+      "label": "please",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 32,
+      "label": "thank you",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 62,
+      "label": "excuse me",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 63,
+      "label": "you're welcome",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 64,
+      "label": "no thanks",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 65,
+      "label": "stop",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 66,
+      "label": "not",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 18,
+      "label": "finished",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 35,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-84.obf"
+      }
+    },
+    {
+      "id": 8,
+      "label": "this",
+      "part_of_speech": "determiner"
     },
     {
       "id": 22,
@@ -230,6 +383,14 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/food.obf"
+      }
+    },
+    {
+      "id": 36,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
       }
     },
     {
@@ -257,37 +418,6 @@
       }
     },
     {
-      "id": 31,
-      "label": "please",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 32,
-      "label": "thank you",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 33,
-      "label": "and",
-      "part_of_speech": "conjunction"
-    },
-    {
-      "id": 35,
-      "label": "More",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-84.obf"
-      }
-    },
-    {
-      "id": 36,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
-      }
-    },
-    {
       "id": 37,
       "label": "Time",
       "part_of_speech": "noun",
@@ -310,6 +440,11 @@
       "load_board": {
         "path": "boards/school.obf"
       }
+    },
+    {
+      "id": 9,
+      "label": "that",
+      "part_of_speech": "determiner"
     }
   ],
   "images": [],
