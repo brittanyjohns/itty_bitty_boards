@@ -226,25 +226,28 @@ class OpenAiClient
   end
 
   def next_words_prompt(label)
-    "Given a specific context or emotion, such as '#{label}', 
-    provide a list of 24 foundational words or short phrases (2 words max) that are crucial for basic communication in an AAC (Augmentative and Alternative Communication) device. 
-    These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
-    Determine if the word '#{label}' typically leads to specific follow-up words in everyday communication. If not, respond with 'NO NEXT WORDS'. 
-    This will help in populating an AAC (Augmentative and Alternative Communication) device with contextually appropriate vocabulary.
-    Don't include contractions or words that are too specific to a particular context. Two-word phrases are acceptable but should be kept to a minimum.
-    The goal is to populate an AAC device with versatile vocabulary. '#{label}' shoule not be included in the list of next words or phrases.
-    Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    <<~PROMPT
+      The last word or phrase a communicator selected was "#{label}".
+
+      Give 24 words or short phrases (2 words max) that are most likely to be
+      selected NEXT, so they can keep building what they are saying. Prefer
+      words that can continue many different sentences over ones that only fit
+      this topic. Do not include contractions. "#{label}" must not appear in the
+      list.
+
+      Some words do not lead anywhere in particular. If "#{label}" has no common
+      follow-on words, return an empty array rather than padding the list.
+
+      Respond with a JSON object in the following format:
+      {"next_words": ["word1", "word2", "word3", ...]}
+    PROMPT
   end
 
   def get_next_words(label)
     @model = GTP_MODEL
-    @messages = [{ role: "user",
-                  content: [{
-      type: "text",
-      text: next_words_prompt(label),
-    }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Next Words Response: #{response}" unless response
+    response = aac_word_chat(next_words_prompt(label), response_key: "next_words",
+                                                       schema_name: "aac_next_words")
+    Rails.logger.debug "*** ERROR *** Invalid Next Words Response" if response[:content].blank?
     response
   end
 
@@ -279,6 +282,54 @@ class OpenAiClient
     "#{text} Respond in #{formatted_language}."
   end
 
+  # Word selection is a counting exercise as much as a creative one — "exactly
+  # N words, no duplicates, include a way to refuse" — and the provider default
+  # wanders on all three. Same value and same reasoning as
+  # Boards::AdminBuilder::Drafting::TEMPERATURE. Set to "" to send none.
+  WORD_SUGGESTION_TEMPERATURE = ENV.fetch("OPENAI_WORD_TEMPERATURE", "0.4").freeze
+
+  # The system message every word-suggestion prompt now carries: who is
+  # choosing the words, and what makes one earn a cell. Built once rather than
+  # per call — it is the same string for all of them.
+  WORD_SUGGESTION_SYSTEM_PROMPT = <<~PROMPT.freeze
+    #{Prompts::Aac::WORD_LIST_SYSTEM_PROMPT}
+    Word selection rules:
+    #{Prompts::Aac::WORD_RULES}
+  PROMPT
+
+  # Sends a word-suggestion prompt with the shared AAC kernel in the system
+  # slot and a Structured Outputs schema pinning the response key.
+  #
+  # These prompts used to be a single user message with no persona and no
+  # rules, so the model was asked for a topical vocabulary list — the exact
+  # failure Prompts::Aac::WORD_LIST_SYSTEM_PROMPT names.
+  #
+  # Retries once without the schema for the same reason Drafting does: not
+  # every model accepts a json_schema, `create_chat` swallows an API error into
+  # nil content, and a rejected parameter is otherwise indistinguishable from
+  # "the model had nothing to say".
+  # `system_prompt:` is selectable because not every list is a vocabulary list.
+  # Social-story steps are a sequence of instructions, where WORD_RULES ("no
+  # near-duplicates", "include a way to refuse") would actively fight the task —
+  # those callers pass the persona alone.
+  def aac_word_chat(text, response_key:, schema_name: "aac_word_list",
+                    system_prompt: WORD_SUGGESTION_SYSTEM_PROMPT)
+    @messages = [
+      { role: "system", content: system_prompt },
+      { role: "user", content: text },
+    ]
+    @opts[:temperature] = WORD_SUGGESTION_TEMPERATURE if @opts[:temperature].blank? && WORD_SUGGESTION_TEMPERATURE.present?
+
+    schema = Prompts::Aac.word_list_schema(key: response_key, name: schema_name)
+    @opts[:response_format] = { type: "json_schema", json_schema: schema }
+    result = create_chat
+    return result if result[:content].present?
+
+    Rails.logger.warn("[OpenAiClient] no content from #{@model} with a json schema — retrying without it")
+    @opts.delete(:response_format)
+    create_chat
+  end
+
   def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en", profile: nil)
     prompt = <<~PROMPT
       I have a scenario description: "#{scenario_description}".
@@ -292,11 +343,8 @@ class OpenAiClient
     prompt = append_profile_guidance(prompt, profile)
 
     @model = GTP_MODEL
-    @messages = [{ role: "user",
-                   content: [{ type: "text", text: prompt }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Words for Scenario Response: #{response}" unless response
-    Rails.logger.debug "Words for Scenario Response: #{response.inspect}"
+    response = aac_word_chat(prompt, response_key: "words", schema_name: "aac_scenario_words")
+    Rails.logger.debug "*** ERROR *** Invalid Words for Scenario Response" if response[:content].blank?
     response
   end
 
@@ -347,15 +395,10 @@ class OpenAiClient
     format_instructions = append_language_instruction(format_instructions, language)
     text = "#{text} #{format_instructions} #{ending}"
     text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{
-      type: "text",
-      text: text,
-    }] }]
 
     @model = GTP_MODEL
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
+    response = aac_word_chat(text, response_key: "additional_words", schema_name: "aac_additional_words")
+    Rails.logger.debug "*** ERROR *** Invalid Additional Words Response" if response[:content].blank?
     response
   end
 
@@ -376,12 +419,8 @@ class OpenAiClient
     text += format_instructions
     text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: text }] }]
 
-    response = create_chat
-    response
+    aac_word_chat(text, response_key: "words", schema_name: "aac_board_words")
   end
 
   def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [], language: "en")
@@ -398,20 +437,20 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                                                                            I am creating a social story titled "#{name}".
+      I am creating a social story titled "#{name}".
 
-    Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
+      Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
-    These should represent actions or steps in the story.
+      These should represent actions or steps in the story.
 
-    Requirements:
-    - each item should be a short instruction or step (#{min_number_of_words}-#{max_number_of_words} words)
-    - simple language appropriate for children
-    - represent a sequence of events in the story
-    - avoid long sentences
-    - avoid punctuation
-    - lowercase only (except for proper nouns if necessary)
-    - no duplicates
+      Requirements:
+      - each item should be a short instruction or step (#{min_number_of_words}-#{max_number_of_words} words)
+      - simple language appropriate for children
+      - represent a sequence of events in the story
+      - avoid long sentences
+      - avoid punctuation
+      - lowercase only (except for proper nouns if necessary)
+      - no duplicates
     TEXT
 
     unless words_to_exclude.blank?
@@ -430,12 +469,10 @@ class OpenAiClient
 
     text = append_language_instruction(text, language)
 
-    @messages = [{
-      role: "user",
-      content: [{ type: "text", text: text }],
-    }]
-
-    create_chat
+    # Persona only, no WORD_RULES: these are ordered story steps, not a
+    # vocabulary list, and the selection rules would pull against the sequence.
+    aac_word_chat(text, response_key: "words", schema_name: "aac_social_story_steps",
+                        system_prompt: Prompts::Aac::WORD_LIST_SYSTEM_PROMPT)
   end
 
   def get_word_suggestions_from_prompt(prompt, language: "en", profile: nil)
@@ -445,11 +482,8 @@ class OpenAiClient
     text += format_instructions
     text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: text }] }]
 
-    create_chat
+    aac_word_chat(text, response_key: "words", schema_name: "aac_prompt_words")
   end
 
   # Appends communicator-profile guidance (age / AAC level / vocab type) to a

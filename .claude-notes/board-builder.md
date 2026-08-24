@@ -1322,7 +1322,13 @@ Its own invariants:
     "Play" must not be recoloured because a word table knows the verb.
 
 - **Every drafter shares one system prompt, one set of word rules, and a JSON
-  schema.** `AdminBuilder::Drafting` owns all three: `SYSTEM_PROMPT` (sent as a
+  schema — and so does every user-facing word path now.** The TEXT moved out to
+  `Prompts::Aac` (see `.claude-notes/ai-prompting.md`); `Drafting::SYSTEM_PROMPT`
+  and `::WORD_RULES` are delegating aliases, and a spec asserts they still match,
+  so everything below reads the same. What did NOT move is the model,
+  temperature, reasoning effort and timeout — those are measured decisions about
+  this path specifically and stay in `Drafting`.
+  `AdminBuilder::Drafting` owns all three: `SYSTEM_PROMPT` (sent as a
   `system` message ahead of each drafter's own `user` message), `WORD_RULES` (the
   rules that separate a board from a word list — combinatorial value, a way to
   object and a way to redirect, no single-use nouns, no closed-set filler,

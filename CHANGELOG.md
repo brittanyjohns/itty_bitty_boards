@@ -140,6 +140,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the brand was the first thing a reader saw. The mark still signs the footnote
   on every page.
 
+### Changed
+
+- **Word suggestions now get the same AAC brief the Board Builder gets.** The
+  rules that decide whether a word earns a place on a board — favour words that
+  finish many different sentences, every board needs a way to object and a way
+  to redirect, no filler runs of colours or days of the week, no near-duplicates
+  — were written for the admin board builder and only ever reached it. Every
+  suggestion a parent or therapist can trigger ("suggest words for this board",
+  "add more words", the scenario builder, interest pages) was asking for a
+  topical vocabulary list instead, which is the thing those rules exist to
+  prevent: a board full of correct words you cannot say anything with. All of
+  them now share one brief, and the reply shape is pinned rather than described,
+  so a malformed answer is refused instead of silently half-read.
+
 ### Fixed
 
 - **AI board layout can produce the AAC colours again.** "Format with AI"
