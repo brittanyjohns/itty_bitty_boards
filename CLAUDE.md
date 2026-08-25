@@ -503,6 +503,19 @@ an explicit decision, not a drive-by edit.
   substitute teacher reads routinely; routing them through the emergency alert
   would train parents to ignore it. Care fields are equally never sent to
   OpenAI. Details: `.claude-notes/safety-profiles.md`.
+- **A communicator's MySpeak slug is never derived from their name — every
+  creation path leaves `slug` BLANK and lets `Profile#ensure_slug` assign the
+  random one.** `safety_profile?` is true for any ChildAccount-owned Profile, so
+  the rule is already written down in one place; a path that passes `slug:`
+  simply skips it, because `ensure_slug` returns on a present slug. That is how
+  the dashboard shipped `/my/river-stone` while the wizard shipped
+  `/my/s-k8x2mf` — and nothing re-slugs a page afterwards, so the emergency info
+  a parent fills in later lands behind whichever URL that first write chose. A
+  readable `username` is fine and wanted (it is the handle on a page a responder
+  has already scanned); the URL is the part that must not be guessable. Existing
+  rows: `rake profiles:migrate_to_random_slugs`, dry-run by default, which keeps
+  the old slug resolving via `legacy_slug` + 301 — so it moves the canonical URL
+  but does not make an already-exposed page unfindable.
 - **A communicator's MySpeak page is FREE on every plan — the communicator SLOT
   is the quota, never a Profile count.** Every communicator auto-mints exactly
   one `Profile` at create time (`ChildAccount#create_profile!`, called from

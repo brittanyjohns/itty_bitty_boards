@@ -67,7 +67,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the unused part of what they already paid — Stripe issues no credit — so the
   page warns before the switch. As a backstop, a Partner is no longer demoted by
   their own subscription's updates even if the Stripe change didn't land.
-
+- **A communicator added from the dashboard now gets an unguessable MySpeak
+  page address, the same as one made in the MySpeak wizard.** Adding "River
+  Stone" produced the public page `/my/river-stone` — derivable from the
+  child's name by anyone — while the wizard produced `/my/s-k8x2mf`. Nothing
+  re-addresses a page afterwards, so emergency information filled in later sat
+  behind the guessable link. New communicator pages now always get the random
+  address. Existing pages are unchanged until you run
+  `rake profiles:migrate_to_random_slugs`, which previews by default, keeps the
+  old address working as a redirect, and re-sends updated device tags for the
+  pages it moves.
 - **"Make this my editable board" no longer reports success while changing
   nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`
   and always answered 200, but the read-only gate resolves the edit slot

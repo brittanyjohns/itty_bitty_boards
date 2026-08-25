@@ -111,11 +111,13 @@ namespace :demo do
       ca.details = (ca.details || {}).merge(data[:details])
       ca.save!
 
-      # Build the MySpeak safety profile the way onboarding does (not
-      # ChildAccount#create_profile!, which forces a name-derived slug): leave
-      # `slug` blank so Profile#ensure_slug assigns an unguessable random
+      # Build the MySpeak safety profile the way every creation path does:
+      # leave `slug` blank so Profile#ensure_slug assigns an unguessable random
       # `s-xxxxxx` slug (slug_type "random"), matching real safety pages so a
-      # child's /my/<slug> can't be found by guessing their name.
+      # child's /my/<slug> can't be found by guessing their name. (This built
+      # the profile by hand because ChildAccount#create_profile! used to force
+      # a name-derived slug; it no longer does — see #774 — but the explicit
+      # build stays, since the seed also needs profile_kind pinned.)
       profile = ca.profile || Profile.create!(
         profileable: ca,
         profile_kind: "safety",

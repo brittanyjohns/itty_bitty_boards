@@ -828,37 +828,25 @@ class ChildAccount < ApplicationRecord
     CommunicationAccountMailer.setup_email(self, sending_user).deliver_later
   end
 
+  # Mints the communicator's MySpeak page. Deliberately passes NO `slug:` —
+  # a blank slug is what lets `Profile#ensure_slug` assign the unguessable
+  # random `s-xxxxxx` one (`slug_type: "random"`), the same page the MySpeak
+  # wizard creates. This path used to force a name-derived slug, so a child
+  # added from the dashboard got `/my/river-stone` while the wizard's got
+  # `/my/s-k8x2mf` — and since nothing re-slugs a page afterwards, the
+  # emergency info a parent later filled in sat behind a URL anyone could
+  # guess from the child's name. The `username` stays readable: it's the
+  # handle printed on a page a responder has already scanned, not the URL.
   def create_profile!
     return if profile.present?
-    slug = sluggify_for_profile(username)
-    unless slug
+    if username.blank?
       Rails.logger.error "\nUsername is nil, cannot create profile\n"
       return
     end
-    random_id = SecureRandom.hex(4)
-    if Profile.find_by(slug: slug)
-      slug = "#{slug}-#{random_id}"
-    end
-    profile = Profile.create!(profileable: self, username: username, slug: slug)
+    profile = Profile.create!(profileable: self, username: username)
     profile.set_fake_avatar
     profile.save!
     profile
-  end
-
-  # Profile slugs must match Profile::SLUG_FORMAT (3–40 lowercase letters /
-  # digits / hyphens, no leading-or-trailing hyphen). `String#parameterize`
-  # keeps underscores, so legacy usernames like "child_1" would otherwise
-  # produce a slug that fails the format validation. We sanitize aggressively
-  # here and pad short results so any non-empty username yields a valid slug.
-  def sluggify_for_profile(value)
-    return nil if value.nil?
-    base = value.to_s.parameterize
-                .tr("_", "-")
-                .gsub(/-+/, "-")
-                .gsub(/^-+|-+$/, "")
-                .downcase
-    base = "u-#{base}" if base.length.positive? && base.length < 3
-    base.presence
   end
 
   def print_credentials

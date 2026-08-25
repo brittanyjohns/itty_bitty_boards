@@ -672,9 +672,17 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
   client-supplied `slug`** (random is non-negotiable for safety pages; the
   wizard no longer collects a link). The username stays human-readable because
   it's the handle shown on the page a responder already scanned, not the public
-  URL. `ChildAccount#create_profile!` (programmatic communicator creation, not
-  the wizard) still passes a name-derived slug — its new profiles are caught by
-  the backfill task but it does **not** yet auto-randomize on create (follow-up).
+  URL.
+- **Every creation path leaves the slug blank — that is the rule, not a detail
+  of the wizard.** `ChildAccount#create_profile!` (the auto-minted page behind
+  `API::ChildAccountsController#create`, i.e. the dashboard) used to force a
+  name-derived slug, so the path most users take produced a *guessable*
+  `/my/river-stone` while the wizard's was unguessable. Nothing re-slugs a page
+  afterwards, so the emergency info a parent filled in later sat behind a URL
+  anyone could derive from the child's name. It now passes no `slug:` at all and
+  lets `ensure_slug` do its job; `sluggify_for_profile` and its collision-suffix
+  dance went with it. A new creation path passes `username:` and never `slug:`
+  (#774).
 - **Not user-editable:** `Profile#slug_editable?` returns `false` when
   `slug_type == "random"`, regardless of the 7-day edit window. `slug_type` and
   `slug_editable` are exposed on `Profile#api_view`.
@@ -687,10 +695,22 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
 - **Backfill + cards:** `rake profiles:migrate_to_random_slugs` is **dry-run by
   default** (reports what would change, enqueues nothing); apply with
   `DRY_RUN=false`, scope with `USER_ID=N`. When applied it migrates every
-  matching `slug_type = "legacy"` safety profile (via `update_columns`, skipping
-  validations/callbacks) and enqueues `RegenerateSafetyCardsJob` for **only the
-  profiles migrated in that run** (so a re-run / scoped run doesn't re-email
-  parents whose cards are current).
+  matching profile (via `update_columns`, skipping validations/callbacks) and
+  enqueues `RegenerateSafetyCardsJob` for **only the profiles migrated in that
+  run** (so a re-run / scoped run doesn't re-email parents whose cards are
+  current). Its scope mirrors `Profile#safety_profile?` — ChildAccount-owned
+  **or** `profile_kind: "safety"` — because `set_kind` only rewrites User-owned
+  rows, so a placeholder claimed by a communicator stays
+  `profile_kind: "placeholder"` and a kind-only scope walked straight past a
+  page that is very much a child's. The guard is `slug_type` **not** `"random"`
+  rather than `== "legacy"`: anything not already random still has a
+  name-derived URL to retire, and it is what makes re-runs no-ops.
+  **Note what the backfill does and does not buy you:** it preserves the old
+  slug as `legacy_slug`, and the public endpoint 301-redirects it, so the
+  guessable name-derived URL keeps resolving for a migrated page. That is
+  deliberate (a parent may have texted the link), but it means the backfill
+  moves the canonical URL without making an already-exposed page unfindable —
+  only new pages are unguessable from birth.
   That job re-renders the device tag with the new QR target
   (`Communicators::GenerateDeviceTag` with `regenerate: true`) and emails the
   parent via `CommunicationAccountMailer#safety_cards_updated`. Run after

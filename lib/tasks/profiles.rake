@@ -1,6 +1,7 @@
 namespace :profiles do
-  # Migrate safety profile slugs to unguessable random tokens, preserving the
-  # old slug as `legacy_slug` (the public endpoint 301-redirects old → new).
+  # Migrate communicator (safety) page slugs to unguessable random tokens,
+  # preserving the old slug as `legacy_slug` (the public endpoint
+  # 301-redirects old → new, so a link a parent already shared keeps working).
   #
   # Read-only by default (reports what would change). Apply with DRY_RUN=false.
   #
@@ -12,7 +13,17 @@ namespace :profiles do
     dry_run = ENV["DRY_RUN"] != "false"
     user_id = ENV["USER_ID"].presence
 
-    scope = Profile.where(profile_kind: "safety", slug_type: "legacy")
+    # Mirrors `Profile#safety_profile?` — a ChildAccount-owned row is a
+    # communicator page whatever its `profile_kind` says, and some are not
+    # "safety": `set_kind` only rewrites User-owned rows, so a placeholder
+    # claimed by a communicator keeps `profile_kind: "placeholder"` and a
+    # kind-only scope walked straight past it. The guard is `slug_type` NOT
+    # "random" rather than `== "legacy"` for the same reason — anything that
+    # isn't already random still has a name-derived URL to retire — and it is
+    # what keeps re-runs no-ops, so a migrated slug is never regenerated.
+    scope = Profile.where(profileable_type: "ChildAccount")
+                   .or(Profile.where(profile_kind: "safety"))
+                   .where.not(slug_type: "random")
     if user_id
       child_ids = ChildAccount.where(user_id: user_id).pluck(:id)
       scope = scope.where(profileable_type: "ChildAccount", profileable_id: child_ids)
