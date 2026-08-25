@@ -1497,9 +1497,12 @@ class API::BoardsController < API::ApplicationController
 
     # No-op when the user re-picks the board that's already designated. Skip
     # the cooldown check so a confirm/double-tap doesn't accidentally start
-    # the clock either.
+    # the clock either. Still verify the board really is editable — a
+    # designation the slot rules can't honor must not answer 200.
     if current_user.editable_board_id == @board.id
       fresh_user = User.find(current_user.id)
+      return render_editable_board_unavailable unless fresh_user.board_editable?(@board)
+
       render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
       return
     end
@@ -1514,11 +1517,30 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
+    previous_board_id = current_user.editable_board_id
+    previous_set_at = current_user.editable_board_id_set_at
+
     current_user.update!(
       editable_board_id: @board.id,
       editable_board_id_set_at: Time.current,
     )
     fresh_user = User.find(current_user.id)
+
+    # Verify the postcondition instead of assuming it. Writing
+    # editable_board_id is not the same as the board becoming editable —
+    # User#board_editable? resolves the slot through its own rules, and a pick
+    # it can't honor used to leave this endpoint answering 200 with the board
+    # still locked. The frontend read that as success, reloaded, and showed the
+    # same read-only board: no change, no error, nothing in the UI. Roll the
+    # write back and say so instead.
+    unless fresh_user.board_editable?(@board)
+      current_user.update_columns(
+        editable_board_id: previous_board_id,
+        editable_board_id_set_at: previous_set_at,
+      )
+      return render_editable_board_unavailable
+    end
+
     render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
   end
 
@@ -1727,6 +1749,17 @@ class API::BoardsController < API::ApplicationController
     qr = RQRCode::QRCode.new(url)
     png = qr.as_png(size: size, border_modules: border_modules)
     "data:image/png;base64,#{Base64.strict_encode64(png.to_s)}"
+  end
+
+  # The honest answer when a make_editable pick cannot take effect: the write
+  # went in but the slot rules didn't honor it, so the board is still
+  # read-only. Shaped like the cooldown response (error code + message) so the
+  # frontend renders it the same way.
+  def render_editable_board_unavailable
+    render json: {
+      error: "editable_board_not_available",
+      message: "This board can't be your editable board. Upgrade to edit every board.",
+    }, status: :unprocessable_content
   end
 
   # Use callbacks to share common setup or constraints between actions.

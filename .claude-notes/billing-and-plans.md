@@ -560,8 +560,9 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   for a limited paid plan like Clinician) for the frontend.
 - **The editable set generalizes to the board limit.** Free (limit 1) keeps the
   single board the user designates (`editable_board_id`, the make_editable pick +
-  cooldown below); a higher-limit locked plan (**Clinician**, 100) keeps its
-  `board_limit` most-recently-updated owned boards (favorites first,
+  cooldown below); a higher-limit locked plan (**Clinician**, 100) **pins that
+  same designated board first**, then fills the remaining slots with its
+  most-recently-updated owned boards (favorites first,
   `User#top_editable_board_ids`) — active work stays editable, stale boards lock.
   Full paid plans (Basic/Pro/licenses/Partner Pro) are never board-locked; their
   limit only gates creation.
@@ -577,7 +578,19 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `PATCH /api/boards/:id/make_editable`. The selection is persisted on
   `users.editable_board_id`. If none is set, `effective_editable_board_id`
   falls back to a favorite or most-recently-updated board so a freshly-
-  downgraded user is never fully locked out.
+  downgraded user is never fully locked out. The lookup that honors an explicit
+  pick goes through `total_boards`, **not** the `boards` association — `boards`
+  is scoped `is_template: false`, so a template board the user owns would be
+  locked by `locked_for?` (which keys off the raw `user_id`) yet never able to
+  hold the slot.
+- **`make_editable` verifies its own postcondition.** Writing
+  `editable_board_id` is not the same as the board becoming editable, since
+  `board_editable?` resolves the slot through `editable_board_ids`. After the
+  write the controller re-checks `board_editable?`; if the board is still
+  locked it rolls the write back (slot and cooldown untouched) and returns
+  **HTTP 422 `editable_board_not_available`**. Before this check, any pick the
+  slot rules couldn't honor answered 200 with the board still locked, which the
+  frontend rendered as nothing happening at all — no change, no error.
 - **Switch cooldown:** `make_editable` enforces a cooldown
   (`User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`, default 14, ENV-tunable via
   `EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`) between explicit picks. Without it,
@@ -601,12 +614,14 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `check_board_create_permissions`.
 - Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
   editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
-- **Free's editable slot assumes `FREE_BOARD_LIMIT == 1`.** The single
-  `editable_board_id` + make_editable pick only frees one board, so it's used
-  only for the limit≤1 case. Higher-limit locked plans (Clinician) don't use a
-  user pick at all — `editable_board_ids` computes the top-`board_limit` set by
-  recency (see above), so there's nothing to pin or rotate. The `make_editable`
-  cooldown machinery is therefore Free-only in practice.
+- **The make_editable pick applies to every board-limited plan, not just
+  Free.** Free (`FREE_BOARD_LIMIT == 1`) frees exactly one board with it.
+  Higher-limit locked plans (Clinician, or any account whose
+  `settings["board_limit"]` was raised) pin the pick into their editable set
+  and fill the rest by recency, so the pick displaces the least-recently-updated
+  slot rather than adding one. The cooldown applies there too. This used to be
+  Free-only: `editable_board_ids` ignored `editable_board_id` above limit 1, so
+  the button was still shown on those plans and did nothing.
 
 ### Communicator sign-in on downgrade (fallback mode)
 

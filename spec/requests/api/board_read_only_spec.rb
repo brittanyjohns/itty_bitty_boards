@@ -114,6 +114,72 @@ RSpec.describe "API board read-only gating", type: :request do
       patch "/api/boards/#{others_board.id}/make_editable", headers: auth_headers(user)
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # The endpoint used to write editable_board_id and answer 200 without
+    # checking that the board actually became editable. Every pick the slot
+    # rules couldn't honor came back as success with the board still locked —
+    # the frontend saw no error, reloaded, and showed the same read-only
+    # board. Nothing changed and nothing was reported.
+    it "designates a template board the user owns" do
+      template = create(:board, user: user, name: "Template", is_template: true)
+      expect(template.locked_for?(user.reload)).to be true
+
+      patch "/api/boards/#{template.id}/make_editable", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(template.locked_for?(User.find(user.id))).to be false
+    end
+
+    it "never answers ok while leaving the board locked" do
+      # A board the slot rules can't hand the edit slot to: not owned by the
+      # user via any association the resolver reaches.
+      unreachable = create(:board, user: user, name: "Unreachable")
+      allow_any_instance_of(User).to receive(:editable_board_ids).and_return([])
+
+      patch "/api/boards/#{unreachable.id}/make_editable", headers: auth_headers(user)
+
+      expect(response).not_to have_http_status(:ok)
+      expect(JSON.parse(response.body)["error"]).to eq("editable_board_not_available")
+      # The rejected pick must not consume the slot or start the cooldown.
+      expect(user.reload.editable_board_id).to eq(editable_board.id)
+      expect(user.editable_board_id_set_at).to be_nil
+    end
+
+    it "rejects a re-pick of the designated board when it is still locked" do
+      allow_any_instance_of(User).to receive(:editable_board_ids).and_return([])
+
+      patch "/api/boards/#{editable_board.id}/make_editable", headers: auth_headers(user)
+
+      expect(response).not_to have_http_status(:ok)
+      expect(JSON.parse(response.body)["error"]).to eq("editable_board_not_available")
+    end
+  end
+
+  # A board-limited plan with more than one slot (Clinician, and any account
+  # whose settings["board_limit"] was raised) resolved its editable set purely
+  # by recency and ignored editable_board_id outright, so make_editable was a
+  # silent no-op there.
+  describe "make_editable on a plan with more than one editable slot" do
+    let(:multi) do
+      create(:free_user).tap { |u| u.update!(settings: u.settings.merge("board_limit" => 2)) }
+    end
+    let!(:recent_a) { create(:board, user: multi, name: "Recent A", updated_at: 1.minute.ago) }
+    let!(:recent_b) { create(:board, user: multi, name: "Recent B", updated_at: 2.minutes.ago) }
+    let!(:stale)    { create(:board, user: multi, name: "Stale", updated_at: 30.days.ago) }
+
+    it "pins the designated board and locks the board it displaced" do
+      expect(stale.locked_for?(multi.reload)).to be true
+
+      patch "/api/boards/#{stale.id}/make_editable", headers: auth_headers(multi)
+
+      expect(response).to have_http_status(:ok)
+      fresh = User.find(multi.id)
+      expect(stale.locked_for?(fresh)).to be false
+      # Still only board_limit slots: the pin displaced the older of the two.
+      expect(fresh.editable_board_ids.size).to eq(2)
+      expect(fresh.editable_board_ids).to include(stale.id, recent_a.id)
+      expect(fresh.editable_board_ids).not_to include(recent_b.id)
+    end
   end
 
   # The cooldown closes the loophole where a free user could rotate the
