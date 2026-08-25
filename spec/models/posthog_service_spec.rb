@@ -3,7 +3,11 @@
 require "rails_helper"
 
 RSpec.describe PosthogService do
-  let(:user) { FactoryBot.build_stubbed(:user, id: 4242, plan_type: "pro") }
+  let(:user) do
+    FactoryBot.build_stubbed(:user, id: 4242, plan_type: "pro",
+                                    email: "parent@example.com", name: "Parent Example")
+  end
+  let(:identity) { { plan: "pro", email: "parent@example.com", name: "Parent Example" } }
   let(:client) { instance_double("PostHog::Client") }
 
   describe ".capture_for_user" do
@@ -20,14 +24,15 @@ RSpec.describe PosthogService do
         described_class.capture_for_user(user, "subscription_started", properties: { plan: "pro" })
       end
 
-      it "passes through event properties and defaults $set to the user's plan" do
+      it "passes through event properties and defaults $set to plan + email + name" do
         expect(client).to receive(:capture).with(
           distinct_id: "4242",
           event: "subscription_started",
           properties: {
             plan: "pro",
             billing_interval: "monthly",
-            "$set" => { plan: "pro" },
+            "$set" => identity,
+            "$geoip_disable" => true,
           },
         )
         described_class.capture_for_user(
@@ -37,9 +42,20 @@ RSpec.describe PosthogService do
         )
       end
 
-      it "uses an explicit :set override for $set" do
+      it "disables geoip so the app server's IP can't overwrite the person's location" do
         expect(client).to receive(:capture).with(
-          hash_including(properties: hash_including("$set" => { plan: "free" })),
+          hash_including(properties: hash_including("$geoip_disable" => true)),
+        )
+        described_class.capture_for_user(user, "user_signed_in", properties: {})
+      end
+
+      it "merges an explicit :set OVER the defaults rather than replacing them" do
+        expect(client).to receive(:capture).with(
+          hash_including(
+            properties: hash_including(
+              "$set" => identity.merge(plan: "free"),
+            ),
+          ),
         )
         described_class.capture_for_user(
           user,
@@ -49,9 +65,28 @@ RSpec.describe PosthogService do
         )
       end
 
+      it "drops nil identity properties (a user with no name)" do
+        nameless = FactoryBot.build_stubbed(:user, id: 7, plan_type: "free",
+                                                   email: "no-name@example.com", name: nil)
+        expect(client).to receive(:capture).with(
+          hash_including(
+            properties: hash_including(
+              "$set" => { plan: "free", email: "no-name@example.com" },
+            ),
+          ),
+        )
+        described_class.capture_for_user(nameless, "user_signed_in", properties: {})
+      end
+
       it "drops nil properties so they don't surface as empty PostHog props" do
         expect(client).to receive(:capture).with(
-          hash_including(properties: { plan: "pro", "$set" => { plan: "pro" } }),
+          hash_including(
+            properties: {
+              plan: "pro",
+              "$set" => identity,
+              "$geoip_disable" => true,
+            },
+          ),
         )
         described_class.capture_for_user(
           user,

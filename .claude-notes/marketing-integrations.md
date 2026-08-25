@@ -310,13 +310,57 @@ PostHog events; the backend ensures the full funnel is always captured
   `apply_free_plan` resets it; `reason` from Stripe's `cancellation_details`.
   Also records an internal `subscription_canceled` AnalyticsEvent for parity.
 
+**Communicator + page funnel events** — `Analytics::CommunicatorEvents`
+(`app/models/analytics/communicator_events.rb`), a thin wrapper over
+`capture_for_user` so both creation routes stay one-liners and the event names
+live in one place. Every one of these is server-side *because* the frontend SDK
+is consent-gated (`opt_out_capturing_by_default` + `person_profiles:
+"identified_only"`, #312): a user who never accepts the cookie banner produces
+no frontend events at all, and that is exactly the user who then emails support
+about a limit they hit (#766).
+
+- **`communicator_slot_limit_reached`** `{ status, limit, count, source }` —
+  when `Permissions::CommunicatorLimits.can_create?` refuses, at both
+  `API::ChildAccountsController#create` (`source: "child_accounts"`) and
+  `API::V1::Onboarding::MyspeakController#create`
+  (`source: "myspeak_onboarding"`). `limit`/`count` come from
+  `CommunicatorLimits.usage_for`, which exists only for this event —
+  `can_create?` returns a message, so without the numbers the event can't tell
+  "plan has no slots" from "all slots full". It costs a count query, so it runs
+  on the **refusal path only**.
+- **`communicator_account_created`** `{ status, communicator_id, source }` — on
+  every successful create, from both routes. `source` is the whole point: the
+  MySpeak wizard creates its communicator entirely server-side and never touches
+  the frontend form component the legacy `communicator account created` event
+  lives in, so onboarding-created communicators were silently uncounted. The
+  legacy spaced name is retired in itty-bitty-frontend#750; the two names are
+  distinct in PostHog, so they can't double-count against each other while both
+  exist.
+- **`myspeak_page_created`** `{ profile_id, communicator_id, source }` — when a
+  create **mints** the communicator's Profile. Deliberately not fired when a
+  `profile_id` hand-off links an existing page — that's a claim, not a new page.
+- **`public_page_created`** `{ profile_id }` / **`public_page_create_blocked`**
+  `{ reason }` — `API::ProfilesController#create`. The user-level Public page is
+  a different product from a communicator's MySpeak page; the block is the 409
+  `public_page_exists` state conflict.
+
 Key contracts:
 
 - **`distinct_id = user.id.to_s`.** The frontend identifies people as
   `String(user.id)` (`posthog.identify`), so the backend must use the same id
   for events to land on the same person. `capture_for_user` enforces this.
-- **Person `plan` stays in sync.** Every capture `$set`s the `plan` property
-  (defaults to `user.plan_type`; cancellation explicitly `$set`s `plan: free`).
+- **Person identity stays in sync, and an explicit `set:` MERGES over it.**
+  Every capture `$set`s `plan` + `email` + `name` (`default_person_props`).
+  Email/name are there so a support request can be joined to PostHog activity —
+  for a non-consenting user the server-side capture is the *only* thing that
+  ever reaches the person record, so without them it's an unlabelled id. A
+  caller correcting one property (cancellation's `set: { plan: "free" }`) merges
+  over the defaults rather than replacing them, so it can't silently drop the
+  identity half.
+- **`$geoip_disable: true` on every server-side capture.** posthog-ruby sends
+  the *app server's* IP, so without this every backend event geo-resolves to the
+  EC2 box's city and overwrites the person's real location with it. Geo comes
+  from the frontend SDK or from nowhere.
 - **Env-gated, prod-only.** `PosthogClient.enabled?` (`config/initializers/
   posthog.rb`) returns true in production only (staging excluded via
   `AppEnv.staging?`); dev/staging fire only when `POSTHOG_CAPTURE_ENABLED=true`.
