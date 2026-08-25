@@ -376,6 +376,11 @@ nest, and "Autofill the page" re-renders the main form — a browser cannot
 repopulate a file input across a render, so a file picked there would silently
 vanish. Same shape as the listing-video upload on board printables.
 
+The card renders on **both** screens, but only `edit` carries the file input: an
+upload needs a saved row (the storage key is scoped by id, and the form posts to
+a member route). On `new` it says so — a silent New screen reads as "there is no
+way to upload a PDF here", which is exactly the wrong answer.
+
 Routes: `POST upload_document`, `DELETE remove_document` (by blob signed id,
 scoped to the page), `POST regenerate_previews`. Upload validation lives in the
 controller and reports as a flash — re-rendering the whole edit screen around a

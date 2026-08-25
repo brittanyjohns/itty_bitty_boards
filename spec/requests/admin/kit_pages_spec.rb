@@ -487,6 +487,15 @@ RSpec.describe "Admin kit pages", type: :request do
         expect(flash[:alert]).to include("can't render PDF previews")
       end
 
+      # The upload needs a saved row, so the New screen can only point at the
+      # next step — but it must point, or it reads as "no way to upload here".
+      it "tells the admin on the New screen where the upload box will be" do
+        get new_admin_dashboard_kit_page_path
+
+        expect(response.body).to include("Document")
+        expect(response.body).to include("Create the page first")
+      end
+
       it "tells the admin on the edit screen that the upload overrides the printable" do
         kit_page.attach_document!(io: StringIO.new("%PDF"), filename: "handout.pdf")
 

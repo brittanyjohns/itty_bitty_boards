@@ -3,6 +3,19 @@
     browser cannot repopulate a file input across a render, so a file picked
     there would silently vanish. Same shape as the listing-video upload on
     board printables. %>
+<%# An upload needs a saved row: the storage key is scoped by id and the form
+    posts to a member route. Rather than leave the New screen silent about it —
+    which reads as "there is no way to upload a PDF here" — the card renders
+    there too, explaining the one extra step. %>
+<% if !@kit_page.persisted? %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Document</h2>
+    <p class="text-[11px] text-t3">
+      Want to hand out a PDF of your own instead of a printable? Create the page first — the upload box
+      appears here as soon as it's saved. You don't have to pick a printable above.
+    </p>
+  </div>
+<% else %>
 <% documents = @kit_page.ordered_documents %>
 <% previews = @kit_page.preview_images_view %>
 
@@ -88,3 +101,4 @@
     </div>
   <% end %>
 </div>
+<% end %>
