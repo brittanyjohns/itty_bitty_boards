@@ -149,8 +149,15 @@
       Published
     </label>
     <% if @kit_page.persisted? %>
-      <%= link_to "Preview", kit_preview_url(@kit_page), target: "_blank", rel: "noopener",
+      <%= link_to @kit_page.published? ? "Preview" : "Preview draft", kit_preview_url(@kit_page),
+            target: "_blank", rel: "noopener",
             class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+      <% unless @kit_page.published? %>
+        <span class="text-[11px] text-t3">
+          Opens the draft with a signed link that stops working after
+          <%= distance_of_time_in_words(KitPage::PREVIEW_TOKEN_TTL) %>. Reload this page for a fresh one.
+        </span>
+      <% end %>
     <% end %>
   </div>
 <% end %>

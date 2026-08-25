@@ -54,6 +54,15 @@ class KitPage < ApplicationRecord
   # tour.
   PREVIEW_PAGE_COUNT = 2
 
+  # How long an admin's draft-preview link stays good. Short on purpose and it
+  # costs nothing: the admin screen mints a fresh token every time it renders,
+  # so a stale link is fixed by reloading /admin/kit_pages.
+  PREVIEW_TOKEN_TTL = 24.hours
+
+  # Namespaced so a token minted here can never be replayed against another
+  # verifier's payload.
+  PREVIEW_VERIFIER_PURPOSE = "kit_page_preview".freeze
+
   # #url_for_file (preview) / #download_url_for_file (saves the file).
   include AttachedFileUrls
 
@@ -231,6 +240,42 @@ class KitPage < ApplicationRecord
 
   # True when this page gives away a printable that is sold on Etsy. The admin
   # form refuses such a save until the override is confirmed.
+  # A signed link that lets an admin look at a DRAFT page on the real frontend.
+  #
+  # The payload is the SLUG, not the id and not a bare "yes": a token minted for
+  # one page must not reveal another. It expires, and it is the only thing that
+  # gets an unpublished page past #for_public — being signed in as an admin does
+  # not, because /kit/:slug is deliberately anonymous (the frontend sends no
+  # auth header there, so a 401 can never redirect a marketing URL to sign-in).
+  def preview_token
+    self.class.preview_verifier.generate(slug, expires_in: PREVIEW_TOKEN_TTL)
+  end
+
+  def self.preview_verifier
+    Rails.application.message_verifier(PREVIEW_VERIFIER_PURPOSE)
+  end
+
+  # True only for a live, unexpired token minted for THIS slug. Never raises —
+  # a garbage token is "no", not a 500.
+  def self.valid_preview_token?(slug, token)
+    return false if slug.blank? || token.blank?
+
+    preview_verifier.verified(token.to_s) == slug.to_s
+  rescue StandardError
+    false
+  end
+
+  # The page a public request may see. Published for everyone; unpublished only
+  # with a valid preview token. An invalid token is answered exactly like a
+  # missing page — a draft's existence still isn't public information.
+  def self.for_public(slug, preview_token: nil)
+    page = find_by(slug: slug)
+    return nil if page.nil?
+    return page if page.published?
+
+    valid_preview_token?(slug, preview_token) ? page : nil
+  end
+
   def gives_away_protected_printable? = board_printable&.protects_board? || false
 
   def etsy_override? = etsy_override_at.present?
