@@ -697,3 +697,42 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
   deploy so the legacy fallback is live before slugs change. It no longer
   re-renders the Safety ID card — see "The retired Safety ID card".
 
+
+## Limits — what a MySpeak page costs, and what it doesn't
+
+Two different products live in the `profiles` table, and they have two different
+quotas. Conflating them is what broke #761.
+
+| Product | `profile_kind` | `profileable` | URL | Quota |
+|---|---|---|---|---|
+| **MySpeak page** | `safety` | `ChildAccount` | `/my/:slug` | The **communicator slot** (`Permissions::CommunicatorLimits`). Nothing else. |
+| **Public page** | `public_page` | `User` | `/u/:slug` | One per user, structurally (`User has_one :profile`). Plan-independent. |
+
+- **A communicator's MySpeak page is free on every plan** — which is what the
+  frontend copy has always promised (`en.json` "free on every plan, including
+  Free", plus the dashboard's "Free on every plan" badge). Every communicator
+  auto-mints exactly one Profile at create time
+  (`ChildAccount#create_profile!`, called from `API::ChildAccountsController#create`),
+  so a page is never something the user asks for separately. There is no
+  per-Profile counter and no `FREE_MYSPEAK_ID_LIMIT`; both were removed in #761.
+  **Never reintroduce a Profile count as a quota.** It charges
+  `Permissions::CommunicatorLimits` a second time for the same communicator, and
+  it does so from `POST /api/child_accounts` — a path that doesn't know the limit
+  exists — so the slot is consumed silently and the user is refused a page they
+  were told is free. That is exactly how a Free SLP with one communicator ended
+  up unable to create anything, having "never created one."
+- **The user-level Public page is one per user.** `API::ProfilesController#create`
+  answers a duplicate with **409 `public_page_exists`** (carrying `profile_id`
+  and `slug` so the client can switch to an update), not a 403 — it is a state
+  conflict, not a plan gate. A second row would be unreachable anyway, since
+  `user.profile` returns an arbitrary one of them. Note there is **no DB unique
+  index** on `(profileable_type, profileable_id)`; the controller guard is the
+  only thing holding the invariant on the write path.
+- **`resources :profiles` is `only:`-scoped** (and the `namespace :account` one
+  is `only: []`). The controllers define no `destroy`/`new`/`edit`, and a bare
+  `resources` routed `DELETE /api/profiles/:id` straight at a missing action —
+  `AbstractController::ActionNotFound`, a 500. It now falls through to the
+  catch-all 404. There is still **no delete path for a Profile** from anywhere
+  in the app; a page is removed only as a side effect of `User#destroy`
+  (`dependent: :destroy`), and notably *not* by `ChildAccount#destroy`, which
+  carries no `dependent:`.

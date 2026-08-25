@@ -209,11 +209,11 @@ an explicit decision, not a drive-by edit.
 - **HTTP error semantics:** **402** = credit exhaustion only
   (`insufficient_credits`). **429** = true rate limiting only. **403** =
   permission/plan gates (`board_locked`, `pro_required`,
-  `communicator_in_fallback`, `myspeak_id_limit_reached`, …). **409** = state
+  `communicator_in_fallback`, …). **409** = state
   conflicts, some confirmable (`board_in_use`,
   `publish_cascade_confirmation_required`,
   `board_marketplace_edit_confirmation_required`) and some not
-  (`board_marketplace_protected`) — an unconfirmable conflict is always
+  (`board_marketplace_protected`, `public_page_exists`) — an unconfirmable conflict is always
   answered FIRST, or the client learns to retry into a wall. Never leak
   internals in API errors — generic messages only.
 - **`User#paid_plan?` is the single paid-tier gate.** It checks both
@@ -503,6 +503,20 @@ an explicit decision, not a drive-by edit.
   substitute teacher reads routinely; routing them through the emergency alert
   would train parents to ignore it. Care fields are equally never sent to
   OpenAI. Details: `.claude-notes/safety-profiles.md`.
+- **A communicator's MySpeak page is FREE on every plan — the communicator SLOT
+  is the quota, never a Profile count.** Every communicator auto-mints exactly
+  one `Profile` at create time (`ChildAccount#create_profile!`, called from
+  `API::ChildAccountsController#create`), so counting Profiles charges
+  `Permissions::CommunicatorLimits` a second time for the same communicator —
+  and it does so from a path that doesn't know the limit exists, so the slot is
+  consumed silently. That is how a Free user with one communicator was refused
+  the page five places of frontend copy promise is "free on every plan,
+  including Free", having never knowingly created one. `FREE_MYSPEAK_ID_LIMIT`
+  and `User#myspeak_id_count` are gone; do not reintroduce a per-Profile quota.
+  The user-level **Public page** is a different product — one per user
+  (`User has_one :profile`), plan-independent, and a duplicate create is a
+  **409 `public_page_exists`**, not a 403, because it is a state conflict rather
+  than a plan gate. Details: `.claude-notes/safety-profiles.md`.
 - **A board on a communicator's MySpeak page is a PUBLISHED board.** The public
   grid selects on `child_boards.favorite`, but the board behind each card is
   gated on `Board#viewable_by?`, which refuses an anonymous visitor an
