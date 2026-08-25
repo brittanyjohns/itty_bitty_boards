@@ -121,7 +121,17 @@ RSpec.describe "Communicator + MySpeak analytics", type: :request do
     end
 
     it "captures the slot refusal at the end of the wizard" do
-      create(:child_account, user: user, owner: user, status: ChildAccount::SANDBOX)
+      # Out of slots is only a refusal when there is nothing to adopt, so the
+      # existing communicator needs a page someone actually set up — a blank
+      # one would be adopted instead.
+      child = create(:child_account, user: user, owner: user,
+                                     username: "taken-kid", status: ChildAccount::SANDBOX)
+      Profile.create!(
+        profileable: child,
+        username: child.username,
+        slug: child.username,
+        settings: { "ice_contact_1" => { "name" => "Mum", "phone" => "555-0100" } },
+      )
 
       post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
       expect(response).to have_http_status(:unprocessable_content)
@@ -131,6 +141,29 @@ RSpec.describe "Communicator + MySpeak analytics", type: :request do
         "communicator_slot_limit_reached",
         properties: hash_including(status: ChildAccount::SANDBOX, source: "myspeak_onboarding"),
       )
+    end
+
+    it "captures an adopt as an adopt when the wizard fills in a blank page instead" do
+      child = create(:child_account, user: user, owner: user,
+                                     username: "blank-kid", status: ChildAccount::SANDBOX)
+      blank = Profile.create!(profileable: child, username: child.username, slug: child.username)
+
+      post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+      expect(response).to have_http_status(:created)
+
+      expect(PosthogService).to have_received(:capture_for_user).with(
+        user,
+        "myspeak_page_adopted",
+        properties: hash_including(profile_id: blank.id, communicator_id: child.id,
+                                   source: "myspeak_onboarding"),
+      )
+      # No account was created, so neither create event may fire.
+      expect(PosthogService).not_to have_received(:capture_for_user)
+        .with(user, "communicator_account_created", anything)
+      expect(PosthogService).not_to have_received(:capture_for_user)
+        .with(user, "myspeak_page_created", anything)
+      expect(PosthogService).not_to have_received(:capture_for_user)
+        .with(user, "communicator_slot_limit_reached", anything)
     end
   end
 

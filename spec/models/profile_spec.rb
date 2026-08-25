@@ -85,6 +85,71 @@ RSpec.describe Profile, type: :model do
     end
   end
 
+  # This predicate authorizes an overwrite — the MySpeak wizard adopts a
+  # never-set-up page when the user has no communicator slot left — so the
+  # false positives are the dangerous direction. Each "no" case below is a
+  # page someone actually wrote something on.
+  describe "#never_set_up?" do
+    # What ChildAccount#create_profile! leaves behind: a username, a slug, and
+    # nothing else.
+    def auto_minted
+      Profile.create!(profileable: child, username: "quiet-fox", slug: "quiet-fox")
+    end
+
+    it "is true for the blank page auto-minted with every communicator" do
+      expect(auto_minted.never_set_up?).to be(true)
+    end
+
+    it "is true when the bio is still one of the old seeded strings" do
+      profile = auto_minted
+      profile.update!(bio: Profile::SEEDED_TEXT.first)
+
+      expect(profile.never_set_up?).to be(true)
+    end
+
+    it "is false once someone has written a bio" do
+      profile = auto_minted
+      profile.update!(bio: "Loves trains and knows every station on the line.")
+
+      expect(profile.never_set_up?).to be(false)
+    end
+
+    it "is false once an emergency contact exists" do
+      profile = auto_minted
+      profile.update!(settings: { "ice_contact_1" => { "name" => "Mum", "phone" => "555-0100" } })
+
+      expect(profile.never_set_up?).to be(false)
+    end
+
+    it "is false once medical safety info exists, even with a blank bio" do
+      profile = auto_minted
+      profile.update!(settings: { "allergies" => "peanuts" })
+
+      expect(profile.never_set_up?).to be(false)
+    end
+
+    it "is false once pronouns are set" do
+      profile = auto_minted
+      profile.update!(settings: { "pronouns" => "she/her" })
+
+      expect(profile.never_set_up?).to be(false)
+    end
+
+    it "is false once an intro is recorded" do
+      profile = auto_minted
+      profile.update!(intro: "Hi, I'm Sam.")
+
+      expect(profile.never_set_up?).to be(false)
+    end
+
+    it "is false once a rich-text section has been written" do
+      profile = auto_minted
+      profile.update!(public_about: "<p>About Sam</p>")
+
+      expect(profile.never_set_up?).to be(false)
+    end
+  end
+
   describe ".seeded_text?" do
     it "recognizes copy this app used to write into bio and intro" do
       expect(Profile.seeded_text?(Profile::SEEDED_TEXT.first)).to be(true)

@@ -80,6 +80,26 @@ module Analytics
       )
     end
 
+    # The wizard set up a page on a communicator that already existed, instead
+    # of creating a new one, because the user had no slot left. A distinct
+    # event rather than a flag on `myspeak_page_created`: no communicator was
+    # created here, so this must never land in the same count as a create.
+    # Pairs with `communicator_slot_limit_reached` — every adopt is a refusal
+    # that used to be a dead end.
+    def myspeak_page_adopted(user:, profile:, child:, source:)
+      return unless user && profile
+
+      PosthogService.capture_for_user(
+        user,
+        "myspeak_page_adopted",
+        properties: {
+          profile_id: profile.id,
+          communicator_id: child&.id,
+          source: source,
+        },
+      )
+    end
+
     # The user-level Public page (User has_one :profile) — a different product
     # from a communicator's MySpeak page, with a different quota.
     def public_page_created(user:, profile:)

@@ -933,6 +933,32 @@ class Profile < ApplicationRecord
     SAFETY_SENSITIVE_KEYS.any? { |k| raw[k].present? }
   end
 
+  # True when this page exists on paper but nobody has filled it in — the
+  # Profile every communicator auto-mints at create time
+  # (ChildAccount#create_profile!), still carrying nothing but a username and
+  # a generated avatar.
+  #
+  # The MySpeak wizard adopts these instead of demanding a communicator slot
+  # the user may not have: a Free user gets exactly one self-create, and
+  # adding a communicator from the dashboard spends it while silently minting
+  # this very page. So the user most likely to be refused a MySpeak page is
+  # the one whose page already exists, empty (#761 follow-up).
+  #
+  # Deliberately conservative — this predicate authorizes an overwrite, so any
+  # trace of real authorship (a bio someone wrote, pronouns, one emergency
+  # contact, any rich-text section) makes it a page that was set up, and the
+  # wizard must leave it alone.
+  def never_set_up?
+    return false if has_safety_info?
+
+    raw = settings.is_a?(Hash) ? settings : {}
+    return false if raw["pronouns"].present?
+    return false if intro.present?
+    return false if [public_about, public_intro, public_bio].any? { |rt| rt&.body.present? }
+
+    bio.blank? || self.class.seeded_text?(bio)
+  end
+
   # The sensitive safety settings withheld from the open page. Returned only by
   # the gated safety-details endpoint, after the access is recorded + the parent
   # alerted (issue #384).

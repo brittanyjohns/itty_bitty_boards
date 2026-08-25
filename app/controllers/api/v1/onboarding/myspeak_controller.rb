@@ -5,6 +5,16 @@ module API
         MAX_SLUG_TRIES = 50
 
         def create
+          # Validated first: a blank name fails on every path, and answering it
+          # with a slot or picker error would send the user hunting for the
+          # wrong problem.
+          name = params[:name].to_s.strip
+          if name.blank?
+            render json: { error: "Onboarding failed", details: ["Name can't be blank"] },
+                   status: :unprocessable_content
+            return
+          end
+
           # A communicator's MySpeak page is free on every plan. The only quota
           # here is the COMMUNICATOR SLOT below (Permissions::CommunicatorLimits)
           # — every communicator auto-mints exactly one Profile, so counting
@@ -24,7 +34,34 @@ module API
               user: current_user,
               status: status,
             )
-          unless allowed
+
+          # Out of slots is not the end of the road. A Free user gets exactly
+          # ONE self-create, and adding a communicator from the dashboard
+          # spends it — while silently minting that communicator's MySpeak page
+          # (ChildAccount#create_profile!) and leaving it blank. So the user
+          # refused here is usually the user whose page already exists, unset:
+          # #761's fix stopped that page being double-counted, but the wizard
+          # still had only one move — create a NEW communicator — so she stayed
+          # stuck, one slot short of a page she already owned.
+          #
+          # Set up THAT page instead. Adoption runs only when a create is
+          # refused, so the ordinary path is untouched.
+          target = allowed ? nil : adoption_target
+
+          if !allowed && target.nil?
+            candidates = adoptable_communicators
+            if candidates.size > 1
+              # Several blank pages and no `communicator_id` to disambiguate.
+              # Guessing would write a child's emergency details onto the wrong
+              # page, so ask instead — the ids come back for the picker.
+              render json: {
+                error: "communicator_selection_required",
+                message: "Choose which communicator this page is for.",
+                communicators: candidates.map { |c| { id: c.id, name: c.name, username: c.username } },
+              }, status: :unprocessable_content
+              return
+            end
+
             # A hard stop at the END of a multi-step wizard. Captured
             # server-side because the user who hits it is often the one who
             # never accepted the cookie banner, so the frontend sees nothing
@@ -36,13 +73,6 @@ module API
             )
             render json: { error: "communicator_slot_unavailable", message: slot_error },
                    status: http_status
-            return
-          end
-
-          name = params[:name].to_s.strip
-          if name.blank?
-            render json: { error: "Onboarding failed", details: ["Name can't be blank"] },
-                   status: :unprocessable_content
             return
           end
 
@@ -63,56 +93,38 @@ module API
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
 
-          # Safety profiles get an unguessable random slug, assigned by
-          # Profile#ensure_slug when the slug is left blank, so a child's public
-          # emergency page (`/my/<slug>`) can't be found by guessing their name.
-          # We deliberately ignore any client-supplied slug (the wizard no longer
-          # collects one) — random is non-negotiable for safety pages.
-          #
-          # We still derive a readable, unique *username* from the name: it's the
-          # account handle shown on the page a responder already scanned, not the
-          # public URL, so keeping it human-readable doesn't weaken discovery
-          # protection.
-          base_slug = name.parameterize.presence || "communicator-#{SecureRandom.hex(3)}"
-          unique = unique_slug_for(base_slug)
-
           profile = nil
           child = nil
+          adopted = target.present?
 
           ActiveRecord::Base.transaction do
-            # `communicator_accounts` uses `owner_id` as the FK; set `user`
-            # explicitly so downstream `api_view`s (which read
-            # `child.user.pro?` etc.) don't see a nil user.
-            #
-            # `status` is plan-driven (see above): a Free user's MySpeak account
-            # is a no-login sandbox; paid plans get a full (active) communicator.
-            # Sandbox communicators still appear on the family dashboard — the
-            # index lists every owned account regardless of status.
-            child = current_user.communicator_accounts.create!(
-              name: name,
-              username: unique,
-              user: current_user,
-              status: status,
-            )
+            child, profile =
+              if adopted
+                adopt_communicator(target, name: name)
+              else
+                build_communicator(name: name, status: status)
+              end
 
-            # No `slug:` — left blank so Profile#ensure_slug assigns the random
-            # `s-xxxxxx` safety slug (slug_type "random", not user-editable).
+            # Merge rather than replace the settings hash: `never_set_up?`
+            # guarantees the keys the wizard writes are empty, but says nothing
+            # about theme settings someone may have picked, and those are not
+            # this wizard's to discard.
+            #
             # bio = About Me (public). Left blank when a legacy client sends
-            # only care_notes, so Profile#set_defaults fills the placeholder
-            # bio rather than leaking safety text onto the public page.
-            profile = Profile.new(
-              profileable: child,
+            # only care_notes, so nothing leaks safety text onto the public page.
+            profile.assign_attributes(
               profile_kind: "safety",
-              username: unique,
               bio: about_me,
-              settings: build_settings(
-                pronouns: pronouns,
-                contacts: contacts,
-                emergency_notes: resolved_emergency_notes,
+              settings: (profile.settings || {}).merge(
+                build_settings(
+                  pronouns: pronouns,
+                  contacts: contacts,
+                  emergency_notes: resolved_emergency_notes,
+                ),
               ),
             )
 
-            attach_photo(profile, photo_data_url, unique) if photo_data_url.present?
+            attach_photo(profile, photo_data_url, profile.username) if photo_data_url.present?
 
             profile.save!
 
@@ -128,17 +140,27 @@ module API
           # touches the frontend form the legacy `communicator account created`
           # event lives in — every communicator made through the wizard was
           # uncounted before #766.
-          Analytics::CommunicatorEvents.account_created(
-            user: current_user,
-            child: child,
-            source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
-          )
-          Analytics::CommunicatorEvents.myspeak_page_created(
-            user: current_user,
-            profile: profile,
-            child: child,
-            source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
-          )
+          if adopted
+            # No account was created — do not let this land in a create count.
+            Analytics::CommunicatorEvents.myspeak_page_adopted(
+              user: current_user,
+              profile: profile,
+              child: child,
+              source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
+            )
+          else
+            Analytics::CommunicatorEvents.account_created(
+              user: current_user,
+              child: child,
+              source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
+            )
+            Analytics::CommunicatorEvents.myspeak_page_created(
+              user: current_user,
+              profile: profile,
+              child: child,
+              source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
+            )
+          end
 
           # Fall back to a generated initials avatar when the parent
           # skipped the photo step. The Safety ID card and Device Tag
@@ -156,7 +178,12 @@ module API
           # settings back (page-safe + sensitive). The public #safety_view
           # withholds the sensitive keys; this authenticated create response
           # doesn't need to — the owner just typed this data in.
+          # `adopted` tells the frontend this page was set up on a communicator
+          # the user already had, rather than a new one — the difference the
+          # confirmation copy needs. Status stays :created either way: from the
+          # caller's side the MySpeak page did not exist before this request.
           render json: profile.safety_view.merge(
+            adopted: adopted,
             settings: profile.public_settings(kind: :safety)
                              .merge(profile.safety_sensitive_settings),
           ), status: :created
@@ -169,6 +196,104 @@ module API
         end
 
         private
+
+        # Communicators this user owns whose MySpeak page has never been set up
+        # — either no Profile at all, or the blank auto-minted one. These are
+        # the only pages the wizard may write to when there is no slot left.
+        def adoptable_communicators
+          @adoptable_communicators ||=
+            current_user.communicator_accounts
+                        .includes(:profile)
+                        .order(:created_at)
+                        .select { |c| c.profile.nil? || c.profile.never_set_up? }
+        end
+
+        # Which communicator to adopt. An explicit `communicator_id` wins (the
+        # picker's answer). Otherwise adopt only when there is exactly one
+        # candidate — choosing among several would write one child's emergency
+        # details onto another child's page.
+        def adoption_target
+          requested = params[:communicator_id].presence
+          if requested
+            match = adoptable_communicators.find { |c| c.id.to_s == requested.to_s }
+            unless match
+              Rails.logger.warn "[Onboarding::Myspeak] communicator_id #{requested.inspect} is not adoptable for user #{current_user.id}"
+            end
+            return match
+          end
+
+          adoptable_communicators.size == 1 ? adoptable_communicators.first : nil
+        end
+
+        # Set this wizard's page up on a communicator that already exists.
+        #
+        # The rename is deliberate: `Profile#safety_view` reads its `name` from
+        # `profileable.name`, so without it the name the parent just typed would
+        # be dropped from the page it names. `username` is left alone — that is
+        # the account handle, and on an active communicator it backs a private
+        # sign-in.
+        def adopt_communicator(child, name:)
+          child.update!(name: name) if child.name != name
+
+          profile = child.profile ||
+                    Profile.new(
+                      profileable: child,
+                      username: unique_slug_for(
+                        child.sluggify_for_profile(child.username).presence ||
+                          name.parameterize.presence ||
+                          "communicator-#{SecureRandom.hex(3)}",
+                      ),
+                    )
+
+          # An auto-minted page carries a NAME-DERIVED slug: create_profile!
+          # passes `slug:` explicitly, so Profile#ensure_slug never runs and the
+          # random-slug rule never applies. That is precisely the guessable
+          # `/my/<name>` URL a safety page must not have, and adoption is about
+          # to put emergency contacts behind it. Re-slug now — `never_set_up?`
+          # is what guarantees nobody has shared the old link yet.
+          if profile.persisted? && profile.slug_type != "random"
+            profile.slug = Profile.generate_random_slug
+            profile.slug_type = "random"
+          end
+
+          [child, profile]
+        end
+
+        # The ordinary path: a brand-new communicator and its page.
+        #
+        # Safety profiles get an unguessable random slug, assigned by
+        # Profile#ensure_slug when the slug is left blank, so a child's public
+        # emergency page (`/my/<slug>`) can't be found by guessing their name.
+        # We deliberately ignore any client-supplied slug (the wizard no longer
+        # collects one) — random is non-negotiable for safety pages.
+        #
+        # We still derive a readable, unique *username* from the name: it's the
+        # account handle shown on the page a responder already scanned, not the
+        # public URL, so keeping it human-readable doesn't weaken discovery
+        # protection.
+        def build_communicator(name:, status:)
+          base_slug = name.parameterize.presence || "communicator-#{SecureRandom.hex(3)}"
+          unique = unique_slug_for(base_slug)
+
+          # `communicator_accounts` uses `owner_id` as the FK; set `user`
+          # explicitly so downstream `api_view`s (which read `child.user.pro?`
+          # etc.) don't see a nil user.
+          #
+          # `status` is plan-driven: a Free user's MySpeak account is a no-login
+          # sandbox; paid plans get a full (active) communicator. Sandbox
+          # communicators still appear on the family dashboard — the index lists
+          # every owned account regardless of status.
+          child = current_user.communicator_accounts.create!(
+            name: name,
+            username: unique,
+            user: current_user,
+            status: status,
+          )
+
+          # No `slug:` — left blank so Profile#ensure_slug assigns the random
+          # `s-xxxxxx` safety slug (slug_type "random", not user-editable).
+          [child, Profile.new(profileable: child, username: unique)]
+        end
 
         def build_settings(pronouns:, contacts:, emergency_notes: nil)
           settings = {}

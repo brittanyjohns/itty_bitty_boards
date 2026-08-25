@@ -32,6 +32,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Setting up a MySpeak page no longer dead-ends when you already added a
+  communicator.** On the Free plan you get one communicator, and adding one
+  from the dashboard quietly created its MySpeak page too — blank. The setup
+  wizard could only make a *new* communicator, so it refused you at the very
+  last step, after the name, the photo, the contacts and the emergency notes,
+  with "Sandbox communicator limit reached." It now fills in the page you
+  already have instead. If several of your communicators have a page that was
+  never set up, it asks which one rather than guessing. A page anyone has
+  actually written on is never touched, and adopting a page gives it a fresh
+  unguessable link, the same as a page made from scratch.
+
 - **"Make this my editable board" no longer reports success while changing
   nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`
   and always answered 200, but the read-only gate resolves the edit slot
