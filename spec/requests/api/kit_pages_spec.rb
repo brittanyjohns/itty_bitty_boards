@@ -247,4 +247,45 @@ RSpec.describe "API kit_pages", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  # A page whose download is uploaded straight onto it, rather than generated
+  # as a board printable. The public contract is identical — same `files`
+  # shape, same email gate, same "no file URL on the read".
+  describe "an uploaded-document page" do
+    before do
+      attach_all_variants
+      page.attach_document!(io: StringIO.new("%PDF handout"), filename: "handout.pdf", label: "Parent handout")
+      page.attach_preview_image!(bytes: "PNG", page: 1)
+    end
+
+    it "shows the rendered pages and still no file URL" do
+      get "/api/kit_pages/#{page.slug}"
+
+      body = JSON.parse(response.body)
+      expect(body["downloadable"]).to eq(true)
+      expect(body["images"].map { |image| image["variant"] }).to eq(["page_1"])
+      expect(response.body).not_to include("handout.pdf")
+      expect(response.body).not_to include(".pdf")
+    end
+
+    it "hands over the uploaded document, not the printable's PDFs" do
+      expect {
+        post "/api/kit_pages/#{page.slug}/download", params: { email: "teacher@example.com" }
+      }.to change(DownloadLead, :count).by(1)
+
+      files = JSON.parse(response.body)["files"]
+      expect(files.map { |file| file["filename"] }).to eq(["handout.pdf"])
+      expect(files.first["variant"]).to eq("Parent handout")
+      expect(files.first["url"]).to be_present
+      expect(files.first).to have_key("download_url")
+      expect(DownloadLead.last.source).to eq("kit_at-school")
+    end
+
+    it "enqueues the Mailchimp upsert like any other kit lead" do
+      expect {
+        post "/api/kit_pages/#{page.slug}/download",
+             params: { email: "teacher@example.com", data: { consent: true } }
+      }.to change { MailchimpUpsertLeadJob.jobs.size }.by(1)
+    end
+  end
 end

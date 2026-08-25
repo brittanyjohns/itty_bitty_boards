@@ -9,7 +9,8 @@ module Admin
   # confirmation is an explicit checkbox and it is stamped on the record with
   # who did it and when.
   class KitPagesController < Admin::ApplicationController
-    before_action :set_kit_page, only: %i[edit update publish unpublish]
+    before_action :set_kit_page,
+                  only: %i[edit update publish unpublish upload_document remove_document regenerate_previews]
 
     def index
       @kit_pages = KitPage.includes(board_printable: :board).order(created_at: :desc)
@@ -66,7 +67,95 @@ module Admin
       render_form
     end
 
+    # Attaches a PDF that becomes this page's download in place of a printable.
+    #
+    # Its own form, posting here, rather than a file field in the main form:
+    # "Autofill the page" re-renders that form, and a browser cannot repopulate
+    # a file input across a render, so a file picked there would silently
+    # vanish. Same shape as the listing-video upload on board printables.
+    def upload_document
+      upload = params[:document]
+
+      if (error = document_error(upload))
+        return redirect_to(edit_admin_dashboard_kit_page_path(@kit_page), alert: error)
+      end
+
+      @kit_page.attach_document!(
+        io: upload,
+        filename: upload.original_filename,
+        label: params[:label].to_s.strip.presence,
+      )
+      enqueue_previews
+
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page),
+                  notice: "Uploaded “#{upload.original_filename}”. It is this page's download now."
+    end
+
+    # Purges one document. The previews are rebuilt from whatever is left —
+    # they picture the FIRST document, so removing it must not leave the old
+    # pages sitting above a different file.
+    def remove_document
+      document = find_document(params[:signed_id])
+      unless document
+        return redirect_to(edit_admin_dashboard_kit_page_path(@kit_page), alert: "That file isn't on this page.")
+      end
+
+      filename = document.filename.to_s
+      document.purge
+      @kit_page.documents.reset
+      enqueue_previews
+
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page), notice: "Removed “#{filename}”."
+    end
+
+    def regenerate_previews
+      unless KitPages::DocumentPreviewRenderer.available?
+        return redirect_to(edit_admin_dashboard_kit_page_path(@kit_page),
+                           alert: "This host can't render PDF previews, so there's nothing to regenerate.")
+      end
+
+      enqueue_previews
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page),
+                  notice: "Rendering the previews… refresh in a moment to see them."
+    end
+
     private
+
+    # Sidekiq pushes to Redis immediately and the worker reads on its own
+    # connection, so a job naming a row must not be enqueued from inside the
+    # transaction that writes it. A no-op outside a transaction.
+    def enqueue_previews
+      page_id = @kit_page.id
+      ActiveRecord.after_all_transactions_commit { RenderKitPreviewsJob.perform_async(page_id) }
+    end
+
+    def find_document(signed_id)
+      return nil if signed_id.blank?
+
+      @kit_page.documents.find { |file| file.signed_id == signed_id }
+    end
+
+    # Validated here rather than trusted, and reported as a flash rather than a
+    # 422 — this is a small side form, so re-rendering the whole edit screen
+    # around it would lose anything typed in the main one.
+    def document_error(upload)
+      return "Choose a PDF to upload." if upload.blank? || !upload.respond_to?(:read)
+
+      unless KitPage::DOCUMENT_CONTENT_TYPES.include?(upload.content_type)
+        return "That file is #{upload.content_type.presence || "an unknown type"}; upload a PDF."
+      end
+
+      if upload.size > KitPage::MAX_DOCUMENT_BYTES
+        return "That file is #{ActiveSupport::NumberHelper.number_to_human_size(upload.size)}; " \
+               "the cap is #{ActiveSupport::NumberHelper.number_to_human_size(KitPage::MAX_DOCUMENT_BYTES)}."
+      end
+
+      if @kit_page.ordered_documents.size >= KitPage::MAX_DOCUMENTS
+        return "This page already has #{KitPage::MAX_DOCUMENTS} documents. Remove one first."
+      end
+
+      nil
+    end
 
     # `new` posts to the collection route, `edit` to the member one.
     def autofill_path(page)
@@ -228,7 +317,12 @@ module Admin
       ActiveModel::Type::Boolean.new.cast(params[:etsy_override]) || false
     end
 
-    helper_method :selectable_printables, :kit_preview_url, :autofill_path
+    helper_method :selectable_printables, :kit_preview_url, :autofill_path, :preview_renderer_available?
+
+    # Whether this host's libvips can rasterize a PDF. The Document card says so
+    # plainly when it can't — a page that silently shows no pictures reads as a
+    # broken upload.
+    def preview_renderer_available? = KitPages::DocumentPreviewRenderer.available?
 
     # Only printables an admin could actually hand to a visitor: finished, and
     # carrying at least one PDF (a printable holding only listing images would

@@ -1,0 +1,90 @@
+<%# Its OWN form, outside the main one. Two reasons, both load-bearing:
+    forms can't nest, and "Autofill the page" re-renders the main form — a
+    browser cannot repopulate a file input across a render, so a file picked
+    there would silently vanish. Same shape as the listing-video upload on
+    board printables. %>
+<% documents = @kit_page.ordered_documents %>
+<% previews = @kit_page.preview_images_view %>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Document</h2>
+  <p class="text-[11px] text-t3 mb-4">
+    Upload a PDF to hand out instead of a printable. While anything is uploaded here it is
+    <strong>the</strong> download — the printable above is ignored, for the file and for the pictures on the
+    page alike. Remove everything here to go back to the printable.
+  </p>
+
+  <% if documents.any? %>
+    <div class="border rounded-lg divide-y mb-4" style="border-color: var(--border);">
+      <% documents.each do |document| %>
+        <div class="flex items-center justify-between gap-4 px-3 py-2.5">
+          <div class="min-w-0">
+            <p class="text-xs text-t1 truncate"><%= document.filename %></p>
+            <p class="text-[11px] text-t3">
+              <%= number_to_human_size(document.byte_size) %>
+              · button reads “<%= @kit_page.document_label(document) %>”
+            </p>
+          </div>
+          <%= button_to "Remove",
+                remove_document_admin_dashboard_kit_page_path(@kit_page, signed_id: document.signed_id),
+                method: :delete,
+                class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1 whitespace-nowrap",
+                form: { data: { turbo_confirm: "Remove “#{document.filename}” from this page?" } } %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if documents.size < KitPage::MAX_DOCUMENTS %>
+    <%= form_with url: upload_document_admin_dashboard_kit_page_path(@kit_page), method: :post,
+                  class: "flex flex-wrap items-center gap-3" do |f| %>
+      <%= f.file_field :document, accept: "application/pdf", class: "text-xs text-t2" %>
+      <%= f.text_field :label, placeholder: "Label (optional)",
+            class: "admin-input border rounded px-3 py-1.5 text-xs w-48 focus:border-indigo-500 focus:outline-none" %>
+      <%= f.submit "Upload",
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+      <span class="text-[11px] text-t3">
+        PDF only, under <%= number_to_human_size(KitPage::MAX_DOCUMENT_BYTES) %>,
+        up to <%= KitPage::MAX_DOCUMENTS %> files.
+        The label is the download button's text when there's more than one.
+      </span>
+    <% end %>
+  <% else %>
+    <p class="text-[11px] text-t3">
+      That's the limit of <%= KitPage::MAX_DOCUMENTS %>. Remove one to upload another.
+    </p>
+  <% end %>
+
+  <% if documents.any? %>
+    <div class="pt-4 mt-4 border-t" style="border-color: var(--border);">
+      <div class="flex items-center gap-3 mb-3">
+        <h3 class="text-xs font-medium text-t1">Pictures on the page</h3>
+        <% if preview_renderer_available? %>
+          <%= button_to "Regenerate", regenerate_previews_admin_dashboard_kit_page_path(@kit_page),
+                method: :post,
+                class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+        <% end %>
+      </div>
+
+      <% if !preview_renderer_available? %>
+        <%# Said plainly rather than left blank: an empty gallery with no
+            explanation reads as a bug in the upload. %>
+        <p class="text-[11px] text-t3">
+          This host can't render PDF previews, so the page will show no pictures. The download itself is
+          unaffected.
+        </p>
+      <% elsif previews.any? %>
+        <div class="flex flex-wrap gap-3">
+          <% previews.each do |preview| %>
+            <img src="<%= preview[:url] %>" alt="<%= preview[:variant].humanize %>"
+                 class="h-32 w-auto rounded border" style="border-color: var(--border);">
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-[11px] text-t3">
+          Rendering the first <%= KitPage::PREVIEW_PAGE_COUNT %> pages… refresh in a moment.
+        </p>
+      <% end %>
+    </div>
+  <% end %>
+</div>

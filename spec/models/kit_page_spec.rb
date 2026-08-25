@@ -118,6 +118,102 @@ RSpec.describe KitPage, type: :model do
     end
   end
 
+  describe "uploaded documents" do
+    let(:page) { create(:kit_page, board_printable: printable) }
+
+    def upload!(kit_page, filename: "handout.pdf", label: nil, bytes: "%PDF handout")
+      kit_page.attach_document!(io: StringIO.new(bytes), filename: filename, label: label)
+    end
+
+    it "hands over the uploaded documents instead of the printable's PDFs" do
+      printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF c", variant: "color")
+      upload!(page)
+
+      expect(page).to be_uploaded_download
+      expect(page.download_files.map { |f| f[:filename] }).to eq(["handout.pdf"])
+      expect(page).to be_downloadable
+    end
+
+    it "goes back to the printable once every document is removed" do
+      printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF c", variant: "color")
+      upload!(page)
+      page.documents.each(&:purge)
+      page.documents.reset
+
+      expect(page.reload).not_to be_uploaded_download
+      expect(page.download_files.map { |f| f[:variant] }).to eq(["color"])
+    end
+
+    it "is downloadable on an uploaded document alone, with no printable" do
+      page = create(:kit_page, board_printable: nil)
+      upload!(page)
+
+      expect(page).to be_downloadable
+    end
+
+    # `variant` is what the frontend prints on the button.
+    it "labels the button with the admin's label, falling back to the filename" do
+      upload!(page, filename: "parent-handout.pdf")
+      upload!(page, filename: "spanish.pdf", label: "En español")
+
+      expect(page.download_files.map { |f| f[:variant] }).to eq(["parent-handout", "En español"])
+    end
+
+    it "carries both the preview URL and the presigned save URL" do
+      upload!(page)
+
+      expect(page.download_files.first.keys)
+        .to match_array(%i[variant filename url byte_size download_url])
+      expect(page.download_files.first[:url]).to be_present
+    end
+
+    it "keeps the printable's mockups out of an uploaded page's gallery" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      upload!(page)
+
+      expect(page.gallery_images).to eq([])
+    end
+
+    it "shows the rendered pages of the uploaded document, first page first" do
+      upload!(page)
+      page.attach_preview_image!(bytes: "PNG two", page: 2)
+      page.attach_preview_image!(bytes: "PNG one", page: 1)
+
+      expect(page.gallery_images.map { |image| image[:variant] }).to eq(%w[page_1 page_2])
+      expect(page.gallery_images.map(&:keys)).to all(match_array(%i[variant url]))
+    end
+
+    it "purges every preview" do
+      upload!(page)
+      page.attach_preview_image!(bytes: "PNG", page: 1)
+      page.purge_preview_images!
+
+      expect(page.reload.preview_images).to be_empty
+      expect(page.gallery_images).to eq([])
+    end
+
+    # Same CloudFront lesson as BoardPrintable: it caches by path and ignores
+    # query strings, so a stable key serves the previous document for hours.
+    it "writes each upload to its own versioned key" do
+      upload!(page, filename: "handout.pdf", bytes: "%PDF one")
+      first = page.ordered_documents.first.key
+      page.documents.each(&:purge)
+      page.documents.reset
+      upload!(page, filename: "handout.pdf", bytes: "%PDF two")
+
+      expect(page.reload.ordered_documents.first.key).not_to eq(first)
+    end
+
+    it "still carries no file URL in the public payload" do
+      upload!(page)
+      page.attach_preview_image!(bytes: "PNG", page: 1)
+
+      expect(page.public_view[:downloadable]).to eq(true)
+      expect(page.public_view[:images].map { |i| i[:url] }.join).not_to include(".pdf")
+      expect(page.public_view.to_s).not_to include("handout.pdf")
+    end
+  end
+
   describe "#public_view" do
     it "carries no file URL" do
       printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF", variant: "color")

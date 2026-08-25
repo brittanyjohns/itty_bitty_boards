@@ -6,9 +6,10 @@
 #
 #   * The leads. A kit signup is a DownloadLead with `source = "kit_<slug>"`,
 #     the same table /classroom and /ctg already use. No parallel lead model.
-#   * The file. The download is an existing BoardPrintable plus a chosen
-#     variant, so a visitor gets the same reviewed document the admin looked at
-#     rather than a live board render.
+#   * A live board render. The download is either an existing BoardPrintable
+#     plus a chosen variant, or PDFs uploaded straight onto this page — a
+#     visitor gets a document an admin has already looked at, never something
+#     rendered on the way out. Uploaded documents WIN: see #download_files.
 #   * The gate. Production S3 is `public: true`, so every printable already sits
 #     behind a permanent unsigned CDN URL and the hex path segment is the only
 #     protection. Asking for an email before revealing that URL is a soft gate
@@ -37,6 +38,32 @@ class KitPage < ApplicationRecord
     BoardPrintable::IMAGE_WHATS_INCLUDED,
     BoardPrintable::IMAGE_ON_A_DEVICE,
   ].freeze
+
+  # A visitor's download is PDFs and only PDFs, whichever source it comes from.
+  # An allowlist, never an exclusion — the same rule BoardPrintable#pdf_files
+  # keeps, and for the same reason: "not an image" stops meaning "is a PDF" the
+  # moment a third kind of file exists.
+  DOCUMENT_CONTENT_TYPES = ["application/pdf"].freeze
+
+  MAX_DOCUMENT_BYTES = 50.megabytes
+  MAX_DOCUMENTS = 5
+
+  # How many pages of the uploaded document are rasterized for the landing
+  # page's gallery. "A couple" — the hero and one more; a visitor deciding
+  # whether to hand over an email needs a look at the thing, not a page-by-page
+  # tour.
+  PREVIEW_PAGE_COUNT = 2
+
+  # #url_for_file (preview) / #download_url_for_file (saves the file).
+  include AttachedFileUrls
+
+  # Two NAMED attachments rather than one collection partitioned by blob
+  # metadata. BoardPrintable shares a single `files` bag across PDFs, gallery
+  # images and video, and the invariant in CLAUDE.md about `pdf_files` exists
+  # precisely because that partition was once written as an exclusion and handed
+  # a listing video to a buyer as the product. Nothing here needs a partition.
+  has_many_attached :documents        # the download, when any are attached
+  has_many_attached :preview_images   # rendered from documents.first
 
   belongs_to :board_printable, optional: true
   belongs_to :etsy_override_by, class_name: "User", optional: true
@@ -75,41 +102,114 @@ class KitPage < ApplicationRecord
   # 422s on submit.
   def downloadable? = download_files.any?
 
-  # The PDFs a visitor receives. `files_view` is the existing PDF-only
-  # allowlist — reused rather than reimplemented so a marketing image or the
-  # listing video can never be served as a download.
-  #
-  # Falls back to every PDF when the chosen variant isn't present, since a
-  # single-board printable only ever has "full".
-  def download_files
-    return [] unless board_printable&.complete?
+  # True when this page hands over documents uploaded straight onto it. Such a
+  # page ignores its printable ENTIRELY — for the download and for the gallery
+  # alike. A printable may still be selected (it was, before the upload), and
+  # serving half of one and half of the other would put a board's marketing
+  # mockups above a completely different document.
+  def uploaded_download? = documents.attached? && documents.any?
 
-    @download_files ||= begin
-      all = board_printable.files_view
-      all.select { |file| file[:variant] == printable_variant }.presence || all
+  # The PDFs a visitor receives.
+  def download_files
+    uploaded_download? ? document_files_view : printable_download_files
+  end
+
+  # The mockup renders shown on the page — for a printable, the marketplace
+  # gallery; for an uploaded document, its own first pages.
+  #
+  # These are MARKETING art, not the product, which is why they may sit in the
+  # public read while the download may not. The rule the public payload keeps is
+  # that the PDF a visitor came for is revealed only after an email; a
+  # photograph of it is the thing that persuades them to enter one.
+  def gallery_images
+    uploaded_download? ? preview_images_view : printable_gallery_images
+  end
+
+  # One row per uploaded document, in the order they were attached.
+  #
+  # `variant` carries the document's LABEL because that is the field the
+  # frontend prints on the button ("Download {label}", via
+  # printableVariantLabel, which passes an unrecognized string straight
+  # through). A single-document page shows a plain "Download" and never sees it.
+  def document_files_view
+    @document_files_view ||= ordered_documents.map do |file|
+      {
+        variant: document_label(file),
+        filename: file.filename.to_s,
+        url: url_for_file(file),
+        byte_size: file.byte_size,
+        download_url: download_url_for_file(file),
+      }
     end
   end
 
-  # The mockup renders shown on the page — the printed sheet on a desk, the
-  # flip-book, the same pages open on a tablet.
-  #
-  # These are MARKETING art, not the product, which is why they may sit in the
-  # public read while `download_files` may not. The rule the public payload
-  # keeps is that the PDF a visitor came for is revealed only after an email;
-  # a photograph of it is the thing that persuades them to enter one.
-  #
-  # Reuses BoardPrintable#listing_images_view, which has already dropped blobs
-  # from retired gallery designs, then narrows by ALLOWLIST — never by
-  # excluding what we don't want, so a new image variant has to be opted in
-  # here before it can reach a visitor. `url_for_file` returns nil rather than
-  # raising when a blob can't be resolved, hence the presence guard.
-  def gallery_images
-    return [] unless board_printable&.complete?
+  # The rendered pages of the uploaded document, first page first. Drops any
+  # entry whose URL came back nil — `url_for_file` returns nil rather than
+  # raising — exactly as the printable gallery does.
+  def preview_images_view
+    return [] unless preview_images.attached?
 
-    @gallery_images ||= board_printable.listing_images_view
-      .select { |image| KIT_IMAGE_ORDER.include?(image[:variant]) && image[:url].present? }
-      .sort_by { |image| KIT_IMAGE_ORDER.index(image[:variant]) }
-      .map { |image| { variant: image[:variant], url: image[:url] } }
+    @preview_images_view ||= preview_images
+      .sort_by { |file| file.metadata["page"].to_i }
+      .filter_map do |file|
+        url = url_for_file(file)
+        next if url.blank?
+
+        { variant: "page_#{file.metadata["page"].to_i}", url: url }
+      end
+  end
+
+  def ordered_documents
+    return [] unless documents.attached?
+
+    documents.sort_by { |file| [file.created_at, file.id] }
+  end
+
+  # The button text for one document. An admin-typed label wins; otherwise the
+  # filename without its extension, which is very often already the right words.
+  def document_label(file)
+    file.metadata["label"].presence || File.basename(file.filename.to_s, ".*")
+  end
+
+  # Attaches one uploaded PDF at a VERSIONED key. CloudFront caches by path and
+  # ignores query strings, so re-uploading over a stable key leaves the CDN
+  # serving the previous document — the same lesson
+  # BoardPrintable#versioned_storage_key_for records.
+  def attach_document!(io:, filename:, label: nil)
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: io,
+      filename: filename,
+      content_type: DOCUMENT_CONTENT_TYPES.first,
+      key: versioned_storage_key_for(filename),
+      metadata: { "label" => label.presence },
+    )
+    documents.attach(blob)
+    reset_file_memos
+    blob
+  end
+
+  def attach_preview_image!(bytes:, page:)
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new(bytes),
+      filename: "preview-#{page}.png",
+      content_type: "image/png",
+      key: versioned_storage_key_for("preview-#{page}.png"),
+      metadata: { "page" => page },
+    )
+    preview_images.attach(blob)
+    reset_file_memos
+    blob
+  end
+
+  def purge_preview_images!
+    preview_images.each(&:purge)
+    preview_images.reset
+    preview_images_attachments.reset
+    reset_file_memos
+  end
+
+  def versioned_storage_key_for(filename)
+    "kit_pages/#{id}/#{SecureRandom.hex(4)}/#{filename}"
   end
 
   # The public payload. Deliberately carries no file URL — the URL is revealed
@@ -136,6 +236,46 @@ class KitPage < ApplicationRecord
   def etsy_override? = etsy_override_at.present?
 
   private
+
+  # The PDFs a printable-backed page receives. `files_view` is the existing
+  # PDF-only allowlist — reused rather than reimplemented so a marketing image
+  # or the listing video can never be served as a download.
+  #
+  # Falls back to every PDF when the chosen variant isn't present, since a
+  # single-board printable only ever has "full".
+  def printable_download_files
+    return [] unless board_printable&.complete?
+
+    @printable_download_files ||= begin
+      all = board_printable.files_view
+      all.select { |file| file[:variant] == printable_variant }.presence || all
+    end
+  end
+
+  # The printable's marketplace mockups — the printed sheet on a desk, the
+  # flip-book, the same pages open on a tablet.
+  #
+  # Reuses BoardPrintable#listing_images_view, which has already dropped blobs
+  # from retired gallery designs, then narrows by ALLOWLIST — never by
+  # excluding what we don't want, so a new image variant has to be opted in
+  # here before it can reach a visitor. `url_for_file` returns nil rather than
+  # raising when a blob can't be resolved, hence the presence guard.
+  def printable_gallery_images
+    return [] unless board_printable&.complete?
+
+    @printable_gallery_images ||= board_printable.listing_images_view
+      .select { |image| KIT_IMAGE_ORDER.include?(image[:variant]) && image[:url].present? }
+      .sort_by { |image| KIT_IMAGE_ORDER.index(image[:variant]) }
+      .map { |image| { variant: image[:variant], url: image[:url] } }
+  end
+
+  # Attaching or purging inside one request leaves the views above memoized on
+  # what was there before.
+  def reset_file_memos
+    @document_files_view = nil
+    @preview_images_view = nil
+  end
+
 
   # Loose on purpose: the frontend renders whatever it finds and the admin
   # edits this as JSON, so the only thing worth refusing is a shape that would

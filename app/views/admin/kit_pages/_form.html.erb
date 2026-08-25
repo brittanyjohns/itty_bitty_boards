@@ -52,6 +52,10 @@
     <p class="text-[11px] text-t3 mb-4">
       Only finished printables that actually carry a PDF are listed. The visitor gets this exact document
       after entering an email. Its mockup images are shown on the page automatically.
+      <% if @kit_page.persisted? && @kit_page.uploaded_download? %>
+        <strong class="text-t2">This page is handing out an uploaded document instead</strong> — the printable
+        below is ignored until it's removed. See the Document card under this form.
+      <% end %>
     </p>
 
     <%# formaction, not a second form: the copy is written from the printable

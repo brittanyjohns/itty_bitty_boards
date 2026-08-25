@@ -314,3 +314,86 @@ writes all of it from the printable the page gives away.
   `spec/requests/api/download_leads_kit_pages_regression_spec.rb`,
   `spec/requests/admin/kit_pages_spec.rb`, plus additions to
   `spec/sidekiq/mailchimp_upsert_lead_job_spec.rb`
+
+## Uploaded documents (the download that isn't a printable)
+
+A kit page can hand over PDFs uploaded straight onto it, in place of a
+`BoardPrintable`. The public contract is untouched — same `files` rows, same
+email gate, same "no file URL on the read" — so the frontend needed **no change
+at all**.
+
+- **Upload wins outright, for the file AND the pictures.** While any document is
+  attached, `#download_files` and `#gallery_images` both ignore
+  `board_printable` completely (`#uploaded_download?` is the switch). A printable
+  is often still selected — it was, before the upload — and serving one's
+  mockups above the other's document is the failure this rules out. Removing
+  every document falls back to the printable, unchanged.
+- **Two NAMED attachments**, `documents` and `preview_images`, not one bag keyed
+  on blob metadata. `BoardPrintable`'s single `files` collection is shared across
+  PDFs, gallery images and video, and the `pdf_files` invariant exists precisely
+  because that partition was once written as an exclusion. Nothing here needs a
+  partition, so it doesn't have one.
+- **The label is the button text.** An upload carries an optional admin-typed
+  label in blob metadata, published as the row's `variant` — which is the field
+  `KitLandingPage` prints on the button (`printableVariantLabel` passes an
+  unrecognized string straight through). Blank falls back to the filename
+  without its extension. A single-document page shows a plain "Download" and
+  never renders it.
+- **PDF only**, `KitPage::DOCUMENT_CONTENT_TYPES`, capped at
+  `MAX_DOCUMENT_BYTES` / `MAX_DOCUMENTS`. An allowlist, same discipline
+  `pdf_files` keeps.
+- **Versioned storage keys.** `#versioned_storage_key_for` mirrors
+  `BoardPrintable`'s: CloudFront caches by path and ignores query strings, so
+  re-uploading over a stable key leaves the CDN serving the previous document.
+- **No migration.** Everything above is Active Storage plus blob metadata.
+
+### Preview images
+
+`KitPages::DocumentPreviewRenderer` rasterizes the first
+`KitPage::PREVIEW_PAGE_COUNT` pages with **libvips** (`pdfload_buffer`), which is
+already the Active Storage variant processor in production and links libpoppler
+on the platforms we deploy — so no new gem and no new binary. Not poppler's
+`pdftoppm` or ImageMagick directly: `Boards::Printables::RenderPageThumbnails`
+records that neither can be relied on in the deploy image.
+
+- Gated on `.available?`, memoized, in the `VideoTranscoder` style. Where libvips
+  has no PDF loader the page shows no mockups, the admin Document card **says
+  so**, and the download is unaffected — a gallery is marketing, the PDF is the
+  product. An empty gallery with no explanation reads as a broken upload.
+- `ruby-vips` is required explicitly at the top of the service. It arrives as an
+  `image_processing` dependency and is otherwise loaded lazily, so `defined?(Vips)`
+  is false until something asks for it — which would make `available?` answer "no"
+  on a host that has a loader.
+- `RenderKitPreviewsJob` **replaces** the whole set rather than appending: the
+  previews picture the current download, so a page left from a removed document
+  is worse than none. Enqueued via `ActiveRecord.after_all_transactions_commit`.
+- Every failure path returns `[]` and logs.
+
+### Admin
+
+The Document card is its **own** form on `edit`, outside the main one. Forms can't
+nest, and "Autofill the page" re-renders the main form — a browser cannot
+repopulate a file input across a render, so a file picked there would silently
+vanish. Same shape as the listing-video upload on board printables.
+
+Routes: `POST upload_document`, `DELETE remove_document` (by blob signed id,
+scoped to the page), `POST regenerate_previews`. Upload validation lives in the
+controller and reports as a flash — re-rendering the whole edit screen around a
+small side form would lose whatever was typed in the main one.
+
+The Etsy give-away guard is untouched: it keys on `board_printable`, and an
+uploaded document was never sold.
+
+### Files
+
+- `app/models/concerns/attached_file_urls.rb` — `url_for_file` /
+  `download_url_for_file` extracted from `BoardPrintable` so both models share
+  one copy of the presign path
+- `app/models/kit_page.rb`, `app/services/kit_pages/document_preview_renderer.rb`,
+  `app/sidekiq/render_kit_previews_job.rb`
+- `app/controllers/admin/kit_pages_controller.rb`,
+  `app/views/admin/kit_pages/_documents.html.erb`
+- Specs: `spec/services/kit_pages/document_preview_renderer_spec.rb`,
+  `spec/sidekiq/render_kit_previews_job_spec.rb`, plus additions to the kit page
+  model, admin and API specs. `spec/fixtures/files/sample.pdf` is a real 2-page
+  PDF — the renderer's whole job is decoding one, so stub bytes prove nothing.
