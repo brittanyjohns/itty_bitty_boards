@@ -49,10 +49,29 @@ RSpec.describe BoardPrintable do
       let(:object) { instance_double("Aws::S3::Object") }
       let(:service) { instance_double("ActiveStorage::Service::S3Service", bucket: bucket) }
 
+      # Production always has a CDN host, and #url_for_file short-circuits to it
+      # before the service is ever touched. Pin it rather than inheriting
+      # whatever config/application.yml happens to supply — that ambient
+      # dependency is why this context passed locally and failed on CI, which
+      # sets no CDN_HOST.
+      around do |example|
+        prior = ENV["CDN_HOST"]
+        ENV["CDN_HOST"] = "https://cdn.example.test"
+        example.run
+      ensure
+        ENV["CDN_HOST"] = prior
+      end
+
       before do
         allow_any_instance_of(ActiveStorage::Blob).to receive(:service).and_return(service)
         allow(bucket).to receive(:object).and_return(object)
         allow(object).to receive(:presigned_url).and_return("https://s3.example/signed")
+        # A real S3Service responds to #url, so the verifying double must too.
+        # Without it, the no-CDN_HOST branch of #url_for_file raises
+        # MockExpectationError — an Exception, NOT a StandardError, so that
+        # method's `rescue =>` cannot catch it and the example dies on a mock
+        # error rather than testing anything.
+        allow(service).to receive(:url).and_return("https://s3.example/public")
       end
 
       it "presigns the object with an attachment Content-Disposition naming the file" do
@@ -79,7 +98,7 @@ RSpec.describe BoardPrintable do
         file = nil
         expect { file = printable.files_view.first }.not_to raise_error
         expect(file[:download_url]).to be_nil
-        expect(file[:url]).to be_present
+        expect(file[:url]).to start_with("https://cdn.example.test/")
       end
     end
 
