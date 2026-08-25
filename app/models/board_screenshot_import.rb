@@ -48,6 +48,9 @@ class BoardScreenshotImport < ApplicationRecord
       guessed_rows: guessed_rows,
       guessed_cols: guessed_cols,
       confidence_avg: confidence_avg,
+      # Why the job gave up. The review screen is the only place a user can see
+      # a failed import, so without this it could only say "something failed".
+      error_message: error_message,
       screenshot_url: display_url,
       cells: cells,
       boards: boards,

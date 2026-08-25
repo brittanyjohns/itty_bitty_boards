@@ -2,7 +2,8 @@ require "rails_helper"
 
 # Covers the screenshot-import controller correctness fixes:
 # - create: image required, credit spend + txn stashed for refund, columns sanitized
-# - update: tolerant of a missing board_screenshot key, persists row/col edits
+# - update: tolerant of a missing board_screenshot key, persists name and
+#   row/col edits, recomputes rows, and leaves a committed import committed
 # - commit: guarded against committing an import that isn't ready
 RSpec.describe "API::BoardScreenshotImports", type: :request do
   let(:user)  { FactoryBot.create(:user) }
@@ -93,6 +94,91 @@ RSpec.describe "API::BoardScreenshotImports", type: :request do
       patch "/api/board_screenshot_imports/#{import.id}", headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
       expect(import.reload.status).to eq("needs_review")
+    end
+
+    # The review screen's Name field is what BoardFromScreenshot uses to name
+    # the board it builds. It was permitted but never assigned, so typing a
+    # name and saving silently did nothing.
+    it "persists the name" do
+      patch "/api/board_screenshot_imports/#{import.id}",
+            params: { board_screenshot: { name: "  Morning time  " } },
+            headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(import.reload.name).to eq("Morning time")
+    end
+
+    it "leaves the existing name alone when none is sent" do
+      import.update!(name: "Kept")
+      patch "/api/board_screenshot_imports/#{import.id}",
+            params: { board_screenshot: { cols: 3 } },
+            headers: auth_headers(user)
+
+      expect(import.reload.name).to eq("Kept")
+    end
+
+    # Rows aren't editable in the UI — they follow from where the cells landed.
+    it "recomputes guessed_rows from the cells' positions" do
+      import.update!(guessed_rows: 1)
+      import.board_screenshot_cells.create!(row: 0, col: 1, label_norm: "b", bg_color: "white")
+
+      patch "/api/board_screenshot_imports/#{import.id}",
+            params: { board_screenshot: { cells: [{ id: cell.id, row: 3, col: 0 }] } },
+            headers: auth_headers(user)
+
+      expect(import.reload.guessed_rows).to eq(4)
+    end
+
+    it "keeps guessed_rows when the import has no cells" do
+      empty = user.board_screenshot_imports.create!(status: "needs_review", guessed_rows: 5)
+      patch "/api/board_screenshot_imports/#{empty.id}",
+            params: { board_screenshot: { cols: 2 } }, headers: auth_headers(user)
+
+      expect(empty.reload.guessed_rows).to eq(5)
+    end
+
+    # A committed import already has a board. Knocking it back to needs_review
+    # on a label edit loses the only record that it shipped.
+    it "does not move a committed import back to needs_review" do
+      import.update!(status: "committed")
+      patch "/api/board_screenshot_imports/#{import.id}",
+            params: { board_screenshot: { name: "Renamed" } },
+            headers: auth_headers(user)
+
+      expect(import.reload.status).to eq("committed")
+      expect(import.name).to eq("Renamed")
+    end
+
+    it "returns the updated record so the client can render it" do
+      patch "/api/board_screenshot_imports/#{import.id}",
+            params: { board_screenshot: { name: "Snack time" } },
+            headers: auth_headers(user)
+
+      body = JSON.parse(response.body)
+      expect(body["name"]).to eq("Snack time")
+      expect(body["cells"].length).to eq(1)
+    end
+
+    it "refuses to touch another user's import" do
+      import.update!(name: "Mine")
+      patch "/api/board_screenshot_imports/#{import.id}",
+            params: { board_screenshot: { name: "Nope" } },
+            headers: auth_headers(other)
+
+      expect(response).not_to have_http_status(:ok)
+      expect(import.reload.name).to eq("Mine")
+    end
+  end
+
+  describe "GET /api/board_screenshot_imports/:id (show)" do
+    # The review screen is the only place a user meets a failed import, so
+    # without this it could only say "something went wrong".
+    it "exposes error_message so a failed import can explain itself" do
+      import = user.board_screenshot_imports.create!(status: "failed", error_message: "no grid found")
+      get "/api/board_screenshot_imports/#{import.id}", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["error_message"]).to eq("no grid found")
     end
   end
 

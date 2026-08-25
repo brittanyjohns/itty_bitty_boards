@@ -46,14 +46,21 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     render json: { id: import.id, status: import.status }
   end
 
-  # Accept user-edited labels + (optional) rows/cols
+  # Accept user-edited name, labels, and (optional) rows/cols.
   def update
     import = current_user.board_screenshot_imports.find(params[:id])
     board_screenshot = params[:board_screenshot].presence || board_screenshot_import_update_params
     cells_data = board_screenshot[:cells]
-    cols = board_screenshot[:cols]
+    cols = board_screenshot[:cols].presence || board_screenshot[:guessed_cols]
+    name = board_screenshot[:name]
+
     ActiveRecord::Base.transaction do
-      import.guessed_cols = cols if cols.present?
+      # `name` is what the review screen puts at the top of its form and what
+      # BoardFromScreenshot names the board it builds. It used to be permitted
+      # but never assigned, so the field silently saved nothing.
+      import.name = name.to_s.strip if name.present?
+      import.guessed_cols = cols.to_i if cols.present?
+
       (cells_data || []).each do |c|
         cand = import.board_screenshot_cells.find(c[:id])
         label_norm = c[:label_norm].to_s.strip
@@ -66,9 +73,20 @@ class API::BoardScreenshotImportsController < API::ApplicationController
         cand.col = col.to_i if col.present?
         cand.save!
       end
-      import.update!(status: "needs_review")
+
+      # Rows are never edited directly — they are implied by where the cells
+      # ended up, so recompute rather than trusting a count the client held
+      # from before the drag.
+      import.guessed_rows = recomputed_rows(import) || import.guessed_rows
+
+      # Only move the status FORWARD to needs_review. An import whose board has
+      # already been built is `committed`; knocking that back to needs_review
+      # on an unrelated label edit loses the only record that it shipped.
+      import.status = "needs_review" unless import.status == "committed"
+      import.save!
     end
-    render json: { ok: true }
+
+    render json: import.show_view(current_user)
   end
 
   COMMITTABLE_STATUSES = %w[needs_review committed completed].freeze
@@ -100,6 +118,13 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   end
 
   private
+
+  # The tallest row index actually stored, as a 1-based count. Returns nil for
+  # an import with no cells so the caller can keep whatever the analysis said.
+  def recomputed_rows(import)
+    max_row = import.board_screenshot_cells.maximum(:row)
+    max_row && max_row + 1
+  end
 
   # Coerce the client-supplied column count to a positive Integer, or nil
   # (auto-detect). Avoids charging credits then failing the job on a bad value.
