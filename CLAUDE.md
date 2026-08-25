@@ -291,6 +291,28 @@ an explicit decision, not a drive-by edit.
   — it just stops becoming everyone else's. `BoardImage#set_defaults` snapshots
   `image.src_url` at create, which is how a library change legitimately reaches
   *future* boards, so `src_url` must still move when the default does.
+- **Merging library images is a REVIEWED PLAN, never a one-shot command, and the
+  scan half writes nothing.** `images` has no soft-delete, so a merge is
+  unrecoverable except through the `image_merges` ledger.
+  `Images::DuplicateScanner` is a pure read that produces a `planned`
+  `ImageMergeBatch`; `ImageMergeJob` (one group, one transaction) applies it and
+  **re-asserts scope at execution time** — a row that became a user's, went
+  private, or was relabelled between scan and run is skipped, never merged on
+  stale evidence. Grouping is (label, language, `part_of_speech`) and all three
+  are load-bearing: `Images::PromptBuilder` disambiguates homographs by POS, so
+  `can` the verb and `can` the noun are different pictures by design. A merge
+  must carry across what `image.destroy!` would otherwise take with it —
+  `predictive_boards` are `dependent: :destroy` (**real boards**), `user_docs`
+  are keyed by `image_id` as well as `doc_id` (a user's saved pick detaches
+  silently), and docs must move through `Doc.unscoped` because the default scope
+  hides soft-deleted rows from BOTH the read and the cascade. Tiles keep their
+  own `display_image_url` byte-for-byte, `""` included; only `image_id` moves.
+  Details: `.claude-notes/library-image-dedupe.md`.
+- **`API::Admin::ApplicationController` descends from the TOP-LEVEL
+  `ApplicationController`, so `current_user` there is Devise's session helper
+  and is `nil` for a token request.** Use `current_admin`. The failure is silent
+  and awful: every `actor:` becomes "no actor", which fails
+  `can_edit?` gates and un-scopes `Images::TileArtFanout`.
 - **`ColorHelper::PARTS_OF_SPEECH` is the ONLY part-of-speech vocabulary, and a
   prompt must interpolate it rather than restate it.** It is what
   `ImageHelper#background_color_for` switches on, and that switch ends in `else
@@ -776,6 +798,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/marketing-assets.md` | AAC Classroom Kit hosting: `MarketingAsset`, internal endpoints, marketing print style, QR scannability rule (do not re-add long UTMs to tag QRs) |
 | `.claude-notes/internal-api.md` | Internal `/api/internal/` surface: bearer auth + admin identity, public-CDN download path (`src` vs `original_url`), image + board search endpoints, `Images::CommercialLicense` licensing rule |
 | `.claude-notes/ai-prompting.md` | The shared AAC prompt kernel (`Prompts::Aac`): the two personas and when each applies, why `WORD_RULES` is opt-in per call, schema-over-prose, temperature and the retry ladder, what `AdminBuilder::Drafting` keeps to itself, and the sentinel/truthiness trap in next-words |
+| `.claude-notes/library-image-dedupe.md` | Library dedupe end-to-end: the scan-then-apply split, the never-a-user-image scope, POS/language grouping, the associations a merge must carry (predictive boards, user docs, soft-deleted docs), the `image_merges` ledger + kill switch, and the admin default-art/doc-removal endpoints |
 | `.claude-notes/image-generation.md` | AI tile art: `Images::PromptBuilder` (the single prompt source of truth, always-wrap rule), symbol vs illustrated style resolution, part-of-speech homograph disambiguation, transparency/quality API params + model fallback, refusal retry, variations via the edit endpoint, prompt provenance on docs |
 | `.claude-notes/board-printables-etsy.md` | Publishing a board printable to a marketplace: the drafts-only rule, Etsy's rotating refresh token + why Rails holds a separate grant, the ported Etsy v3 API quirks, listing-copy rules (and their Ruby↔TypeScript drift), Grover-rendered gallery images, the TPT paste sheet |
 | `.claude-notes/writing-suggestions.md` | Contextual writing suggestions (`POST /api/suggestions`): field registry + context allow-list, the no-safety-keys privacy invariant, OpenAI generator + fixtures, free/no-credit contract, user opt-out toggle |

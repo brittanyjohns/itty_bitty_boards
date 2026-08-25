@@ -662,6 +662,15 @@ Rails.application.routes.draw do
           post "deny"
         end
       end
+      # Library curation: pin the default picture for a word, and purge a doc
+      # from the shared library.
+      resources :images, only: [:show] do
+        member do
+          post "set_default_doc"
+          delete "default_doc", to: "images#clear_default_doc"
+        end
+        delete "docs/:doc_id", to: "images#destroy_doc", on: :member
+      end
     end
     get "events/:slug", to: "events#show"
     post "events/:slug/save_entry", to: "events#save_entry"

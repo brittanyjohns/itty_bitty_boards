@@ -9,3 +9,8 @@
   - [text_images, 3]
   - [audio, 2]
   - [varients, 5]
+  # Bulk library maintenance (dedupe merges). Lowest priority on purpose: this
+  # is operator housekeeping over thousands of rows and must never starve
+  # `audio` or tile rendering — a communicator waiting on a tile is the one
+  # thing that can't queue.
+  - [maintenance, 6]
