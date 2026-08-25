@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "API::Profiles", type: :request do
-  describe "POST /api/profiles (MySpeak ID limit)" do
+  describe "POST /api/profiles (one Public page per user)" do
     # New signups land on Free (the no-CC basic_trial soft trial was removed,
     # drafts/drop-basic-trial-option-a.md), so the base factory is already Free.
     let(:free_user) { FactoryBot.create(:user) }
@@ -11,32 +11,42 @@ RSpec.describe "API::Profiles", type: :request do
       { profile: { username: "pat-#{SecureRandom.hex(2)}" } }
     end
 
+    def existing_page_for(user)
+      Profile.create!(
+        profileable: user,
+        username: "first-#{SecureRandom.hex(2)}",
+        slug: "first-#{SecureRandom.hex(2)}",
+      )
+    end
+
     context "as a Free user" do
-      it "allows creating the first MySpeak ID" do
+      it "allows creating the first Public page" do
         expect {
           post "/api/profiles", params: create_params, headers: auth_headers(free_user)
         }.to change { Profile.where(profileable: free_user).count }.by(1)
         expect(response).to have_http_status(:created)
       end
 
-      it "rejects the second MySpeak ID with 403 and a clear error code" do
-        Profile.create!(
-          profileable: free_user,
-          username: "first-#{SecureRandom.hex(2)}",
-          slug: "first-#{SecureRandom.hex(2)}",
-        )
+      it "rejects a second Public page with 409 and points at the existing one" do
+        existing = existing_page_for(free_user)
 
-        post "/api/profiles", params: create_params, headers: auth_headers(free_user)
+        expect {
+          post "/api/profiles", params: create_params, headers: auth_headers(free_user)
+        }.not_to change { Profile.where(profileable: free_user).count }
 
-        expect(response).to have_http_status(:forbidden)
+        expect(response).to have_http_status(:conflict)
         body = JSON.parse(response.body)
-        expect(body["error"]).to eq("myspeak_id_limit_reached")
-        expect(body["limit"]).to eq(1)
-        expect(body["count"]).to eq(1)
-        expect(body["message"]).to include("Free")
+        expect(body["error"]).to eq("public_page_exists")
+        expect(body["profile_id"]).to eq(existing.id)
+        expect(body["slug"]).to eq(existing.slug)
       end
 
-      it "counts a Profile attached to one of the user's communicator accounts toward the limit" do
+      # Regression for #761. Every communicator auto-mints a Profile
+      # (ChildAccount#create_profile!), and that used to burn the user's only
+      # MySpeak slot — so a Free user who added one communicator could never
+      # create their own page. A communicator's MySpeak page is free on every
+      # plan; the communicator SLOT is the quota, not a Profile count.
+      it "does not count a communicator's MySpeak page against the user's page" do
         child = FactoryBot.create(:child_account, user: free_user, owner: free_user)
         Profile.create!(
           profileable: child,
@@ -44,42 +54,64 @@ RSpec.describe "API::Profiles", type: :request do
           slug: "child-#{SecureRandom.hex(2)}",
         )
 
-        post "/api/profiles", params: create_params, headers: auth_headers(free_user)
-        expect(response).to have_http_status(:forbidden)
-        expect(JSON.parse(response.body)["error"]).to eq("myspeak_id_limit_reached")
-      end
-    end
-
-    context "as a Pro user" do
-      it "is not limited" do
-        Profile.create!(
-          profileable: pro_user,
-          username: "first-#{SecureRandom.hex(2)}",
-          slug: "first-#{SecureRandom.hex(2)}",
-        )
-
         expect {
-          post "/api/profiles", params: create_params, headers: auth_headers(pro_user)
-        }.to change { Profile.where(profileable: pro_user).count }.by(1)
+          post "/api/profiles", params: create_params, headers: auth_headers(free_user)
+        }.to change { Profile.where(profileable: free_user).count }.by(1)
         expect(response).to have_http_status(:created)
       end
     end
 
-    context "as an admin on the Free plan" do
-      it "bypasses the limit" do
+    # One page per user is structural (User `has_one :profile`), so it holds on
+    # every plan — a paid user does not get a second, unreachable row.
+    context "as a Pro user" do
+      it "still gets only one Public page" do
+        existing_page_for(pro_user)
+
+        post "/api/profiles", params: create_params, headers: auth_headers(pro_user)
+
+        expect(response).to have_http_status(:conflict)
+        expect(JSON.parse(response.body)["error"]).to eq("public_page_exists")
+      end
+    end
+
+    context "as an admin" do
+      it "still gets only one Public page" do
         admin = FactoryBot.create(:user, role: "admin")
         admin.update_columns(plan_type: "free", created_at: 30.days.ago)
-        Profile.create!(
-          profileable: admin,
-          username: "first-#{SecureRandom.hex(2)}",
-          slug: "first-#{SecureRandom.hex(2)}",
-        )
+        existing_page_for(admin)
 
-        expect {
-          post "/api/profiles", params: create_params, headers: auth_headers(admin)
-        }.to change { Profile.where(profileable: admin).count }.by(1)
-        expect(response).to have_http_status(:created)
+        post "/api/profiles", params: create_params, headers: auth_headers(admin)
+
+        expect(response).to have_http_status(:conflict)
+        expect(JSON.parse(response.body)["error"]).to eq("public_page_exists")
       end
+    end
+  end
+
+  describe "profiles routing", type: :routing do
+    # API::ProfilesController defines no destroy/new/edit; a bare `resources`
+    # routed these at missing actions (ActionNotFound => a 500). They now fall
+    # through to the catch-all, which is a clean 404.
+    it "sends the actions the controller never defined to the catch-all 404" do
+      expect(delete: "/api/profiles/1").to route_to(
+        controller: "error", action: "not_found", path: "api/profiles/1",
+      )
+      expect(get: "/api/profiles/1/edit").to route_to(
+        controller: "error", action: "not_found", path: "api/profiles/1/edit",
+      )
+      # /new now falls through to #show, which 404s on the lookup — also fine.
+      expect(get: "/api/profiles/new").to route_to(
+        "api/profiles#show", id: "new", format: :json,
+      )
+    end
+
+    it "still routes the actions the controller does define" do
+      expect(get: "/api/profiles").to route_to("api/profiles#index", format: :json)
+      expect(post: "/api/profiles").to route_to("api/profiles#create", format: :json)
+      expect(get: "/api/profiles/1").to route_to("api/profiles#show", id: "1", format: :json)
+      expect(put: "/api/profiles/1").to route_to("api/profiles#update", id: "1", format: :json)
+      expect(get: "/api/profiles/check_slug").to route_to("api/profiles#check_slug", format: :json)
+      expect(get: "/api/account/profiles/me").to route_to("api/account/profiles#me", format: :json)
     end
   end
 

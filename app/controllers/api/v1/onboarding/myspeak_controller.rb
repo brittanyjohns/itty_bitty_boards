@@ -5,17 +5,12 @@ module API
         MAX_SLUG_TRIES = 50
 
         def create
-          unless current_user.can_create_myspeak_id?
-            limit = current_user.myspeak_id_limit
-            render json: {
-              error: "myspeak_id_limit_reached",
-              message: "Free accounts are limited to #{limit} MySpeak ID. Upgrade to Basic or Pro to add more.",
-              limit: limit,
-              count: current_user.myspeak_id_count,
-            }, status: :forbidden
-            return
-          end
-
+          # A communicator's MySpeak page is free on every plan. The only quota
+          # here is the COMMUNICATOR SLOT below (Permissions::CommunicatorLimits)
+          # — every communicator auto-mints exactly one Profile, so counting
+          # Profiles charged the same limit twice and refused a page our copy
+          # promises is free (#761).
+          #
           # A self-create's status is plan-driven: a Free user's MySpeak account
           # is a no-login sandbox ("MySpeak Free account"); paid plans get a real
           # owned (active) communicator. Free's one full slot is claim/hand-off

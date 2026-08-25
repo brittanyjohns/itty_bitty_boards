@@ -23,6 +23,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **MySpeak pages are free on every plan again.** Adding a communicator quietly
+  created their MySpeak page for you — and that page was counted against a
+  separate one-per-account limit, so on the Free plan your very first
+  communicator used up the only slot. The next time you tried to make a page you
+  were told "only one allowed per account," for a page you never knowingly
+  created. Every communicator gets a MySpeak page on every plan now, exactly as
+  the rest of the app says; how many communicators you can have is the only
+  limit. Your own public page is separate and unaffected.
 - **Deleting a picture from an image no longer deletes it permanently by
   mistake.** "Remove" was documented as a hide you could undo, but every remove
   destroyed the file for good.
