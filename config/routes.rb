@@ -110,6 +110,11 @@ Rails.application.routes.draw do
         # Autofill is on both the collection and a member because the same form
         # partial serves `new` and `edit`.
         post :autofill
+        # An uploaded document is the page's download when present, in place of
+        # a board printable.
+        post :upload_document
+        delete :remove_document
+        post :regenerate_previews
       end
       collection do
         post :autofill

@@ -394,6 +394,109 @@ RSpec.describe "Admin kit pages", type: :request do
       end
     end
 
+    describe "document upload" do
+      let(:kit_page) { create(:kit_page, slug: "at-school", board_printable: printable) }
+
+      def pdf_upload(filename: "handout.pdf", type: "application/pdf")
+        Rack::Test::UploadedFile.new(file_fixture("sample.pdf"), type, original_filename: filename)
+      end
+
+      it "attaches the PDF and queues the previews" do
+        expect {
+          post upload_document_admin_dashboard_kit_page_path(kit_page),
+               params: { document: pdf_upload, label: "Parent handout" }
+        }.to change { RenderKitPreviewsJob.jobs.size }.by(1)
+
+        expect(response).to redirect_to(edit_admin_dashboard_kit_page_path(kit_page))
+        expect(kit_page.reload.ordered_documents.map { |f| f.filename.to_s }).to eq(["handout.pdf"])
+        expect(kit_page.download_files.first[:variant]).to eq("Parent handout")
+      end
+
+      it "refuses a file that isn't a PDF" do
+        post upload_document_admin_dashboard_kit_page_path(kit_page),
+             params: { document: pdf_upload(filename: "shot.png", type: "image/png") }
+
+        expect(flash[:alert]).to include("upload a PDF")
+        expect(kit_page.reload.documents).to be_empty
+      end
+
+      it "refuses a file over the cap" do
+        upload = pdf_upload
+        allow_any_instance_of(ActionDispatch::Http::UploadedFile)
+          .to receive(:size).and_return(KitPage::MAX_DOCUMENT_BYTES + 1)
+
+        post upload_document_admin_dashboard_kit_page_path(kit_page), params: { document: upload }
+
+        expect(flash[:alert]).to include("the cap is")
+        expect(kit_page.reload.documents).to be_empty
+      end
+
+      it "refuses a submit with no file chosen" do
+        post upload_document_admin_dashboard_kit_page_path(kit_page)
+
+        expect(flash[:alert]).to eq("Choose a PDF to upload.")
+        expect(kit_page.reload.documents).to be_empty
+      end
+
+      it "refuses one past the per-page limit" do
+        KitPage::MAX_DOCUMENTS.times do |n|
+          kit_page.attach_document!(io: StringIO.new("%PDF"), filename: "doc-#{n}.pdf")
+        end
+
+        post upload_document_admin_dashboard_kit_page_path(kit_page), params: { document: pdf_upload }
+
+        expect(flash[:alert]).to include("already has #{KitPage::MAX_DOCUMENTS} documents")
+        expect(kit_page.reload.ordered_documents.size).to eq(KitPage::MAX_DOCUMENTS)
+      end
+
+      it "removes a document and re-renders what is left" do
+        document = kit_page.attach_document!(io: StringIO.new("%PDF"), filename: "handout.pdf")
+
+        expect {
+          delete remove_document_admin_dashboard_kit_page_path(kit_page, signed_id: document.signed_id)
+        }.to change { RenderKitPreviewsJob.jobs.size }.by(1)
+
+        expect(kit_page.reload.documents).to be_empty
+      end
+
+      it "will not remove a blob that isn't on this page" do
+        other = create(:kit_page)
+        stranger = other.attach_document!(io: StringIO.new("%PDF"), filename: "other.pdf")
+
+        delete remove_document_admin_dashboard_kit_page_path(kit_page, signed_id: stranger.signed_id)
+
+        expect(flash[:alert]).to include("isn't on this page")
+        expect(other.reload.documents.size).to eq(1)
+      end
+
+      it "queues a re-render on request" do
+        kit_page.attach_document!(io: StringIO.new("%PDF"), filename: "handout.pdf")
+        allow(KitPages::DocumentPreviewRenderer).to receive(:available?).and_return(true)
+
+        expect {
+          post regenerate_previews_admin_dashboard_kit_page_path(kit_page)
+        }.to change { RenderKitPreviewsJob.jobs.size }.by(1)
+      end
+
+      it "says so plainly when this host can't render previews" do
+        allow(KitPages::DocumentPreviewRenderer).to receive(:available?).and_return(false)
+
+        expect {
+          post regenerate_previews_admin_dashboard_kit_page_path(kit_page)
+        }.not_to change { RenderKitPreviewsJob.jobs.size }
+        expect(flash[:alert]).to include("can't render PDF previews")
+      end
+
+      it "tells the admin on the edit screen that the upload overrides the printable" do
+        kit_page.attach_document!(io: StringIO.new("%PDF"), filename: "handout.pdf")
+
+        get edit_admin_dashboard_kit_page_path(kit_page)
+
+        expect(response.body).to include("handout.pdf")
+        expect(response.body).to include("handing out an uploaded document instead")
+      end
+    end
+
     describe "GET /admin/kit_pages/:id/edit" do
       it "renders the stored content as pretty JSON" do
         page = create(:kit_page, slug: "at-school", content: { "items" => [{ "title" => "Poster" }] })

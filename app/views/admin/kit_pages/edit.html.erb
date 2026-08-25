@@ -9,3 +9,6 @@
 </div>
 
 <%= render "form", url: admin_dashboard_kit_page_path(@kit_page), method: :patch, submit_label: "Save changes" %>
+
+<%# Outside the main form on purpose — see the partial's header. %>
+<%= render "documents" %>

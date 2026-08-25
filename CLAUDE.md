@@ -771,9 +771,30 @@ an explicit decision, not a drive-by edit.
   tag from the `KitPage` row rather than from its frozen `SOURCE_TAGS` hash —
   that lookup is the whole reason a new landing page needs no deploy, and it may
   never raise, since a page deleted after its leads were captured must fall back
-  to the default tag rather than strand the lead. And the download always comes
-  from `BoardPrintable#files_view`, the PDF ALLOWLIST, so a listing image or the
+  to the default tag rather than strand the lead. And the download is PDFs and
+  only PDFs from either source — `BoardPrintable#files_view` or
+  `KitPage::DOCUMENT_CONTENT_TYPES` — both ALLOWLISTS, so a listing image or the
   listing video can never be handed to a visitor as the product.
+- **A kit page's UPLOADED documents win outright over its printable — for the
+  download and for the pictures alike.** `KitPage has_many_attached :documents`
+  (the file) and `:preview_images` (rendered from it); while any document is
+  attached, `#download_files` and `#gallery_images` both ignore
+  `board_printable` completely. Serving half of one and half of the other would
+  put a board's marketplace mockups above an unrelated document. Two named
+  attachments rather than one bag keyed on blob metadata, deliberately: the
+  `pdf_files` invariant above exists because `BoardPrintable` shares one `files`
+  collection across three meanings and once partitioned it by exclusion. A
+  document's admin-typed LABEL rides its blob metadata and is published as the
+  row's `variant`, because that is the field the frontend prints on the button —
+  which is why a multi-document kit needed no frontend change at all. Preview
+  images come from `KitPages::DocumentPreviewRenderer`, libvips' `pdfload_buffer`
+  (already the Active Storage variant processor, so no new gem and no new
+  binary), gated on `.available?` in the `VideoTranscoder` style: where this
+  host's libvips has no PDF loader the page simply shows no mockups and the
+  admin is told so, because a gallery is marketing and the download is the
+  product. Every blob is written to a VERSIONED key — CloudFront caches by path
+  and ignores query strings, the same lesson
+  `BoardPrintable#versioned_storage_key_for` records.
 - **Every buyer-facing file carries TWO urls, and the split is load-bearing.**
   `files_view` serves `url` (CDN, cached, previews in the browser) *and*
   `download_url` (presigned, `Content-Disposition: attachment`, saves the file).
@@ -784,8 +805,10 @@ an explicit decision, not a drive-by edit.
   - **`file.url(disposition: :attachment)` silently does nothing here.** The
     `amazon` service is `public: true`, and `ActiveStorage::Service#url` routes
     a public service to `public_url`, which drops `disposition` on the floor.
-    `BoardPrintable#download_url_for_file` therefore presigns the object
-    directly, mirroring what `S3Service#private_url` would have done.
+    `AttachedFileUrls#download_url_for_file` therefore presigns the object
+    directly, mirroring what `S3Service#private_url` would have done. That pair
+    (`url_for_file` / `download_url_for_file`) is a CONCERN, included by both
+    `BoardPrintable` and `KitPage` — too subtle to keep two copies of.
   - **It addresses the BUCKET, not `CDN_HOST`.** CloudFront ignores query
     strings (the same fact that forces versioned keys in
     `#versioned_storage_key_for`), so a `response-content-disposition` sent
@@ -793,15 +816,17 @@ an explicit decision, not a drive-by edit.
     CDN is the deliberate trade.
 
   It is opt-in per call (`view_for(..., with_download_url: true)`) so
-  `listing_images_view` doesn't sign a URL per gallery image that nothing
-  follows, and it returns nil rather than raising — same contract as
+  `listing_images_view` — and `KitPage#preview_images_view` — don't sign a URL
+  per gallery image that nothing follows, and it returns nil rather than raising — same contract as
   `url_for_file`, since a bad credential must not 500 the admin status poll.
   **Dev and test are the Disk service, which honours `disposition` through the
   ordinary URL builder and hides this entire problem** — verify on staging.
 - **The PRODUCT is gated; a PICTURE of it is not.** `public_view` also carries
   `images`, the printable's rendered marketplace mockups, and that is not a hole
   in the bullet above — a lead magnet no one can see converts nothing, and these
-  renders are marketing art on the same public CDN, not the document. The line
+  renders are marketing art on the same public CDN, not the document. For an
+  uploaded-document page the pictures are the document's own first pages,
+  capped at `KitPage::PREVIEW_PAGE_COUNT`; for a printable-backed one the line
   is drawn by `KitPage::KIT_IMAGE_ORDER`, a curated ALLOWLIST over
   `BoardPrintable#listing_images_view` (which has already dropped retired
   gallery designs). Narrow by allowlist, exactly as `pdf_files` does: a new

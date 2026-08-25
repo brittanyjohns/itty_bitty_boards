@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A kit landing page can now give away a PDF you upload, not just a board
+  printable.** `/admin/kit_pages` has a Document card: drop in one or more PDFs
+  and they become the page's download, so a parent handout or a workshop packet
+  can be a lead magnet without first being generated as a printable. Each file
+  takes an optional label, which is the text on its download button when a page
+  hands over more than one. While anything is uploaded there it is *the*
+  download — the printable dropdown is ignored until you remove it. The first
+  couple of pages of the PDF are rendered automatically as the pictures shown
+  on the landing page.
 - **Admins can now set the library's default picture for a word, and remove a
   picture from the library for good.** Both were previously only possible as a
   side effect of a user-shaped action. On the image edit screen there is now a
