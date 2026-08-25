@@ -728,6 +728,21 @@ quotas. Conflating them is what broke #761.
   `user.profile` returns an arbitrary one of them. Note there is **no DB unique
   index** on `(profileable_type, profileable_id)`; the controller guard is the
   only thing holding the invariant on the write path.
+- **`POST /api/profiles` is USER-OWNED ONLY and can never create a
+  communicator's MySpeak page.** It hardcodes `profile.profileable = current_user`
+  and `profile_params` permits no `profileable`, so the endpoint has exactly one
+  possible owner. The trap is on the client: `ProfileForm` — which is the
+  *communicator* MySpeak editor, rendered six times on `ViewChildAccountScreen`
+  with `existingProfile={communicatorAccount.profile}` — falls back to this
+  endpoint when that profile is missing (`existingProfile?.id ? update : create`).
+  A communicator's `profile` is optional (`ChildAccount#create_profile!` returns
+  early when the username won't sluggify), so that fallback is reachable, and it
+  mints a stray **User-owned** page that never attaches to the communicator.
+  The 409 above makes it fail loudly for a user who already has a page rather
+  than silently succeeding at the wrong thing; the real fix is client-side
+  (`itty-bitty-frontend#745`). A communicator's page is minted exactly once, by
+  `ChildAccount#create_profile!` at communicator-create time — never by a form
+  save.
 - **`resources :profiles` is `only:`-scoped** (and the `namespace :account` one
   is `only: []`). The controllers define no `destroy`/`new`/`edit`, and a bare
   `resources` routed `DELETE /api/profiles/:id` straight at a missing action —
