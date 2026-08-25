@@ -150,6 +150,38 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response.body).to include("board_limit")
     end
 
+    it "renders live Stripe state on the Partner Pilot card, flagging a non-partner price" do
+      partner = create(:user, email: "stripe-state@example.com", plan_type: "partner_pro")
+      partner.update_columns(stripe_subscription_id: "sub_show", plan_expires_at: 2.months.from_now)
+      allow(Stripe::Subscription).to receive(:retrieve).and_return(
+        OpenStruct.new(
+          id: "sub_show", status: "active", cancel_at_period_end: false, trial_end: nil, metadata: {},
+          items: OpenStruct.new(data: [
+            OpenStruct.new(id: "si_plan", quantity: 1, price: OpenStruct.new(
+              id: "price_basic", metadata: { "plan_type" => "basic" },
+              recurring: OpenStruct.new(interval: "month"), unit_amount: 1500,
+            )),
+          ]),
+        ),
+      )
+
+      get admin_dashboard_user_path(partner)
+
+      expect(response.body).to include("sub_show").and include("price_basic")
+      expect(response.body).to include("not the Partner Pro price")
+    end
+
+    it "still renders the user page when Stripe is unreachable" do
+      partner = create(:user, email: "stripe-down@example.com", plan_type: "partner_pro")
+      partner.update_columns(stripe_subscription_id: "sub_down")
+      allow(Stripe::Subscription).to receive(:retrieve).and_raise(Stripe::APIConnectionError.new("down"))
+
+      get admin_dashboard_user_path(partner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Stripe unavailable")
+    end
+
     it "shows a Partner Pilot card for partner_pro users" do
       partner = create(:user, email: "pilot@example.com", plan_type: "partner_pro")
       partner.update_columns(plan_expires_at: 10.days.from_now)
@@ -401,6 +433,97 @@ RSpec.describe "Admin::Users", type: :request do
       expect(newbie.role).to eq("partner")
       expect(newbie.plan_status).to eq("active")
       expect(newbie.plan_expires_at).to be_within(1.day).of(3.months.from_now)
+    end
+
+    context "partner_pro Stripe sync" do
+      around do |example|
+        original = ENV["STRIPE_PRICE_PARTNER_PRO"]
+        ENV["STRIPE_PRICE_PARTNER_PRO"] = "price_partner_test"
+        example.run
+      ensure
+        ENV["STRIPE_PRICE_PARTNER_PRO"] = original
+      end
+
+      before do
+        allow(MailchimpService).to receive(:new)
+          .and_return(instance_double(MailchimpService, record_new_subscriber: true))
+      end
+
+      let(:payer) do
+        create(:user, email: "payer@example.com", plan_type: "basic").tap do |u|
+          u.update_columns(stripe_customer_id: "cus_x", stripe_subscription_id: "sub_x")
+        end
+      end
+
+      def stub_existing_subscription(price_id: "price_basic")
+        allow(Stripe::Subscription).to receive(:retrieve).and_return(
+          OpenStruct.new(
+            id: "sub_x", status: "active", cancel_at_period_end: false, metadata: {},
+            items: OpenStruct.new(data: [
+              OpenStruct.new(id: "si_plan", quantity: 1, price: OpenStruct.new(
+                id: price_id, metadata: { "plan_type" => "basic" },
+                recurring: OpenStruct.new(interval: "month"), unit_amount: 1500,
+              )),
+            ]),
+          ),
+        )
+      end
+
+      it "moves an existing subscription onto the partner price and says so" do
+        stub_existing_subscription
+        expect(Stripe::Subscription).to receive(:update)
+          .with("sub_x", hash_including(items: [{ id: "si_plan", price: "price_partner_test", quantity: 1 }]))
+          .and_return(double(id: "sub_x"))
+
+        post change_plan_admin_dashboard_user_path(payer), params: { plan_type: "partner_pro" }
+
+        expect(payer.reload.plan_type).to eq("partner_pro")
+        expect(flash[:notice]).to include("sub_x").and include("moved onto the Partner Pro price")
+        expect(flash[:notice]).to include("price_basic")
+      end
+
+      it "reports a Stripe failure as an alert, while the local flip still lands" do
+        stub_existing_subscription
+        allow(Stripe::Subscription).to receive(:update).and_raise(Stripe::StripeError.new("card_declined"))
+
+        post change_plan_admin_dashboard_user_path(payer), params: { plan_type: "partner_pro" }
+
+        expect(payer.reload.plan_type).to eq("partner_pro")
+        expect(payer.stripe_subscription_id).to eq("sub_x")
+        expect(flash[:alert]).to include("Stripe failed").and include("card_declined")
+      end
+
+      it "creates a fresh subscription when the stored one is gone from Stripe" do
+        allow(Stripe::Subscription).to receive(:retrieve)
+          .and_raise(Stripe::InvalidRequestError.new("no sub", "id", code: "resource_missing"))
+        allow(Stripe::Subscription).to receive(:create).and_return(double(id: "sub_fresh"))
+
+        post change_plan_admin_dashboard_user_path(payer), params: { plan_type: "partner_pro" }
+
+        expect(payer.reload.stripe_subscription_id).to eq("sub_fresh")
+        expect(flash[:notice]).to include("Created Stripe trial subscription sub_fresh")
+      end
+
+      it "alerts when the partner price is not configured" do
+        ENV["STRIPE_PRICE_PARTNER_PRO"] = ""
+
+        post change_plan_admin_dashboard_user_path(payer), params: { plan_type: "partner_pro" }
+
+        expect(payer.reload.plan_type).to eq("partner_pro")
+        expect(flash[:alert]).to include("STRIPE_PRICE_PARTNER_PRO")
+      end
+
+      # A failed swap leaves the user partner_pro locally; without the exemption
+      # the no-change guard would make retrying impossible from this page.
+      it "can be re-run on a user who is already partner_pro" do
+        stub_existing_subscription
+        payer.update_columns(plan_type: "partner_pro")
+        expect(Stripe::Subscription).to receive(:update).and_return(double(id: "sub_x"))
+
+        post change_plan_admin_dashboard_user_path(payer), params: { plan_type: "partner_pro" }
+
+        expect(flash[:notice]).to include("moved onto the Partner Pro price")
+      end
     end
 
     it "is a no-op when the plan is unchanged" do

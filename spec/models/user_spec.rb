@@ -150,12 +150,186 @@ RSpec.describe User, type: :model do
         expect(user.ensure_partner_pro_trial_subscription!(trial_end: 3.months.from_now)).to be_nil
       end
 
+      it "never swaps an existing subscription (that is the admin path's job)" do
+        user.update_columns(stripe_subscription_id: "sub_existing")
+        expect(Stripe::Subscription).not_to receive(:update)
+        expect(Stripe::Subscription).not_to receive(:retrieve)
+
+        user.ensure_partner_pro_trial_subscription!(trial_end: 3.months.from_now)
+      end
+
       it "fails soft on a Stripe error (never raises, leaves the id nil)" do
         allow(Stripe::Subscription).to receive(:create).and_raise(Stripe::StripeError.new("boom"))
 
         expect { user.ensure_partner_pro_trial_subscription!(trial_end: 3.months.from_now) }
           .not_to raise_error
         expect(user.reload.stripe_subscription_id).to be_nil
+      end
+    end
+
+    describe "#sync_partner_pro_subscription!" do
+      # Stripe's item shape: subscription.items.data, each with an id, quantity,
+      # and a price carrying metadata.
+      def item(id:, price_id:, plan_type: nil, quantity: 1, interval: "month", amount: 1000)
+        OpenStruct.new(
+          id: id, quantity: quantity,
+          price: OpenStruct.new(
+            id: price_id,
+            metadata: plan_type ? { "plan_type" => plan_type } : {},
+            recurring: OpenStruct.new(interval: interval),
+            unit_amount: amount,
+          ),
+        )
+      end
+
+      def subscription(items:, status: "active", cancel_at_period_end: false, id: "sub_existing")
+        OpenStruct.new(
+          id: id, status: status, cancel_at_period_end: cancel_at_period_end,
+          items: OpenStruct.new(data: items), metadata: {},
+        )
+      end
+
+      let(:plan_item) { item(id: "si_plan", price_id: "price_basic", plan_type: "basic") }
+      let(:addon_item) { item(id: "si_addon", price_id: "price_extra_comm") }
+
+      before { user.update_columns(stripe_subscription_id: "sub_existing") }
+
+      it "swaps the plan item onto the partner price with a no-card trial" do
+        trial_end = 3.months.from_now
+        allow(Stripe::Subscription).to receive(:retrieve).with("sub_existing")
+          .and_return(subscription(items: [plan_item]))
+        expect(Stripe::Subscription).to receive(:update).with(
+          "sub_existing",
+          hash_including(
+            items: [{ id: "si_plan", price: "price_partner_test", quantity: 1 }],
+            proration_behavior: "none",
+            trial_end: trial_end.to_i,
+            trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+            cancel_at_period_end: false,
+          ),
+        ).and_return(double(id: "sub_existing"))
+
+        result = user.sync_partner_pro_subscription!(trial_end: trial_end, swap_existing: true)
+
+        expect(result[:ok]).to be true
+        expect(result[:action]).to eq(:swapped)
+        expect(result[:previous_price_id]).to eq("price_basic")
+        expect(result[:previous_interval]).to eq("monthly")
+      end
+
+      # Stripe does not guarantee item order. Swapping items.data.first would
+      # overwrite the add-on's price and silently destroy purchased slots.
+      it "swaps the PLAN item even when an add-on item comes first" do
+        allow(Billing::ExtraCommunicators).to receive(:extra_comm_item?) { |i| i.id == "si_addon" }
+        allow(Stripe::Subscription).to receive(:retrieve)
+          .and_return(subscription(items: [addon_item, plan_item]))
+
+        expect(Stripe::Subscription).to receive(:update) do |_id, params|
+          expect(params[:items].map { |i| i[:id] }).to eq(["si_plan"])
+          double(id: "sub_existing")
+        end
+
+        user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)
+      end
+
+      it "preserves the plan item's quantity (Stripe resets it to 1 otherwise)" do
+        allow(Stripe::Subscription).to receive(:retrieve)
+          .and_return(subscription(items: [item(id: "si_plan", price_id: "price_basic", plan_type: "basic", quantity: 3)]))
+
+        expect(Stripe::Subscription).to receive(:update)
+          .with("sub_existing", hash_including(items: [{ id: "si_plan", price: "price_partner_test", quantity: 3 }]))
+          .and_return(double(id: "sub_existing"))
+
+        user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)
+      end
+
+      it "clears a pending cancel_at_period_end" do
+        allow(Stripe::Subscription).to receive(:retrieve)
+          .and_return(subscription(items: [plan_item], cancel_at_period_end: true))
+
+        expect(Stripe::Subscription).to receive(:update)
+          .with("sub_existing", hash_including(cancel_at_period_end: false))
+          .and_return(double(id: "sub_existing"))
+
+        user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)
+      end
+
+      it "is idempotent when the subscription is already on the partner price" do
+        allow(Stripe::Subscription).to receive(:retrieve).and_return(
+          subscription(items: [item(id: "si_plan", price_id: "price_partner_test", plan_type: "partner_pro")]),
+        )
+        expect(Stripe::Subscription).not_to receive(:update)
+
+        result = user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)
+        expect(result[:action]).to eq(:already_on_price)
+        expect(result[:ok]).to be true
+      end
+
+      it "creates a fresh subscription when the stored one is missing from Stripe" do
+        allow(Stripe::Subscription).to receive(:retrieve)
+          .and_raise(Stripe::InvalidRequestError.new("No such subscription", "id", code: "resource_missing"))
+        expect(Stripe::Subscription).not_to receive(:update)
+        expect(Stripe::Subscription).to receive(:create).and_return(double(id: "sub_new"))
+
+        result = user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)
+
+        expect(result[:action]).to eq(:created)
+        expect(user.reload.stripe_subscription_id).to eq("sub_new")
+      end
+
+      %w[canceled incomplete_expired].each do |dead|
+        it "creates a fresh subscription when the stored one is #{dead}" do
+          allow(Stripe::Subscription).to receive(:retrieve)
+            .and_return(subscription(items: [plan_item], status: dead))
+          expect(Stripe::Subscription).not_to receive(:update)
+          expect(Stripe::Subscription).to receive(:create).and_return(double(id: "sub_new"))
+
+          expect(user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)[:action])
+            .to eq(:created)
+        end
+      end
+
+      # Falling through to create on an unknown failure would leave the original
+      # subscription live and bill the user twice.
+      it "never creates a second subscription when the retrieve fails for an unknown reason" do
+        allow(Stripe::Subscription).to receive(:retrieve).and_raise(Stripe::APIConnectionError.new("down"))
+        expect(Stripe::Subscription).not_to receive(:create)
+        expect(Stripe::Subscription).not_to receive(:update)
+
+        result = user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)
+
+        expect(result[:ok]).to be false
+        expect(result[:action]).to eq(:failed)
+        expect(user.reload.stripe_subscription_id).to eq("sub_existing")
+      end
+
+      it "clamps a stale trial_end forward instead of sending Stripe a past date" do
+        allow(Stripe::Subscription).to receive(:retrieve).and_return(subscription(items: [plan_item]))
+
+        expect(Stripe::Subscription).to receive(:update) do |_id, params|
+          expect(Time.at(params[:trial_end])).to be_within(1.day).of(User::PARTNER_PILOT_TRIAL_MONTHS.months.from_now)
+          double(id: "sub_existing")
+        end
+
+        user.sync_partner_pro_subscription!(trial_end: 2.months.ago, swap_existing: true)
+      end
+
+      it "skips Stripe entirely when the price env is unset" do
+        ENV["STRIPE_PRICE_PARTNER_PRO"] = ""
+        expect(Stripe::Subscription).not_to receive(:retrieve)
+        expect(Stripe::Subscription).not_to receive(:update)
+
+        expect(user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: true)[:action])
+          .to eq(:skipped)
+      end
+
+      it "leaves an existing subscription alone when swap_existing is false (the signup path)" do
+        expect(Stripe::Subscription).not_to receive(:retrieve)
+        expect(Stripe::Subscription).not_to receive(:update)
+
+        result = user.sync_partner_pro_subscription!(trial_end: 3.months.from_now, swap_existing: false)
+        expect(result[:action]).to eq(:reused)
+        expect(result[:subscription_id]).to eq("sub_existing")
       end
     end
 
@@ -194,6 +368,32 @@ RSpec.describe User, type: :model do
         expect(user.reload.stripe_subscription_id).to eq("sub_abc")
         expect(Array(user.settings["plan_welcome_sent_for"])).to include("partner_pro")
         expect(user.plan_expires_at).to be_present
+      end
+
+      it "defaults to create-only, and passes swap_existing through when asked" do
+        user.update_columns(stripe_subscription_id: "sub_existing")
+        expect(user).to receive(:sync_partner_pro_subscription!)
+          .with(hash_including(swap_existing: true)).and_return({ ok: true, action: :swapped })
+        allow(User).to receive(:find).and_return(user)
+
+        expect(User.handle_new_partner_pro_subscription(user, "partner_pro", swap_existing: true))
+          .to include(action: :swapped)
+      end
+
+      it "clamps a stale plan_expires_at forward so the local and Stripe dates match" do
+        user.update_columns(plan_expires_at: 2.months.ago)
+        allow(Stripe::Subscription).to receive(:create).and_return(double(id: "sub_abc"))
+
+        User.handle_new_partner_pro_subscription(user)
+
+        expect(user.reload.plan_expires_at)
+          .to be_within(1.day).of(User::PARTNER_PILOT_TRIAL_MONTHS.months.from_now)
+      end
+
+      it "returns the Stripe result so an admin caller can report what happened" do
+        allow(Stripe::Subscription).to receive(:create).and_return(double(id: "sub_abc"))
+
+        expect(User.handle_new_partner_pro_subscription(user)).to include(ok: true, action: :created)
       end
 
       it "still provisions the partner (role + credits) when Stripe creation fails" do

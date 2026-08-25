@@ -503,7 +503,34 @@ class API::WebhooksController < API::ApplicationController
       plan_type = user.plan_type.presence
     end
 
+    # Partner Pro safety rail. Mirrors the partner special-case in
+    # handle_subscription_deleted. An admin can move a user onto partner_pro
+    # while THIS subscription still sits on their old basic/pro Price — if the
+    # Stripe swap failed or was skipped — and the next routine
+    # customer.subscription.updated would silently revert them with nothing to
+    # catch it.
+    #
+    # Keyed on the subscription id, not on the metadata alone: metadata alone
+    # would make partner_pro permanently sticky, so a partner who genuinely
+    # converts to a real paid plan could never leave. A deliberate conversion
+    # arrives on a DIFFERENT subscription and is still allowed through. The
+    # known gap — a partner switching THIS same subscription to Basic in the
+    # billing portal is refused — is documented in billing-and-plans.md.
+    if user.plan_type == "partner_pro" && plan_type.present? && plan_type != "partner_pro" &&
+       user.stripe_subscription_id.present? && user.stripe_subscription_id == subscription.id
+      Rails.logger.warn "[StripeWebhook] subscription upsert: refusing to demote partner user=#{user.id} " \
+                        "off partner_pro; sub=#{subscription.id} price=#{price.id} claims " \
+                        "plan_type=#{plan_type} status=#{subscription.status}"
+      plan_type = "partner_pro"
+    end
+
     user.plan_type = plan_type if plan_type.present?
+    # plan_status stays verbatim from Stripe even when the plan_type above was
+    # preserved. Only active/trialing/past_due/incomplete reach this line (the
+    # terminal statuses returned early above), none of which are in
+    # UNPAID_STATUSES — so this can't make the partner plan_stranded? or trip
+    # reconcile_stranded_plan! on the sign-in hot path. And it's true
+    # information: a partner whose card is failing genuinely is past_due.
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
@@ -968,19 +995,12 @@ class API::WebhooksController < API::ApplicationController
     end
   end
 
+  # Never let the extra-communicator add-on item be read as the plan price.
+  # Billing::PartnerProStatus.plan_item is the single copy of that rule, shared
+  # with the Partner Pro write path (User#swap_primary_item_to!) so a
+  # subscription can't be read as one plan and written as another.
   def first_price_from_subscription(subscription)
-    items = subscription.items&.data || []
-    return nil if items.empty?
-
-    # Never let the extra-communicator add-on item be read as the plan price.
-    # Prefer the item whose Price carries plan_type metadata (the real plan),
-    # then any non-add-on item, then fall back to the first item.
-    plan_item = items.find do |item|
-      meta = item.price&.metadata || {}
-      meta["plan_type"].present? && !Billing::ExtraCommunicators.extra_comm_item?(item)
-    end
-    plan_item ||= items.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
-    (plan_item || items.first).price
+    Billing::PartnerProStatus.plan_item(subscription)&.price
   end
 
   # True when Stripe has a chargeable card for this subscription. Delegates the

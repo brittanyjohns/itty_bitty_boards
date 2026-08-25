@@ -416,6 +416,29 @@ class User < ApplicationRecord
   # `trial_end` (rake partners:extend), which the reverse-trial webhooks honor.
   PARTNER_PILOT_TRIAL_MONTHS = ENV.fetch("PARTNER_PILOT_TRIAL_MONTHS", 3).to_i
 
+  # Subscription statuses from which a stored subscription can never be revived
+  # — the id is dead weight and the right move is to create a fresh one.
+  DEAD_SUBSCRIPTION_STATUSES = %w[canceled incomplete_expired].freeze
+
+  # Stripe rejects a `trial_end` in the past, and a user being upgraded to
+  # Partner can easily carry a stale `plan_expires_at` (a lapsed pilot, an
+  # expired 5-yr license). Anything this close to now is treated as stale and
+  # replaced with a full pilot rather than 400ing the whole Stripe call.
+  PARTNER_PILOT_MIN_TRIAL_WINDOW = 1.day
+
+  # The pilot end date to use, given whatever the caller had on hand. Callers
+  # must run their local `plan_expires_at` through this too — clamping only
+  # inside the Stripe call would drift the local date from the Stripe one.
+  def self.partner_pro_trial_end(candidate)
+    full_pilot = Time.current + PARTNER_PILOT_TRIAL_MONTHS.months
+    return full_pilot if candidate.blank?
+
+    candidate = candidate.to_time
+    candidate <= Time.current + PARTNER_PILOT_MIN_TRIAL_WINDOW ? full_pilot : candidate
+  rescue StandardError
+    full_pilot
+  end
+
   def setup_partner_pro_plan
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
@@ -624,11 +647,17 @@ class User < ApplicationRecord
     subscriptions
   end
 
-  def self.handle_new_partner_pro_subscription(user, plan_nickname = "partner_pro")
+  # `swap_existing:` is passed through to sync_partner_pro_subscription! —
+  # false (signup: create only) or true (admin upgrade: move an existing
+  # subscription onto the partner price). Returns that Stripe result hash so an
+  # admin caller can report what actually happened in Stripe.
+  def self.handle_new_partner_pro_subscription(user, plan_nickname = "partner_pro", swap_existing: false)
     Rails.logger.info "Handling Partner Pro subscription for user: #{user.email} with plan_nickname: #{plan_nickname}"
     user.role = "partner"
     user.plan_status = "active"
-    trial_end = user.plan_expires_at || (Time.now + PARTNER_PILOT_TRIAL_MONTHS.months)
+    # Clamped HERE, not just inside the Stripe call: the next line writes the
+    # local plan_expires_at, and the two dates must not drift.
+    trial_end = partner_pro_trial_end(user.plan_expires_at)
     user.plan_expires_at = trial_end
     partner_group = user.get_partner_group
     user.settings["partner_group"] = partner_group
@@ -645,7 +674,7 @@ class User < ApplicationRecord
     # end, the `trial_will_end` reminder, and one-click conversion. Fail-soft:
     # if Stripe is unreachable the partner is still fully provisioned by the
     # local grant below, and the subscription can be backfilled later.
-    user.ensure_partner_pro_trial_subscription!(trial_end: trial_end)
+    stripe_result = user.sync_partner_pro_subscription!(trial_end: trial_end, swap_existing: swap_existing)
 
     # Grant the Partner Pro (Pro-equivalent) credit allowance IMMEDIATELY.
     # The initial free-tier grant is now deferred to email verification (see
@@ -677,8 +706,14 @@ class User < ApplicationRecord
     rescue => e
       Rails.logger.error "Mailchimp tag update failed for pilot_partner: #{e.message}"
     end
+
+    # Last expression on purpose: the Stripe outcome is what the admin flash
+    # reports. The credit and Mailchimp blocks above keep their own rescues so
+    # a Mailchimp hiccup can't clobber a successful Stripe result.
+    stripe_result
   rescue StandardError => e
     Rails.logger.error "Error handling Partner Pro subscription for user #{user&.email}: #{e.inspect}"
+    { ok: false, action: :failed, error: "#{e.class}: #{e.message}" }
   end
 
   def opening_board
@@ -771,22 +806,54 @@ class User < ApplicationRecord
     true
   end
 
-  # Create a no-card Stripe trial subscription on the Partner Pro price so the
-  # pilot rides the reverse-trial machinery (#264): `trialing` now, a
+  # Put this user's Stripe subscription on the Partner Pro price, so STRIPE is
+  # what asserts `partner_pro` and the subscription webhook preserves it.
+  #
+  # The pilot rides the reverse-trial machinery (#264): `trialing` now, a
   # `trial_will_end` reminder ~3 days out, and — if no card is ever added — a
-  # clean cancel → `customer.subscription.deleted` → downgrade to Free at trial
-  # end (content retained via fallback mode). The Partner Pro price carries
-  # `metadata.plan_type=partner_pro`, so the webhook keeps the user on
-  # `partner_pro` and grants the 1500-credit allowance. No-op if a subscription
-  # already exists. Fail-soft: any Stripe error is logged and swallowed so a
-  # partner signup never 500s — the caller's local grant still provisions them.
-  def ensure_partner_pro_trial_subscription!(trial_end:)
-    return stripe_subscription_id if stripe_subscription_id.present?
-
-    price_id = ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil).presence
+  # clean cancel → `customer.subscription.deleted` → the Clinician landing at
+  # trial end (content retained). The Partner Pro price carries
+  # `metadata.plan_type=partner_pro`, which is what keeps the webhook from
+  # writing some other plan back over the user on the next routine update.
+  #
+  # `swap_existing:` is the whole difference between the two callers. Signup
+  # has no subscription, so it only ever creates (false). An ADMIN upgrading an
+  # existing customer does have one, sitting on a basic/pro price whose
+  # metadata will silently revert them — so the admin path moves that
+  # subscription onto the partner price (true) instead of leaving it to lie.
+  #
+  # Fail-soft: never raises, so a partner signup can't 500 on a Stripe blip and
+  # the caller's local grant still provisions them. The RESULT is what makes a
+  # failure loud — an admin needs to know Stripe didn't land.
+  #
+  # Returns { ok:, action:, subscription:, subscription_id:, price_id:,
+  #           trial_end:, previous_price_id:, previous_interval:,
+  #           previous_amount:, previous_status:, error: }
+  # action ∈ :created | :swapped | :already_on_price | :reused | :skipped | :failed
+  def sync_partner_pro_subscription!(trial_end:, swap_existing: false)
+    price_id = Billing::PartnerProStatus.partner_price_id
     if price_id.blank?
       Rails.logger.error "[PartnerPilot] STRIPE_PRICE_PARTNER_PRO unset; skipping Stripe subscription for user=#{id}"
-      return nil
+      return { ok: false, action: :skipped, error: "STRIPE_PRICE_PARTNER_PRO is not configured" }
+    end
+
+    # Defensive re-clamp for direct callers; handle_new_partner_pro_subscription
+    # clamps first so the local plan_expires_at matches what Stripe is told.
+    trial_end = User.partner_pro_trial_end(trial_end)
+
+    if stripe_subscription_id.present?
+      # Signup semantics: a subscription already exists, leave it alone.
+      unless swap_existing
+        return { ok: true, action: :reused, subscription_id: stripe_subscription_id }
+      end
+
+      existing = live_subscription_for_swap(stripe_subscription_id)
+      if existing
+        return swap_primary_item_to!(existing, price_id, trial_end)
+      end
+
+      # Gone from Stripe, or terminally dead. Drop the stale id and create fresh.
+      update_columns(stripe_subscription_id: nil)
     end
 
     ensure_stripe_customer!
@@ -802,11 +869,109 @@ class User < ApplicationRecord
     )
     update_columns(stripe_subscription_id: subscription.id) if subscription.id.present?
     Rails.logger.info "[PartnerPilot] created trial subscription #{subscription.id} for user=#{id} trial_end=#{trial_end}"
-    subscription
+    {
+      ok: true, action: :created, subscription: subscription,
+      subscription_id: subscription.id, price_id: price_id, trial_end: trial_end,
+    }
   rescue => e
-    Rails.logger.error "[PartnerPilot] failed to create trial subscription for user=#{id}: #{e.class} - #{e.message}"
-    nil
+    Rails.logger.error "[PartnerPilot] failed to sync trial subscription for user=#{id}: #{e.class} - #{e.message}"
+    { ok: false, action: :failed, error: "#{e.class}: #{e.message}" }
   end
+
+  # Backwards-compatible signup entry point: ensure a Partner Pro trial
+  # subscription exists, never touching one that already does. Kept as a thin
+  # wrapper (rather than folding a kwarg into it) so the public signup path's
+  # return values stay exactly what they were.
+  def ensure_partner_pro_trial_subscription!(trial_end:)
+    result = sync_partner_pro_subscription!(trial_end: trial_end, swap_existing: false)
+    case result[:action]
+    when :reused then stripe_subscription_id
+    when :created then result[:subscription]
+    end
+  end
+
+  private
+
+  # The live subscription behind a stored id, or nil when that id is dead and
+  # the caller should create a fresh subscription instead.
+  #
+  # Mirrors stripe_customer_live?: only Stripe telling us it's gone (or a
+  # terminal status) invalidates the id. Every other error RAISES, on purpose —
+  # falling through to create on an unknown failure would leave the original
+  # subscription live and bill the user twice.
+  def live_subscription_for_swap(sub_id)
+    subscription = Stripe::Subscription.retrieve(sub_id)
+    if DEAD_SUBSCRIPTION_STATUSES.include?(subscription.status.to_s)
+      Rails.logger.warn "[PartnerPilot] subscription #{sub_id} is #{subscription.status} for user=#{id}; will create a new one"
+      return nil
+    end
+
+    subscription
+  rescue Stripe::InvalidRequestError => e
+    if e.code.to_s == "resource_missing"
+      Rails.logger.warn "[PartnerPilot] subscription #{sub_id} missing for user=#{id}; will create a new one"
+      return nil
+    end
+
+    raise
+  end
+
+  # Move an existing subscription's PLAN item onto the Partner Pro price.
+  #
+  # Every argument here is load-bearing:
+  #   - only the plan item is listed, so extra-communicator add-on items are
+  #     left untouched by Stripe (they stay valid: partners satisfy `pro?`,
+  #     which is what the webhook re-derives the slot count from).
+  #   - `quantity` is explicit because Stripe silently resets it to 1 on a
+  #     price change.
+  #   - `trial_end` on an active subscription is supported and moves the
+  #     billing anchor itself, so no billing_cycle_anchor; `proration_behavior:
+  #     "none"` is its documented pairing and is what stops an immediate
+  #     invoice or credit being cut.
+  #   - `cancel_at_period_end: false` because a pending cancel would both kill
+  #     the subscription and drag `trial_end` back to the cancel date.
+  def swap_primary_item_to!(subscription, price_id, trial_end)
+    item = Billing::PartnerProStatus.plan_item(subscription)
+    raise "subscription #{subscription.id} has no plan item to swap" if item.nil?
+
+    previous = {
+      previous_price_id: item.price&.id,
+      previous_interval: Billing::PartnerProStatus.interval_for(item.price),
+      previous_amount: Billing::PartnerProStatus.amount_for(item.price),
+      previous_status: subscription.status,
+    }
+
+    if item.price&.id == price_id && !subscription.try(:cancel_at_period_end)
+      Rails.logger.info "[PartnerPilot] subscription #{subscription.id} already on the Partner Pro price for user=#{id}"
+      return {
+        ok: true, action: :already_on_price, subscription: subscription,
+        subscription_id: subscription.id, price_id: price_id, trial_end: trial_end,
+      }.merge(previous)
+    end
+
+    updated = Stripe::Subscription.update(
+      subscription.id,
+      {
+        items: [{ id: item.id, price: price_id, quantity: (item.try(:quantity) || 1) }],
+        proration_behavior: "none",
+        trial_end: trial_end.to_i,
+        trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+        cancel_at_period_end: false,
+        metadata: (subscription.metadata.respond_to?(:to_h) ? subscription.metadata.to_h : {}).merge(
+          "user_id" => id.to_s, "plan_key" => "partner_pro", "source" => "admin_partner_pro_upgrade",
+        ),
+      },
+    )
+    update_columns(stripe_subscription_id: subscription.id) if stripe_subscription_id != subscription.id
+    Rails.logger.info "[PartnerPilot] swapped subscription #{subscription.id} onto the Partner Pro price " \
+                      "for user=#{id} (was #{previous[:previous_price_id]}) trial_end=#{trial_end}"
+    {
+      ok: true, action: :swapped, subscription: updated,
+      subscription_id: subscription.id, price_id: price_id, trial_end: trial_end,
+    }.merge(previous)
+  end
+
+  public
 
   # Extend a partner pilot: push both the local `plan_expires_at` and the Stripe
   # subscription's `trial_end` out to `new_end` so Stripe re-arms the
