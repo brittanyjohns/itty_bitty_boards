@@ -76,7 +76,9 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   address. Existing pages are unchanged until you run
   `rake profiles:migrate_to_random_slugs`, which previews by default, keeps the
   old address working as a redirect, and re-sends updated device tags for the
-  pages it moves.
+  pages it moves. A communicator page's random address can't be edited (that
+  is the point of it), and trying now explains why instead of showing "You can
+  change your link again on ." with no date.
 - **"Make this my editable board" no longer reports success while changing
   nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`
   and always answered 200, but the read-only gate resolves the edit slot

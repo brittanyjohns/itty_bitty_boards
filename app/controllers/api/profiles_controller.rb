@@ -206,6 +206,20 @@ class API::ProfilesController < API::ApplicationController
     requested_slug = params.dig(:profile, :slug).to_s.strip.downcase.presence
     if requested_slug && requested_slug != profile.slug
       unless profile.slug_editable? || current_user&.admin?
+        # A random safety link is locked forever, not until a date: it exists
+        # so the page can't be found by guessing a child's name, and letting
+        # the owner rename it back to that name would undo the protection.
+        # Answered as its own code because `slug_locked`'s copy is built around
+        # a `next_edit_at` this case doesn't have.
+        if profile.slug_permanent?
+          render json: {
+            error: "slug_permanent",
+            message: "This link is randomly generated so the page can't be found by " \
+                     "guessing a name, so it can't be changed.",
+          }, status: :unprocessable_content
+          return
+        end
+
         next_at = profile.slug_editable_at
         render json: {
           error: "slug_locked",

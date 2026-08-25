@@ -684,8 +684,21 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
   dance went with it. A new creation path passes `username:` and never `slug:`
   (#774).
 - **Not user-editable:** `Profile#slug_editable?` returns `false` when
-  `slug_type == "random"`, regardless of the 7-day edit window. `slug_type` and
-  `slug_editable` are exposed on `Profile#api_view`.
+  `slug_type == "random"`, regardless of the 7-day edit window — letting the
+  owner rename the page back to the child's name would undo the protection.
+  `slug_type` and `slug_editable` are exposed on `Profile#api_view` (which is
+  what a communicator page's edit form reads, nested under
+  `ChildAccount#api_view`).
+- **Locked FOREVER and locked UNTIL are different answers, and the client has
+  to tell them apart.** `Profile#slug_permanent?` (`slug_type == "random"`) is
+  the first check in `slug_editable?` and the reason `API::ProfilesController#update`
+  answers **422 `slug_permanent`** rather than `slug_locked`: the 7-day copy is
+  built around a `next_edit_at`, and a random slug has none — `slug_changed_at`
+  is blank because nothing has ever edited it, so `slug_editable_at` is nil and
+  the message rendered as "You can change your link again on ." A client that
+  derives its lock state from the *timestamp* alone therefore reads a random
+  slug as unlocked and offers an edit that can only fail; read `slug_editable`.
+  Admins still bypass both at the controller layer.
 - **Legacy fallback:** the migration preserves the old slug in
   `profiles.legacy_slug` (conditional unique index, NULLs allowed).
   `API::ProfilesController#public` falls back to `legacy_slug` and

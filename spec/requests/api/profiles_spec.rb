@@ -174,6 +174,42 @@ RSpec.describe "API::Profiles", type: :request do
       end
     end
 
+    # A random safety slug is locked forever, not until a date — the 7-day
+    # copy is built around a `next_edit_at` this case doesn't have, so it
+    # rendered "You can change your link again on ." (issue #774).
+    context "a random safety slug" do
+      let!(:profile) do
+        Profile.new(profileable: child, username: "river-stone").tap(&:save!)
+      end
+
+      it "is permanent, and says so instead of promising a date" do
+        expect(profile.slug_type).to eq("random")
+
+        put_slug("river-stone")
+
+        expect(response).to have_http_status(:unprocessable_content)
+        body = JSON.parse(response.body)
+        expect(body["error"]).to eq("slug_permanent")
+        expect(body["message"]).to include("randomly generated")
+        expect(body).not_to have_key("next_edit_at")
+        expect(profile.reload.slug).to match(/\As-[a-z0-9]{6}\z/)
+      end
+
+      it "reports itself as locked on api_view so the form can disable the field" do
+        view = profile.api_view(owner)
+        expect(view[:slug_editable]).to be false
+        expect(view[:slug_type]).to eq("random")
+        expect(view[:slug_editable_at]).to be_nil
+      end
+
+      it "still lets an admin re-key it" do
+        admin = FactoryBot.create(:user, role: "admin")
+        put_slug("admin-pick", as: admin)
+        expect(response).to have_http_status(:ok)
+        expect(profile.reload.slug).to eq("admin-pick")
+      end
+    end
+
     context "validation errors" do
       it "returns slug_invalid for bad format" do
         put_slug("Bad_Slug!!")

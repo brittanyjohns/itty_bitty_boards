@@ -1272,9 +1272,18 @@ class Profile < ApplicationRecord
   def slug_editable?
     # Random safety slugs are never user-editable — the whole point is that
     # they stay unguessable and stable for printed cards / device tags.
-    return false if slug_type == "random"
+    return false if slug_permanent?
     return true if slug_changed_at.blank?
     slug_changed_at < SLUG_EDIT_WINDOW.ago
+  end
+
+  # Locked FOREVER, not locked UNTIL — the two reasons a slug can't be changed
+  # are different in kind and the client has to tell them apart. The 7-day
+  # window has a date to report and reopens; a random safety slug never does,
+  # and `slug_editable_at` is nil for one (nothing has ever edited it), so
+  # reporting it as a window renders a sentence with no date in it.
+  def slug_permanent?
+    slug_type == "random"
   end
 
   def slug_editable_at
