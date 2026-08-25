@@ -23,6 +23,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **"Make this my editable board" no longer reports success while changing
+  nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`
+  and always answered 200, but the read-only gate resolves the edit slot
+  through its own rules and ignored the pick in two cases: an owned board with
+  `is_template: true` (the `boards` association filters those out, so the
+  designation never resolved), and any plan whose `board_limit` is above 1
+  (Clinician, or an account whose limit was raised), where the editable set was
+  chosen purely by recency. Both left the board locked with the API reporting
+  success, which the frontend showed as nothing happening at all. The endpoint
+  now verifies the board really became editable, rolls the write back and
+  returns `editable_board_not_available` (422) when it didn't, and a
+  higher-limit plan pins the designated board ahead of its recency-ordered
+  slots.
 - **Deleting a picture from an image no longer deletes it permanently by
   mistake.** "Remove" was documented as a hide you could undo, but every remove
   destroyed the file for good.

@@ -1924,7 +1924,7 @@ class User < ApplicationRecord
     return @effective_editable_board_id if defined?(@effective_editable_board_id)
 
     @effective_editable_board_id =
-      if editable_board_id && boards.exists?(id: editable_board_id)
+      if editable_board_id && total_boards.exists?(id: editable_board_id)
         editable_board_id
       else
         boards.where(predefined: false)
@@ -2114,16 +2114,25 @@ class User < ApplicationRecord
   # The set of this user's board ids that stay editable when over the board
   # limit. Free (limit 1) keeps the single designated board so the existing
   # make_editable pick + cooldown flow is unchanged; a higher-limit locked plan
-  # (Clinician, 100) keeps its board_limit most-recently-updated owned boards
-  # (favorites first) — the active work stays editable, stale boards lock.
+  # (Clinician, 100) pins the designated board and fills the remaining slots
+  # with its most-recently-updated owned boards (favorites first) — the active
+  # work stays editable, stale boards lock.
   def editable_board_ids
     if board_limit.to_i <= 1
       [effective_editable_board_id].compact
     else
-      top_editable_board_ids
+      # The explicit make_editable pick is pinned first, then the rest of the
+      # slots fill by recency. Without the pin, a higher-limit locked plan
+      # ignored `editable_board_id` outright, so make_editable answered 200 and
+      # changed nothing at all — a silent no-op with no error in the UI.
+      pinned = [effective_editable_board_id].compact
+      (pinned + top_editable_board_ids).uniq.first(board_limit.to_i)
     end
   end
 
+  # Fills the editable slots by recency. `editable_board_ids` pins the explicit
+  # make_editable pick ahead of this list, so a pick that isn't in here takes a
+  # slot from the least-recently-updated board rather than adding one.
   def top_editable_board_ids
     @top_editable_board_ids ||=
       boards.where(predefined: false)
