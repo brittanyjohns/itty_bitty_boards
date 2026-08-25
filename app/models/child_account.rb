@@ -849,6 +849,23 @@ class ChildAccount < ApplicationRecord
     profile
   end
 
+  # Sanitizes a username into the shape a Profile handle wants: `String#parameterize`
+  # keeps underscores, so a legacy username like "child_1" survives as-is, and a
+  # very short one is padded. NOT for slugs — a communicator page's slug is
+  # always the random one `Profile#ensure_slug` assigns (#774). The MySpeak
+  # wizard's adoption path uses this to derive a readable `Profile#username`
+  # from an existing communicator's handle.
+  def sluggify_for_profile(value)
+    return nil if value.nil?
+    base = value.to_s.parameterize
+                .tr("_", "-")
+                .gsub(/-+/, "-")
+                .gsub(/^-+|-+$/, "")
+                .downcase
+    base = "u-#{base}" if base.length.positive? && base.length < 3
+    base.presence
+  end
+
   def print_credentials
     puts "UserId: #{user_id} Username: #{username} Password: #{passcode}"
   end

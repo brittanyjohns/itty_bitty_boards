@@ -538,10 +538,11 @@ an explicit decision, not a drive-by edit.
   demanding a slot the user can never have.** `Profile#never_set_up?` is the
   predicate, and it authorizes an overwrite, so it must stay conservative — any
   bio, pronoun, contact, intro or rich-text section makes it a page someone set
-  up. Two rails: adoption **re-slugs** (an auto-minted Profile carries a
-  name-derived slug, because `create_profile!` passes `slug:` and so
-  `ensure_slug`'s random-slug rule never runs — and adoption is about to put
-  emergency contacts behind that URL), and it **never guesses between
+  up. Two rails: adoption **re-slugs** a page that isn't already random (one
+  minted before #774 carries a name-derived slug, because `create_profile!`
+  passed `slug:` and so `ensure_slug`'s random-slug rule never ran — and
+  adoption is about to put emergency contacts behind that URL), and it **never
+  guesses between
   candidates**, answering 422 `communicator_selection_required` instead. An
   adopt reports as `myspeak_page_adopted`, never as an account create.
   Details: `.claude-notes/myspeak-onboarding.md`, `.claude-notes/safety-profiles.md`.

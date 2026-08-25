@@ -245,12 +245,14 @@ module API
                       ),
                     )
 
-          # An auto-minted page carries a NAME-DERIVED slug: create_profile!
-          # passes `slug:` explicitly, so Profile#ensure_slug never runs and the
-          # random-slug rule never applies. That is precisely the guessable
-          # `/my/<name>` URL a safety page must not have, and adoption is about
-          # to put emergency contacts behind it. Re-slug now — `never_set_up?`
-          # is what guarantees nobody has shared the old link yet.
+          # A page minted before #774 carries a NAME-DERIVED slug — back then
+          # `create_profile!` passed `slug:` explicitly, so `Profile#ensure_slug`
+          # never ran and the random-slug rule never applied. That is precisely
+          # the guessable `/my/<name>` URL a safety page must not have, and
+          # adoption is about to put emergency contacts behind it. Re-slug those
+          # — `never_set_up?` is what guarantees nobody has shared the old link
+          # yet. A page minted since is already `random` and the guard skips it,
+          # so adoption no longer churns a URL that was never guessable.
           if profile.persisted? && profile.slug_type != "random"
             profile.slug = Profile.generate_random_slug
             profile.slug_type = "random"
