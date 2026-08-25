@@ -381,22 +381,173 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
+    # Regression for the #761 follow-up. #761 stopped the auto-minted Profile
+    # being double-counted, but left the wizard with only one move — create a
+    # NEW communicator. A Free user gets exactly one self-create, and adding a
+    # communicator from the dashboard spends it, so the user whose page already
+    # existed (blank) stayed refused at the final step. The wizard now sets up
+    # THAT page instead of demanding a slot she can never have.
     context "free user has no available communicator slot" do
-      it "returns 422 communicator_slot_unavailable" do
-        # A Free MySpeak account is a no-login sandbox, so the binding limit is
-        # the sandbox slot (demo_communicator_limit = 1). Take it.
+      # A Free MySpeak account is a no-login sandbox, so the binding limit is
+      # the sandbox slot (demo_communicator_limit = 1). Take it.
+      def take_the_slot!(username: "existing-kid", name: "Existing Kid")
         FactoryBot.create(
           :child_account,
           user: user,
           owner: user,
+          name: name,
+          username: username,
           status: ChildAccount::SANDBOX,
         )
+      end
 
-        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+      # Mirrors ChildAccount#create_profile! — the page every communicator gets
+      # for free when it's added from the dashboard. Note the NAME-DERIVED slug:
+      # create_profile! passes `slug:` explicitly, so Profile#ensure_slug (and
+      # its random-slug rule) never runs.
+      def mint_blank_page!(child)
+        Profile.create!(
+          profileable: child,
+          username: child.username,
+          slug: child.username.parameterize,
+        )
+      end
 
-        expect(response).to have_http_status(:unprocessable_content)
-        body = JSON.parse(response.body)
-        expect(body["error"]).to eq("communicator_slot_unavailable")
+      context "when the existing communicator's page was never set up" do
+        it "adopts that page instead of creating a second communicator" do
+          child = take_the_slot!
+          blank = mint_blank_page!(child)
+
+          expect {
+            post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+          }.to not_change { user.communicator_accounts.count }
+           .and not_change { Profile.count }
+
+          expect(response).to have_http_status(:created)
+          body = JSON.parse(response.body)
+          expect(body["adopted"]).to be(true)
+
+          blank.reload
+          expect(blank.profileable_id).to eq(child.id)
+          expect(blank.profile_kind).to eq("safety")
+          expect(blank.bio).to eq(base_payload[:about_me])
+          expect(blank.settings["pronouns"]).to eq("they/them")
+          expect(blank.settings["emergency_notes"]).to eq(base_payload[:emergency_notes])
+          expect(blank.settings["ice_contact_1"]).to include("name" => "Sam Stone")
+        end
+
+        it "re-slugs the adopted page so a child's emergency page stays unguessable" do
+          child = take_the_slot!(username: "river-stone")
+          blank = mint_blank_page!(child)
+          expect(blank.slug).to eq("river-stone")
+
+          post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+          expect(response).to have_http_status(:created)
+          expect(blank.reload.slug).to match(/\As-[a-z0-9]{6}\z/)
+          expect(blank.slug_type).to eq("random")
+        end
+
+        it "renames the communicator to the name typed in the wizard, leaving the username alone" do
+          child = take_the_slot!(username: "existing-kid", name: "Existing Kid")
+          mint_blank_page!(child)
+
+          post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+          expect(response).to have_http_status(:created)
+          child.reload
+          # safety_view reads its name from profileable.name, so without the
+          # rename the name the parent just typed vanishes from her own page.
+          expect(child.name).to eq("River Stone")
+          # The handle backs a private sign-in on an active communicator.
+          expect(child.username).to eq("existing-kid")
+        end
+
+        it "reports an adopt as an adopt, never as a communicator create" do
+          allow(PosthogService).to receive(:capture_for_user)
+          child = take_the_slot!
+          mint_blank_page!(child)
+
+          post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+          expect(PosthogService).to have_received(:capture_for_user)
+            .with(user, "myspeak_page_adopted", hash_including(:properties))
+          expect(PosthogService).not_to have_received(:capture_for_user)
+            .with(user, "communicator_account_created", anything)
+          expect(PosthogService).not_to have_received(:capture_for_user)
+            .with(user, "myspeak_page_created", anything)
+        end
+      end
+
+      context "when the existing communicator has no page at all" do
+        it "creates the page on that communicator rather than a new one" do
+          child = take_the_slot!
+
+          expect {
+            post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+          }.to change { Profile.count }.by(1)
+           .and not_change { user.communicator_accounts.count }
+
+          expect(response).to have_http_status(:created)
+          expect(child.reload.profile).to be_present
+          expect(child.profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+        end
+      end
+
+      context "when the existing communicator's page is already set up" do
+        it "returns 422 communicator_slot_unavailable and never overwrites it" do
+          child = take_the_slot!
+          page = Profile.create!(
+            profileable: child,
+            username: child.username,
+            slug: child.username.parameterize,
+            bio: "Ada loves trains and knows every station on the line.",
+            settings: { "ice_contact_1" => { "name" => "Ada's mum", "phone" => "555-9000" } },
+          )
+
+          post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+          expect(response).to have_http_status(:unprocessable_content)
+          body = JSON.parse(response.body)
+          expect(body["error"]).to eq("communicator_slot_unavailable")
+
+          page.reload
+          expect(page.bio).to eq("Ada loves trains and knows every station on the line.")
+          expect(page.settings["ice_contact_1"]).to include("name" => "Ada's mum")
+        end
+      end
+
+      context "when several communicators have a blank page" do
+        # A Pro user downgraded to Free keeps the communicators; only the cap
+        # moved. Picking one for her would write one child's emergency contacts
+        # onto another child's page, so the wizard asks.
+        let!(:first)  { take_the_slot!(username: "kid-one", name: "Kid One") }
+        let!(:second) { take_the_slot!(username: "kid-two", name: "Kid Two") }
+
+        before do
+          mint_blank_page!(first)
+          mint_blank_page!(second)
+        end
+
+        it "refuses to guess and returns the candidates" do
+          post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+          expect(response).to have_http_status(:unprocessable_content)
+          body = JSON.parse(response.body)
+          expect(body["error"]).to eq("communicator_selection_required")
+          expect(body["communicators"].map { |c| c["id"] }).to contain_exactly(first.id, second.id)
+        end
+
+        it "adopts the one named by communicator_id" do
+          payload = base_payload.merge(communicator_id: second.id)
+
+          post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+
+          expect(response).to have_http_status(:created)
+          expect(second.reload.profile.settings["emergency_notes"])
+            .to eq(base_payload[:emergency_notes])
+          expect(first.reload.profile.settings["emergency_notes"]).to be_blank
+        end
       end
     end
 

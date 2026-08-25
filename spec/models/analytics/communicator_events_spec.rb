@@ -100,6 +100,36 @@ RSpec.describe Analytics::CommunicatorEvents do
     end
   end
 
+  # Adoption is what a refusal turns into once the wizard can set up a page on
+  # a communicator the user already has. It gets its own name because no
+  # account was created — folding it into a create count would report growth
+  # that never happened.
+  describe ".myspeak_page_adopted" do
+    it "reports the page and the communicator it was set up on" do
+      child = create(:child_account, owner: user, user: user)
+      profile = Profile.create!(profileable: child, username: child.username, slug: "quiet-fox")
+
+      described_class.myspeak_page_adopted(
+        user: user, profile: profile, child: child, source: described_class::MYSPEAK_ONBOARDING,
+      )
+
+      expect(PosthogService).to have_received(:capture_for_user).with(
+        user,
+        "myspeak_page_adopted",
+        properties: {
+          profile_id: profile.id,
+          communicator_id: child.id,
+          source: "myspeak_onboarding",
+        },
+      )
+    end
+
+    it "no-ops without a page" do
+      described_class.myspeak_page_adopted(user: user, profile: nil, child: nil, source: "x")
+      expect(PosthogService).not_to have_received(:capture_for_user)
+    end
+  end
+
   describe ".public_page_create_blocked" do
     it "captures the 409 reason" do
       described_class.public_page_create_blocked(user: user, reason: "public_page_exists")

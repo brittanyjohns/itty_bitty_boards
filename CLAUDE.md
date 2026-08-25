@@ -516,7 +516,22 @@ an explicit decision, not a drive-by edit.
   The user-level **Public page** is a different product — one per user
   (`User has_one :profile`), plan-independent, and a duplicate create is a
   **409 `public_page_exists`**, not a 403, because it is a state conflict rather
-  than a plan gate. Details: `.claude-notes/safety-profiles.md`.
+  than a plan gate.
+  Removing the double-count was not enough on its own: a Free user gets exactly
+  ONE self-create, so adding a communicator from the dashboard spends the slot
+  AND mints the blank page, and the MySpeak wizard — whose only move was to
+  create a NEW communicator — still refused the user whose page already existed.
+  **When a create is refused, the wizard ADOPTS a never-set-up page rather than
+  demanding a slot the user can never have.** `Profile#never_set_up?` is the
+  predicate, and it authorizes an overwrite, so it must stay conservative — any
+  bio, pronoun, contact, intro or rich-text section makes it a page someone set
+  up. Two rails: adoption **re-slugs** (an auto-minted Profile carries a
+  name-derived slug, because `create_profile!` passes `slug:` and so
+  `ensure_slug`'s random-slug rule never runs — and adoption is about to put
+  emergency contacts behind that URL), and it **never guesses between
+  candidates**, answering 422 `communicator_selection_required` instead. An
+  adopt reports as `myspeak_page_adopted`, never as an account create.
+  Details: `.claude-notes/myspeak-onboarding.md`, `.claude-notes/safety-profiles.md`.
 - **A board on a communicator's MySpeak page is a PUBLISHED board.** The public
   grid selects on `child_boards.favorite`, but the board behind each card is
   gated on `Board#viewable_by?`, which refuses an anonymous visitor an
