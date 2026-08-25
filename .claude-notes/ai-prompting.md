@@ -49,6 +49,57 @@ It also no longer asks for a tile SIZE. It used to permit "up to 2" tiles at
 A size the prompt cannot express is a size the model cannot get wrong; that is
 the general shape of the fix when a model keeps taking an optional permission.
 
+## Rules are scoped to the JOB, not to the persona
+
+`WORD_RULES` is two different things concatenated, and only one half travels.
+
+- **`BOARD_COVERAGE_RULES`** — "favour words that finish many sentences",
+  "every board needs a way to object and a way to redirect", "skip nouns that
+  exist to be labelled". These judge a board *as a whole*, so only something
+  laying out a whole board can honour them.
+- **`WORD_CRAFT_RULES`** — closed sets, register, near-duplicates, label
+  length, plain spaces. These describe a well-formed tile and are true of any
+  list of tiles anywhere.
+
+`WORD_RULES = BOARD_COVERAGE_RULES + WORD_CRAFT_RULES`, byte-for-byte what it
+always was, so the whole-board callers (`AdminBuilder` drafters,
+`AiPageGenerator`, `ScenariosController`) are untouched by the split.
+
+**Adding words to a board that already exists is not laying out a board.**
+Sending it the coverage rules is what produced the bug this section exists for:
+a fringe page called "Places", asked for ten more words, came back with
+`different`, `again`, `something else`, `all done` — four strings copied
+verbatim out of `OBJECTION_REDIRECT_RULE`, while "skip nouns that exist to be
+labelled" suppressed the place names the page exists for. The coverage rules are
+correct AAC guidance for a *core* board; a fringe page names things on purpose,
+and the core board is where refusal lives.
+
+`Prompts::Aac.incremental_word_rules(existing_words:)` is the answer, and the
+shape of it matters: the objection/redirect ask is **re-added, not deleted**,
+whenever `can_object_or_redirect?` says the board's own tiles cannot yet do it.
+A board that cannot refuse is an autonomy failure, so the principle survives —
+it is only stopped from spending the user's tiles on words the board already
+has. `OpenAiClient.incremental_word_system_prompt` builds the message and rides
+the `system_prompt:` seam on `aac_word_chat` that social-story steps already
+use.
+
+**The detector lists are NOT interpolated into the rule text.** Doing so would
+rewrap the prompt every whole-board caller sends for no gain, so
+`OBJECTION_WORDS` / `REDIRECTION_WORDS` are plain constants and a spec asserts
+every entry appears in `OBJECTION_REDIRECT_RULE`. That buys the same "these
+cannot drift apart" guarantee `part_of_speech_rules` gets from interpolating
+`ColorHelper::PARTS_OF_SPEECH`, without touching a single existing prompt. If
+you add a word to either list, the spec is what tells you to add it to the rule.
+
+Matching is on word boundaries over normalised display text (casing folded,
+curly apostrophes straightened), because the list is `Board#current_word_list`
+— i.e. `display_label`, authored by a user. So "No thank you" counts as a way to
+object and "notebook" does not.
+
+The general rule, which `.incremental_word_rules` is just one instance of:
+**ask what job the prompt is doing before handing it the kernel.** Social-story
+steps already opt out of `WORD_RULES` entirely for the same reason.
+
 ## What is shared and what is not
 
 `AdminBuilder::Drafting` keeps its own `MODEL`, `TEMPERATURE`,

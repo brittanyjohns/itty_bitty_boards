@@ -659,12 +659,14 @@ RSpec.describe "API::Boards", type: :request do
   end
 
   describe "GET /api/boards/words" do
+    let(:suggest) { :get_word_suggestions_from_default_prompt }
+
     before do
       allow_any_instance_of(API::BoardsController).to receive(:check_credits!).and_return(true)
     end
 
     it "accepts an optional communicator profile without error" do
-      allow_any_instance_of(Board).to receive(:get_word_suggestions).and_return(%w[more help go])
+      allow_any_instance_of(Board).to receive(suggest).and_return(%w[more help go])
       get "/api/boards/words",
           params: { name: "Doctor Visit", num_of_words: 3, age: 4, aac_level: "emerging" },
           headers: auth_headers(user)
@@ -673,7 +675,7 @@ RSpec.describe "API::Boards", type: :request do
     end
 
     it "still works with no profile params (no regression)" do
-      allow_any_instance_of(Board).to receive(:get_word_suggestions).and_return(%w[doctor nurse clinic])
+      allow_any_instance_of(Board).to receive(suggest).and_return(%w[doctor nurse clinic])
       get "/api/boards/words",
           params: { name: "Doctor Visit", num_of_words: 3 },
           headers: auth_headers(user)
@@ -681,13 +683,131 @@ RSpec.describe "API::Boards", type: :request do
       expect(JSON.parse(response.body)).to eq(%w[doctor nurse clinic])
     end
 
+    # The regression this endpoint's fork caused: the editor seeds the override
+    # field with the board name and sends it verbatim, so "left the field alone"
+    # and "typed the board name" were indistinguishable — and both used to take a
+    # second, much weaker prompt builder. A board named "Places" came back with
+    # "different" / "again" / "something else" / "all done" until the override was
+    # changed to anything else. There is one path now, whatever the prompt says.
+    describe "the prompt override" do
+      let!(:places) { create(:board, user: user, name: "Places") }
+
+      def request_words(params)
+        get "/api/boards/words",
+            params: { board_id: places.id, name: "Places", num_of_words: 3 }.merge(params),
+            headers: auth_headers(user)
+      end
+
+      it "uses the same path when no override is sent" do
+        expect_any_instance_of(Board).to receive(suggest).and_return(%w[park store zoo])
+        request_words({})
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "uses the same path when the override equals the board name" do
+        expect_any_instance_of(Board).to receive(suggest).and_return(%w[park store zoo])
+        request_words(prompt: "Places")
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "uses the same path when the override differs from the board name" do
+        expect_any_instance_of(Board).to receive(suggest).and_return(%w[park store zoo])
+        request_words(prompt: "Places to go")
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "passes an absent override through as the board name" do
+        expect_any_instance_of(Board).to receive(suggest) do |_b, prompt, _n, **|
+          expect(prompt).to eq("Places")
+          %w[park store zoo]
+        end
+        request_words({})
+      end
+
+      it "passes an explicit override through verbatim" do
+        expect_any_instance_of(Board).to receive(suggest) do |_b, prompt, _n, **|
+          expect(prompt).to eq("Places to go")
+          %w[park store zoo]
+        end
+        request_words(prompt: "Places to go")
+      end
+    end
+
+    describe "the words already on the board" do
+      let!(:board) { create(:board, user: user, name: "Places") }
+
+      it "hands the board's own word list to the suggestion service" do
+        allow_any_instance_of(Board).to receive(:current_word_list).and_return(%w[store zoo])
+
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, words_to_exclude:, **|
+          expect(words_to_exclude).to eq(%w[store zoo])
+          %w[park museum]
+        end
+        get "/api/boards/words",
+            params: { board_id: board.id, name: "Places", num_of_words: 2 },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      # The frontend sends this as a comma-joined String, not an Array. Matching
+      # only the Array shape silently dropped it for every board-less request.
+      it "parses a comma-joined exclusion list" do
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, words_to_exclude:, **|
+          expect(words_to_exclude).to eq(%w[apple banana])
+          %w[park museum]
+        end
+        get "/api/boards/words",
+            params: { name: "Snacks", num_of_words: 2, words_to_exclude: "apple, banana" },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "still accepts an array exclusion list" do
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, words_to_exclude:, **|
+          expect(words_to_exclude).to eq(%w[apple banana])
+          %w[park museum]
+        end
+        get "/api/boards/words",
+            params: { name: "Snacks", num_of_words: 2, words_to_exclude: %w[apple banana] },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    describe "num_of_words validation" do
+      it "rejects a count over the cap without doing the work" do
+        expect_any_instance_of(Board).not_to receive(suggest)
+
+        get "/api/boards/words",
+            params: { name: "Places", num_of_words: 51 },
+            headers: auth_headers(user)
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to match(/cannot exceed 50/)
+      end
+
+      it "accepts the cap itself" do
+        allow_any_instance_of(Board).to receive(suggest).and_return(%w[park])
+        get "/api/boards/words",
+            params: { name: "Places", num_of_words: 50 },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
     describe "language threading" do
       let!(:spanish_board) { create(:board, user: user, name: "Spanish Board", language: "es") }
       let!(:english_board) { create(:board, user: user, name: "English Board", language: "en") }
 
+      def expect_language(expected)
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, language:, **|
+          expect(language).to eq(expected)
+          %w[hola adios gracias]
+        end
+      end
+
       it "forwards the Spanish board's language to the word suggestion service" do
-        expect_any_instance_of(Board).to receive(:get_word_suggestions)
-          .with("Spanish Board", 3, anything, hash_including(language: "es")).and_return(%w[hola adios gracias])
+        expect_language("es")
         get "/api/boards/words",
             params: { board_id: spanish_board.id, name: "Spanish Board", num_of_words: 3 },
             headers: auth_headers(user)
@@ -695,8 +815,7 @@ RSpec.describe "API::Boards", type: :request do
       end
 
       it "forwards English when the board is English" do
-        expect_any_instance_of(Board).to receive(:get_word_suggestions)
-          .with("English Board", 3, anything, hash_including(language: "en")).and_return(%w[more help go])
+        expect_language("en")
         get "/api/boards/words",
             params: { board_id: english_board.id, name: "English Board", num_of_words: 3 },
             headers: auth_headers(user)
@@ -704,8 +823,7 @@ RSpec.describe "API::Boards", type: :request do
       end
 
       it "lets params[:language] override the board's language" do
-        expect_any_instance_of(Board).to receive(:get_word_suggestions)
-          .with("English Board", 3, anything, hash_including(language: "fr")).and_return(%w[bonjour merci])
+        expect_language("fr")
         get "/api/boards/words",
             params: { board_id: english_board.id, name: "English Board", num_of_words: 3, language: "fr" },
             headers: auth_headers(user)
@@ -720,7 +838,7 @@ RSpec.describe "API::Boards", type: :request do
       end
 
       it "builds the profile from the communicator's stored details" do
-        expect_any_instance_of(Board).to receive(:get_word_suggestions) do |_b, _p, _n, _excl, profile:, **|
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, profile:, **|
           expect(profile.aac_level).to eq("emerging")
           expect(profile.age_band).to eq("4-6")
           %w[more help go]
@@ -732,7 +850,7 @@ RSpec.describe "API::Boards", type: :request do
       end
 
       it "lets explicit params override stored fields, field by field" do
-        expect_any_instance_of(Board).to receive(:get_word_suggestions) do |_b, _p, _n, _excl, profile:, **|
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, profile:, **|
           expect(profile.aac_level).to eq("proficient") # param wins
           expect(profile.age_band).to eq("4-6")         # stored field kept
           %w[volcano excavate]
@@ -747,7 +865,7 @@ RSpec.describe "API::Boards", type: :request do
       it "ignores another user's communicator_id (no cross-account leak)" do
         other = create(:child_account, user: create(:user),
                                        details: { "aac_level" => "emerging" })
-        expect_any_instance_of(Board).to receive(:get_word_suggestions) do |_b, _p, _n, _excl, profile:, **|
+        expect_any_instance_of(Board).to receive(suggest) do |_b, _prompt, _n, profile:, **|
           expect(profile).to be_nil
           %w[doctor nurse]
         end

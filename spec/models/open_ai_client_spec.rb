@@ -210,9 +210,10 @@ RSpec.describe OpenAiClient do
       messages.find { |m| m[:role] == "system" }[:content]
     end
 
+    # These lay out a whole board (or answer for a word in the abstract), so the
+    # whole-board coverage rules apply. #get_word_suggestions_from_prompt does
+    # NOT — it adds words to a board that already exists; see below.
     {
-      "#get_word_suggestions" => -> (c) { c.get_word_suggestions("drink", 5) },
-      "#get_word_suggestions_from_prompt" => -> (c) { c.get_word_suggestions_from_prompt("a park trip") },
       "#get_words_for_scenario" => -> (c) { c.get_words_for_scenario("a park trip", 5) },
       "#get_next_words" => -> (c) { c.get_next_words("want") },
     }.each do |name, invoke|
@@ -241,7 +242,7 @@ RSpec.describe OpenAiClient do
         { content: "{}" }
       end
 
-      client.get_word_suggestions("drink", 5)
+      client.get_word_suggestions_from_prompt("a park trip")
 
       expect(captured).to be_a(Float)
     end
@@ -267,6 +268,45 @@ RSpec.describe OpenAiClient do
         client.get_additional_words(board, "drink", 5, [])
 
         expect(messages.last[:content]).not_to include("DO NOT INCLUDE")
+      end
+    end
+
+    # Adding words to a board that already exists is a different job from laying
+    # one out, so it takes the craft rules and only the coverage ask the board
+    # still needs. Sending the full set here is what filled a board called
+    # "Places" with "different" / "again" / "something else" / "all done".
+    describe "#get_word_suggestions_from_prompt" do
+      it "sends the persona and the craft rules" do
+        client.get_word_suggestions_from_prompt("places to go")
+
+        expect(system_content).to include("speech-language pathologist")
+        expect(system_content).to include(Prompts::Aac::WORD_CRAFT_RULES)
+      end
+
+      it "never suppresses nouns, which a fringe page exists to name" do
+        client.get_word_suggestions_from_prompt("places to go", existing_words: %w[store zoo])
+
+        expect(system_content).not_to include("Skip nouns that exist to be labelled")
+        expect(system_content).not_to include(Prompts::Aac::BOARD_COVERAGE_RULES)
+      end
+
+      it "asks for a way to object when the board has none" do
+        client.get_word_suggestions_from_prompt("places to go", existing_words: %w[store kitchen zoo])
+
+        expect(system_content).to include("a way to object and a way to redirect")
+      end
+
+      it "does not ask again when the board can already object and redirect" do
+        client.get_word_suggestions_from_prompt("places to go", existing_words: ["go", "stop", "all done"])
+
+        expect(system_content).not_to include("a way to object and a way to redirect")
+      end
+
+      # An empty board really does need the whole ask.
+      it "asks when it knows nothing about the board" do
+        client.get_word_suggestions_from_prompt("places to go")
+
+        expect(system_content).to include("a way to object and a way to redirect")
       end
     end
 
@@ -303,18 +343,6 @@ RSpec.describe OpenAiClient do
       it "is a no-op for blank or unknown codes" do
         expect(client.append_language_instruction("base", "")).to eq("base")
         expect(client.append_language_instruction("base", "xx")).to eq("base")
-      end
-    end
-
-    describe "#get_word_suggestions" do
-      it "instructs OpenAI to respond in the language for non-English" do
-        client.get_word_suggestions("drink", 5, [], "default", language: "es")
-        expect(last_prompt).to include("Respond in Spanish.")
-      end
-
-      it "does not add a language instruction for English" do
-        client.get_word_suggestions("drink", 5, [], "default", language: "en")
-        expect(last_prompt).not_to include("Respond in")
       end
     end
 
