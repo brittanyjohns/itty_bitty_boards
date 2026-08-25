@@ -336,9 +336,16 @@ module Admin
         .select { |printable| printable.pdf_files.any? }
     end
 
+    # A draft carries a signed token so the Preview link actually opens the page
+    # rather than the frontend's "This page isn't available". A LIVE page's link
+    # stays clean — it is already public, and a URL an admin might paste into a
+    # campaign must not carry a token.
     def kit_preview_url(page)
       host = ENV["FRONT_END_URL"].presence || "https://app.speakanyway.com"
-      "#{host.chomp("/")}/kit/#{page.slug}"
+      url = "#{host.chomp("/")}/kit/#{page.slug}"
+      return url if page.published? || !page.persisted?
+
+      "#{url}?preview=#{CGI.escape(page.preview_token)}"
     end
   end
 end

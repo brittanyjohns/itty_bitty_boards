@@ -248,6 +248,99 @@ RSpec.describe "API kit_pages", type: :request do
     end
   end
 
+  # An admin looking at a draft on the real frontend. The token is the ONLY way
+  # past the published scope — being signed in as an admin is not, because
+  # /kit/:slug is deliberately anonymous.
+  describe "draft preview" do
+    let(:draft) do
+      create(:kit_page, slug: "draft-kit", title: "Draft kit", published: false,
+                        board_printable: printable, printable_variant: BoardPrintable::VARIANT_COLOR)
+    end
+    let(:token) { draft.preview_token }
+
+    before { attach_all_variants }
+
+    it "serves the unpublished page with a valid token, flagged as a preview" do
+      get "/api/kit_pages/#{draft.slug}", params: { preview: token }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["title"]).to eq("Draft kit")
+      expect(body["preview"]).to eq(true)
+    end
+
+    it "still 404s the draft without a token" do
+      get "/api/kit_pages/#{draft.slug}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    # A wrong guess must not become a way to probe for drafts.
+    it "404s a garbage token exactly like a missing page" do
+      get "/api/kit_pages/#{draft.slug}", params: { preview: "not-a-token" }
+
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)).to eq("error" => "kit_page_not_found")
+    end
+
+    it "refuses a token minted for a different page" do
+      other = create(:kit_page, slug: "other-draft", published: false)
+
+      get "/api/kit_pages/#{draft.slug}", params: { preview: other.preview_token }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "refuses an expired token" do
+      expired = draft.preview_token
+
+      travel_to(KitPage::PREVIEW_TOKEN_TTL.from_now + 1.minute) do
+        get "/api/kit_pages/#{draft.slug}", params: { preview: expired }
+      end
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands over the files without writing a lead or touching Mailchimp" do
+      expect {
+        post "/api/kit_pages/#{draft.slug}/download",
+             params: { email: "admin@example.com", preview: token }
+      }.to not_change(DownloadLead, :count).and not_change { MailchimpUpsertLeadJob.jobs.size }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["files"]).to be_present
+    end
+
+    it "will not download the draft without a token" do
+      expect {
+        post "/api/kit_pages/#{draft.slug}/download", params: { email: "teacher@example.com" }
+      }.not_to change(DownloadLead, :count)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    # A visitor who was forwarded a preview link to a page that has since gone
+    # live is an ordinary visitor, and must still be counted as a lead.
+    it "counts a real lead when the token is passed to a published page" do
+      draft.update!(published: true)
+
+      expect {
+        post "/api/kit_pages/#{draft.slug}/download",
+             params: { email: "teacher@example.com", preview: token }
+      }.to change(DownloadLead, :count).by(1)
+
+      expect(JSON.parse(response.body)["files"]).to be_present
+    end
+
+    it "does not flag a published page as a preview" do
+      draft.update!(published: true)
+
+      get "/api/kit_pages/#{draft.slug}", params: { preview: token }
+
+      expect(JSON.parse(response.body)).not_to have_key("preview")
+    end
+  end
+
   # A page whose download is uploaded straight onto it, rather than generated
   # as a board printable. The public contract is identical — same `files`
   # shape, same email gate, same "no file URL on the read".

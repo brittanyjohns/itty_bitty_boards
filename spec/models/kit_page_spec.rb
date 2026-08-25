@@ -214,6 +214,55 @@ RSpec.describe KitPage, type: :model do
     end
   end
 
+  describe "preview tokens" do
+    let(:draft) { create(:kit_page, slug: "draft-kit", published: false) }
+
+    it "recognizes a token it minted for this page" do
+      expect(described_class.valid_preview_token?(draft.slug, draft.preview_token)).to be(true)
+    end
+
+    # The payload is the slug precisely so this can't happen.
+    it "refuses a token minted for another page" do
+      other = create(:kit_page, slug: "other-draft", published: false)
+
+      expect(described_class.valid_preview_token?(draft.slug, other.preview_token)).to be(false)
+    end
+
+    it "refuses garbage, blanks and nil without raising" do
+      expect(described_class.valid_preview_token?(draft.slug, "nonsense")).to be(false)
+      expect(described_class.valid_preview_token?(draft.slug, "")).to be(false)
+      expect(described_class.valid_preview_token?(draft.slug, nil)).to be(false)
+      expect(described_class.valid_preview_token?(nil, draft.preview_token)).to be(false)
+    end
+
+    it "refuses a token past its expiry" do
+      token = draft.preview_token
+
+      travel_to(described_class::PREVIEW_TOKEN_TTL.from_now + 1.minute) do
+        expect(described_class.valid_preview_token?(draft.slug, token)).to be(false)
+      end
+    end
+
+    describe ".for_public" do
+      it "returns a published page with or without a token" do
+        live = create(:kit_page, slug: "live-kit", published: true)
+
+        expect(described_class.for_public("live-kit")).to eq(live)
+        expect(described_class.for_public("live-kit", preview_token: "junk")).to eq(live)
+      end
+
+      it "returns a draft only for a valid token" do
+        expect(described_class.for_public(draft.slug)).to be_nil
+        expect(described_class.for_public(draft.slug, preview_token: "junk")).to be_nil
+        expect(described_class.for_public(draft.slug, preview_token: draft.preview_token)).to eq(draft)
+      end
+
+      it "returns nil for a slug that doesn't exist" do
+        expect(described_class.for_public("no-such-page")).to be_nil
+      end
+    end
+  end
+
   describe "#public_view" do
     it "carries no file URL" do
       printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF", variant: "color")

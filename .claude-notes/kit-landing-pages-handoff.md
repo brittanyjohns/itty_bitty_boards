@@ -402,3 +402,36 @@ uploaded document was never sold.
   `spec/sidekiq/render_kit_previews_job_spec.rb`, plus additions to the kit page
   model, admin and API specs. `spec/fixtures/files/sample.pdf` is a real 2-page
   PDF — the renderer's whole job is decoding one, so stub bytes prove nothing.
+
+
+## Draft preview (`?preview=<token>`)
+
+The admin's Preview link on an **unpublished** page used to open the frontend's
+"This page isn't available", because `/kit/:slug` scopes to `published` and being
+signed in as an admin changes nothing there — the endpoint is deliberately
+anonymous (the frontend sends no auth header, so a 401 could never redirect a
+marketing URL to sign-in).
+
+A draft's Preview link now carries a signed token, and it is the ONLY thing that
+gets an unpublished page past `KitPage.for_public`.
+
+- **The payload is the SLUG**, via `Rails.application.message_verifier`, so a
+  token minted for one page cannot reveal another. It expires after
+  `PREVIEW_TOKEN_TTL`; the admin screen mints a fresh one on every render, so a
+  short TTL costs nothing.
+- **An invalid token is answered exactly like a missing page** — 404
+  `kit_page_not_found`. A wrong guess must not become a way to probe for drafts.
+- **A preview never writes a lead.** `#download` returns the files and returns
+  early, before the `DownloadLead` and the Mailchimp enqueue: an admin checking
+  their own draft would otherwise put a fake `kit_<slug>` row in the leads table
+  and fire an upsert for themselves, so previewing the page would corrupt the
+  numbers the page exists to produce.
+- **`preview?` is false for a published page**, token or not. Someone forwarded a
+  preview link to a page that has since gone live is an ordinary visitor and must
+  still be counted as a lead. For the same reason a live page's admin link stays
+  clean — an admin might paste it into a campaign.
+- `preview: true` is merged into the response **by the controller**, not
+  published by `#public_view`, so a live payload is byte-for-byte what it was.
+
+The frontend reads `?preview=` off the location and forwards it to both calls;
+that is the whole of its half.

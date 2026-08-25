@@ -12,7 +12,12 @@ module API
     before_action :set_kit_page
 
     def show
-      render json: @kit_page.public_view
+      # `preview` is merged in by the controller rather than published by
+      # #public_view, so a live page's payload is byte-for-byte what it was.
+      payload = @kit_page.public_view
+      payload = payload.merge(preview: true) if preview?
+
+      render json: payload
     end
 
     def download
@@ -22,6 +27,12 @@ module API
       unless @kit_page.downloadable?
         return render json: { error: "not_available" }, status: :unprocessable_content
       end
+
+      # A preview never writes a lead. The admin checking their own draft would
+      # otherwise put a fake `kit_<slug>` row in the leads table and fire a
+      # Mailchimp upsert for themselves — so previewing the page would corrupt
+      # the numbers the page exists to produce.
+      return render(json: { files: @kit_page.download_files }) if preview?
 
       lead = DownloadLead.new(
         email: params[:email],
@@ -42,12 +53,23 @@ module API
     private
 
     # Unpublished and unknown are the same answer on purpose: a draft page's
-    # existence isn't public information.
+    # existence isn't public information. A valid preview token is the one way
+    # past that, and an INVALID one is answered identically — a wrong guess must
+    # not become a way to probe for drafts.
     def set_kit_page
-      @kit_page = KitPage.published.find_by(slug: params[:slug])
+      @kit_page = KitPage.for_public(params[:slug], preview_token: params[:preview])
       return if @kit_page
 
       render json: { error: "kit_page_not_found" }, status: :not_found
+    end
+
+    # Only ever true for a page that needed the token to be visible at all. A
+    # token passed to a LIVE page changes nothing: it is already public, and a
+    # real visitor who copied a preview link must still be counted as a lead.
+    def preview?
+      return false if @kit_page.nil? || @kit_page.published?
+
+      params[:preview].present?
     end
 
     # UTM/campaign metadata, same free-form jsonb /classroom sends, stamped

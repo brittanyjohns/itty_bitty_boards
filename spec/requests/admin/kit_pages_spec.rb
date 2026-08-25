@@ -506,6 +506,27 @@ RSpec.describe "Admin kit pages", type: :request do
       end
     end
 
+    describe "the Preview link" do
+      it "signs a draft's link so it actually opens" do
+        draft = create(:kit_page, slug: "draft-kit", published: false)
+
+        get edit_admin_dashboard_kit_page_path(draft)
+
+        expect(response.body).to include("Preview draft")
+        expect(response.body).to match(%r{/kit/draft-kit\?preview=})
+      end
+
+      # A live URL an admin might paste into a campaign must stay clean.
+      it "leaves a published page's link untouched" do
+        live = create(:kit_page, slug: "live-kit", published: true)
+
+        get edit_admin_dashboard_kit_page_path(live)
+
+        expect(response.body).to include("/kit/live-kit")
+        expect(response.body).not_to include("preview=")
+      end
+    end
+
     describe "GET /admin/kit_pages/:id/edit" do
       it "renders the stored content as pretty JSON" do
         page = create(:kit_page, slug: "at-school", content: { "items" => [{ "title" => "Poster" }] })
