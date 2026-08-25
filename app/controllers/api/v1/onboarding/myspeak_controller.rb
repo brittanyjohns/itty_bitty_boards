@@ -25,6 +25,15 @@ module API
               status: status,
             )
           unless allowed
+            # A hard stop at the END of a multi-step wizard. Captured
+            # server-side because the user who hits it is often the one who
+            # never accepted the cookie banner, so the frontend sees nothing
+            # (#766).
+            Analytics::CommunicatorEvents.slot_limit_reached(
+              user: current_user,
+              status: status,
+              source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
+            )
             render json: { error: "communicator_slot_unavailable", message: slot_error },
                    status: http_status
             return
@@ -111,6 +120,26 @@ module API
             ensure_team_for(child)
           end
 
+          # Reported here — the commit above is the moment the communicator and
+          # its page exist. Anything below is rendering, and a Grover failure
+          # must not be able to lose the record that they were created.
+          #
+          # This route builds its communicator entirely server-side, so it never
+          # touches the frontend form the legacy `communicator account created`
+          # event lives in — every communicator made through the wizard was
+          # uncounted before #766.
+          Analytics::CommunicatorEvents.account_created(
+            user: current_user,
+            child: child,
+            source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
+          )
+          Analytics::CommunicatorEvents.myspeak_page_created(
+            user: current_user,
+            profile: profile,
+            child: child,
+            source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
+          )
+
           # Fall back to a generated initials avatar when the parent
           # skipped the photo step. The Safety ID card and Device Tag
           # both embed the avatar, so without this they render with a
@@ -122,6 +151,7 @@ module API
           end
 
           profile.generate_attachments! if profile.safety?
+
           # The owner is creating their OWN profile here, so echo the full
           # settings back (page-safe + sensitive). The public #safety_view
           # withholds the sensitive keys; this authenticated create response

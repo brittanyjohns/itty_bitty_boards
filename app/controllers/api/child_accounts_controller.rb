@@ -358,6 +358,11 @@ class API::ChildAccountsController < API::ApplicationController
     )
 
     unless allowed
+      Analytics::CommunicatorEvents.slot_limit_reached(
+        user: current_user,
+        status: requested_status,
+        source: Analytics::CommunicatorEvents::CHILD_ACCOUNTS,
+      )
       render json: { error: error }, status: http_status
       return
     end
@@ -409,14 +414,31 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     if @child_account.save
+      minted_profile = nil
       unless profile.present?
         begin
-          @child_account.create_profile!
+          minted_profile = @child_account.create_profile!
         rescue => e
           Rails.logger.error "Failed to create profile for ChildAccount #{@child_account.id}: #{e.message}"
           render json: { error: "Error creating profile for child account: #{e.message}" }, status: :unprocessable_content
           return
         end
+      end
+
+      Analytics::CommunicatorEvents.account_created(
+        user: current_user,
+        child: @child_account,
+        source: Analytics::CommunicatorEvents::CHILD_ACCOUNTS,
+      )
+      # The auto-minted MySpeak page. Only reported when this request actually
+      # created it — a `profile_id` hand-off is a claim, not a new page.
+      if minted_profile
+        Analytics::CommunicatorEvents.myspeak_page_created(
+          user: current_user,
+          profile: minted_profile,
+          child: @child_account,
+          source: Analytics::CommunicatorEvents::CHILD_ACCOUNTS,
+        )
       end
 
       # Team setup. `ensure_team!` adds the creator as admin; no

@@ -146,6 +146,10 @@ class API::ProfilesController < API::ApplicationController
     # arbitrary one of them. The per-communicator MySpeak page is a different
     # product with a different quota (the communicator slot) — see #761.
     if (existing = current_user.profile)
+      Analytics::CommunicatorEvents.public_page_create_blocked(
+        user: current_user,
+        reason: "public_page_exists",
+      )
       render json: {
         error: "public_page_exists",
         message: "You already have a public page.",
@@ -174,6 +178,7 @@ class API::ProfilesController < API::ApplicationController
     if profile.save
       profile.enqueue_audio_job_if_needed
       profile.generate_attachments! if profile.safety?
+      Analytics::CommunicatorEvents.public_page_created(user: current_user, profile: profile)
       render json: profile.api_view(current_user), status: :created
     else
       Rails.logger.debug("[Profiles#create] errors=#{profile.errors.full_messages}")

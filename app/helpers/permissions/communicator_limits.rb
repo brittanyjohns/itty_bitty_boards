@@ -60,6 +60,26 @@ module Permissions
       requested
     end
 
+    # The limit/count pair `can_create?` decided against, for the analytics
+    # event fired on a refusal (#766) — `can_create?` returns only a message, so
+    # without this the event carries no numbers and can't tell "plan has no
+    # slots" apart from "all slots full". Costs a count query, so call it on the
+    # REFUSAL path only.
+    def usage_for(user:, status:)
+      return { limit: 0, count: 0 } unless user
+
+      settings = user.settings || {}
+
+      if status == ChildAccount::SANDBOX
+        {
+          limit: sandbox_limit_for(settings),
+          count: user.communicator_accounts.where(status: ChildAccount::SANDBOX).count,
+        }
+      else
+        { limit: slot_limit_for(settings), count: owned_slot_count(user) }
+      end
+    end
+
     # The total non-sandbox slots a user occupies right now. Used by the
     # claim flow and by frontends rendering "X of Y communicators."
     def owned_slot_count(user)
