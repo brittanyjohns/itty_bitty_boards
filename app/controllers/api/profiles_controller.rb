@@ -140,14 +140,18 @@ class API::ProfilesController < API::ApplicationController
       return
     end
 
-    unless current_user.can_create_myspeak_id?
-      limit = current_user.myspeak_id_limit
+    # A user has exactly ONE Public page (User `has_one :profile`), on every
+    # plan. A duplicate is a state conflict, not a plan gate — 409, never 403.
+    # A second row would be unreachable anyway: `user.profile` returns an
+    # arbitrary one of them. The per-communicator MySpeak page is a different
+    # product with a different quota (the communicator slot) — see #761.
+    if (existing = current_user.profile)
       render json: {
-        error: "myspeak_id_limit_reached",
-        message: "Free accounts are limited to #{limit} MySpeak ID. Upgrade to Basic or Pro to add more.",
-        limit: limit,
-        count: current_user.myspeak_id_count,
-      }, status: :forbidden
+        error: "public_page_exists",
+        message: "You already have a public page.",
+        profile_id: existing.id,
+        slug: existing.slug,
+      }, status: :conflict
       return
     end
 

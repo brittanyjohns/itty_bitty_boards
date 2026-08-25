@@ -485,7 +485,11 @@ Rails.application.routes.draw do
     get  "communicator_claims/:token", to: "child_accounts#claim_preview", as: :communicator_claim_preview
     post "communicator_claims/:token/claim", to: "child_accounts#claim", as: :communicator_claim
 
-    resources :profiles do
+    # `only:` matters: API::ProfilesController defines no destroy/new/edit, so a
+    # bare `resources` routed DELETE /api/profiles/:id at a missing action —
+    # ActionNotFound (a 500), not a clean 404. Collection routes below are
+    # declared explicitly and are unaffected by `only:`.
+    resources :profiles, only: [:index, :show, :create, :update] do
       collection do
         get "placeholders"
         get "next_placeholder"
@@ -596,7 +600,9 @@ Rails.application.routes.draw do
         #   get "predictive_image_board"
         # end
       end
-      resources :profiles do
+      # API::Account::ProfilesController defines only me/update_me — same
+      # missing-action trap as the block above.
+      resources :profiles, only: [] do
         collection do
           get "me"
           put "update_me"

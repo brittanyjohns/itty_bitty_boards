@@ -400,8 +400,12 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
-    context "free user already at the MySpeak ID limit" do
-      it "returns 403 myspeak_id_limit_reached" do
+    # Regression for #761. The user-level Public page and a communicator's
+    # MySpeak page are different products; they used to share one counter, so
+    # owning a Public page refused a MySpeak page our copy promises is free on
+    # every plan. The communicator SLOT (covered above) is the only quota here.
+    context "free user who already has their own Public page" do
+      it "can still create a communicator MySpeak page" do
         Profile.create!(
           profileable: user,
           username: "first-#{SecureRandom.hex(2)}",
@@ -410,10 +414,8 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
         post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
 
-        expect(response).to have_http_status(:forbidden)
-        body = JSON.parse(response.body)
-        expect(body["error"]).to eq("myspeak_id_limit_reached")
-        expect(body["limit"]).to eq(1)
+        expect(response).to have_http_status(:created)
+        expect(user.communicator_accounts.last.profile).to be_present
       end
     end
   end

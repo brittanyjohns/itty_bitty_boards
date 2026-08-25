@@ -797,21 +797,43 @@ RSpec.describe Board, type: :model do
 
     before { allow(OpenAiClient).to receive(:new).and_return(openai) }
 
-    describe "#get_word_suggestions" do
+    describe "#get_word_suggestions_from_default_prompt" do
       let(:board) { FactoryBot.create(:board, language: "es", board_type: "static") }
 
       it "defaults the language to the board's own language" do
-        expect(openai).to receive(:get_word_suggestions)
-          .with("drink", 5, [], anything, hash_including(language: "es"))
+        expect(openai).to receive(:get_word_suggestions_from_prompt)
+          .with(anything, hash_including(language: "es"))
           .and_return({ content: '{"words":[]}' })
-        board.get_word_suggestions("drink", 5, [])
+        board.get_word_suggestions_from_default_prompt("drink", 5)
       end
 
       it "lets an explicit language override the board's language" do
-        expect(openai).to receive(:get_word_suggestions)
-          .with("drink", 5, [], anything, hash_including(language: "fr"))
+        expect(openai).to receive(:get_word_suggestions_from_prompt)
+          .with(anything, hash_including(language: "fr"))
           .and_return({ content: '{"words":[]}' })
-        board.get_word_suggestions("drink", 5, [], language: "fr")
+        board.get_word_suggestions_from_default_prompt("drink", 5, language: "fr")
+      end
+
+      # The list does double duty: written into the prompt as "don't repeat
+      # these", and passed down so the system prompt can tell whether this board
+      # can already object and redirect.
+      it "passes the caller's exclusion list down as the board's existing words" do
+        expect(openai).to receive(:get_word_suggestions_from_prompt) do |text, existing_words:, **|
+          expect(existing_words).to eq(%w[store zoo])
+          expect(text).to include("store, zoo")
+          { content: '{"words":[]}' }
+        end
+        board.get_word_suggestions_from_default_prompt("places", 5, words_to_exclude: %w[store zoo])
+      end
+
+      it "falls back to the board's own word list when the caller sends none" do
+        allow(board).to receive(:current_word_list).and_return(%w[park museum])
+
+        expect(openai).to receive(:get_word_suggestions_from_prompt) do |_text, existing_words:, **|
+          expect(existing_words).to eq(%w[park museum])
+          { content: '{"words":[]}' }
+        end
+        board.get_word_suggestions_from_default_prompt("places", 5)
       end
     end
 

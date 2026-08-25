@@ -992,6 +992,7 @@ class API::BoardsController < API::ApplicationController
     end
     if params[:num_of_words].to_i > 50
       render json: { error: "num_of_words parameter cannot exceed 50" }, status: :unprocessable_content
+      return
     end
     if params[:board_id].present?
       @board = Board.find_by(id: params[:board_id])
@@ -1001,7 +1002,8 @@ class API::BoardsController < API::ApplicationController
     additional_words = []
     prompt = params[:prompt].presence || params[:name]
     num_of_words = params[:num_of_words].to_i || 24
-    words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
+    words_to_exclude = parse_words_to_exclude(params[:words_to_exclude]).presence ||
+                       @board&.current_word_list || []
     profile = CommunicatorProfile.for(params: params, communicator: profile_communicator)
     @board ||= Board.new(name: prompt) # create a temporary board object to use the word suggestion methods if no board_id is provided
     # Source language from explicit param first, then board.language, then user
@@ -1017,17 +1019,30 @@ class API::BoardsController < API::ApplicationController
     elsif creation_type == "predictive"
       additional_words = @board.get_words_for_predictive(prompt, num_of_words, language: resolved_language, profile: profile)
     elsif creation_type == "custom"
-      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Do not include any words on the board already: #{words_to_exclude.join(", ")}."
-      additional_words = @board.get_word_suggestions_from_prompt(text, language: resolved_language, profile: profile)
-    elsif @board&.board_type == "menu"
-      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: resolved_language, profile: profile)
+      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n These will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Do not include any words on the board already: #{words_to_exclude.join(", ")}."
+      additional_words = @board.get_word_suggestions_from_prompt(text, language: resolved_language, profile: profile,
+                                                                       existing_words: words_to_exclude)
     else
-      board_name = @board&.name || prompt
-      if prompt == board_name
-        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude, language: resolved_language, profile: profile)
-      else
-        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: resolved_language, profile: profile)
-      end
+      # ONE prompt path. This used to fork on `prompt == @board.name` into a
+      # second, much weaker prompt builder — one whose user turn named no topic
+      # and asked only for a count, leaving the whole-board coverage rules in
+      # the system prompt as the only selection guidance. Since the editor seeds
+      # the override field with the board name and sends it verbatim, "left the
+      # field alone" was indistinguishable from "typed the board name", so the
+      # default case took the weak branch every time and a board called "Places"
+      # came back with "different", "again", "something else", "all done" —
+      # strings copied straight out of Prompts::Aac::OBJECTION_REDIRECT_RULE.
+      #
+      # No menu branch either: get_word_suggestions_from_default_prompt already
+      # special-cases a menu board internally, so a separate one only offered a
+      # second place for the two to disagree.
+      additional_words = @board.get_word_suggestions_from_default_prompt(
+        prompt,
+        num_of_words,
+        words_to_exclude: words_to_exclude,
+        language: resolved_language,
+        profile: profile,
+      )
     end
     if additional_words.blank?
       Rails.logger.error "No additional words found for prompt: #{prompt} - creation_type: #{creation_type}"
@@ -1588,6 +1603,19 @@ class API::BoardsController < API::ApplicationController
   end
 
   private
+
+  # The exclusion list arrives as an Array from a JSON caller and as a
+  # comma-joined String from the board editor (see getWords in the frontend's
+  # data/boards.ts). Matching only the Array shape silently dropped it for every
+  # board-less request, so those suggestions could repeat words already staged.
+  def parse_words_to_exclude(raw)
+    list = case raw
+           when Array then raw
+           when String then raw.split(",")
+           else []
+           end
+    list.map { |word| word.to_s.strip }.reject(&:blank?)
+  end
 
   def check_board_create_permissions
     unless current_user

@@ -63,15 +63,41 @@ module Prompts
     # here because a draft failed on it: pages of nouns nobody can say anything
     # about, boards with no way to refuse, a preschool board that offered
     # "Tuesday" and "purple" but not "again".
-    WORD_RULES = <<~RULES.freeze
+    #
+    # They are split into COVERAGE and CRAFT because the two answer different
+    # questions and only one of them survives the trip to an incremental add.
+    # Coverage asks "can this board, as a whole, do the job?" — answerable only
+    # by whatever is building the whole board. Craft asks "is this a well-formed
+    # tile?", which is true of any list of tiles anywhere. WORD_RULES is their
+    # concatenation and is byte-for-byte what every whole-board caller already
+    # sent, so splitting them changes no existing prompt.
+    CORE_VOCABULARY_RULE = <<~RULES.freeze
       - Favour words that can finish many different sentences over words that
         finish one. "want", "more", "go" and "different" earn a cell on almost
         any board; "cheeseburger" earns one only on a board about lunch.
+    RULES
+
+    # Broken out on its own because it is the one coverage rule an incremental
+    # add may still need. A board that cannot refuse is an autonomy failure, not
+    # a style problem — so rather than dropping the ask for adds, callers put it
+    # back when the board's existing tiles can't already object and redirect.
+    OBJECTION_REDIRECT_RULE = <<~RULES.freeze
       - Every board needs a way to object and a way to redirect. Include at
         least one of: no, not, stop, don't like. And at least one of: again,
         different, something else, all done.
+    RULES
+
+    LABELLED_NOUN_RULE = <<~RULES.freeze
       - A noun earns a cell if the communicator can say something ABOUT it, not
         only name it. Skip nouns that exist to be labelled.
+    RULES
+
+    # Only a caller laying out a whole board can honour these.
+    BOARD_COVERAGE_RULES =
+      (CORE_VOCABULARY_RULE + OBJECTION_REDIRECT_RULE + LABELLED_NOUN_RULE).freeze
+
+    # How a label is written. True of any list of tiles, whole board or not.
+    WORD_CRAFT_RULES = <<~RULES.freeze
       - No closed sets as filler: no letters, digits, days of the week, months,
         or a run of colours, unless the topic is that thing.
       - Match the register to who this is for. If an age or setting is given,
@@ -82,6 +108,60 @@ module Prompts
       - A label is display text, not an identifier: separate words with a plain
         space, never an underscore.
     RULES
+
+    WORD_RULES = (BOARD_COVERAGE_RULES + WORD_CRAFT_RULES).freeze
+
+    # The two vocabularies OBJECTION_REDIRECT_RULE names, as data, so code can
+    # ask whether a board already satisfies the rule.
+    #
+    # Deliberately NOT interpolated back into the rule text: that would rewrap
+    # the prompt every whole-board caller sends, for no gain. A spec asserts
+    # each entry appears in the rule instead — the same "these cannot drift
+    # apart" guarantee that part_of_speech_rules gets from interpolation, with
+    # none of the prompt churn.
+    OBJECTION_WORDS = ["no", "not", "stop", "don't like"].freeze
+    REDIRECTION_WORDS = ["again", "different", "something else", "all done"].freeze
+
+    # Does this set of tile labels already carry a way to object AND a way to
+    # redirect?
+    #
+    # Matched on word boundaries rather than string equality, so a tile labelled
+    # "no thank you" counts as a way to object. Labels arrive as display text
+    # (Board#current_word_list reads display_label), so casing and curly
+    # apostrophes both have to be normalised away first.
+    def self.can_object_or_redirect?(words)
+      labels = Array(words).filter_map do |word|
+        normalised = word.to_s.unicode_normalize(:nfkc).tr("‘’", "''").downcase.squish
+        normalised.presence
+      end
+      return false if labels.empty?
+
+      mentions?(labels, OBJECTION_WORDS) && mentions?(labels, REDIRECTION_WORDS)
+    end
+
+    def self.mentions?(labels, vocabulary)
+      vocabulary.any? do |word|
+        pattern = /(?<!\w)#{Regexp.escape(word)}(?!\w)/
+        labels.any? { |label| label.match?(pattern) }
+      end
+    end
+    private_class_method :mentions?
+
+    # The rules that apply when words are being ADDED to a board that already
+    # exists, rather than when a whole board is being laid out.
+    #
+    # The coverage rules are a whole-board judgement and misfire badly on an
+    # add: "skip nouns that exist to be labelled" suppresses exactly the place
+    # names a board called "Places" exists for, and the objection/redirect
+    # mandate is a list of literal words the model will spend the user's tiles
+    # on — "again", "different", "something else", "all done" — even when the
+    # board already has all four. So craft rules always, and the objection ask
+    # only when the board genuinely cannot refuse yet.
+    def self.incremental_word_rules(existing_words: [])
+      return WORD_CRAFT_RULES if can_object_or_redirect?(existing_words)
+
+      OBJECTION_REDIRECT_RULE + WORD_CRAFT_RULES
+    end
 
     # The part-of-speech clause. The enum is interpolated from
     # ColorHelper::PARTS_OF_SPEECH rather than restated, so the prompt and the

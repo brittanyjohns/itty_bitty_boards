@@ -3238,34 +3238,6 @@ class Board < ApplicationRecord
     words
   end
 
-  def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [], language: nil, profile: nil)
-    lang = language.presence || self.language.presence || "en"
-    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type, language: lang, profile: profile)
-    begin
-      if response && response[:content].present?
-        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
-        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
-          return
-        end
-        if valid_json?(word_suggestions)
-          word_suggestions = JSON.parse(word_suggestions)
-        else
-          start_index = word_suggestions.index("{")
-          end_index = word_suggestions.rindex("}")
-          word_suggestions = word_suggestions[start_index..end_index]
-          word_suggestions = transform_into_json(word_suggestions)
-        end
-      else
-        Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
-      end
-      # nil when the call failed above — indexing it raised NoMethodError and
-      # turned a soft AI failure into an exception in the caller's rescue.
-      word_suggestions.is_a?(Hash) ? word_suggestions["words"] : nil
-    rescue => e
-      Rails.logger.error "Error getting word suggestions: #{e}"
-    end
-  end
-
   def get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude = [], language: nil)
     lang = language.presence || self.language.presence || "en"
     response = OpenAiClient.new({}).get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude, language: lang)
@@ -3292,8 +3264,13 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_word_suggestions_from_default_prompt(prompt, number_of_words, language: nil, profile: nil)
-    words_to_exclude = current_word_list || []
+  # `words_to_exclude` comes from the caller so the list the controller resolved
+  # is the list the model is told about; it falls back to the board's own tiles
+  # only when the caller has none. It does double duty — written into the prompt
+  # as "don't repeat these", and passed down as `existing_words` so the system
+  # prompt can tell whether this board can already object and redirect.
+  def get_word_suggestions_from_default_prompt(prompt, number_of_words, words_to_exclude: nil, language: nil, profile: nil)
+    words_to_exclude = words_to_exclude.presence || current_word_list || []
     text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
     unless words_to_exclude.blank?
       text += "The current words on the board are: #{words_to_exclude.join(", ")}. Please exclude these from your suggestions but you can use them as context to create a cohesive AAC board. "
@@ -3303,13 +3280,15 @@ class Board < ApplicationRecord
     else
       text += "The words/phrases will be used on an AAC board, so please prioritize common, relevant, and useful words/phrases that would help someone communicate effectively. "
     end
-    text += "Please make them lowercase with the exception of proper nouns, senetences, etc. that should be capitalized. "
-    get_word_suggestions_from_prompt(text, language: language, profile: profile)
+    text += "Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized. "
+    get_word_suggestions_from_prompt(text, language: language, profile: profile,
+                                           existing_words: words_to_exclude)
   end
 
-  def get_word_suggestions_from_prompt(prompt, language: nil, profile: nil)
+  def get_word_suggestions_from_prompt(prompt, language: nil, profile: nil, existing_words: [])
     lang = language.presence || self.language.presence || "en"
-    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt, language: lang, profile: profile)
+    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt, language: lang, profile: profile,
+                                                                            existing_words: existing_words)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
@@ -3325,7 +3304,7 @@ class Board < ApplicationRecord
           word_suggestions = transform_into_json(word_suggestions)
         end
       else
-        Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
+        Rails.logger.error "*** ERROR - get_word_suggestions_from_prompt *** \nDid not receive valid response. Response: #{response}\n"
       end
       # nil when the call failed above — indexing it raised NoMethodError and
       # turned a soft AI failure into an exception in the caller's rescue.

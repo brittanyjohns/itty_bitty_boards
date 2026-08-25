@@ -36,12 +36,31 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   returns `editable_board_not_available` (422) when it didn't, and a
   higher-limit plan pins the designated board ahead of its recency-ordered
   slots.
+- **MySpeak pages are free on every plan again.** Adding a communicator quietly
+  created their MySpeak page for you — and that page was counted against a
+  separate one-per-account limit, so on the Free plan your very first
+  communicator used up the only slot. The next time you tried to make a page you
+  were told "only one allowed per account," for a page you never knowingly
+  created. Every communicator gets a MySpeak page on every plan now, exactly as
+  the rest of the app says; how many communicators you can have is the only
+  limit. Your own public page is separate and unaffected.
 - **Deleting a picture from an image no longer deletes it permanently by
   mistake.** "Remove" was documented as a hide you could undo, but every remove
   destroyed the file for good.
 - **A picture you saved from an image search no longer changes what everyone
   else's new tiles start with.** Saving art onto a shared library word moved the
   library-wide default even when you weren't the one who owns it.
+- **Word suggestions now match what the board is actually about.** Asking a
+  board to suggest more words used to give very different results depending on
+  whether you had touched the "prompt override" box — a board called "Places"
+  came back with "different", "again", "something else" and "all done" if you
+  left the box alone, but with real places the moment you typed anything
+  different into it. Both now take the same path, so the suggestions match the
+  board whether you customise the prompt or not. Suggestions for a topic page
+  are also free to name things again: a page of places, foods or people is
+  supposed to be full of nouns. Words like "stop" and "all done" are still
+  suggested for a board that hasn't got a way to say no yet — just not for one
+  that already has.
 - **Free kit downloads now actually download.** The Download button on a
   `/kit/...` landing page used to open the PDF in the browser's viewer instead
   of saving it — a long wait on a blank tab for a big printable, and then you
