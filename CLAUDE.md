@@ -579,6 +579,27 @@ an explicit decision, not a drive-by edit.
   already made. Only `lg` can honour the region's exact cells (it is the only
   screen the region is expressed in); md/sm pack the strip last so it stays
   bottom-pinned, the same rule `Boards::ScreenReflow`'s `pinned_rows` uses.
+- **Word suggestions have ONE prompt path, and the AAC rules that reach it
+  depend on the JOB.** `Api::BoardsController#words` used to fork on
+  `prompt == @board.name` into a second, much weaker prompt builder — and since
+  the editor seeds the override field with the board name and sends it verbatim,
+  "left the field alone" was indistinguishable from "typed the board name", so
+  the default case took the weak branch every time. One path now
+  (`get_word_suggestions_from_default_prompt`), whatever the prompt says; it
+  already special-cases a menu board internally, so there is no separate menu
+  branch to disagree with it. The second half is the AAC one:
+  `Prompts::Aac::WORD_RULES` is `BOARD_COVERAGE_RULES + WORD_CRAFT_RULES`, and
+  **only a caller laying out a WHOLE board may send the coverage half.** Those
+  rules ("include at least one of: again, different, something else, all done";
+  "skip nouns that exist to be labelled") are right for a core board and wrong
+  for an incremental add to a fringe page — a board called "Places" came back
+  with four strings copied verbatim out of the rule while its place names were
+  suppressed. `Prompts::Aac.incremental_word_rules` sends craft rules always and
+  **re-adds** the objection/redirect ask only when `can_object_or_redirect?`
+  says the board's own tiles cannot yet do it: a board that cannot refuse is an
+  autonomy failure, so the principle is preserved, not dropped. `WORD_RULES`
+  stays byte-identical so the whole-board callers are untouched — never "tidy"
+  the split by rewrapping it. Details: `.claude-notes/ai-prompting.md`.
 - **`Boards::TileArrangement` is the ONE part-of-speech band order, and it is
   shared.** It was `Boards::AdminBuilder::TileArrangement` until "Format with
   AI" started using it too; the old constant is a Zeitwerk-visible alias at the

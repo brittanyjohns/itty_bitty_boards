@@ -297,6 +297,20 @@ class OpenAiClient
     #{Prompts::Aac::WORD_RULES}
   PROMPT
 
+  # The same kernel for a prompt that ADDS words to a board that already exists.
+  #
+  # Built per call rather than frozen once, because which rules apply depends on
+  # what the board is already holding: `Prompts::Aac.incremental_word_rules`
+  # drops the whole-board coverage rules and puts the objection/redirect ask
+  # back only when the existing tiles can't already object and redirect.
+  def self.incremental_word_system_prompt(existing_words: [])
+    <<~PROMPT
+      #{Prompts::Aac::WORD_LIST_SYSTEM_PROMPT}
+      Word selection rules:
+      #{Prompts::Aac.incremental_word_rules(existing_words: existing_words)}
+    PROMPT
+  end
+
   # Sends a word-suggestion prompt with the shared AAC kernel in the system
   # slot and a Structured Outputs schema pinning the response key.
   #
@@ -418,27 +432,6 @@ class OpenAiClient
     response
   end
 
-  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default", language: "en", profile: nil)
-    if words_to_exclude.is_a?(String)
-      words_to_exclude = words_to_exclude.split(",").map(&:strip)
-    end
-    @model = GTP_MODEL
-    if board_type == "menu"
-      text = "I have a restaurant menu titled, '#{name}'. Inferring the context from the name AND the existing items on the menu, please provide #{number_of_words} additional menu items that are commonly found on restaurant menus. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
-    else
-      text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
-    end
-    unless words_to_exclude.blank?
-      text += " Do not repeat any words that are already on the board & only provide #{number_of_words} words. The words currently on the board are '#{words_to_exclude.join("', '")}'."
-    end
-    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    text += format_instructions
-    text = append_language_instruction(text, language)
-    text = append_profile_guidance(text, profile)
-
-    aac_word_chat(text, response_key: "words", schema_name: "aac_board_words")
-  end
-
   def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [], language: "en")
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
@@ -491,7 +484,10 @@ class OpenAiClient
                         system_prompt: Prompts::Aac::WORD_LIST_SYSTEM_PROMPT)
   end
 
-  def get_word_suggestions_from_prompt(prompt, language: "en", profile: nil)
+  # `existing_words` is what the board already holds. It selects the system
+  # prompt (see .incremental_word_system_prompt) — it is NOT the exclusion list,
+  # which the caller has already written into `prompt`.
+  def get_word_suggestions_from_prompt(prompt, language: "en", profile: nil, existing_words: [])
     @model = GTP_MODEL
     text = prompt
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word or phrase 1\", \"word or phrase 2\", \"word or phrase 3\", ...]}. Use spaces between words in a phrase, never underscores."
@@ -499,7 +495,8 @@ class OpenAiClient
     text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
 
-    aac_word_chat(text, response_key: "words", schema_name: "aac_prompt_words")
+    aac_word_chat(text, response_key: "words", schema_name: "aac_prompt_words",
+                        system_prompt: self.class.incremental_word_system_prompt(existing_words: existing_words))
   end
 
   # Appends communicator-profile guidance (age / AAC level / vocab type) to a

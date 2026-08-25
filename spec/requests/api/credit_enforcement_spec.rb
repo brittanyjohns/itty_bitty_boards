@@ -60,7 +60,7 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
 
     it "word_suggestion costs 1" do
       # Stub the OpenAI call so the action doesn't actually hit the network
-      allow_any_instance_of(Board).to receive(:get_word_suggestions).and_return(["red", "blue"])
+      allow_any_instance_of(Board).to receive(:get_word_suggestions_from_default_prompt).and_return(["red", "blue"])
       expect {
         get "/api/boards/words", params: { name: "school", num_of_words: 10 }, headers: auth
       }.to change { user.reload.plan_credits_balance }.by(-1)
