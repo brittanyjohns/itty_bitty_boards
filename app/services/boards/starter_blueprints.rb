@@ -93,9 +93,12 @@ module Boards
     # Seeded robust sets, sourced from their predefined root boards.
     def robust_catalog
       Boards::RobustSets.all_roots.map do |root|
+        slug = Boards::RobustSets.slug_for(root)
         {
-          key: Boards::RobustSets.slug_for(root),
-          name: root.name,
+          key: slug,
+          # The slug's canonical name, not the seed row's — the picker label has
+          # to match what the build will actually name the board.
+          name: Boards::RobustSets.display_name_for(slug) || root.name,
           kind: "robust",
           # display_label: this preview list is shown to the user picking a
           # template, so it needs the tile's text, not the matching key.

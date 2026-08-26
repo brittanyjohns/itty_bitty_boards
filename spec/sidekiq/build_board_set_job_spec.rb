@@ -27,8 +27,10 @@ RSpec.describe BuildBoardSetJob do
   # request spec uses, marked so Boards::RobustSets finds it. The Food page
   # carries its own "Food" SELF tile linking back to the root, mirroring the
   # authored templates (see db/seeds/board_builder_sets/README.md).
+  # Boards::RobustSets.all_roots is scoped to the SEEDER (DEFAULT_ADMIN_ID +
+  # predefined), so the fixture has to be owned the way vocab_sets:seed owns it.
   def seed_robust_set!(slug: "core-60")
-    admin = create(:admin_user)
+    admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
     source_root = create(:board, user: admin, name: "Core 60", predefined: true, published: true)
     food = create(:board, user: admin, name: "Food", predefined: true, published: true)
     create(:board_image, board: source_root, label: "I",

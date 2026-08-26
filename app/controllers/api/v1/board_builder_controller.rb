@@ -252,18 +252,29 @@ module API
         ActiveModel::Type::Boolean.new.cast(params[:include_phrases])
       end
 
+      # The name for the built root board AND its BoardGroup. For a robust set
+      # this is the SLUG's canonical name, never the seed board's `name` column
+      # — the seed is a mutable admin row, and reading it is what let a stray
+      # marketing clone rename every Extended build. `find_root` is still what
+      # decides whether the set is seeded HERE; only the string comes from the
+      # constant, so an unseeded environment falls through as it always did.
       def resolve_root_name(build_key)
         if Boards::StructurePlanner::LEVELS.key?(build_key)
           core_template = Boards::StructurePlanner::LEVELS[build_key][:core_template]
-          robust_root = Boards::RobustSets.find_root(core_template)
-          robust_root&.name || "Communication Board"
+          robust_name_for(core_template) || "Communication Board"
         else
-          robust_root = Boards::RobustSets.find_root(build_key)
-          robust_root&.name ||
+          robust_name_for(build_key) ||
             Boards::GlpTemplates.find_board(build_key)&.name ||
             Boards::StarterBlueprints.tree_for(build_key)&.dig(:name) ||
             "Communication Board"
         end
+      end
+
+      # nil unless the slug names a robust set that is actually seeded here.
+      def robust_name_for(slug)
+        return nil if Boards::RobustSets.find_root(slug).nil?
+
+        Boards::RobustSets.display_name_for(slug)
       end
 
       def recommend_template(catalog)

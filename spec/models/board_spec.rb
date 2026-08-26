@@ -142,6 +142,19 @@ RSpec.describe Board, type: :model do
       expect(cloned.board_images.count).to eq(board.board_images.count)
     end
 
+    # The robust-set markers are IDENTITY, not presentation: Boards::RobustSets
+    # decides which board IS the Core 60/84 seed from these two keys alone, so a
+    # clone that inherits them becomes a rival seed for the slug.
+    it "does not inherit the robust vocab-set markers" do
+      Boards::RobustSets.mark_root!(board, "core-84")
+
+      cloned = board.clone_with_images(user.id, "Classroom — Core Words Poster")
+
+      expect(cloned.settings).not_to have_key(Boards::RobustSets::ROOT_MARKER)
+      expect(cloned.settings).not_to have_key(Boards::RobustSets::SLUG_MARKER)
+      expect(Boards::RobustSets.slug_for(board.reload)).to eq("core-84")
+    end
+
     it "does not inherit the source's display_image_url snapshot" do
       board.update_column(
         :display_image_url,

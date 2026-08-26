@@ -1456,10 +1456,20 @@ class Board < ApplicationRecord
     # preview_generated_at go with it: the clone has rendered nothing, and
     # inheriting "ok" makes it claim a render that doesn't exist, which is the
     # field clients poll instead of the URL.
+    #
+    # The robust-set markers go with them, and for a sharper reason: they are
+    # not presentation, they are IDENTITY. `Boards::RobustSets` decides which
+    # board IS the Core 60/84 seed purely from these two keys, so a clone that
+    # inherits them becomes a rival seed for that slug — which is how a
+    # marketing poster clone ended up naming (and supplying the grid for) every
+    # user's Board Builder set. Stripping here covers every clone path at once;
+    # `Boards::SeededSetCloner#strip_template_markers!` does the same thing for
+    # the boards it copies by hand.
     @cloned_board.write_attribute(:display_image_url, nil)
     @cloned_board.settings = (@cloned_board.settings || {}).merge(
       "display_image_source" => "preview",
-    ).except("preset_display_image_url", "preview_status", "preview_generated_at")
+    ).except("preset_display_image_url", "preview_status", "preview_generated_at",
+             Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER)
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false

@@ -665,6 +665,31 @@ an explicit decision, not a drive-by edit.
   set, which — having no nav cell bearing its name — is then handed an anchor
   labelled with the core set's own name. Repair: `rake
   board_builder:repair_stray_core_pages`.
+- **The robust-set marker is IDENTITY, so a clone must never inherit it and a
+  built set's NAME must never be read off the seed row.** `Boards::RobustSets`
+  decides which board IS the Core 60/84 seed from two `settings` keys alone —
+  and `settings` rides `Board#clone_with_images`, so every clone of a seed
+  became a rival root for that slug. `all_roots` ordered by `:name` and took
+  `.first`, and `resolve_root_name` returned `find_root(slug)&.name`, which
+  names the root Board *and* its BoardGroup. A marketing clone called
+  "Classroom — Core Words Poster" (`Cl` < `Co`) therefore won the Core 84 lookup
+  and supplied both the name and the GRID for every Extended build; starter and
+  standard had the identical exposure one Core 60 clone away, since all three
+  levels resolve through the same call. Three rails now. `all_roots` is scoped
+  to the seeder — `user_id: User::DEFAULT_ADMIN_ID` **and** `predefined: true`,
+  either of which a clone fails — and ordered by `:id`, so the winner is the
+  oldest row rather than an alphabetical accident. `clone_with_images` strips
+  both keys alongside the cover-snapshot keys it already dropped, which covers
+  every clone path (`POST /api/boards/:id/clone`, `AssignmentCloner`,
+  `BoardSnapshotService`, MySpeak onboarding, `from_vocab_set`) at once; where a
+  caller can supply `settings`, strip AFTER the merge or the caller puts them
+  back. And the name comes from `RobustSets.display_name_for(slug)` — a
+  constant keyed on the SLUG — so a renamed seed cannot rename a user's board;
+  `find_root` still decides whether the set is seeded here, only the string
+  moved. Cleanup for rows cloned before the strip: `rake
+  board_builder:unmark_stray_vocab_roots` (dry run by default; unmarks only —
+  it never renames, unpublishes, or destroys, and it reports the built sets that
+  took a stray's name rather than renaming them).
 - **"Format with AI" is a PERMUTATION at a uniform 1x1.** `AiBoardFormatter`
   chooses an ORDER and nothing else: no tile size, no x/y, no column count, and
   it never adds or drops a word. `Board#pack_layout_row_major` is the single

@@ -271,9 +271,24 @@ lose.
   `load_board` → `predictive_board_id`.
 - The set is identified ENTIRELY by a marker on its **root board**:
   `settings["board_builder_robust"] = true` + `["board_builder_robust_slug"]`.
-  `Boards::RobustSets` (`find_root` / `all_roots` / `slug_for` / `mark_root!`)
-  is the single place that query lives. Idempotent: `Board.from_obf` upserts by
-  `(user_id, obf_id)`.
+  `Boards::RobustSets` (`find_root` / `all_roots` / `slug_for` /
+  `display_name_for` / `mark_root!`) is the single place that query lives.
+  Idempotent: `Board.from_obf` upserts by `(user_id, obf_id)`.
+- **The marker is IDENTITY, so the lookup is scoped to the seeder and the built
+  set's NAME comes from the slug.** `all_roots` requires
+  `user_id: User::DEFAULT_ADMIN_ID` **and** `predefined: true` and orders by
+  `:id`, because `settings` rides `Board#clone_with_images` — any clone of a
+  seed used to become a rival root for that slug, and `ORDER BY name` handed the
+  win to whichever name sorted first. A marketing clone named
+  "Classroom — Core Words Poster" therefore supplied both the name and the grid
+  for every Extended build. `clone_with_images` now strips both keys (alongside
+  the cover-snapshot keys it already dropped), which covers every clone path at
+  once. The name comes from `RobustSets.display_name_for(slug)` — a constant,
+  never the seed row's `name` column — in both `resolve_root_name` (which names
+  the root Board *and* its BoardGroup) and `StarterBlueprints#robust_catalog`,
+  so a renamed seed cannot rename a user's board. Cleanup for rows cloned before
+  the strip: `rake board_builder:unmark_stray_vocab_roots` (dry run by default;
+  unmarks only, never renames or destroys).
 - **Layout self-heal on re-seed (`VocabSets#repair_layout!`).** A clean
   first-time import is always correct (84/60 tiles, no overlaps). But the
   historical duplicate-tile bug could leave the surviving tile on the wrong cell
