@@ -115,6 +115,38 @@ RSpec.describe ImageMergeJob do
       expect(Doc.unscoped.find(hidden.id).documentable_id).to eq(rich.id)
     end
 
+    # docs.current is the LIBRARY DEFAULT and is meant to be single-valued per
+    # image. Merging two images that each carried their own default left the
+    # survivor with both, so Image#display_doc resolved an arbitrary one.
+    it "leaves the survivor with exactly one library default" do
+      create(:doc, documentable: rich, user_id: nil, current: true)
+      create(:doc, documentable: sparse, user_id: nil, current: true)
+      batch = batch_for("kite")
+
+      described_class.new.perform(batch.id, 0)
+
+      expect(rich.reload.docs.where(current: true).count).to eq(1)
+    end
+
+    it "keeps the survivor's own default rather than an inherited one" do
+      keeper = create(:doc, documentable: rich, user_id: nil, current: true)
+      create(:doc, documentable: sparse, user_id: nil, current: true)
+      batch = batch_for("kite")
+
+      described_class.new.perform(batch.id, 0)
+
+      expect(rich.reload.docs.where(current: true).pluck(:id)).to eq([keeper.id])
+    end
+
+    it "does not invent a default for a group that never had one" do
+      create(:doc, documentable: sparse, user_id: nil)
+      batch = batch_for("kite")
+
+      described_class.new.perform(batch.id, 0)
+
+      expect(rich.reload.docs.where(current: true)).to be_empty
+    end
+
     it "keeps the union of next_words" do
       sparse.update_columns(next_words: %w[string fly])
       rich.update_columns(next_words: %w[string])

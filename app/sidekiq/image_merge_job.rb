@@ -65,6 +65,9 @@ class ImageMergeJob
 
     moved = { docs: [], board_images: [], user_docs: [], boards: [] }
     snapshots = []
+    # Read before any doc moves, so "the survivor's own curated default" is
+    # still distinguishable from the ones it is about to inherit.
+    @survivor_default_doc_id = survivor.docs.where(current: true).order(:id).last&.id
 
     ActiveRecord::Base.transaction do
       losers.each do |loser|
@@ -81,6 +84,13 @@ class ImageMergeJob
         loser.reload
         loser.destroy!
       end
+
+      # Every loser's docs are now the survivor's, and each may have carried its
+      # own `current: true`. That flag is the LIBRARY DEFAULT and is meant to be
+      # single-valued per image — Image#display_doc resolves `docs.current.last`,
+      # so several current docs leave the default arbitrary rather than curated.
+      # Reconcile once, after the whole group, so the survivor keeps exactly one.
+      reconcile_library_default(survivor)
 
       ImageMerge.create!(
         image_merge_batch_id: batch.id,
@@ -152,6 +162,22 @@ class ImageMergeJob
     ids = BoardImage.where(image_id: loser.id).pluck(:id)
     BoardImage.where(id: ids).update_all(image_id: survivor.id)
     ids
+  end
+
+  # Keeps exactly one current doc: the survivor's own pre-existing default when
+  # it still has one (a curated choice outranks an inherited one), otherwise the
+  # newest inherited default. Never promotes a doc that was not already somebody's
+  # default — an image with no current doc keeps none, and the backfill/admin
+  # panel is where that gets decided deliberately.
+  def reconcile_library_default(survivor)
+    current_ids = survivor.docs.where(current: true).order(:id).pluck(:id)
+    return if current_ids.size <= 1
+
+    keeper = @survivor_default_doc_id if current_ids.include?(@survivor_default_doc_id)
+    keeper ||= current_ids.last
+
+    survivor.docs.where(current: true).where.not(id: keeper).update_all(current: false)
+    keeper
   end
 
   def merge_next_words(loser, survivor)

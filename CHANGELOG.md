@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A word's default picture is no longer left ambiguous after duplicate images
+  are merged.** Consolidating two library images that each had their own default
+  picture left the survivor carrying both, so which one showed was arbitrary
+  rather than chosen. Merging now settles on one, and
+  `rake library_images:reconcile_defaults APPLY=1` repairs images merged before
+  the fix without changing any picture that is currently showing.
+
 ### Added
 
 - **You can now get a new link for a MySpeak page, and printed tags keep
