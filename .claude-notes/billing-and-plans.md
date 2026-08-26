@@ -341,29 +341,103 @@ as an **admin heads-up** so Brittany can convert/extend before the auto-drop:
   (`/admin/users/:id`) shows a **Partner Pilot** card (end date, days left,
   reminder-sent, expired-flagged) so you can action a partner in one place —
   extend with `rake partners:extend` (Stripe-aware), or adjust plan by hand.
+  The card also renders **live Stripe state** — `Billing::PartnerProStatus.snapshot`
+  (subscription id, status, price + its `plan_type` metadata, Stripe `trial_end`,
+  `cancel_at_period_end`) — because the local row stores no price id, so it
+  structurally cannot answer "is Stripe still on the old plan?". A price that
+  isn't the Partner Pro one is flagged in red. Fetched live and deliberately
+  **not cached** (a cache would show stale state right after a swap); never
+  raises, so a Stripe outage renders an "unavailable" line rather than 500ing.
+  Note there is no `config/initializers/stripe.rb`, so gem default timeouts
+  apply — if a Stripe outage ever makes these pages slow, the fix is per-request
+  timeouts, not caching.
 - **Admin plan changes.** The user detail page can change plans directly
   (`Admin::UsersController#change_plan`). Most changes are **local-only** (Stripe
   untouched), so an active Stripe subscription's webhooks can later overwrite
   them. Semantics: `free` runs `Billing::PlanTransitions.apply_free_plan` (full
-  cancellation); `partner_pro` runs `User.handle_new_partner_pro_subscription`
-  (full partner onboarding — this **does** create a Stripe trial subscription,
-  the one exception to local-only); other paid plans set `plan_type` **and
-  `plan_status: "active"`**
+  cancellation); other paid plans set `plan_type` **and `plan_status: "active"`**
   (without the status reset, a previously-canceled user would be
   `plan_stranded?` and auto-reverted to free). `basic_trial` is not
   admin-assignable — trials belong to the soft-trial flow. The page also
   edits identity/flags and the manual `settings` limit overrides
   (board/paid-communicator/demo-communicator), and has queue-only email
   actions (welcome / setup / temp-login).
+- **`partner_pro` is the one plan change that moves Stripe, and it must.**
+  `User.handle_new_partner_pro_subscription(user, "partner_pro", swap_existing: true)`
+  runs full partner onboarding *and* puts the user's Stripe subscription on the
+  Partner Pro price. The swap is the point: a user upgraded by an admin usually
+  already has a subscription, `ensure_partner_pro_trial_subscription!` no-ops
+  when one exists, and the old price's `metadata.plan_type` is what the next
+  routine `customer.subscription.updated` writes back over `partner_pro`. Make
+  Stripe assert the truth and the webhook preserves it with nothing to guard.
+  - `User#sync_partner_pro_subscription!(trial_end:, swap_existing:)` is the
+    workhorse and returns a structured result
+    (`:created` / `:swapped` / `:already_on_price` / `:reused` / `:skipped` /
+    `:failed`) which the admin flash reports verbatim — a fail-soft Stripe call
+    that swallowed its error is exactly the case an admin must be told about.
+    `ensure_partner_pro_trial_subscription!` remains as a thin `swap_existing:
+    false` wrapper so the **signup** path is unchanged.
+  - The swap lists **only the plan item**, so extra-communicator add-on items
+    survive untouched (partners satisfy `pro?`, which is what the webhook
+    re-derives slots from). `quantity` is passed explicitly because Stripe
+    resets it to 1 on a price change; `cancel_at_period_end: false` because a
+    pending cancel would also drag `trial_end` back; `trial_end` moves the
+    billing anchor by itself, so no `billing_cycle_anchor`, paired with
+    `proration_behavior: "none"`.
+  - **Which item is the plan item** is one rule in one place —
+    `Billing::PartnerProStatus.plan_item` — shared by the webhook's read path
+    (`first_price_from_subscription`) and this write path, so a subscription
+    can't be read as one plan and written as another. Stripe does not guarantee
+    item order: `items.data.first` can be the add-on.
+  - A stored subscription id that is `resource_missing`, `canceled`, or
+    `incomplete_expired` is dropped and a fresh trial subscription created. Any
+    **other** Stripe error fails instead of falling through to create — creating
+    while the original is still live would bill the user twice.
+  - `trial_end` is clamped forward (`User.partner_pro_trial_end`) — Stripe
+    rejects a past date and an upgraded user can carry a stale
+    `plan_expires_at`. Clamp in `handle_new_partner_pro_subscription` too, since
+    it writes the local `plan_expires_at` from the same value.
+  - **No proration credit is issued.** Swapping a live payer forfeits their
+    unused prepaid term, and after the pilot they bill at the Partner Pro rate,
+    not their old plan. The admin page warns with the current price/interval
+    before the click and names it in the result flash. Upgrading also sets
+    `role = "partner"` unconditionally — worth knowing for a `vendor`.
+  - The no-change guard exempts `partner_pro`: the local flip happens before the
+    Stripe call, so without the exemption a failed swap would be unrecoverable
+    from the page.
+- **Webhook safety rail.** `handle_subscription_upsert` refuses to move a
+  `partner_pro` user onto another plan when the incoming Price metadata claims
+  one — mirroring the partner special-case in `handle_subscription_deleted`.
+  It exists because the Stripe swap is fail-soft; without it a swallowed error
+  means a silent revert later.
+  - Keyed on the **subscription id** matching `user.stripe_subscription_id`, not
+    on metadata alone. Metadata alone would make `partner_pro` permanently
+    sticky, so a partner who genuinely converts to a paid plan could never
+    leave; a real conversion arrives on a *different* subscription and passes.
+  - **Known gap:** a partner who switches *that same* subscription to Basic in
+    the billing portal is refused (WARN log only, no user-visible error).
+    Accepted — rare, recoverable from the admin plan changer, and consistent
+    with the unconditionally-sticky delete handler. If someone is debugging
+    "why won't this partner downgrade", this is why.
+  - `plan_status` is still written **verbatim** from Stripe. Only
+    `active`/`trialing`/`past_due`/`incomplete` reach that line (terminal
+    statuses return earlier), none of which are in `UNPAID_STATUSES` — so it
+    can't make the partner `plan_stranded?` or trip `reconcile_stranded_plan!`
+    on the sign-in hot path, and a partner whose card is failing genuinely *is*
+    `past_due`.
+  - The rail does **not** touch the trial-lapsed / paused early returns: a
+    lapsed partner trial still downgrades, with the Clinician landing owned by
+    the delete handler.
 
 **Phase 2 (built):** the pilot now runs on a real Stripe no-card trial (see the
 signup section above) — auto-expiry to Free, `trial_will_end` reminder, clean
 cancel, one-click conversion (add a card → $10/mo Partner Pro). Two pieces are
 deliberately retained for the transition rather than retired: the synchronous
 local credit grant (instant credits + fail-soft when Stripe is down) and
-`PartnerPilotEndingJob` (now digest-only). A follow-up will **backfill** existing
-`partner_pro` users (no `stripe_subscription_id`) onto trial subscriptions using
-their current `plan_expires_at` as `trial_end`.
+`PartnerPilotEndingJob` (now digest-only). Existing `partner_pro` users with no
+`stripe_subscription_id` are backfilled onto a trial subscription by re-running
+the plan change to `partner_pro` from `/admin/users/:id`, which creates one from
+their current `plan_expires_at`.
 
 **Requires `STRIPE_PRICE_PARTNER_PRO` to point at a $10/mo price with
 `metadata.plan_type=partner_pro`.** The old value was a **$0** price

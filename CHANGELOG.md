@@ -43,6 +43,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   actually written on is never touched, and adopting a page gives it a fresh
   unguessable link, the same as a page made from scratch.
 
+- **Making someone a Partner from the admin page now actually sticks.** Changing
+  a user's plan to `partner_pro` on `/admin/users/:id` moves their Stripe
+  subscription onto the Partner Pro price — or creates a no-card trial
+  subscription if they don't have one — instead of leaving it on whatever plan
+  they were on before. Previously the change only landed locally for anyone who
+  already had a subscription, and the next routine update from Stripe quietly
+  put them back on their old plan. The admin is now told exactly what happened
+  in Stripe (including if it failed, so it can be re-run), and the user page
+  shows the subscription's live status and price with a warning when it isn't
+  the Partner Pro one. Extra communicator add-ons a user bought are carried
+  across untouched. Note that swapping someone who is actively paying forfeits
+  the unused part of what they already paid — Stripe issues no credit — so the
+  page warns before the switch. As a backstop, a Partner is no longer demoted by
+  their own subscription's updates even if the Stripe change didn't land.
+
 - **"Make this my editable board" no longer reports success while changing
   nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`
   and always answered 200, but the read-only gate resolves the edit slot

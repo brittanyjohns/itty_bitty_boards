@@ -53,6 +53,10 @@ module Admin
       @communicators = @user.communicator_accounts.order(:created_at)
       @recent_events = AnalyticsEvent.where(user_id: @user.id).recent.limit(20)
       @credit_balance = CreditService.balance(@user)
+      # Gated on HAVING a subscription rather than on being a partner: the same
+      # snapshot powers the Partner Pilot card and the pre-swap warning shown to
+      # a user who isn't a partner yet. Never raises; see the service.
+      @stripe_sub = Billing::PartnerProStatus.snapshot(@user) if @user.stripe_subscription_id.present?
     end
 
     def adjust_credits
@@ -143,10 +147,15 @@ module Admin
         return
       end
 
-      if new_plan == @user.plan_type
+      # partner_pro is deliberately exempt from the no-change guard: the local
+      # flip happens before the Stripe call, so a failed swap would otherwise be
+      # unrecoverable from this page — the admin could never retry.
+      if new_plan == @user.plan_type && new_plan != "partner_pro"
         redirect_to admin_dashboard_user_path(@user), notice: "No change — already on #{new_plan}.", status: :see_other
         return
       end
+
+      stripe_result = nil
 
       case new_plan
       when "free"
@@ -155,7 +164,10 @@ module Admin
         @user.plan_type = "partner_pro"
         @user.plan_status = "active"
         @user.save!
-        User.handle_new_partner_pro_subscription(@user, "partner_pro")
+        # swap_existing: an admin upgrade is the case where the user already has
+        # a subscription sitting on a basic/pro price, whose metadata the next
+        # webhook would write back over partner_pro.
+        stripe_result = User.handle_new_partner_pro_subscription(@user, "partner_pro", swap_existing: true)
       else
         @user.plan_type = new_plan
         # Without an active status, a previously-canceled user would be
@@ -164,9 +176,11 @@ module Admin
         @user.save!
       end
 
-      redirect_to admin_dashboard_user_path(@user),
-                  notice: "Plan changed to #{new_plan}. Local-only: Stripe was not modified.",
-                  status: :see_other
+      if stripe_result.is_a?(Hash) && !stripe_result[:ok]
+        redirect_to admin_dashboard_user_path(@user), alert: plan_change_message(new_plan, stripe_result), status: :see_other
+      else
+        redirect_to admin_dashboard_user_path(@user), notice: plan_change_message(new_plan, stripe_result), status: :see_other
+      end
     rescue ActiveRecord::RecordInvalid => e
       redirect_to admin_dashboard_user_path(@user), alert: e.record.errors.full_messages.to_sentence, status: :see_other
     end
@@ -269,6 +283,42 @@ module Admin
                                    :board_limit, :paid_communicator_limit, :demo_communicator_limit,
                                    :wait_to_speak, :disable_audit_logging, :enable_text_display, :enable_image_display,
                                    voice: [:name, :language])
+    end
+
+    # What actually happened, plan branch by plan branch. The partner branch is
+    # the only one that touches Stripe, and an admin has to be able to tell a
+    # landed swap from a silent no-op — the whole point of the change.
+    #
+    # The raw Stripe error is shown on purpose: this is a server-rendered admin
+    # page behind require_admin!, not an API response, so the never-leak-
+    # internals rule doesn't bind and the detail is what makes it actionable.
+    def plan_change_message(new_plan, stripe_result)
+      base = "Plan changed to #{new_plan}."
+      return "#{base} Subscription canceled locally, limits reset, free credits granted." if new_plan == "free"
+      return "#{base} Local-only: Stripe was not modified." unless stripe_result.is_a?(Hash)
+
+      sub = stripe_result[:subscription_id]
+      trial = stripe_result[:trial_end]
+      trial_note = trial.present? ? " Trial ends #{trial.to_date.strftime("%b %-d, %Y")}." : ""
+
+      case stripe_result[:action]
+      when :swapped
+        was = [stripe_result[:previous_price_id], stripe_result[:previous_interval],
+               stripe_result[:previous_amount], stripe_result[:previous_status]].compact.join(", ")
+        "#{base} Stripe subscription #{sub} moved onto the Partner Pro price " \
+          "(was #{was} — no proration credit issued).#{trial_note}"
+      when :created
+        "#{base} Created Stripe trial subscription #{sub}.#{trial_note}"
+      when :already_on_price
+        "#{base} Stripe subscription #{sub} was already on the Partner Pro price."
+      when :reused
+        "#{base} Stripe subscription #{sub} left as-is."
+      when :skipped
+        "#{base} Changed locally, but STRIPE_PRICE_PARTNER_PRO is not configured — Stripe was NOT modified."
+      else
+        "#{base} Changed locally, but Stripe failed: #{stripe_result[:error]}. " \
+          "The subscription still points at the old price and a webhook may revert the plan."
+      end
     end
 
     def apply_filter(scope)

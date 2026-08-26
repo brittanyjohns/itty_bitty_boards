@@ -38,9 +38,9 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
     OpenStruct.new(id: id, metadata: build_metadata(meta_hash))
   end
 
-  def build_subscription(status: "active", price: build_price, current_period_end: 30.days.from_now, trial_end: nil, customer: user.stripe_customer_id)
+  def build_subscription(status: "active", price: build_price, current_period_end: 30.days.from_now, trial_end: nil, customer: user.stripe_customer_id, id: "sub_#{SecureRandom.hex(3)}")
     OpenStruct.new(
-      id: "sub_#{SecureRandom.hex(3)}",
+      id: id,
       customer: customer,
       status: status,
       current_period_end: current_period_end.to_i,
@@ -412,6 +412,91 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
       expect {
         post_webhook("{}", header_with_signature)
       }.to change { user.reload.plan_credits_balance }.to(1500)
+    end
+  end
+
+  # The rail that stops a partner being silently reverted when the Stripe swap
+  # failed or was skipped and their subscription still sits on the old price.
+  describe "partner_pro safety rail" do
+    let_it_be(:partner, reload: true) do
+      FactoryBot.create(:user,
+        stripe_customer_id: "cus_partner_rail",
+        stripe_subscription_id: "sub_partner_rail",
+        plan_type: "partner_pro",
+        plan_status: "active",
+        role: "partner")
+    end
+
+    def partner_sub(status: "active", plan_type: "basic", id: "sub_partner_rail")
+      build_subscription(
+        status: status,
+        price: build_price(plan_type: plan_type, id: "price_#{plan_type}"),
+        customer: partner.stripe_customer_id,
+        id: id,
+      )
+    end
+
+    it "refuses to demote a partner whose own subscription still claims another plan" do
+      stub_event(partner_sub(plan_type: "basic"), type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(partner.reload.plan_type).to eq("partner_pro")
+    end
+
+    # Justifies leaving plan_status written verbatim: past_due is true
+    # information and can't strand the partner.
+    it "still records the true status, without stranding the partner" do
+      stub_event(partner_sub(status: "past_due"), type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      partner.reload
+      expect(partner.plan_type).to eq("partner_pro")
+      expect(partner.plan_status).to eq("past_due")
+      expect(partner.plan_stranded?).to be false
+    end
+
+    # A deliberate conversion arrives on a DIFFERENT subscription and must pass.
+    it "allows a demotion arriving on a different subscription" do
+      stub_event(partner_sub(plan_type: "pro", id: "sub_brand_new"), type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(partner.reload.plan_type).to eq("pro")
+    end
+
+    # The rail must not make partners immortal: a lapsed no-card trial still
+    # falls through to the trial-lapse downgrade.
+    it "does not block the trial-lapsed downgrade" do
+      stub_event(partner_sub(status: "unpaid"), type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(partner.reload.plan_type).to eq("free")
+    end
+
+    it "leaves the no-metadata fallback alone" do
+      stub_event(partner_sub(plan_type: nil), type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(partner.reload.plan_type).to eq("partner_pro")
+    end
+
+    it "does not fire for a non-partner changing plans on the same subscription" do
+      other = FactoryBot.create(:user,
+        stripe_customer_id: "cus_non_partner_rail",
+        stripe_subscription_id: "sub_non_partner_rail",
+        plan_type: "basic", plan_status: "active")
+      stub_event(
+        build_subscription(price: build_price(plan_type: "pro"), customer: other.stripe_customer_id, id: "sub_non_partner_rail"),
+        type: "customer.subscription.updated",
+      )
+
+      post_webhook("{}", header_with_signature)
+
+      expect(other.reload.plan_type).to eq("pro")
     end
   end
 end
