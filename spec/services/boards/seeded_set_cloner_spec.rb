@@ -343,7 +343,14 @@ RSpec.describe Boards::SeededSetCloner do
         expect(root.user_id).to eq(owner.id)
         expect(root.status).to eq("building_board")
         expect(root.settings["builder_root"]).to be(true)
-        expect(Boards::RobustSets.all_roots.pluck(:id)).to contain_exactly(@source[:root].id)
+        expect(root.settings).not_to have_key(Boards::RobustSets::ROOT_MARKER)
+        expect(root.settings).not_to have_key(Boards::RobustSets::SLUG_MARKER)
+        # Two memberships rather than `contain_exactly`: the source must still
+        # be the catalog's root for the slug and the adopted root must never
+        # join it, but requiring the catalog to hold NOTHING else couples this
+        # example to whatever seeds a neighbouring one leaves behind.
+        expect(Boards::RobustSets.all_roots.pluck(:id)).to include(@source[:root].id)
+        expect(Boards::RobustSets.all_roots.pluck(:id)).not_to include(root.id)
       end
 
       it "routes interests into the cloned fringe pages under the adopted root" do
