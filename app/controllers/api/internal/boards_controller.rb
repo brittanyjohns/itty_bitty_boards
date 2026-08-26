@@ -225,16 +225,18 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     ["true", "1"].include?(params[:published].to_s.downcase)
   end
 
-  # The clone inherits the seed root's settings via `dup`, which would carry
-  # the robust-set markers and make it look like a *second* seeded root for the
-  # slug (polluting Boards::RobustSets.find_root / the wizard catalog). Strip
-  # them, then apply any caller-supplied tags/settings. Always saves — removing
-  # the markers is itself a change.
+  # `Board#clone_with_images` already strips the robust-set markers, so a clone
+  # can't masquerade as a second seeded root for the slug (which would pollute
+  # Boards::RobustSets.find_root and the wizard catalog). Strip them again here
+  # AFTER the caller-supplied settings merge — otherwise a caller passing
+  # `settings: { board_builder_robust: true }` puts them straight back, and this
+  # endpoint is exactly the one that names a board after a marketing poster.
+  # Always saves — the tags/slug below are changes in their own right.
   def finalize_cloned_vocab_board!(board)
     settings = board.settings || {}
+    settings = settings.merge(params[:settings].to_unsafe_h) if params[:settings].present?
     settings.delete(Boards::RobustSets::ROOT_MARKER)
     settings.delete(Boards::RobustSets::SLUG_MARKER)
-    settings = settings.merge(params[:settings].to_unsafe_h) if params[:settings].present?
     board.settings = settings
 
     if params[:tags].present?

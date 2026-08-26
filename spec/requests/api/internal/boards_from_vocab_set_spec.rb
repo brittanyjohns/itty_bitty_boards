@@ -9,7 +9,7 @@ RSpec.describe "API::Internal::Boards from_vocab_set", type: :request do
   # A seeded robust-set ROOT board (Core 84) owned by the internal admin, with a
   # couple of tiles, stamped so Boards::RobustSets.find_root("core-84") resolves it.
   let!(:root) do
-    board = create(:board, name: "Core 84", user: admin_user)
+    board = create(:board, name: "Core 84", user: admin_user, predefined: true)
     2.times { create(:board_image, board: board, image: create(:image)) }
     Boards::RobustSets.mark_root!(board, "core-84")
     board
@@ -60,6 +60,27 @@ RSpec.describe "API::Internal::Boards from_vocab_set", type: :request do
         expect(Boards::RobustSets.find_root("core-84")).to eq(root)
         expect(clone.settings["board_builder_robust"]).to be_nil
         expect(clone.settings["board_builder_robust_slug"]).to be_nil
+      end
+
+      # The strip has to run AFTER the caller-supplied settings merge, or the
+      # caller puts the markers straight back — and this is the endpoint that
+      # names a board after a marketing poster.
+      it "strips the markers even when the caller sends them in settings" do
+        post "/api/internal/boards/from_vocab_set",
+             params: { slug: "core-84", name: "Classroom — Core Words Poster",
+                       settings: { "board_builder_robust" => true,
+                                   "board_builder_robust_slug" => "core-84",
+                                   "disable_scroll" => true } }.to_json,
+             headers: json_headers
+
+        expect(response).to have_http_status(:created)
+        clone = Board.find(JSON.parse(response.body)["id"])
+
+        expect(clone.settings["board_builder_robust"]).to be_nil
+        expect(clone.settings["board_builder_robust_slug"]).to be_nil
+        # Unrelated caller settings still land.
+        expect(clone.settings["disable_scroll"]).to be(true)
+        expect(Boards::RobustSets.find_root("core-84")).to eq(root)
       end
 
       it "honors an override name and applies tags" do

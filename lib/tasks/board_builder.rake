@@ -369,6 +369,102 @@ namespace :board_builder do
     end
   end
 
+  desc "Strip robust-set markers from boards that aren't the real Core 60/84 seed (DRY_RUN=false to apply)"
+  task unmark_stray_vocab_roots: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    # Deliberately UNSCOPED: Boards::RobustSets.all_roots is now narrowed to the
+    # seeder's own boards, which is the whole point — the strays this task
+    # cleans up are precisely the rows that scope no longer sees.
+    marked = Board
+      .where("COALESCE((boards.settings->>'#{Boards::RobustSets::ROOT_MARKER}')::boolean, false)")
+      .order(:id)
+      .to_a
+
+    if marked.empty?
+      puts "No boards carry #{Boards::RobustSets::ROOT_MARKER}. Nothing to do."
+      next
+    end
+
+    seed_ids = marked.select { |b| true_vocab_seed?(b) }
+                     .group_by { |b| Boards::RobustSets.slug_for(b) }
+                     .transform_values { |boards| boards.min_by(&:id).id }
+                     .values
+                     .to_set
+
+    strays = marked.reject { |b| seed_ids.include?(b.id) }
+
+    puts "#{marked.size} marked board(s): #{seed_ids.size} real seed(s), #{strays.size} stray(s)."
+    marked.each do |board|
+      role = seed_ids.include?(board.id) ? "SEED " : "STRAY"
+      puts "  #{role} ##{board.id} #{board.name.inspect} " \
+           "slug=#{Boards::RobustSets.slug_for(board).inspect} user=#{board.user_id} " \
+           "predefined=#{board.predefined} published=#{board.published} obf_id=#{board.obf_id.inspect}"
+    end
+
+    if strays.empty?
+      puts "Nothing to unmark."
+      next
+    end
+
+    # Report-only, twice over. Renaming a user's board is not this task's call
+    # (a board name is user-visible content), and unpublishing an admin board
+    # isn't either — but both consequences are worth naming out loud.
+    report_sets_named_after!(strays)
+    report_newly_catalogued!(strays)
+
+    unless dry_run
+      strays.each do |board|
+        settings = board.settings || {}
+        settings.delete(Boards::RobustSets::ROOT_MARKER)
+        settings.delete(Boards::RobustSets::SLUG_MARKER)
+        board.update_columns(settings: settings)
+      end
+    end
+
+    if dry_run
+      puts "Dry run only — would unmark #{strays.size} stray root(s). Re-run with DRY_RUN=false to apply."
+    else
+      puts "Unmarked #{strays.size} stray root(s). No board was renamed, unpublished, or destroyed."
+    end
+  end
+
+  # The board a re-seed would produce for this slug: owned by the seeder and
+  # flagged predefined. `Board#clone_with_images` sets predefined = false, so a
+  # clone can never satisfy this however its settings got stamped.
+  def true_vocab_seed?(board)
+    board.user_id == User::DEFAULT_ADMIN_ID &&
+      board.predefined? &&
+      Boards::RobustSets.slug_for(board).present?
+  end
+
+  # Built sets whose root (or BoardGroup) took its name from a stray. Reported,
+  # never renamed — the fix stops NEW builds inheriting the name; renaming an
+  # existing board is the owner's call.
+  def report_sets_named_after!(strays)
+    names = strays.map { |b| b.name.to_s.strip }.reject(&:blank?).uniq
+    return if names.empty?
+
+    roots = Board.where("(settings ->> 'builder_root') = 'true'").where(name: names)
+    groups = BoardGroup.where(builder: true, name: names)
+    return if roots.empty? && groups.empty?
+
+    puts "Built sets named after a stray (NOT renamed — rename by hand if you want to):"
+    roots.each { |b| puts "  board ##{b.id} #{b.name.inspect} user=#{b.user_id}" }
+    groups.each { |g| puts "  board set ##{g.id} #{g.name.inspect} user=#{g.user_id}" }
+  end
+
+  # Board.not_builder_seed excludes marked boards from admin_owned_boards, so
+  # unmarking a published admin board admits it to the admin printables
+  # dashboard. Say so rather than quietly changing what that list shows.
+  def report_newly_catalogued!(strays)
+    surfacing = strays.select { |b| b.published? && b.user_id == User::DEFAULT_ADMIN_ID }
+    return if surfacing.empty?
+
+    puts "Unmarking these will admit them to Board.admin_owned_boards (admin printables dashboard):"
+    surfacing.each { |b| puts "  ##{b.id} #{b.name.inspect}" }
+  end
+
   # A page in a built set that is really the top of a robust vocabulary set —
   # it still carries the seed's catalogue marker. An authored fringe page never
   # does.

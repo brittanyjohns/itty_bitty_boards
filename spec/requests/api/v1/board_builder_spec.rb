@@ -25,8 +25,10 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
   # Seeds a tiny admin-owned robust set (a "Core 60" root linked to a "Food"
   # fringe page) and stamps the root marker so Boards::RobustSets finds it.
   # Mirrors what `bin/rails vocab_sets:seed` produces, without the OBZ import.
+  # Boards::RobustSets.all_roots is scoped to the SEEDER (DEFAULT_ADMIN_ID +
+  # predefined), so the fixture has to be owned the way vocab_sets:seed owns it.
   def seed_robust_set!(slug: "core-60")
-    admin = create(:admin_user)
+    admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
     root  = create(:board, user: admin, name: "Core 60", predefined: true, published: true)
     food  = create(:board, user: admin, name: "Food", predefined: true, published: true)
     create(:board_image, board: root, label: "I", image: create(:image, label: "I", user_id: admin.id))
@@ -276,6 +278,71 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
              params: { communicator_id: communicator.id, template: "home" }.to_json,
              headers: { "Content-Type" => "application/json" }
         expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    # A robust set is identified by a marker on its root board's settings. A
+    # marketing clone of the Core 84 seed inherited that marker and, because the
+    # lookup ordered by name and the built board took its name from the row,
+    # "Classroom — Core Words Poster" renamed every Extended build (and supplied
+    # its grid). The name now comes from the SLUG, not the row.
+    context "naming the built set" do
+      def build!(level)
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, level: level }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+        Board.find(JSON.parse(response.body)["id"])
+      end
+
+      def stray_named!(seed, name)
+        stray = seed.clone_with_images(seed.user_id, name)
+        # Rows cloned before clone_with_images stripped the markers still carry
+        # them; that is the state this guards against.
+        stray.update_columns(settings: (stray.settings || {}).merge(
+          Boards::RobustSets::ROOT_MARKER => true,
+          Boards::RobustSets::SLUG_MARKER => Boards::RobustSets.slug_for(seed),
+        ))
+        stray
+      end
+
+      it "names an Extended set Core 84 even with a stray marked clone in the way" do
+        seed = seed_robust_set!(slug: "core-84")
+        stray_named!(seed, "Classroom — Core Words Poster")
+
+        root = build!("extended")
+
+        expect(root.name).to eq("Core 84")
+        expect(user.board_groups.find_by(builder: true, root_board_id: root.id).name).to eq("Core 84")
+      end
+
+      %w[starter standard].each do |level|
+        it "names a #{level} set Core 60 even with a stray marked clone in the way" do
+          seed = seed_robust_set!(slug: "core-60")
+          stray_named!(seed, "Classroom — Core Words Poster")
+
+          root = build!(level)
+
+          expect(root.name).to eq("Core 60")
+          expect(user.board_groups.find_by(builder: true, root_board_id: root.id).name).to eq("Core 60")
+        end
+      end
+
+      it "names the set from the slug even when the seed row itself was renamed" do
+        seed = seed_robust_set!(slug: "core-84")
+        seed.update!(name: "Classroom — Core Words Poster")
+
+        expect(build!("extended").name).to eq("Core 84")
+      end
+
+      it "shows the canonical name in the template picker, not the stray's" do
+        seed = seed_robust_set!(slug: "core-84")
+        stray_named!(seed, "Classroom — Core Words Poster")
+
+        get "/api/v1/board_builder/templates", headers: headers
+
+        robust = JSON.parse(response.body)["templates"].select { |t| t["kind"] == "robust" }
+        expect(robust.map { |t| t["name"] }).to eq(["Core 84"])
       end
     end
 

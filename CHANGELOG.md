@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Boards from the Board Builder are named correctly again.** Building a set
+  could name the board — and its board set — after an unrelated admin board
+  (for example "Classroom — Core Words Poster") instead of "Core 60" or
+  "Core 84", and build it from that board's tiles rather than the intended
+  starting vocabulary. All three sizes (Starter, Standard, Extended) are fixed.
+  Boards already built keep whatever name they were given; rename them from the
+  board's settings if you want to.
+
 - **A word's default picture is no longer left ambiguous after duplicate images
   are merged.** Consolidating two library images that each had their own default
   picture left the survivor carrying both, so which one showed was arbitrary
