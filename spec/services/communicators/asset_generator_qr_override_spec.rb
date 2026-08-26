@@ -23,11 +23,24 @@ RSpec.describe "Communicator asset generators — qr_target_url override" do
       described_class.call(profile, qr_target_url: kit_url)
     end
 
-    it "defaults the QR to the profile's public page when no override is given" do
+    # The PERMANENT address, not the public one. This QR is printed and stuck
+    # to a child's device, so it has to keep resolving after the owner changes
+    # or revokes their public link (#774).
+    it "defaults the QR to the profile's permanent page when no override is given" do
+      expect(profile.permanent_url).not_to eq(profile.public_url)
+
       expect_any_instance_of(described_class)
-        .to receive(:qr_data_url_for).with(profile.public_url).and_return("data:image/png;base64,x")
+        .to receive(:qr_data_url_for).with(profile.permanent_url).and_return("data:image/png;base64,x")
 
       described_class.call(profile)
+    end
+
+    it "keeps pointing at the same URL after the public slug is rotated away" do
+      printed = profile.permanent_url
+      profile.rotate_slug!
+
+      expect(profile.reload.permanent_url).to eq(printed)
+      expect(profile.public_url).not_to eq(printed)
     end
   end
 

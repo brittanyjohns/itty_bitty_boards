@@ -81,6 +81,43 @@ RSpec.describe "profiles:migrate_to_random_slugs rake task", type: :task do
     expect(safety.reload.slug).to eq(first_slug)
   end
 
+  # `set_kind` only rewrites User-owned rows, so a placeholder claimed by a
+  # communicator keeps `profile_kind: "placeholder"` while still being that
+  # child's public page. Scoping on the kind alone walked past it (issue #774).
+  it "migrates a ChildAccount-owned profile whose kind is not 'safety'" do
+    claimed = Profile.new(
+      profileable: child,
+      profile_kind: "placeholder",
+      username: "emma-claimed",
+      slug: "emma-claimed",
+      claim_token: SecureRandom.hex(10),
+      placeholder: true,
+    ).tap(&:save!)
+    claimed.update_columns(placeholder: false, claimed_at: Time.current)
+
+    ENV["DRY_RUN"] = "false"
+    run_task
+
+    claimed.reload
+    expect(claimed.slug).to match(/\As-[a-z0-9]{6}\z/)
+    expect(claimed.slug_type).to eq("random")
+    expect(claimed.legacy_slug).to eq("emma-claimed")
+  end
+
+  it "skips a profile that already has a random slug" do
+    random = Profile.new(profileable: FactoryBot.create(:child_account, user: owner, owner: owner),
+                         username: "already-random").tap(&:save!)
+    expect(random.slug_type).to eq("random")
+    original_slug = random.slug
+
+    ENV["DRY_RUN"] = "false"
+    expect { run_task }.not_to have_enqueued_job(RegenerateSafetyCardsJob).with(random.id)
+
+    random.reload
+    expect(random.slug).to eq(original_slug)
+    expect(random.legacy_slug).to be_nil
+  end
+
   it "scopes to a single user via USER_ID" do
     other_owner = FactoryBot.create(:user)
     other_child = FactoryBot.create(:child_account, user: other_owner, owner: other_owner, name: "Max")

@@ -375,8 +375,11 @@ module Communicators
       }
     end
 
+    # `permanent_url` — a care plan is printed and handed to a school, so its
+    # QR (and the URL printed beside it) must outlive the owner changing or
+    # revoking their public link. Same rule as the device tag.
     def public_url
-      effective_qr_url(profile.public_url)
+      effective_qr_url(profile.permanent_url)
     end
 
     # The counterpart to BaseAssetGenerator#generate_pdf_from_html, for a page

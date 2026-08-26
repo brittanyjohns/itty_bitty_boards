@@ -495,6 +495,11 @@ Rails.application.routes.draw do
     # ActionNotFound (a 500), not a clean 404. Collection routes below are
     # declared explicitly and are unaffected by `only:`.
     resources :profiles, only: [:index, :show, :create, :update] do
+      member do
+        # "Get a new link" — revokes the current public address by minting a
+        # fresh random one. The printed QR is unaffected (permanent_slug).
+        post "rotate_slug"
+      end
       collection do
         get "placeholders"
         get "next_placeholder"

@@ -188,4 +188,48 @@ RSpec.describe ChildAccount, type: :model do
       expect(boards.first.keys).to contain_exactly(:id, :name, :board_type, :display_image_url)
     end
   end
+
+  # The auto-minted MySpeak page. Its slug is the public `/my/<slug>` URL, and
+  # it must be unguessable: this path used to force a name-derived slug, so a
+  # communicator added from the dashboard was findable by guessing the child's
+  # name while one made in the wizard was not (issue #774).
+  describe "#create_profile!" do
+    let(:account) do
+      FactoryBot.create(:child_account, user: user, name: "River Stone", username: "river-stone")
+    end
+
+    it "assigns an unguessable random slug, not one derived from the name" do
+      profile = account.create_profile!
+
+      expect(profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+      expect(profile.slug_type).to eq("random")
+      expect(profile.slug).not_to include("river")
+    end
+
+    it "keeps the readable username — it is the handle, not the URL" do
+      expect(account.create_profile!.username).to eq("river-stone")
+    end
+
+    it "leaves the slug unguessable even when the name would sluggify fine" do
+      other = FactoryBot.create(:child_account, user: user, name: "River Stone", username: "river-stone-2")
+
+      slugs = [account.create_profile!.slug, other.create_profile!.slug]
+
+      expect(slugs.uniq.size).to eq(2)
+      expect(slugs).to all(match(/\As-[a-z0-9]{6}\z/))
+    end
+
+    it "returns the existing profile path (nil) rather than minting a second one" do
+      account.create_profile!
+      expect(account.reload.create_profile!).to be_nil
+      expect(Profile.where(profileable: account).count).to eq(1)
+    end
+
+    it "logs and returns nil when the username is blank, without raising" do
+      allow(account).to receive(:username).and_return("")
+
+      expect(Rails.logger).to receive(:error).with(/Username is nil/)
+      expect { expect(account.create_profile!).to be_nil }.not_to change(Profile, :count)
+    end
+  end
 end

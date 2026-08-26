@@ -503,6 +503,46 @@ an explicit decision, not a drive-by edit.
   substitute teacher reads routinely; routing them through the emergency alert
   would train parents to ignore it. Care fields are equally never sent to
   OpenAI. Details: `.claude-notes/safety-profiles.md`.
+- **A communicator's MySpeak slug is never derived from their name — every
+  creation path leaves `slug` BLANK and lets `Profile#ensure_slug` assign the
+  random one.** `safety_profile?` is true for any ChildAccount-owned Profile, so
+  the rule is already written down in one place; a path that passes `slug:`
+  simply skips it, because `ensure_slug` returns on a present slug. That is how
+  the dashboard shipped `/my/river-stone` while the wizard shipped
+  `/my/s-k8x2mf` — and nothing re-slugs a page afterwards, so the emergency info
+  a parent fills in later lands behind whichever URL that first write chose. A
+  readable `username` is fine and wanted (it is the handle on a page a responder
+  has already scanned); the URL is the part that must not be guessable. Existing
+  rows: `rake profiles:migrate_to_random_slugs`, dry-run by default, which keeps
+  the old slug resolving via `legacy_slug` + 301 — so it moves the canonical URL
+  but does not make an already-exposed page unfindable.
+- **A profile has THREE resolvable addresses and they mean different things;
+  `Profile.resolve_slug` is the only place that knows all of them.** `slug` is
+  the address a person reads and may have to change; `permanent_slug` is what a
+  printed QR resolves through, assigned once at create and NEVER rewritten;
+  `legacy_slug` is a deprecated address kept alive by a 301. Keeping the first
+  two in one column is what forced the slug to be frozen at all — paper needs
+  stability, people need revocability, and one column can only serve one of
+  them. So the device tag, safety card and care plan all render
+  `Profile#permanent_url`, never `public_url`, and a `permanent_slug` match is
+  served DIRECTLY rather than redirected: the printed address must never depend
+  on what `slug` happens to hold today. Every public surface has to resolve all
+  three or a link half-works — the page opens and the Emergency Info reveal
+  404s — which is why `#public`, `#safety_view`, `#care_view` and
+  `#check_placeholder` all go through the one resolver. The column is nullable
+  and `printable_slug` falls back to `slug`, so a row the backfill
+  (`rake profiles:backfill_permanent_slugs`) hasn't reached still works.
+- **An unguessable link is still a bearer token — revocation is `rotate_slug!`,
+  and it is NOT renaming.** Whoever a `/my/s-k8x2mf` link was shared with keeps
+  access until the address changes, and a permanently-frozen slug had no answer
+  for that. `POST /api/profiles/:id/rotate_slug` mints a fresh random slug and
+  deliberately does **not** keep the old one — `legacy_slug` exists to stop a
+  rename breaking shared links, and here breaking them IS the request, so any
+  stored legacy slug is cleared too. It is not gated on `slug_editable?`: that
+  governs choosing a *name*, and refusing to revoke until a 7-day window opens
+  would be backwards. Rotation costs no reprint because the QR resolves through
+  `permanent_slug`; it regenerates the card once for a tag rendered before that
+  column existed.
 - **A communicator's MySpeak page is FREE on every plan — the communicator SLOT
   is the quota, never a Profile count.** Every communicator auto-mints exactly
   one `Profile` at create time (`ChildAccount#create_profile!`, called from
@@ -525,10 +565,11 @@ an explicit decision, not a drive-by edit.
   demanding a slot the user can never have.** `Profile#never_set_up?` is the
   predicate, and it authorizes an overwrite, so it must stay conservative — any
   bio, pronoun, contact, intro or rich-text section makes it a page someone set
-  up. Two rails: adoption **re-slugs** (an auto-minted Profile carries a
-  name-derived slug, because `create_profile!` passes `slug:` and so
-  `ensure_slug`'s random-slug rule never runs — and adoption is about to put
-  emergency contacts behind that URL), and it **never guesses between
+  up. Two rails: adoption **re-slugs** a page that isn't already random (one
+  minted before #774 carries a name-derived slug, because `create_profile!`
+  passed `slug:` and so `ensure_slug`'s random-slug rule never ran — and
+  adoption is about to put emergency contacts behind that URL), and it **never
+  guesses between
   candidates**, answering 422 `communicator_selection_required` instead. An
   adopt reports as `myspeak_page_adopted`, never as an account create.
   Details: `.claude-notes/myspeak-onboarding.md`, `.claude-notes/safety-profiles.md`.

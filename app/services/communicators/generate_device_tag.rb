@@ -57,7 +57,11 @@ module Communicators
         profile: profile,
         avatar_data_url: avatar_data_url,
         logo: logo_base64,
-        qr_data_url: qr_data_url_for(effective_qr_url(profile.public_url)),
+        # `permanent_url`, never `public_url`: this QR gets printed and stuck to
+        # a child's device, so it has to survive the owner changing or revoking
+        # their public link. Falls back to the public slug for a profile the
+        # backfill hasn't reached, which is what its tag already says.
+        qr_data_url: qr_data_url_for(effective_qr_url(profile.permanent_url)),
         display_name: profile.device_tag_display_name,
         device_notes: settings["device_notes"].presence || "This device is my voice. Please use it to help me communicate and access important information in any situation.",
         primary_contact_name: primary_contact["name"].presence || "Emergency Contact",

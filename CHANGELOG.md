@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **You can now get a new link for a MySpeak page, and printed tags keep
+  working.** If a page's link has been shared with someone who shouldn't still
+  have it, "Get a new link" replaces it — and the old one stops working
+  entirely, which is the point. Until now the link could never be changed, so a
+  link that got out stayed out. The QR on a device tag, safety card, or care
+  plan is unaffected: those now point at a separate permanent address that is
+  assigned once and never changes, so revoking a link never means reprinting
+  anything. Existing pages get their permanent address from
+  `rake profiles:backfill_permanent_slugs` (previews by default).
 - **A kit landing page can now give away a PDF you upload, not just a board
   printable.** `/admin/kit_pages` has a Document card: drop in one or more PDFs
   and they become the page's download, so a parent handout or a workshop packet
@@ -67,6 +76,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the unused part of what they already paid — Stripe issues no credit — so the
   page warns before the switch. As a backstop, a Partner is no longer demoted by
   their own subscription's updates even if the Stripe change didn't land.
+- **A communicator added from the dashboard now gets an unguessable MySpeak
+  page address, the same as one made in the MySpeak wizard.** Adding "River
+  Stone" produced the public page `/my/river-stone` — derivable from the
+  child's name by anyone — while the wizard produced `/my/s-k8x2mf`. Nothing
+  re-addresses a page afterwards, so emergency information filled in later sat
+  behind the guessable link. New communicator pages now always get the random
+  address. Existing pages are unchanged until you run
+  `rake profiles:migrate_to_random_slugs`, which previews by default, keeps the
+  old address working as a redirect, and re-sends updated device tags for the
+  pages it moves. A communicator page's random address can't be edited (that
+  is the point of it), and trying now explains why instead of showing "You can
+  change your link again on ." with no date.
 
 - **"Make this my editable board" no longer reports success while changing
   nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`

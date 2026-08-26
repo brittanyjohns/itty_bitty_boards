@@ -100,11 +100,15 @@ instead.** Adoption never runs on the ordinary path.
 - **None** → the original 422 `communicator_slot_unavailable`, and
   `Analytics::CommunicatorEvents.slot_limit_reached` still fires.
 
-Adoption **re-slugs** the page. An auto-minted Profile carries a name-derived
-slug — `create_profile!` passes `slug:` explicitly, so `Profile#ensure_slug`
-and its random-slug rule never run — and adoption is about to put emergency
-contacts behind that URL. `never_set_up?` is what makes the re-slug safe:
-nobody has shared the old link yet.
+Adoption **re-slugs** a page whose slug isn't already random. A Profile minted
+before #774 carries a name-derived slug — back then `create_profile!` passed
+`slug:` explicitly, so `Profile#ensure_slug` and its random-slug rule never ran
+— and adoption is about to put emergency contacts behind that URL.
+`never_set_up?` is what makes the re-slug safe: nobody has shared the old link
+yet. Since #774 every creation path leaves the slug blank, so a newly minted
+page is already `slug_type: "random"` and the guard skips it — adoption doesn't
+churn a URL that was never guessable. Keep the guard rather than dropping it:
+legacy rows still exist until `rake profiles:migrate_to_random_slugs` is run.
 
 Adoption **renames** the communicator to the name typed in the wizard, because
 `safety_view[:name]` reads `profileable.name`; without it the name the parent

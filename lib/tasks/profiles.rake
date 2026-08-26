@@ -1,6 +1,7 @@
 namespace :profiles do
-  # Migrate safety profile slugs to unguessable random tokens, preserving the
-  # old slug as `legacy_slug` (the public endpoint 301-redirects old → new).
+  # Migrate communicator (safety) page slugs to unguessable random tokens,
+  # preserving the old slug as `legacy_slug` (the public endpoint
+  # 301-redirects old → new, so a link a parent already shared keeps working).
   #
   # Read-only by default (reports what would change). Apply with DRY_RUN=false.
   #
@@ -12,7 +13,17 @@ namespace :profiles do
     dry_run = ENV["DRY_RUN"] != "false"
     user_id = ENV["USER_ID"].presence
 
-    scope = Profile.where(profile_kind: "safety", slug_type: "legacy")
+    # Mirrors `Profile#safety_profile?` — a ChildAccount-owned row is a
+    # communicator page whatever its `profile_kind` says, and some are not
+    # "safety": `set_kind` only rewrites User-owned rows, so a placeholder
+    # claimed by a communicator keeps `profile_kind: "placeholder"` and a
+    # kind-only scope walked straight past it. The guard is `slug_type` NOT
+    # "random" rather than `== "legacy"` for the same reason — anything that
+    # isn't already random still has a name-derived URL to retire — and it is
+    # what keeps re-runs no-ops, so a migrated slug is never regenerated.
+    scope = Profile.where(profileable_type: "ChildAccount")
+                   .or(Profile.where(profile_kind: "safety"))
+                   .where.not(slug_type: "random")
     if user_id
       child_ids = ChildAccount.where(user_id: user_id).pluck(:id)
       scope = scope.where(profileable_type: "ChildAccount", profileable_id: child_ids)
@@ -122,5 +133,57 @@ namespace :profiles do
     end
 
     puts "Copied: #{copied}, Skipped: #{skipped}"
+  end
+
+  # Assign the permanent (printed-QR) slug to every profile that predates the
+  # column. Idempotent — a row that already has one is skipped, and a permanent
+  # slug is never regenerated, which is the whole guarantee.
+  #
+  # Deliberately does NOT re-render device tags. An existing tag points at the
+  # profile's current public slug, which still resolves; it starts pointing at
+  # the permanent slug the next time it is regenerated for any reason (a
+  # rotation regenerates it explicitly). Mass-regenerating would email every
+  # parent about a card that works fine.
+  #
+  # Read-only by default (reports what would change). Apply with DRY_RUN=false.
+  #
+  #   rake profiles:backfill_permanent_slugs                 # preview
+  #   DRY_RUN=false rake profiles:backfill_permanent_slugs   # apply
+  desc "Assign permanent_slug to profiles missing one (DRY_RUN=false to apply)"
+  task backfill_permanent_slugs: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    scope = Profile.where(permanent_slug: nil)
+    assigned = 0
+    skipped = 0
+
+    scope.find_each(batch_size: 100) do |profile|
+      if dry_run
+        puts "[DRY RUN] profile ##{profile.id} #{profile.slug.inspect} -> permanent slug"
+        assigned += 1
+        next
+      end
+
+      # update_columns skips validations/callbacks on purpose: an old row may
+      # carry a slug the current format rules would reject, and this task has
+      # no business failing on a field it isn't touching.
+      profile.update_columns(
+        permanent_slug: Profile.generate_random_slug,
+        updated_at: Time.current,
+      )
+      assigned += 1
+    rescue => e
+      Rails.logger.error("Failed to backfill permanent_slug for profile #{profile.id}: #{e.message}")
+      puts "  ! profile ##{profile.id} failed: #{e.message}"
+      skipped += 1
+    end
+
+    if dry_run
+      puts "Dry run only - #{assigned} profile(s) would be assigned a permanent slug. " \
+           "Re-run with DRY_RUN=false to apply."
+      next
+    end
+
+    puts "Assigned: #{assigned}, Skipped: #{skipped}"
   end
 end

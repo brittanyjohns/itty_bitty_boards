@@ -336,8 +336,15 @@ RSpec.describe Communicators::GenerateCarePlan do
     # The URL moved into the identity block's QR caption when the header was
     # redesigned. It still has to be readable text: these get photocopied and
     # handed to people without a phone camera out.
-    it "prints the public URL as text in the identity block" do
-      expect(render_html).to include(profile.public_url)
+    #
+    # It prints the PERMANENT address, matching the QR beside it — a care plan
+    # sits in a school folder for a year, so it must survive the owner changing
+    # or revoking their public link (#774).
+    it "prints the permanent URL as text in the identity block" do
+      html = render_html
+
+      expect(html).to include(profile.permanent_url)
+      expect(html).not_to include(profile.public_url)
     end
 
     # The sheet lives in a folder for a school year — a printed date only makes
