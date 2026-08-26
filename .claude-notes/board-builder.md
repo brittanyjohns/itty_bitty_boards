@@ -468,6 +468,22 @@ the root, unmuted so it speaks like a self tile. It has to run *after*
 `evict_occupants!`, which destroys any child folder tile pointing back at the
 root, so an anchor written earlier in the build would not survive.
 
+The one exception, and it is deliberate: **a page LOCKED to one screen with no
+genuinely free content cell gets no anchor.** Chrome never displaces vocabulary,
+and the alternative is worse than the missing tap — growing an authored Core
+60/84 grid past its rows silently defeats `disable_scroll`, and a page that only
+*looks* like it has room (two tiles stacked on one cell) hands the anchor a hole
+that isn't there, which is how a built Core 84 page ended up with 85 tiles in 84
+cells. Such a page is still reachable: the folder tile that opens it is one tap
+away, and its own nav row leads back into the set.
+
+`settings["disable_scroll"]` is the whole test, and the narrowness is the point.
+A page that may SCROLL grows a row and loses nothing, so it keeps its anchor —
+an earlier cut skipped on fullness alone, which on a set whose root is a single
+row (the nav region IS the board, so there is no content area at all) stripped
+the way home from *every* page. Free cells are counted as DISTINCT cells
+(`free_content_cell`), never as `tiles < capacity`.
+
 **The way home goes WHERE THE WAY IN WAS.** A subboard's back tile occupies the
 same `lg` cell as the folder tile that opens it — muscle memory only works if
 the way back is where the way in was, and re-scanning the grid on every page is
@@ -1008,6 +1024,49 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
     84/60 with zero overlaps. A clean re-seed is a no-op. A clean **first-time**
     import was always correct; this only heals sources mangled by the historical
     re-seed bug.
+  - **The un-stamped tile `repair_layout!` could never move.** Matching by
+    `data["obf_button_id"]` only works for a tile that HAS one. Production's
+    core-84 `all done` did not (a pre-button-id survivor, or the copy dedupe
+    happened to keep), so every re-seed skipped it: it sat on `again`'s cell
+    while its own authored cell stayed empty, through every run of the "self-heal"
+    above. `prune_removed_tiles!` kept it too — its LABEL is authored. The repair
+    now has a second pass: an un-stamped tile is matched to the ONE authored
+    button carrying its label that no stamped tile has claimed, pinned to that
+    button's cell, and **stamped with the id** so it is a first-pass tile
+    thereafter. An ambiguous label (`play` the word vs `Play` the folder) is
+    deliberately left alone — guessing there moves the wrong tile — and
+    `unstack_layout!` (`Boards::LayoutRepacker.repack!` over every seeded board,
+    running last in `seed_slug!`) is the net that catches it —
+    `LayoutRepacker.unstack!`, NOT `.repack!`. The two are different repairs:
+    `repack!` mirrors the frontend `repackLayout` and shelf-packs a displaced
+    tile BELOW everything that fits, which on a full 84-cell board converts "two
+    tiles on one cell" into "eight rows" and defeats `disable_scroll`; `unstack!`
+    fills the gap the stack left and only grows when the grid genuinely has no
+    room. Use `repack!` for off-grid tiles (`board_builder:repair_grid`), and
+    `unstack!` for an authored grid. A set must never
+    SHIP a stacked cell: `Boards::SeededSetCloner` copies layouts verbatim, so
+    one stacked seed cell is a stacked cell in every set ever built from it —
+    and because `Board#open_grid_cells` counts DISTINCT cells, it also makes a
+    full grid report a free cell that the build then spends. The cloner
+    therefore repacks every cloned board too (`unstack_cloned_layouts!`, run
+    AFTER its transaction commits, logging rather than raising — a stacked cell
+    is a defect, not a reason to lose the set), which covers a source corrupted
+    since the last re-seed.
+  - **A stray link to another set's home board became an extra PAGE.**
+    `Boards::SeededSetCloner#collect_source_boards` walked `predictive_board_id`
+    from the seed root and cloned whatever it reached. A folder tile pointing at
+    a board that is itself the top of a set therefore dropped a SECOND full core
+    board into the built set as a page — carrying the seed's catalogue markers
+    verbatim, since `Board#clone_with_images` dups `settings` (only
+    `clone_into_adopted_root` stripped them). No nav cell bears that page's name,
+    so `Boards::NavRowSync#ensure_home_tile!` minted it a way home labelled with
+    the core set's own name: the stray "Core 84" tile, dropped into the phantom
+    hole the stacked cell above had left. `excluded_source?` now vetoes the walk
+    for any non-root board carrying `RobustSets::ROOT_MARKER`, `builder_root`, or
+    `builder_child`, and `strip_template_markers!` cleans the dup-clone path.
+    **Remediation:** `rake board_builder:repair_stray_core_pages` (dry-run by
+    default; `DRY_RUN=false`, `USER_ID=N`, `DESTROY_STRAY=true` to delete a stray
+    page nothing links to any more).
   - **Remediation:** `rake board_builder:dedupe_seed_tiles` (dry-run by default,
     `DRY_RUN=false` to apply, `USER_ID=N` to scope) collapses the duplicate on
     the robust seed sources **and** every already-built user set

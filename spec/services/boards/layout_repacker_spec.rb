@@ -123,4 +123,62 @@ RSpec.describe Boards::LayoutRepacker do
       end
     end
   end
+  describe ".unstack!" do
+    # An authored Core 60/84 grid is exactly as many cells as tiles, and
+    # `disable_scroll` locks it to one screen. #repack! shelf-packs a displaced
+    # tile BELOW everything that fits (mirroring the frontend), so using it here
+    # turns "two tiles on one cell" into an extra row — the damage, not the fix.
+    it "moves a stacked tile into the gap its twin left, without growing the grid" do
+      board = create(:board, user: user, large_screen_columns: 3)
+      tiles = 6.times.map do |i|
+        bi = create(:board_image, board: board, position: i,
+                                  image: create(:image, label: "w#{i}", user_id: user.id))
+        bi.update_column(:layout, { "lg" => { "i" => bi.id.to_s, "x" => i % 3, "y" => i / 3, "w" => 1, "h" => 1 } })
+        bi
+      end
+      # Park the last tile on the first tile's cell: 6 tiles, 5 distinct cells,
+      # and [2, 1] now free.
+      tiles.last.update_column(:layout, { "lg" => { "i" => tiles.last.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
+
+      expect(described_class.unstack!(board)).to eq(1)
+
+      cells = board.board_images.reload.map { |bi| bi.layout["lg"].values_at("x", "y") }
+      expect(cells.uniq.size).to eq(6)
+      expect(cells.map(&:last).max).to eq(1), "grid grew a row instead of filling the gap"
+      expect(tiles.last.reload.layout["lg"].values_at("x", "y")).to eq([2, 1])
+    end
+
+    it "is a no-op on a clean grid" do
+      board = create(:board, user: user, large_screen_columns: 2)
+      2.times do |i|
+        bi = create(:board_image, board: board, position: i,
+                                  image: create(:image, label: "c#{i}", user_id: user.id))
+        bi.update_column(:layout, { "lg" => { "i" => bi.id.to_s, "x" => i, "y" => 0, "w" => 1, "h" => 1 } })
+      end
+
+      expect(described_class.unstack!(board)).to eq(0)
+    end
+
+    it "falls back to growing when the grid genuinely has no gap" do
+      board = create(:board, user: user, large_screen_columns: 2)
+      tiles = 4.times.map do |i|
+        bi = create(:board_image, board: board, position: i,
+                                  image: create(:image, label: "f#{i}", user_id: user.id))
+        bi.update_column(:layout, { "lg" => { "i" => bi.id.to_s, "x" => i % 2, "y" => i / 2, "w" => 1, "h" => 1 } })
+        bi
+      end
+      # A fifth tile with nowhere to go — every cell in the extent is taken.
+      extra = create(:board_image, board: board, position: 4,
+                                   image: create(:image, label: "extra", user_id: user.id))
+      extra.update_column(:layout, { "lg" => { "i" => extra.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
+
+      described_class.unstack!(board)
+
+      cells = board.board_images.reload.map { |bi| bi.layout["lg"].values_at("x", "y") }
+      expect(cells.uniq.size).to eq(5)
+      expect(tiles.map { |t| t.reload.layout["lg"].values_at("x", "y") })
+        .to contain_exactly([0, 0], [1, 0], [0, 1], [1, 1])
+    end
+  end
+
 end

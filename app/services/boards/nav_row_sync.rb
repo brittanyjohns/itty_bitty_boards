@@ -114,7 +114,31 @@ module Boards
     # Runs after #evict_occupants!, which destroys any child folder tile linking
     # back to the root — an anchor written earlier in the build wouldn't survive.
     def ensure_home_tile!(child)
+      # A tile pointing at its OWN board is never navigation — BoardImage#is_dynamic?
+      # is false for one, so it renders as a silent word tile with no link badge.
+      # #children already rejects the root; this makes it impossible rather than
+      # merely unreached.
+      return if child.id == @root.id
       return if child.board_images.reload.any? { |bi| bi.predictive_board_id == @root.id }
+
+      # An anchor is chrome, and chrome never displaces vocabulary — but only a
+      # board LOCKED to one screen is actually harmed by growing to hold it.
+      # `settings["disable_scroll"]` IS that lock: the authored Core 60/84 grids
+      # carry it and their clones inherit it, so a full page cloned from one has
+      # nowhere to put this and adding it anyway pushed the board past its
+      # authored rows, which is what silently defeats the lock. A page that may
+      # scroll takes an extra row and loses nothing, so it keeps the anchor —
+      # "every page in a built set has a one-tap way home" is the older and more
+      # important invariant, and this narrows it as little as possible.
+      #
+      # Free cells are counted as DISTINCT cells (#free_content_cell), so a grid
+      # double-booking a cell reads as full rather than offering the hole.
+      if locked_to_one_screen?(child) && free_content_cell(child).nil?
+        Rails.logger.info(
+          "[NavRowSync] board #{child.id} (#{child.name}): one-screen grid is full; way-home tile skipped",
+        )
+        return
+      end
 
       image = Boards::ImageResolver.resolve(child.name, owner: child.user)
       board_image = child.add_image(image.id)
@@ -135,6 +159,13 @@ module Boards
       @result.tiles_written += 1
     end
 
+    # A board the frontend renders on a single screen, sizing rows to fit the
+    # whole grid — so a row this service adds is a row that has to fit too.
+    def locked_to_one_screen?(board)
+      settings = board.settings
+      settings.is_a?(Hash) && settings["disable_scroll"] == true
+    end
+
     # The way home goes WHERE THE WAY IN WAS: the same cell as the folder tile
     # that opens this page. A page in the nav region gets that for free — its
     # self tile is written at the root's own cell (see #upsert_nav_tile!) — but
@@ -147,9 +178,13 @@ module Boards
       cell = mirrored_cell(child, except: board_image.id)
       return relocate!(child, board_image) if cell.nil?
 
-      occupant = occupant_at(child, cell, except: board_image.id)
+      # EVERY occupant, not the first one. A cell can already hold two tiles —
+      # a stacked layout is exactly the bug that leaves an authored grid looking
+      # like it has room — and relocating one of them still leaves the anchor
+      # sharing a cell with the other.
+      occupants = occupants_at(child, cell, except: board_image.id)
       write_cell!(board_image, cell[0], cell[1])
-      relocate!(child, occupant) if occupant
+      occupants.each { |occupant| relocate!(child, occupant) }
     end
 
     # The cell of the tile that links to this page, clamped into its grid.
@@ -173,8 +208,8 @@ module Boards
       [[cell["x"].to_i, columns - 1].min.clamp(0, columns - 1), y]
     end
 
-    def occupant_at(child, cell, except:)
-      child.board_images.reload.find do |bi|
+    def occupants_at(child, cell, except:)
+      child.board_images.reload.select do |bi|
         next false if bi.id == except
 
         at = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
@@ -223,20 +258,29 @@ module Boards
     # full, push the nav region down a row and take the row that frees up, so a
     # relocated tile is never dropped for want of space.
     def relocate!(child, board_image)
-      columns = [child.large_screen_columns.to_i, 1].max
-      occupied = occupied_cells(child, except: board_image.id)
-
-      (0...region.top_y).each do |y|
-        (0...columns).each do |x|
-          next if occupied.include?([x, y])
-
-          write_cell!(board_image, x, y)
-          return
-        end
-      end
+      cell = free_content_cell(child, except: board_image.id)
+      return write_cell!(board_image, cell[0], cell[1]) if cell
 
       shift_region_down!(child)
       write_cell!(board_image, 0, region.top_y)
+    end
+
+    # First free cell strictly above the nav region, or nil when the content
+    # area is full. Occupancy is DISTINCT cells (#occupied_cells is a Set), so
+    # two tiles stacked on one cell read as one occupied cell — never as one
+    # occupied and one free, which is how a stacked seed cell used to hand a
+    # placement a hole that wasn't there.
+    def free_content_cell(child, except: nil)
+      columns = [child.large_screen_columns.to_i, 1].max
+      occupied = occupied_cells(child, except: except)
+
+      (0...region.top_y).each do |y|
+        (0...columns).each do |x|
+          return [x, y] unless occupied.include?([x, y])
+        end
+      end
+
+      nil
     end
 
     def shift_region_down!(child)

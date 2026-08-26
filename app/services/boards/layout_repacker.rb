@@ -43,26 +43,7 @@ module Boards
       columns = column_count(board, screen)
       return 0 if columns < 1
 
-      # Reading order so the authored/earlier tile wins a contested cell.
-      items = board.board_images.order(:position).to_a.filter_map do |bi|
-        next if ignore.include?(bi.id)
-
-        cell = bi.layout.is_a?(Hash) ? bi.layout[screen] : nil
-        cell.nil? ? nil : [bi, cell]
-      end
-
-      occupied = Set.new
-      displaced = []
-      fits = []
-      items.each do |bi, c|
-        cells = cell_coords(c, columns)
-        if off_grid?(c, columns) || cells.any? { |xy| occupied.include?(xy) }
-          displaced << [bi, c]
-        else
-          cells.each { |xy| occupied << xy }
-          fits << [bi, c]
-        end
-      end
+      displaced, occupied, fits = survey(board, screen, columns, ignore: ignore)
 
       return displaced.size if displaced.empty? || dry_run
 
@@ -89,6 +70,95 @@ module Boards
 
       displaced.size
     end
+
+    # Splits one screen's tiles into the ones that FIT (each claiming its own
+    # cells) and the DISPLACED ones — off-grid, or overlapping a cell an earlier
+    # tile already claims. Reading order, so the authored/earlier tile wins a
+    # contested cell. Returns [displaced, occupied, fits].
+    def survey(board, screen, columns, ignore: Set.new)
+      items = board.board_images.order(:position).to_a.filter_map do |bi|
+        next if ignore.include?(bi.id)
+
+        cell = bi.layout.is_a?(Hash) ? bi.layout[screen] : nil
+        cell.nil? ? nil : [bi, cell]
+      end
+
+      occupied = Set.new
+      displaced = []
+      fits = []
+      items.each do |bi, c|
+        cells = cell_coords(c, columns)
+        if off_grid?(c, columns) || cells.any? { |xy| occupied.include?(xy) }
+          displaced << [bi, c]
+        else
+          cells.each { |xy| occupied << xy }
+          fits << [bi, c]
+        end
+      end
+
+      [displaced, occupied, fits]
+    end
+    private_class_method :survey
+
+    # Un-stack WITHOUT growing the grid wherever that is possible: a displaced
+    # tile is moved into the first FREE cell inside the board's current extent,
+    # in reading order. Only what still doesn't fit falls through to #repack!.
+    #
+    # This is the repair for an AUTHORED grid — a seeded Core 60/84 page or a
+    # clone of one — where the tile count and the cell count are meant to match
+    # exactly and `settings["disable_scroll"]` locks the board to one screen.
+    # #repack! is the other case: it mirrors the frontend `repackLayout`, which
+    # shelf-packs displaced tiles BELOW everything that fits. Doing that to a
+    # full 84-cell board turns "two tiles on one cell" into "eight rows", which
+    # silently defeats disable_scroll — the exact damage this exists to repair.
+    #
+    # Only 1x1 tiles are gap-filled; a wider tile needs adjacent free cells and
+    # is left to the shelf-pack. Authored grids are all 1x1.
+    def unstack!(board, dry_run: false)
+      moved = SCREENS.sum { |screen| unstack_screen!(board, screen, dry_run: dry_run) }
+      resync_board_layout!(board) if moved.positive? && !dry_run
+      moved
+    end
+
+    def unstack_screen!(board, screen, dry_run: false)
+      columns = column_count(board, screen)
+      return 0 if columns < 1
+
+      displaced, occupied, = survey(board, screen, columns)
+      return displaced.size if displaced.empty? || dry_run
+
+      rows = occupied.map { |(_x, y)| y }.max.to_i + 1
+      remaining = []
+
+      displaced.sort_by { |_bi, c| [c["y"].to_i, c["x"].to_i] }.each do |bi, cell|
+        gap = tile_w(cell) == 1 && tile_h(cell) == 1 ? first_free_cell(occupied, columns, rows) : nil
+        if gap.nil?
+          remaining << [bi, cell]
+          next
+        end
+
+        occupied << gap
+        bi.layout[screen] = cell.merge("i" => bi.id.to_s, "x" => gap[0], "y" => gap[1], "w" => 1, "h" => 1)
+        bi.save!
+      end
+
+      # Anything the grid genuinely had no room for keeps the existing behaviour.
+      repack_screen!(board, screen) if remaining.any?
+
+      displaced.size
+    end
+
+    # First unoccupied cell in reading order inside `columns` x `rows`, or nil.
+    def first_free_cell(occupied, columns, rows)
+      rows.times do |y|
+        columns.times do |x|
+          return [x, y] unless occupied.include?([x, y])
+        end
+      end
+
+      nil
+    end
+    private_class_method :first_free_cell
 
     # The grid cells a tile occupies at its current x/y, width clamped to columns.
     def cell_coords(cell, columns)

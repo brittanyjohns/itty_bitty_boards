@@ -121,6 +121,20 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   end
 
   # The folder tile for `name` anywhere in the set (home board or the drawer).
+  # Cells holding more than one tile, across the whole built set. A stacked cell
+  # hides a word from the communicator AND makes the grid report a free cell it
+  # doesn't have (Board#open_grid_cells counts DISTINCT cells) — which is what
+  # a placement then spends.
+  def stacked_cells_in_set(root)
+    set_boards(root).each_with_object({}) do |board, acc|
+      stacked = board.board_images.filter_map { |bi|
+        cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+        cell && [cell["x"].to_i, cell["y"].to_i]
+      }.tally.select { |_cell, count| count > 1 }.keys
+      acc[board.name] = stacked if stacked.any?
+    end
+  end
+
   def folder_tile_in_set(root, name)
     set_boards(root).flat_map { |b| b.board_images.to_a }
       .find { |bi| bi.display_label.to_s == name && bi.predictive_board_id.present? }
@@ -210,6 +224,12 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
       expect(who).to be_present
       expect(root.large_screen_rows).to eq(7)
       expect(dead_folder_tiles(root)).to be_empty
+      # No page of the set inherits the seed's stack, and no page is a second
+      # copy of the core board handed a way-home tile named after it.
+      expect(stacked_cells_in_set(root)).to be_empty
+      expect(set_boards(root).map(&:name).tally.values).to all(eq(1))
+      expect(BoardImage.where(board_id: set_boards(root).map(&:id))
+                       .where("predictive_board_id = board_id")).to be_empty
     end
   end
 

@@ -41,6 +41,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A built Core 84 set no longer gains a stray tile named after the core board,
+  or an extra row.** Three things stacked up. The seeded Core 84 board had two
+  tiles parked on the same cell (`all done` sitting on `again`), which hid one
+  of them and made the full grid report a free cell it didn't have; re-seeding
+  now pulls a tile like that back to its authored cell even when it carries no
+  authored button id, and un-stacks anything left over. A folder tile pointing
+  at another set's home board pulled that whole board into a build as an extra
+  page — a second full core board, which the nav sync then gave a way-home tile
+  labelled "Core 84"; the build now refuses to clone a board that is the top of
+  a set. And a page whose grid is already full no longer gets a way-home tile
+  at all: navigation never displaces vocabulary. `rake
+  board_builder:repair_stray_core_pages` reports and repairs sets already built
+  this way.
+
 - **Printable PDFs are about half the size they were.** Every board page in a
   printable was rendered separately, so anything the pages shared — the header
   logo, the navigation row that repeats across a board set — got stored again

@@ -198,6 +198,91 @@ RSpec.describe Boards::SeededSetCloner do
       end
     end
 
+    # A folder tile pointing at a board that is itself the TOP of a set used to
+    # pull that whole board into the clone as an extra PAGE — a second full core
+    # board. No nav cell carries its name, so Boards::NavRowSync then minted it
+    # a way home labelled with the core set's own name: the stray "Core 84" tile
+    # on a page nothing linked to.
+    context "when a stray link points at another set's home board" do
+      let!(:other_root) do
+        create(:board, user: @admin, name: "Core 84", predefined: true, published: true,
+                       settings: { Boards::RobustSets::ROOT_MARKER => true,
+                                   Boards::RobustSets::SLUG_MARKER => "core-84" })
+      end
+
+      before do
+        stray = create(:board_image, board: @source[:food], label: "Core 84",
+                                     image: create(:image, label: "Core 84", user_id: @admin.id))
+        stray.update!(predictive_board_id: other_root.id)
+      end
+
+      it "does not clone it into the set as a page" do
+        described_class.new(@source[:root], communicator: communicator).call
+
+        expect(owner.boards.pluck(:name)).not_to include("Core 84")
+      end
+
+      it "nulls the stray pointer on the clone rather than opening an admin board" do
+        described_class.new(@source[:root], communicator: communicator).call
+
+        # `label` is the lowercase matching key (Image#set_label), so match on it
+        # case-insensitively rather than on the authored casing.
+        stray = owner.boards.find_by(name: "Food").board_images
+                     .find { |bi| bi.label.to_s.casecmp?("core 84") }
+        expect(stray).to be_present
+        expect(stray.predictive_board_id).to be_nil
+      end
+
+      it "still excludes it when it is another BUILDER set's root" do
+        other_root.update!(settings: { "builder_root" => true })
+
+        described_class.new(@source[:root], communicator: communicator).call
+
+        expect(owner.boards.pluck(:name)).not_to include("Core 84")
+      end
+    end
+
+    # Both copy paths take the source's layout verbatim, so a seed carrying two
+    # tiles on one cell hands every set built from it the same hidden tile — and
+    # a full grid that reports a free cell it doesn't have.
+    it "does not inherit a stacked cell from the source" do
+      tiles = @source[:root].board_images.order(:position).to_a
+      first, last = tiles.first, tiles.last
+      cell = { "x" => 0, "y" => 0, "w" => 1, "h" => 1 }
+      first.update_column(:layout, { "lg" => cell.merge("i" => first.id.to_s) })
+      last.update_column(:layout, { "lg" => cell.merge("i" => last.id.to_s) })
+
+      root = described_class.new(@source[:root], communicator: communicator).call
+
+      cells = root.reload.board_images.filter_map { |bi|
+        c = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+        c && [c["x"].to_i, c["y"].to_i]
+      }
+      expect(cells.uniq.size).to eq(cells.size)
+      expect(root.board_images.count).to eq(tiles.size)
+    end
+
+    # Board#clone_with_images dups settings verbatim, so a dup-cloned root
+    # arrived still claiming to BE the seed — pickable in the Board Builder
+    # catalogue as a template, and resolvable by Boards::RobustSets.find_root.
+    it "strips the robust-set catalogue markers from a dup-cloned root" do
+      # A dedicated source, not @source[:root]: that one is shared via
+      # before_all, and marking it here would leave the markers on the in-memory
+      # object after the savepoint rolls the row back — so a later example's
+      # `mark_root!` would see no change and write nothing.
+      source = create(:board, user: @admin, name: "Core 84 Seed", predefined: true, published: true,
+                              settings: { Boards::RobustSets::ROOT_MARKER => true,
+                                          Boards::RobustSets::SLUG_MARKER => "core-84" })
+      create(:board_image, board: source, label: "I",
+                           image: create(:image, label: "I", user_id: @admin.id))
+
+      root = described_class.new(source, communicator: communicator).call
+
+      expect(root.reload.settings).not_to have_key(Boards::RobustSets::ROOT_MARKER)
+      expect(root.settings).not_to have_key(Boards::RobustSets::SLUG_MARKER)
+      expect(Boards::RobustSets.all_roots.pluck(:id)).not_to include(root.id)
+    end
+
     it "raises CloneError when the communicator has no owning user" do
       orphan = build(:child_account)
       allow(orphan).to receive(:owner).and_return(nil)
