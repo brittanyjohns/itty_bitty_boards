@@ -239,6 +239,11 @@ RSpec.describe Etsy::PublishBoardPrintableListing do
       result = publish
 
       expect(result.error).to match(/caps a download file at 20 MB/)
+      # The remedy is in this app now — the merge dedupes shared art, and a file
+      # still over cap means fewer boards. Sending an admin to the Node pipeline
+      # would be sending them nowhere.
+      expect(result.error).to include("Regenerate the printable")
+      expect(result.error).not_to include("speakanyway-printables")
       expect(client).not_to have_received(:create_listing)
     end
 

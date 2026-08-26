@@ -130,12 +130,18 @@
               over its blobs, which is what keeps a gallery image or the video
               out of a buyer's download. %>
           <label class="block text-[11px] text-t2 mb-1">Download files (none ticked = all)</label>
+          <%# Sized, because Etsy refuses a file over its cap and picking blind
+              means finding that out at publish time. A variant this printable
+              has no blob for shows the bare label. %>
+          <% pdf_sizes = @printable.pdf_files.index_by { |f| f.metadata["variant"].presence || BoardPrintable::VARIANT_FULL } %>
           <div class="space-y-1">
             <% BoardPrintableListing::PDF_VARIANTS.each do |variant| %>
-              <label class="flex items-center gap-2 text-[11px] text-t2">
+              <% file = pdf_sizes[variant] %>
+              <% over_cap = file && file.byte_size > Etsy::Client::FILE_CAP_BYTES %>
+              <label class="flex items-center gap-2 text-[11px] <%= over_cap ? "text-amber-600" : "text-t2" %>">
                 <%= check_box_tag "board_printable_listing[pdf_variants][]", variant,
                       etsy_listing.selected_pdf_variants.include?(variant) %>
-                <%= variant.humanize %>
+                <%= variant.humanize %><%= " (#{number_to_human_size(file.byte_size)}#{over_cap ? " — over Etsy's cap" : ""})" if file %>
               </label>
             <% end %>
           </div>

@@ -32,6 +32,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Printable PDFs are about half the size they were.** Every board page in a
+  printable was rendered separately, so anything the pages shared — the header
+  logo, the navigation row that repeats across a board set — got stored again
+  on every single page. A ten-board set came to 17 MB, over 7 MB of which was
+  the same handful of pictures over and over, and files that big were refused
+  by Etsy. The merge now stores each picture once: a set that was 17 MB is
+  9 MB, with every page and every pixel unchanged. If a printable is still too
+  big to sell, the admin page says so as soon as it finishes generating,
+  instead of at publish time.
+
 - **Setting up a MySpeak page no longer dead-ends when you already added a
   communicator.** On the Free plan you get one communicator, and adding one
   from the dashboard quietly created its MySpeak page too — blank. The setup

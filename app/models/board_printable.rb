@@ -333,6 +333,15 @@ class BoardPrintable < ApplicationRecord
     files.select { |f| KIND_DOWNLOADABLE.include?(f.metadata["kind"].presence) }
   end
 
+  # Downloads too big for Etsy. Derived, never stamped: an oversized file is
+  # not a generation failure — it downloads fine from here and from a kit page,
+  # it just can't reach a marketplace — so it is a warning on a COMPLETE
+  # printable, and a column would only drift out of step with the blobs.
+  # Reads `byte_size`, so it costs nothing.
+  def oversized_pdf_files
+    pdf_files.select { |f| f.byte_size > Etsy::Client::FILE_CAP_BYTES }
+  end
+
   # Every image blob, shared and listing-scoped alike.
   def all_image_files
     return [] unless files.attached?

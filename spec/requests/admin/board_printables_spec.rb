@@ -308,6 +308,55 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       expect(response.body).not_to include('data-controller="auto-refresh"')
     end
 
+    # An oversized download is a warning on a COMPLETE printable, not a failure:
+    # it still downloads from here, it just can't reach Etsy. Saying so at
+    # Regenerate time is the point — otherwise the admin finds out when
+    # "Create Etsy draft" refuses.
+    it "warns about a download Etsy would refuse" do
+      sign_in admin
+      printable = BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id])
+      printable.attach_pdf!(
+        filename: "core-words.color.pdf",
+        bytes: "x" * (Etsy::Client::FILE_CAP_BYTES + 1),
+        variant: BoardPrintable::VARIANT_COLOR,
+      )
+
+      get admin_dashboard_board_printable_path(printable.reload)
+
+      expect(response.body).to include("too big for Etsy")
+      expect(response.body).to include("core-words.color.pdf")
+    end
+
+    it "says nothing about size when every download fits" do
+      sign_in admin
+      printable = BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id])
+      printable.attach_pdf!(filename: "core-words.pdf", bytes: "pdf", variant: BoardPrintable::VARIANT_FULL)
+
+      get admin_dashboard_board_printable_path(printable.reload)
+
+      expect(response.body).not_to include("too big for Etsy")
+    end
+
+    # The per-listing overrides form labels each download with its size, so an
+    # admin picking variants can see which one Etsy will refuse.
+    it "sizes the download-file choices on a listing" do
+      sign_in admin
+      printable = BoardPrintable.create!(board: board, status: "complete", board_ids: [board.id])
+      printable.attach_pdf!(
+        filename: "core-words.color.pdf",
+        bytes: "x" * (Etsy::Client::FILE_CAP_BYTES + 1),
+        variant: BoardPrintable::VARIANT_COLOR,
+      )
+      printable.etsy_listings.create!
+
+      get admin_dashboard_board_printable_path(printable.reload)
+
+      expect(response.body).to include("Download files (none ticked = all)")
+      expect(response.body).to include("over Etsy&#39;s cap")
+      # A variant with no blob keeps the bare label rather than claiming 0 Bytes.
+      expect(response.body).to match(/Trim ready\s*<\/label>/)
+    end
+
     it "shows the error message for a failed printable" do
       sign_in admin
       printable = BoardPrintable.create!(board: board, status: "failed", board_ids: [board.id], error_message: "Grover timed out")

@@ -67,6 +67,14 @@ module Boards
         pdf << CombinePDF.parse(wrappers[:license])
         pdf << CombinePDF.parse(wrappers[:credits])
 
+        # Each page arrives as its own Grover render, so the art they share —
+        # the header logo, a set's nav row — is embedded once per page. Collapse
+        # it before serializing: on a ten-board set that is roughly half the
+        # file, and Etsy caps a download at 20 MB. Safe to do per file because
+        # every wrapper is parsed fresh above, so this document owns its whole
+        # object graph.
+        DedupeImages.new(pdf).call
+
         MergedFile.new(
           variant: variant,
           filename: filename,

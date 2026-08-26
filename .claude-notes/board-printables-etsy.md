@@ -93,9 +93,45 @@ Each of these was a live failure, not a theory:
 - A download file is capped at 20 MB, and a listing at **five** of them
   (`Client::MAX_DOWNLOAD_FILES`). Rails refuses an oversized or over-count
   upload up front rather than failing mid-upload after the draft already
-  exists; splitting an oversized PDF is still the Node pipeline's job. A board
-  printable ships three files, so the count guard is there for the fourth
-  variant nobody remembers to count.
+  exists. A board printable ships three files, so the count guard is there for
+  the fourth variant nobody remembers to count. Size is handled at the merge
+  now, not by the Node pipeline — see below.
+
+## A merged printable holds one copy of each picture
+
+**`MergePdf` dedupes image XObjects by content fingerprint, and the fingerprint
+must include the `/SMask`.** Every board page is its own Grover render, so art
+that repeats across pages is embedded once PER page: the header logo band, and
+the nav row `Boards::NavRowSync` reproduces on every page of a set. CombinePDF
+collapses only the objects its own `==` calls equal, which misses anything
+carrying an indirect reference — and transparent tile art all carries an
+`/SMask`. A ten-board set's colour file was 17.1 MB holding 7.8 MB of
+byte-identical image streams. `Boards::Printables::DedupeImages` rewrites each
+page's resource entry to the first reference with a matching fingerprint, and
+the orphans stop being serialized: **17.1 MB → 9.2 MB, same 14 pages, same
+pixels.** Nothing about the page content streams changes, so this is invisible
+in print — it is the same picture, named once.
+
+The mask is the trap. Tile art is transparent PNG, so two tiles can hold
+identical colour data and different alpha; fingerprinting the image stream
+alone merges them and prints the wrong one. Hash the `SMask`'s bytes too, and
+compare the image dict by an explicit key list rather than by `inspect` —
+CombinePDF inlines the whole referenced object into `SMask` and `ColorSpace`.
+
+Do not try to prove the saving in a unit spec. A fixture simple enough to build
+by hand is simple enough for CombinePDF to have already collapsed, so a
+byte-size assertion passes whether or not the service ran. Assert the object
+graph — pages holding the same picture point at one object, different alpha
+does not merge — and prove bytes against real Grover pages.
+
+**An oversized download is a warning on a COMPLETE printable, not a failure.**
+It still downloads from the admin and from a kit page; it just can't reach a
+marketplace. `BoardPrintable#oversized_pdf_files` is derived from blob
+`byte_size` against `Etsy::Client::FILE_CAP_BYTES` — never a stamped column,
+which would only drift out of step with the blobs — and the admin printable
+page shows it at Regenerate time rather than letting Publish be where an admin
+finds out. If a file is still over cap after the dedupe, the remedy is fewer
+boards; the Node pipeline is no longer part of the answer.
 
 ## What's in the download — three PDFs, not two
 
