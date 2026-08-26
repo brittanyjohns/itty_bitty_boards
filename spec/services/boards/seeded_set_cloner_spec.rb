@@ -4,7 +4,10 @@ RSpec.describe Boards::SeededSetCloner do
   # Shared source set — built once via before_all. Each example's clones and
   # modifications run inside a savepoint that auto-rolls back.
   before_all do
-    @admin = create(:admin_user)
+    # Boards::RobustSets.all_roots is scoped to the SEEDER (DEFAULT_ADMIN_ID +
+    # predefined), so the source set has to be owned the way vocab_sets:seed
+    # owns it or the catalog lookup can't see it at all.
+    @admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
     @source = build_source_set!(@admin)
   end
 
