@@ -112,6 +112,18 @@ module Admin
       "It will NOT go live — you publish it in Etsy yourself."
     end
 
+    # The confirm on "Send video". `video_pushed_at` makes a second POST at the
+    # SAME row refusable, but that stamp is this app's only memory: Etsy allows
+    # ONE video per listing and there is no call here that can read a listing
+    # back to check, so a draft that got a clip any other way still looks empty.
+    # Naming the listing id is what lets an admin go and look before continuing.
+    def push_video_confirm(listing)
+      "Send this video to Etsy listing #{listing.etsy_listing_id}? " \
+      "Etsy allows ONE video per listing and this app can't read the listing to check — " \
+      "only continue if that listing has no video yet. It can't be undone from here; " \
+      "replacing a listing's video is a seller-UI job."
+    end
+
     # The confirm on "Detach". Says the two things an admin could otherwise get
     # wrong: nothing here touches the draft on Etsy, and the boards stay frozen
     # (protection is keyed on having ever been published, not on being attached).

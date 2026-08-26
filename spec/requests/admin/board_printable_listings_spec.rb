@@ -276,6 +276,34 @@ RSpec.describe "Admin::BoardPrintableListings (dashboard)", type: :request do
       post push_video_admin_dashboard_board_printable_listing_path(printable, listing)
       expect(flash[:alert]).to match(/isn't attached/)
     end
+
+    # The button is the only caller of #push_video_confirm, and it renders on
+    # the WHOLE printable page — a missing helper 500s the admin's view of every
+    # listing, not just this one button.
+    it "renders the button and its confirm on the printable page" do
+      sign_in admin
+      attached
+
+      get admin_dashboard_board_printable_path(printable)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(
+        push_video_admin_dashboard_board_printable_listing_path(printable, attached),
+      )
+      expect(response.body).to include("Send this video to Etsy listing 987?")
+    end
+
+    it "offers no button once this row has taken the clip" do
+      sign_in admin
+      attached.mark_video_pushed!
+
+      get admin_dashboard_board_printable_path(printable)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include(
+        push_video_admin_dashboard_board_printable_listing_path(printable, attached),
+      )
+    end
   end
 
   describe "PATCH update" do
