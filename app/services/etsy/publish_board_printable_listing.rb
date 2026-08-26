@@ -115,7 +115,7 @@ module Etsy
       oversized = pdf_files.find { |f| f.byte_size > Client::FILE_CAP_BYTES }
       if oversized
         return "#{oversized.filename} is #{ActiveSupport::NumberHelper.number_to_human_size(oversized.byte_size)}; " \
-               "Etsy caps a download file at 20 MB. Split it with the speakanyway-printables pipeline first."
+               "Etsy caps a download file at 20 MB. Regenerate the printable, or build one with fewer boards."
       end
 
       nil

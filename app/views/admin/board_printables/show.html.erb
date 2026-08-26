@@ -94,6 +94,18 @@
               class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
       <% end %>
     </div>
+
+    <%# Etsy refuses a download over 20 MB. Say so here, at Regenerate time,
+        rather than letting an admin find out when Create Etsy draft fails. %>
+    <% oversized = @printable.oversized_pdf_files %>
+    <% if oversized.any? %>
+      <div class="admin-flash-warn border rounded-lg px-4 py-3 text-xs mt-3">
+        <%= "#{oversized.size} #{'file'.pluralize(oversized.size)}" %> too big for Etsy
+        (caps a download at <%= number_to_human_size(Etsy::Client::FILE_CAP_BYTES) %>):
+        <%= oversized.map { |f| "#{f.filename} (#{number_to_human_size(f.byte_size)})" }.to_sentence %>.
+        These still download here. To publish them, build a printable with fewer boards.
+      </div>
+    <% end %>
   <% end %>
 </div>
 

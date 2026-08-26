@@ -109,6 +109,67 @@ RSpec.describe Boards::Printables::MergePdf do
     end
   end
 
+  # The merge collapses art that repeats across pages down to one copy — on a
+  # real set that is the header logo and the nav row, and roughly half the file.
+  # Asserted on the object graph rather than the byte size, for the reason
+  # DedupeImages' own spec explains.
+  describe "shared art" do
+    def image_page_pdf(width)
+      pixels = ("\x11" * 4096).b
+      data = Zlib::Deflate.deflate(pixels)
+      content = "q 100 0 0 100 10 10 cm /Im0 Do Q"
+
+      body = +"%PDF-1.4\n"
+      add = ->(number, object) { body << "#{number} 0 obj\n#{object}\nendobj\n" }
+      add.call(1, "<< /Type /Catalog /Pages 2 0 R >>")
+      add.call(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+      add.call(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{width} 792] " \
+                  "/Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>")
+      add.call(4, "<< /Length #{content.bytesize} >>\nstream\n#{content}\nendstream")
+      add.call(5, "<< /Type /XObject /Subtype /Image /Width 64 /Height 64 " \
+                  "/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode " \
+                  "/SMask 6 0 R /Length #{data.bytesize} >>\nstream\n#{data}\nendstream")
+      add.call(6, "<< /Type /XObject /Subtype /Image /Width 64 /Height 64 " \
+                  "/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode " \
+                  "/Length #{data.bytesize} >>\nstream\n#{data}\nendstream")
+      body << "trailer\n<< /Size 40 /Root 1 0 R >>\nstartxref\n0\n%%EOF\n"
+      body
+    end
+
+    def board_page_with_image(variant, width)
+      Boards::Printables::CollectPages::Page.new(
+        pdf_bytes: image_page_pdf(width),
+        board_id: width,
+        board_name: "Board #{width}",
+        variant: variant,
+      )
+    end
+
+    it "binds one copy of a picture two board pages share, keeping both pages" do
+      pages = [
+        board_page_with_image(BoardPrintable::VARIANT_COLOR, 101),
+        board_page_with_image(BoardPrintable::VARIANT_COLOR, 102),
+      ]
+
+      file = described_class.new(
+        wrappers: wrappers, pages: pages, boards: [double(id: 1), double(id: 2)], slug: "core-words"
+      ).call.find { |f| f.variant == BoardPrintable::VARIANT_COLOR }
+
+      merged = CombinePDF.parse(file.bytes)
+      images = merged.pages[2..3].map do |page|
+        resources = page[:Resources]
+        resources = resources[:referenced_object] || resources
+        xobjects = resources[:XObject]
+        xobjects = xobjects[:referenced_object] || xobjects
+        reference = xobjects[:Im0]
+        reference[:referenced_object] || reference
+      end
+
+      expect(widths(file)).to eq([cover, how_to, 101, 102, license, credits])
+      expect(images.first).to be(images.last)
+    end
+  end
+
   # One document holding every variant: there is no low-ink or trim-ready FILE
   # to give its own identity to, so it keeps the one colour cover.
   describe "a single board" do

@@ -211,6 +211,45 @@ RSpec.describe BoardPrintable do
     end
   end
 
+  describe "#oversized_pdf_files" do
+    let(:board) { FactoryBot.create(:board, name: "Core Words") }
+    let(:printable) do
+      described_class.create!(board: board, status: "complete", board_ids: [board.id])
+    end
+    let(:cap) { Etsy::Client::FILE_CAP_BYTES }
+
+    it "names only the downloads Etsy would refuse" do
+      printable.attach_pdf!(filename: "small.pdf", bytes: "x" * 10, variant: described_class::VARIANT_COLOR)
+      printable.attach_pdf!(filename: "big.pdf", bytes: "x" * (cap + 1), variant: described_class::VARIANT_LOW_INK)
+      printable.reload
+
+      expect(printable.oversized_pdf_files.map { |f| f.filename.to_s }).to eq(["big.pdf"])
+    end
+
+    it "leaves a file exactly at the cap alone" do
+      printable.attach_pdf!(filename: "edge.pdf", bytes: "x" * cap, variant: described_class::VARIANT_COLOR)
+
+      expect(printable.reload.oversized_pdf_files).to be_empty
+    end
+
+    # It reads through #pdf_files, so the allowlist above covers it — an
+    # oversized gallery image or listing video is not a buyer's download and
+    # must never be reported as one.
+    it "never names a gallery image or the listing video" do
+      printable.files.attach(
+        ActiveStorage::Blob.create_and_upload!(
+          io: StringIO.new("x" * (cap + 1)),
+          filename: "flip-through.mp4",
+          content_type: "video/mp4",
+          key: printable.versioned_storage_key_for("flip-through.mp4"),
+          metadata: { "kind" => described_class::KIND_VIDEO, "variant" => "flip_through" },
+        ),
+      )
+
+      expect(printable.reload.oversized_pdf_files).to be_empty
+    end
+  end
+
   describe "#listing_copy_or_default" do
     let(:board) { FactoryBot.create(:board, name: "Core Words") }
     let(:printable) { described_class.create!(board: board, board_ids: [board.id]) }
