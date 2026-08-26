@@ -1004,6 +1004,27 @@ RSpec.describe Profile, type: :model do
       expect(profile.reload.printable_slug).to eq("emma-jones")
       expect(profile.permanent_url).to end_with("/my/emma-jones")
     end
+
+    # Shrinks the window where a printed QR depends on the mutable slug: the
+    # backfill isn't the only thing that can fill this in.
+    it "self-heals on the next save of an old row" do
+      profile = build_profile(slug: "emma-jones").tap(&:save!)
+      profile.update_columns(permanent_slug: nil)
+
+      profile.reload.update!(bio: "touched")
+
+      expect(profile.reload.permanent_slug).to match(Profile::RANDOM_SLUG_PATTERN)
+    end
+
+    it "never rewrites one that already exists" do
+      profile = Profile.new(profileable: child, username: "emma").tap(&:save!)
+      assigned = profile.permanent_slug
+
+      profile.update!(bio: "touched")
+      profile.update!(intro: "touched again")
+
+      expect(profile.reload.permanent_slug).to eq(assigned)
+    end
   end
 
   describe "#rotate_slug!" do
@@ -1038,6 +1059,52 @@ RSpec.describe Profile, type: :model do
       profile.update_columns(permanent_slug: nil)
       profile.reload.rotate_slug!
       expect(profile.permanent_slug).to match(/\As-[a-z0-9]{6}\z/)
+    end
+  end
+
+  # Per-column unique indexes don't stop one profile's `slug` equalling
+  # another's `permanent_slug`, and `resolve_slug` prefers `slug` — so whoever
+  # claims it WINS and the victim's printed QR resolves to the claimant's page.
+  # The generated shape is therefore reserved outright.
+  describe "the generated-slug namespace" do
+    let!(:victim) { Profile.new(profileable: child, username: "river-stone").tap(&:save!) }
+
+    it "refuses a user-chosen slug shaped like a generated one" do
+      other_child = FactoryBot.create(:child_account, user: user, owner: user)
+      squatter = Profile.new(profileable: other_child, username: "pat", slug: victim.permanent_slug)
+
+      expect(squatter).not_to be_valid
+      expect(squatter.errors[:slug]).to include("is reserved")
+    end
+
+    it "refuses the shape even when it collides with nothing at all" do
+      profile = build_profile(slug: "s-abc123", username: "pat")
+      expect(profile).not_to be_valid
+      expect(profile.errors[:slug]).to include("is reserved")
+    end
+
+    it "still allows the app's own generated slugs, which carry slug_type random" do
+      profile = Profile.new(profileable: child, username: "emma")
+      expect { profile.save! }.not_to raise_error
+      expect(profile.slug).to match(Profile::RANDOM_SLUG_PATTERN)
+    end
+
+    it "allows a shorter s- prefixed name, which can't collide" do
+      profile = build_profile(slug: "s-smith", username: "s-smith")
+      expect(profile).to be_valid
+    end
+
+    # Reporting :taken would tell a caller which generated slugs exist, and a
+    # permanent one can never be rotated away once known.
+    it "reports the shape as reserved, never as taken" do
+      expect(Profile.slug_unavailable_reason(victim.permanent_slug)).to eq(:reserved)
+      expect(Profile.slug_unavailable_reason("s-zzzzzz")).to eq(:reserved)
+    end
+
+    it "nudges a name that innocently parameterizes into the shape" do
+      profile = Profile.new(profileable: user, profile_kind: "public_page", username: "S Abc123")
+      profile.save!
+      expect(profile.slug).to eq("s-abc123-page")
     end
   end
 
@@ -1197,7 +1264,9 @@ RSpec.describe Profile, type: :model do
   describe "#generate_attachments!" do
     let(:owner) { FactoryBot.create(:user) }
     let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Emma") }
-    let!(:profile) { Profile.new(profileable: child, username: "emma", slug: "s-p4t9wq").tap(&:save!) }
+    # No explicit slug: the generated shape is reserved for slugs the app
+    # assigns, so a safety profile takes its random one from `ensure_slug`.
+    let!(:profile) { Profile.new(profileable: child, username: "emma").tap(&:save!) }
 
     before do
       allow(Communicators::GenerateSafetyIdCard).to receive(:call)

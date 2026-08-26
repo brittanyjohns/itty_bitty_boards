@@ -531,7 +531,17 @@ an explicit decision, not a drive-by edit.
   404s — which is why `#public`, `#safety_view`, `#care_view` and
   `#check_placeholder` all go through the one resolver. The column is nullable
   and `printable_slug` falls back to `slug`, so a row the backfill
-  (`rake profiles:backfill_permanent_slugs`) hasn't reached still works.
+  (`rake profiles:backfill_permanent_slugs`) hasn't reached still works, and
+  `ensure_permanent_slug` runs on every save so such a row self-heals when
+  touched. **Per-column unique indexes do NOT make these safe on their own** —
+  nothing at the DB level stops one profile's `slug` equalling another's
+  `permanent_slug`, and because `resolve_slug` prefers `slug` the claimant WINS
+  and the victim's printed QR resolves to the claimant's page. So the generated
+  shape itself (`Profile::RANDOM_SLUG_PATTERN`) is reserved from user-chosen
+  slugs, allowed only alongside `slug_type: "random"`, and reported as
+  `:reserved` **before** any availability lookup — answering `:taken` would make
+  `check_slug` an oracle for which generated slugs exist, and a permanent one
+  can never be rotated away once known.
 - **An unguessable link is still a bearer token — revocation is `rotate_slug!`,
   and it is NOT renaming.** Whoever a `/my/s-k8x2mf` link was shared with keeps
   access until the address changes, and a permanently-frozen slug had no answer
