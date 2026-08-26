@@ -3,7 +3,17 @@ require "rails_helper"
 RSpec.describe RegenerateSafetyCardsJob, type: :job do
   let(:owner) { FactoryBot.create(:user) }
   let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Emma") }
-  let!(:profile) { Profile.new(profileable: child, username: "emma", slug: "s-k8x2mf").tap(&:save!) }
+  # A profile whose public slug is a GENERATED one, as a real device-tag
+  # profile's is. Set with update_columns because Profile now reserves that
+  # SHAPE against user-chosen input (Profile::RANDOM_SLUG_PATTERN, #780), so
+  # assigning it through a validated save is refused — the same way
+  # spec/requests/api/profiles_spec.rb stands one up.
+  let!(:profile) do
+    Profile.new(profileable: child, username: "emma", slug: "emma-page").tap do |p|
+      p.save!
+      p.update_columns(slug: "s-k8x2mf", slug_type: "random")
+    end
+  end
 
   before do
     allow(Communicators::GenerateSafetyIdCard).to receive(:call)
