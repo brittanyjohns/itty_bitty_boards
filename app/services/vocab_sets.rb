@@ -105,6 +105,7 @@ module VocabSets
     prune_removed_boards!(slug, boards_by_obf_id)
     dedupe_tiles!(boards_by_obf_id)
     repair_layout!(slug, boards_by_obf_id)
+    unstack_layout!(boards_by_obf_id)
 
     # LAST, so it classifies the set that actually survived the prune passes.
     # A seeded set has no BoardGroup, so the classifier walks it from the root:
@@ -130,31 +131,118 @@ module VocabSets
   # buttons are all 1×1 grid cells, so we pin w/h to 1 — matching the upsert.
   # Admin-owned set boards only; user clones are healed by board_builder:repair_grid.
   def repair_layout!(slug, boards_by_obf_id)
-    coords_by_obf_id = source_coords_by_obf_id(slug)
+    coords_by_obf_id  = source_coords_by_obf_id(slug)
+    buttons_by_obf_id = source_buttons_by_obf_id(slug)
 
     boards_by_obf_id.each do |obf_id, board|
       coords = coords_by_obf_id[obf_id]
       next if coords.blank?
 
+      tiles = board.board_images.to_a
       changed = false
-      board.board_images.find_each do |bi|
-        button_id = bi.data.is_a?(Hash) ? bi.data["obf_button_id"] : nil
+
+      # Pass 1 — the exact match. A tile stamped with its authored button id is
+      # pinned to that button's cell, whatever it drifted to.
+      tiles.each do |bi|
+        button_id = tile_button_id(bi)
         next if button_id.blank?
 
-        cell = coords[button_id.to_s]
+        changed = true if pin_to_cell!(bi, coords[button_id])
+      end
+
+      # Pass 2 — the un-stamped tail. A tile seeded before button ids were
+      # stamped (or one a buggy re-seed forked) carries none, so pass 1 can
+      # never move it: core-84's `all done` sat on `again`'s cell through every
+      # re-seed while its own cell stayed empty, which is what let a build spend
+      # a phantom open cell (Board#open_grid_cells counts DISTINCT cells).
+      # Match it to the ONE authored button with its label that no stamped tile
+      # already claims, then stamp the id so this is a pass-1 tile forever after.
+      # An ambiguous label (core-84 authors the word `play` AND the folder
+      # `Play`) is left to unstack_layout!.
+      claimed = tiles.filter_map { |bi| tile_button_id(bi) }.to_set
+      labels  = buttons_by_obf_id[obf_id] || {}
+
+      tiles.each do |bi|
+        next if tile_button_id(bi).present?
+
+        button_id = sole_unclaimed_button_id(labels, claimed, bi)
+        next if button_id.nil?
+
+        # No authored cell for that button (it isn't in the grid order): there
+        # is nothing to pin, and stamping the id without pinning would claim it
+        # for a tile this pass didn't actually fix.
+        cell = coords[button_id]
         next if cell.nil?
 
-        x, y = cell
-        next if already_at?(bi, x, y)
-
-        layout = { "x" => x, "y" => y, "w" => 1, "h" => 1, "i" => bi.id.to_s }
-        bi.layout ||= {}
-        %w[lg md sm xs xxs].each { |screen| bi.layout[screen] = layout }
-        bi.save!
+        claimed << button_id
+        bi.data = (bi.data || {}).merge("obf_button_id" => button_id)
+        pin_to_cell!(bi, cell, force_save: true)
         changed = true
       end
 
       board.update_board_layout("lg") if changed
+    end
+  end
+
+  # The authored button id stamped on a tile, or nil.
+  def tile_button_id(board_image)
+    return nil unless board_image.data.is_a?(Hash)
+
+    board_image.data["obf_button_id"].presence&.to_s
+  end
+
+  # The id of the single authored button carrying this tile's label that no
+  # other tile has claimed. nil when the label is absent, ambiguous, or taken —
+  # every one of those is a case where guessing would move the wrong tile.
+  def sole_unclaimed_button_id(labels_by_button_id, claimed, board_image)
+    label = (board_image.label.presence || board_image.image&.label).to_s.strip.downcase
+    return nil if label.blank?
+
+    matches = labels_by_button_id.filter_map do |button_id, authored|
+      button_id if !claimed.include?(button_id) && authored.to_s.strip.downcase == label
+    end
+    matches.size == 1 ? matches.first : nil
+  end
+
+  # Pin one tile to its authored 1x1 cell across every persisted screen size.
+  # Returns true when it wrote. Authored buttons are all 1x1, matching the
+  # upsert. `force_save:` writes even when the coords already match, so a
+  # freshly-stamped obf_button_id is persisted alongside them.
+  def pin_to_cell!(board_image, cell, force_save: false)
+    return false if cell.nil?
+
+    x, y = cell
+    if already_at?(board_image, x, y)
+      return false unless force_save
+
+      board_image.save!
+      return true
+    end
+
+    layout = { "x" => x, "y" => y, "w" => 1, "h" => 1, "i" => board_image.id.to_s }
+    board_image.layout ||= {}
+    %w[lg md sm xs xxs].each { |screen| board_image.layout[screen] = layout }
+    board_image.save!
+    true
+  end
+
+  # Last resort after repair_layout!: pull any tile still sharing a cell (or
+  # sitting off-grid) into a free one. A set must never SHIP that state — every
+  # user clone inherits the layout verbatim, so one stacked seed cell becomes a
+  # stacked cell in every set ever built from it, and because
+  # Board#open_grid_cells counts DISTINCT cells it also makes a full grid report
+  # a free cell the build then spends.
+  #
+  # `unstack!`, not `repack!`: an authored grid is exactly as many cells as
+  # tiles, so the displaced tile belongs in the gap its twin left, not shelf-
+  # packed onto a new row (which would defeat the set's `disable_scroll`).
+  # Idempotent: returns 0 and writes nothing on a clean set.
+  def unstack_layout!(boards_by_obf_id)
+    boards_by_obf_id.each_value do |board|
+      moved = Boards::LayoutRepacker.unstack!(board.reload)
+      next if moved.zero?
+
+      Rails.logger.info "[VocabSets] un-stacked #{moved} displaced tile(s) on board #{board.id} (#{board.name})"
     end
   end
 
@@ -273,6 +361,35 @@ module VocabSets
 
       obf = JSON.parse(File.read(file))
       acc[obf["id"].to_s] = Array(obf["buttons"]).filter_map { |b| b["id"].presence&.to_s }
+    end
+  end
+
+  # { obf_id => { button_id => label } } from the authored source — what
+  # repair_layout!'s second pass matches an un-stamped tile against.
+  def source_buttons_by_obf_id(slug)
+    each_source_obf(slug).each_with_object({}) do |obf, acc|
+      acc[obf["id"].to_s] = Array(obf["buttons"]).each_with_object({}) do |button, index|
+        id = button["id"].presence&.to_s
+        next if id.nil?
+
+        index[id] = button["label"].to_s
+      end
+    end
+  end
+
+  # Every authored OBF in a slug's manifest, parsed. The three
+  # source_*_by_obf_id readers above each re-read and re-parse the same files;
+  # new readers go through this.
+  def each_source_obf(slug)
+    dir = SETS_DIR.join(slug)
+    manifest = JSON.parse(File.read(dir.join("manifest.json")))
+    paths = (manifest.dig("paths", "boards") || {}).values.uniq
+
+    paths.filter_map do |rel|
+      file = dir.join(rel)
+      next unless File.file?(file)
+
+      JSON.parse(File.read(file))
     end
   end
 

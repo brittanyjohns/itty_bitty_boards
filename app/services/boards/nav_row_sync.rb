@@ -114,7 +114,26 @@ module Boards
     # Runs after #evict_occupants!, which destroys any child folder tile linking
     # back to the root — an anchor written earlier in the build wouldn't survive.
     def ensure_home_tile!(child)
+      # A tile pointing at its OWN board is never navigation — BoardImage#is_dynamic?
+      # is false for one, so it renders as a silent word tile with no link badge.
+      # #children already rejects the root; this makes it impossible rather than
+      # merely unreached.
+      return if child.id == @root.id
       return if child.board_images.reload.any? { |bi| bi.predictive_board_id == @root.id }
+
+      # An anchor is chrome, and chrome never displaces vocabulary. The authored
+      # Core 60/84 grids are full, so a page cloned from one has nowhere to put
+      # this: adding it anyway grew the board past its authored rows (defeating
+      # `disable_scroll`) or, where a layout overlap had left a phantom hole,
+      # dropped it into a cell the grid was already double-booking. The page is
+      # still reachable — its folder tile opens it, and every nav cell on it
+      # leads back into the set.
+      if free_content_cell(child).nil?
+        Rails.logger.info(
+          "[NavRowSync] board #{child.id} (#{child.name}): no free cell for a way-home tile; skipped",
+        )
+        return
+      end
 
       image = Boards::ImageResolver.resolve(child.name, owner: child.user)
       board_image = child.add_image(image.id)
@@ -147,9 +166,13 @@ module Boards
       cell = mirrored_cell(child, except: board_image.id)
       return relocate!(child, board_image) if cell.nil?
 
-      occupant = occupant_at(child, cell, except: board_image.id)
+      # EVERY occupant, not the first one. A cell can already hold two tiles —
+      # a stacked layout is exactly the bug that leaves an authored grid looking
+      # like it has room — and relocating one of them still leaves the anchor
+      # sharing a cell with the other.
+      occupants = occupants_at(child, cell, except: board_image.id)
       write_cell!(board_image, cell[0], cell[1])
-      relocate!(child, occupant) if occupant
+      occupants.each { |occupant| relocate!(child, occupant) }
     end
 
     # The cell of the tile that links to this page, clamped into its grid.
@@ -173,8 +196,8 @@ module Boards
       [[cell["x"].to_i, columns - 1].min.clamp(0, columns - 1), y]
     end
 
-    def occupant_at(child, cell, except:)
-      child.board_images.reload.find do |bi|
+    def occupants_at(child, cell, except:)
+      child.board_images.reload.select do |bi|
         next false if bi.id == except
 
         at = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
@@ -223,20 +246,29 @@ module Boards
     # full, push the nav region down a row and take the row that frees up, so a
     # relocated tile is never dropped for want of space.
     def relocate!(child, board_image)
-      columns = [child.large_screen_columns.to_i, 1].max
-      occupied = occupied_cells(child, except: board_image.id)
-
-      (0...region.top_y).each do |y|
-        (0...columns).each do |x|
-          next if occupied.include?([x, y])
-
-          write_cell!(board_image, x, y)
-          return
-        end
-      end
+      cell = free_content_cell(child, except: board_image.id)
+      return write_cell!(board_image, cell[0], cell[1]) if cell
 
       shift_region_down!(child)
       write_cell!(board_image, 0, region.top_y)
+    end
+
+    # First free cell strictly above the nav region, or nil when the content
+    # area is full. Occupancy is DISTINCT cells (#occupied_cells is a Set), so
+    # two tiles stacked on one cell read as one occupied cell — never as one
+    # occupied and one free, which is how a stacked seed cell used to hand a
+    # placement a hole that wasn't there.
+    def free_content_cell(child, except: nil)
+      columns = [child.large_screen_columns.to_i, 1].max
+      occupied = occupied_cells(child, except: except)
+
+      (0...region.top_y).each do |y|
+        (0...columns).each do |x|
+          return [x, y] unless occupied.include?([x, y])
+        end
+      end
+
+      nil
     end
 
     def shift_region_down!(child)

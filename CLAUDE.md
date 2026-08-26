@@ -632,6 +632,36 @@ an explicit decision, not a drive-by edit.
   of every `Board#api_view` grew with the whole table. Nothing reads the index
   positions; every consumer reads each cell's own `x`/`y`. The memo it now
   keeps is cleared wherever tile layouts are rewritten (`board_images.reset`).
+- **A grid's fullness is only as trustworthy as its layout, and navigation
+  chrome never displaces vocabulary.** `Board#open_grid_cells` counts
+  `occupied.uniq.size`, so two tiles STACKED on one cell make a completely full
+  84-tile Core 84 board report a phantom free cell — and every builder
+  placement guard is written as `open_grid_cells >= 1`, so that phantom gets
+  spent. The seeded core-84 board carried exactly that (`all done` parked on
+  `again`, its own cell empty) because `VocabSets.repair_layout!` matched tiles
+  by `data["obf_button_id"]` and that tile had none, so no re-seed could ever
+  move it; the repair now falls back to a UNIQUE authored-label match, stamps
+  the id, and `unstack_layout!` (`Boards::LayoutRepacker.unstack!`) is the net
+  behind it — `unstack!`, never `repack!`: an authored grid holds exactly as
+  many cells as tiles, so a displaced tile belongs in the gap its twin left, and
+  `repack!` shelf-packs it onto a NEW ROW (it mirrors the frontend
+  `repackLayout`), which is the extra row this whole bullet is about.
+  A seed ships its layout verbatim into every clone, so one stacked seed cell is
+  a stacked cell in every set ever built from it — hence the same net on the
+  read side: `Boards::SeededSetCloner` repacks every cloned board after its
+  transaction commits, so a source corrupted since it was seeded can't hand the
+  defect on. The other half is the write
+  side: `Boards::NavRowSync#ensure_home_tile!` skips the way-home anchor
+  entirely when a page's content area has no genuinely free cell (counted as
+  DISTINCT cells), rather than growing an authored grid past its rows — which
+  silently defeats `disable_scroll` — or colonising a hole that only exists
+  because the grid is double-booking a cell. And a board that is itself the TOP
+  of a set (a `Boards::RobustSets::ROOT_MARKER` root, or another set's
+  `builder_root`/`builder_child`) is never walked into as a PAGE by
+  `Boards::SeededSetCloner`: cloning one drops a second full core board into the
+  set, which — having no nav cell bearing its name — is then handed an anchor
+  labelled with the core set's own name. Repair: `rake
+  board_builder:repair_stray_core_pages`.
 - **"Format with AI" is a PERMUTATION at a uniform 1x1.** `AiBoardFormatter`
   chooses an ORDER and nothing else: no tile size, no x/y, no column count, and
   it never adds or drops a word. `Board#pack_layout_row_major` is the single

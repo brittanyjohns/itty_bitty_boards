@@ -30,6 +30,32 @@ RSpec.describe Boards::NavRowSync do
     end.sort_by { |c| [c[:y], c[:x]] }
   end
 
+  # Cells holding more than one tile. A sync must never create one: a hidden
+  # tile is a word the communicator can't reach, and the grid then reports a
+  # free cell it doesn't have (Board#open_grid_cells counts DISTINCT cells).
+  def stacked_cells(board)
+    board.board_images.reload.filter_map { |bi|
+      cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+      cell && [cell["x"].to_i, cell["y"].to_i]
+    }.tally.select { |_cell, count| count > 1 }.keys
+  end
+
+  it "never writes a tile that points at its own board" do
+    described_class.call(root)
+
+    # A self-link is invisible rather than loud: BoardImage#is_dynamic? is false
+    # for one, so it renders as an ordinary word tile with no link badge.
+    expect(BoardImage.where("predictive_board_id = board_id")).to be_empty
+  end
+
+  it "leaves no two tiles sharing a cell" do
+    described_class.call(root)
+
+    [root, food, drinks].each do |board|
+      expect(stacked_cells(board)).to be_empty, "#{board.name} has stacked tiles"
+    end
+  end
+
   it "projects the root's nav row onto every child at the same cells" do
     described_class.call(root)
 
@@ -228,6 +254,37 @@ RSpec.describe Boards::NavRowSync do
       expect([cat.layout["lg"]["x"], cat.layout["lg"]["y"]]).not_to eq([1, 0])
       # Still in the content area, not pushed into the nav region.
       expect(cat.layout["lg"]["y"]).to eq(0)
+    end
+
+    # An anchor is chrome, and chrome never displaces vocabulary. The authored
+    # Core 60/84 grids are completely full, so a page cloned from one has
+    # nowhere to put a way-home tile — adding it anyway grew the board past its
+    # authored rows (defeating `disable_scroll`) or landed it in a hole that
+    # only existed because two tiles were stacked. The page stays reachable
+    # through the folder tile that opens it.
+    it "skips the anchor when the page's content area is full" do
+      animals.board_images.destroy_all
+      %w[dog cat cow pig hen bee].each_with_index { |l, x| tile(animals, l, x: x, y: 0, position: x + 1) }
+
+      described_class.call(root)
+
+      home = animals.board_images.reload.select { |bi| bi.predictive_board_id == root.id }
+      expect(home).to be_empty
+      expect(animals.board_images.reload.map(&:label)).to include(*%w[dog cat cow pig hen bee])
+    end
+
+    # occupants_at, not occupant_at: relocating only the first of two tiles
+    # already sharing the mirrored cell leaves the anchor stacked on the other.
+    it "relocates every occupant of the mirrored cell, not just the first" do
+      tile(animals, "cat", x: 1, y: 0, position: 2)
+      tile(animals, "cow", x: 1, y: 0, position: 3)
+
+      described_class.call(root)
+
+      home = animals.board_images.reload.find { |bi| bi.predictive_board_id == root.id }
+      expect([home.layout["lg"]["x"], home.layout["lg"]["y"]]).to eq([1, 0])
+      expect(stacked_cells(animals)).to be_empty
+      expect(animals.board_images.reload.map(&:label)).to include("cat", "cow")
     end
 
     # A drawer's content area can be taller than the page it opens, so a

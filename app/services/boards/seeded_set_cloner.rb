@@ -63,21 +63,49 @@ module Boards
       raise CloneError, "no owning user" unless @owner
       raise CloneError, "no source root board" if @source_root.nil?
 
-      ActiveRecord::Base.transaction do
+      root = ActiveRecord::Base.transaction do
         @map = clone_all(collect_source_boards(@source_root))
         rewire_predictive_links!
         mark_builder_settings!
 
-        root = @map.fetch(@source_root.id)
-        attach_root_to_communicator(root) if @communicator && !adopted_root?
-        route_interests!(root)
+        cloned_root = @map.fetch(@source_root.id)
+        attach_root_to_communicator(cloned_root) if @communicator && !adopted_root?
+        route_interests!(cloned_root)
         # clone_with_images leaves the in-memory clones with a stale
         # board_images_count / association cache; hand back a fresh root.
-        root.reload
+        cloned_root.reload
       end
+
+      unstack_cloned_layouts!
+      root
     end
 
     private
+
+    # A clone must never INHERIT a stacked cell. Both copy paths take the
+    # source's layout verbatim, so one seed cell holding two tiles becomes one
+    # cell holding two tiles in every set ever built from it — a word hidden
+    # behind another, and (because Board#open_grid_cells counts DISTINCT cells)
+    # a full grid reporting a free cell that the rest of the build then spends.
+    # VocabSets#unstack_layout! keeps the SEED clean; this is the same net for a
+    # source that was corrupted after it was seeded.
+    #
+    # Runs OUTSIDE the transaction above: the repack rewrites layouts and
+    # resyncs each board, and a job named on a row must not be pushed from
+    # inside the transaction that writes it. Failing here leaves a valid clone —
+    # a stacked cell is a defect, not a reason to lose the whole set — so it
+    # logs rather than raising, matching how BuildBoardSetJob treats its own
+    # post-passes.
+    def unstack_cloned_layouts!
+      @map.each_value do |board|
+        moved = Boards::LayoutRepacker.unstack!(board.reload)
+        next if moved.zero?
+
+        Rails.logger.info "[SeededSetCloner] un-stacked #{moved} displaced tile(s) on cloned board #{board.id}"
+      end
+    rescue => e
+      Rails.logger.error "[SeededSetCloner] un-stack failed: #{e.message}"
+    end
 
     def adopted_root?
       @root.present?
@@ -87,13 +115,38 @@ module Boards
     # Boards::AssignmentCloner via PredictiveLinkSet).
     def collect_source_boards(root)
       Boards::PredictiveLinkSet.collect(root, max_depth: MAX_DEPTH,
-                                              exclude: method(:excluded_fringe?))
+                                              exclude: method(:excluded_source?))
+    end
+
+    # A source board the walk must not clone. `exclude` is never called for the
+    # root itself (Boards::PredictiveLinkSet), so both halves are about PAGES.
+    def excluded_source?(board)
+      excluded_fringe?(board) || not_a_page?(board)
     end
 
     def excluded_fringe?(board)
       return false if @exclude_fringe.empty?
 
       @exclude_fringe.include?(board.name.to_s.strip.downcase)
+    end
+
+    # An authored seed page is a plain category board. A board carrying a
+    # robust-set ROOT marker, or a builder set's own root/child markers, is
+    # something else entirely — another set's home board that a stray folder
+    # tile happens to point at — and cloning it drops a SECOND full core board
+    # into the set as a page. That page then has no self tile (no nav cell
+    # carries its name), so Boards::NavRowSync mints it a way home labelled
+    # with the core set's own name, which is the stray "Core 84" tile.
+    #
+    # Narrow on purpose: this vetoes the WALK, so a legitimate deep page is
+    # never in scope — only a board that claims to be the top of a set.
+    def not_a_page?(board)
+      settings = board.settings
+      return false unless settings.is_a?(Hash)
+
+      settings[Boards::RobustSets::ROOT_MARKER].present? ||
+        settings["builder_root"].present? ||
+        settings["builder_child"].present?
     end
 
     # Clone each source board for the owner. NO communicator_account arg, so
@@ -114,12 +167,29 @@ module Boards
             # sub-boards (and a dup-cloned root) would render their authored
             # tiles blank wherever they point at an art-less library image.
             Boards::ImageResolver.upgrade_board_tiles!(board, owner: @owner)
+            strip_template_markers!(board, root: src.id == @source_root.id)
             board
           end
         raise CloneError, "failed to clone source board #{src.id}" if cloned.nil?
 
         map[src.id] = cloned
       end
+    end
+
+    # Board#clone_with_images dups `settings` verbatim, so a clone of a seeded
+    # root arrives still claiming to BE that seed: the robust-set catalog
+    # markers make it pickable as a template, and `main_board` pins it as the
+    # top of a set. clone_into_adopted_root has stripped the first pair since
+    # it was written; this is the same rule for the dup-based path, which
+    # predates the concern. `main_board` goes only on a PAGE — a dup-cloned
+    # root is still a root.
+    def strip_template_markers!(board, root:)
+      keys = [Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER]
+      keys << "main_board" unless root
+      settings = board.settings || {}
+      return if keys.none? { |k| settings.key?(k) }
+
+      board.update!(settings: settings.except(*keys))
     end
 
     # The adopted-root version of Board#clone_with_images: copy the source

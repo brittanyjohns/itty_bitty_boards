@@ -203,6 +203,59 @@ RSpec.describe VocabSets do
       VocabSets.seed_slug!("core-84")
       expect(lg_overlaps(@c84_root)).to eq(0)
     end
+
+    # A tile carrying no obf_button_id is invisible to the exact-match pass, so
+    # it could never be moved: production's core-84 `all done` sat on `again`'s
+    # cell through every re-seed while its own cell stayed empty. That matters
+    # beyond the hidden tile — Board#open_grid_cells counts DISTINCT cells, so
+    # the stack made a full 84-tile board report a free one, and a build spent it.
+    it "re-pins an un-stamped tile to its authored cell and stamps its button id" do
+      again    = @c84_root.board_images.find_by(label: "again")
+      all_done = @c84_root.board_images.find_by(label: "all done")
+      expect(all_done.data["obf_button_id"]).to be_present
+
+      authored_cell = all_done.reload.layout["lg"].slice("x", "y")
+      again_cell    = again.reload.layout["lg"]
+
+      all_done.update_column(:data, all_done.data.except("obf_button_id"))
+      all_done.update_column(:layout, all_done.layout.merge(
+        "lg" => again_cell.merge("i" => all_done.id.to_s),
+      ))
+      expect(lg_overlaps(@c84_root)).to eq(1)
+
+      VocabSets.repair_layout!("core-84", { @c84_root.obf_id => @c84_root })
+
+      all_done.reload
+      expect(all_done.layout["lg"].slice("x", "y")).to eq(authored_cell)
+      expect(all_done.data["obf_button_id"]).to be_present
+      expect(lg_overlaps(@c84_root)).to eq(0)
+    end
+
+    it "heals an un-stamped, mis-parked tile through a full re-seed" do
+      authored_count = @c84_root.board_images.count
+      again    = @c84_root.board_images.find_by(label: "again")
+      all_done = @c84_root.board_images.find_by(label: "all done")
+
+      all_done.update_column(:data, all_done.data.except("obf_button_id"))
+      all_done.update_column(:layout, all_done.layout.merge(
+        "lg" => again.reload.layout["lg"].merge("i" => all_done.id.to_s),
+      ))
+
+      VocabSets.seed_slug!("core-84")
+
+      expect(lg_overlaps(@c84_root)).to eq(0)
+      expect(@c84_root.reload.board_images.count).to eq(authored_count)
+    end
+
+    # A seeded set is cloned verbatim into every built set, so one stacked cell
+    # here becomes a stacked cell in every board ever built from it.
+    it "leaves every board in a seeded set with its tiles in distinct cells" do
+      boards = Board.where(user_id: @admin.id).where("obf_id LIKE ?", "core-84:%").to_a + [@c84_root]
+
+      boards.each do |board|
+        expect(lg_overlaps(board)).to eq(0), "#{board.name} has stacked tiles"
+      end
+    end
   end
 
   # The authored Core 84 grid follows AAC layout convention (Fitzgerald key):

@@ -257,6 +257,166 @@ namespace :board_builder do
     end
   end
 
+  # Repairs the "stray core page" damage in already-built sets.
+  #
+  # A folder tile pointing at a board that is itself the TOP of a set (a
+  # robust-set root, or another builder set's root/child) used to pull that
+  # whole board into the clone as an extra PAGE. The page is a second full core
+  # board, so no nav cell carries its name, so Boards::NavRowSync gave it an
+  # explicit way home labelled with the core set's own name — the stray
+  # "Core 84" tile. Where the page had also inherited a stacked cell from the
+  # seed, that anchor landed in the phantom hole the stack left, and the grid
+  # spilled onto an extra row.
+  #
+  # Three passes, in order:
+  #   1. destroy the minted way-home tile on a stray core page (a `nav_tile`
+  #      whose label is the page's own name — never a real nav cell, which is
+  #      always labelled for a SIBLING page);
+  #   2. un-stack every board in the set (Boards::LayoutRepacker);
+  #   3. restore `disable_scroll` on a stray page that is back to its seed's
+  #      authored row count. Deliberately only there: the set ROOT does not
+  #      record which seed it came from (clone_into_adopted_root strips the
+  #      markers), so "is this grid still its authored size" is unanswerable for
+  #      it and guessing could lock a legitimately grown board to one page.
+  #
+  # DESTROY_STRAY=true additionally destroys a stray page that is ORPHANED —
+  # nothing in the set links to it any more, so removing it costs the set
+  # nothing. Opt-in, and never applied to a page that is still reachable.
+  #
+  # Read-only by default. Apply with DRY_RUN=false; scope with USER_ID=N:
+  #   rake board_builder:repair_stray_core_pages                     # preview all
+  #   DRY_RUN=false rake board_builder:repair_stray_core_pages       # apply
+  #   DRY_RUN=false DESTROY_STRAY=true rake board_builder:repair_stray_core_pages
+  desc "Remove stray core pages + their minted home tiles from built sets (DRY_RUN=false to apply; USER_ID=N to scope; DESTROY_STRAY=true to delete orphaned pages)"
+  task repair_stray_core_pages: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+    destroy_stray = ENV["DESTROY_STRAY"] == "true"
+
+    roots = Board.where("(settings ->> 'builder_root') = 'true'")
+    roots = roots.where(user_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    sets = 0
+    stray_pages = 0
+    orphans_destroyed = 0
+    tiles_removed = 0
+    tiles_moved = 0
+    scroll_restored = 0
+
+    roots.find_each do |root|
+      reachable = Boards::PredictiveLinkSet
+        .collect(root, max_depth: Boards::NavRowSync::MAX_DEPTH,
+                       exclude: ->(b) { b.user_id != root.user_id })
+      reachable_ids = reachable.map(&:id).to_set
+
+      # Group membership too: a stray page can be orphaned (nothing links to it)
+      # and still be a member, which is exactly the state worth reporting.
+      members = root.builder_board_group&.boards&.where(user_id: root.user_id)&.to_a || []
+      boards = (reachable + members).uniq(&:id)
+
+      lines = []
+
+      boards.each do |board|
+        next if board.id == root.id
+
+        if stray_core_page?(board)
+          stray_pages += 1
+          orphaned = !reachable_ids.include?(board.id)
+          lines << "  stray core page ##{board.id} #{board.name.inspect}" \
+                   "#{orphaned ? ' (ORPHANED — nothing links to it)' : ''}"
+
+          removed = destroy_minted_home_tiles!(board, dry_run: dry_run)
+          tiles_removed += removed
+          lines << "    #{removed} minted way-home tile(s) removed" if removed.positive?
+
+          if destroy_stray && orphaned && board.marketplace_protected?
+            # Board#block_marketplace_protected_destroy would abort this anyway;
+            # say so rather than surfacing a callback exception. A page whose
+            # content was sold as a PDF keeps its /pb/<slug> forever.
+            lines << "    NOT destroyed — a marketplace listing depends on it"
+          elsif destroy_stray && orphaned
+            orphans_destroyed += 1
+            lines << "    page destroyed"
+            board.destroy! unless dry_run
+            next
+          end
+
+          scroll_restored += 1 if restore_seed_disable_scroll!(board, dry_run: dry_run)
+        end
+
+        moved = Boards::LayoutRepacker.unstack!(board, dry_run: dry_run)
+        next if moved.zero?
+
+        tiles_moved += moved
+        lines << "  board ##{board.id} #{board.name.inspect}: #{moved} stacked/off-grid tile(s) repacked"
+      end
+
+      next if lines.empty?
+
+      sets += 1
+      puts "#{dry_run ? '[DRY RUN] ' : ''}set ##{root.id} #{root.name.inspect} (owner #{root.user_id}):"
+      puts lines
+    rescue => e
+      puts "  !! set ##{root.id} failed: #{e.message}"
+    end
+
+    summary = "#{sets} set(s): #{stray_pages} stray core page(s), #{tiles_removed} minted tile(s), " \
+              "#{tiles_moved} tile(s) repacked, #{scroll_restored} page(s) re-locked to one screen, " \
+              "#{orphans_destroyed} orphan page(s) destroyed"
+    if dry_run
+      puts "Dry run only — #{summary}. Re-run with DRY_RUN=false to apply."
+    else
+      puts "Repaired #{summary}."
+    end
+  end
+
+  # A page in a built set that is really the top of a robust vocabulary set —
+  # it still carries the seed's catalogue marker. An authored fringe page never
+  # does.
+  def stray_core_page?(board)
+    settings = board.settings
+    return false unless settings.is_a?(Hash)
+
+    settings[Boards::RobustSets::ROOT_MARKER].present? &&
+      settings["builder_root"].blank?
+  end
+
+  # The way-home tile Boards::NavRowSync mints for a page with no self tile:
+  # flagged `nav_tile`, labelled with the page's OWN name. A genuine nav cell is
+  # always labelled for a sibling page, so this can't catch one.
+  def destroy_minted_home_tiles!(board, dry_run:)
+    name = board.name.to_s.strip
+    return 0 if name.blank?
+
+    targets = board.board_images.select do |bi|
+      data = bi.data
+      data.is_a?(Hash) && data[Boards::NavRowSync::NAV_TILE_KEY] == true &&
+        bi.label.to_s.strip.casecmp?(name)
+    end
+    return targets.size if dry_run
+
+    targets.each(&:destroy!)
+    board.board_images.reset
+    targets.size
+  end
+
+  # Re-lock a stray core page to one screen once it is back to the authored row
+  # count of the seed it was copied from. Only answerable for these pages —
+  # they still carry `board_builder_robust_slug`, so the seeded root is a lookup
+  # away.
+  def restore_seed_disable_scroll!(board, dry_run:)
+    settings = board.settings || {}
+    return false if settings["disable_scroll"] == true
+
+    seed = Boards::RobustSets.find_root(settings[Boards::RobustSets::SLUG_MARKER])
+    return false if seed.nil?
+    return false unless board.reload.large_screen_rows == seed.large_screen_rows
+
+    return true if dry_run
+
+    board.update!(settings: settings.merge("disable_scroll" => true))
+    true
+  end
+
   # The builder_child boards under a built root: BFS predictive_board_id links
   # (bounded to the cloner's MAX_DEPTH), scoped to the owner so a tile pointing at
   # a shared/admin board can't pull it in. Excludes the root itself.
