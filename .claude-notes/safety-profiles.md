@@ -773,6 +773,21 @@ lookup could be.
   ("S Abc123" → `s-abc123-page`) rather than 422ing a legitimate signup.
 - `generate_random_slug` and `slug_available?` still check all three columns as
   defence in depth.
+
+**Cross-column availability is validated on the MODEL, not in a controller.**
+`validates :slug, uniqueness: true` is same-column only, and four things
+resolve a URL: `slug`, `permanent_slug`, `legacy_slug`, and
+`ChildAccount#username`. `#update` asked `slug_unavailable_reason` before
+saving; **`#create` never did**, so a new page could be created straight onto
+another profile's legacy address and — since `resolve_slug` prefers `slug` —
+take it over. `slug_available_across_columns` closes that for every write path,
+controllers and rake tasks and console alike. It skips when another slug
+validation already failed, so the error stays specific.
+
+`slug_available?` takes `except_child_account_id:` for the one case that looks
+like a collision but isn't: a communicator's own page carrying a slug derived
+from its own `ChildAccount#username`, which is what every legacy name-derived
+page looks like. Without it the validation would reject them all.
 - It runs under `slug_format_validatable?` (new records, or when the slug is
   actually changing), so existing rows are undisturbed.
 

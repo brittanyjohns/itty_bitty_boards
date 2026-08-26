@@ -115,6 +115,7 @@ class Profile < ApplicationRecord
   validate :slug_not_reserved, if: :slug_format_validatable?
   validate :slug_not_pure_numeric, if: :slug_format_validatable?
   validate :slug_not_generated_shape, if: :slug_format_validatable?
+  validate :slug_available_across_columns, if: :slug_format_validatable?
   validates :claim_token, presence: true, uniqueness: true, if: -> { placeholder? }
 
   before_validation :set_defaults, on: :create
@@ -1408,7 +1409,11 @@ class Profile < ApplicationRecord
   # that collide with any Profile.slug, Profile.username, or
   # ChildAccount.username — we mirror that here so editing and onboarding
   # agree on what "available" means.
-  def self.slug_available?(value, except_id: nil)
+  # `except_child_account_id` is how a communicator's OWN page is allowed to
+  # carry a slug derived from its own `ChildAccount#username` — that is not a
+  # collision, it's the same entity. Without it, validating availability on
+  # save would reject every legacy name-derived communicator page.
+  def self.slug_available?(value, except_id: nil, except_child_account_id: nil)
     value = value.to_s.strip.downcase
     return false if value.blank?
 
@@ -1419,7 +1424,9 @@ class Profile < ApplicationRecord
     profile_scope = profile_scope.where.not(id: except_id) if except_id
     return false if profile_scope.exists?
 
-    !ChildAccount.exists?(username: value)
+    child_scope = ChildAccount.where(username: value)
+    child_scope = child_scope.where.not(id: except_child_account_id) if except_child_account_id
+    !child_scope.exists?
   end
 
   # Reason codes mirror the JSON returned by ProfilesController#check_slug so
@@ -1463,6 +1470,26 @@ class Profile < ApplicationRecord
     return unless slug.match?(RANDOM_SLUG_PATTERN)
 
     errors.add(:slug, "is reserved")
+  end
+
+  # `validates :slug, uniqueness: true` is SAME-COLUMN only, but three columns
+  # resolve a URL (`slug`, `permanent_slug`, `legacy_slug`) plus
+  # `ChildAccount#username` — so a slug can be "unique" and still collide with
+  # a live address. `#update` asked `slug_unavailable_reason` before saving;
+  # `#create` never did, so a new page could be created on someone else's
+  # legacy address and, because `resolve_slug` prefers `slug`, take it over.
+  # Validating on the model covers every write path — controllers, rake tasks,
+  # `create_placeholders`, console — instead of the one that remembered.
+  def slug_available_across_columns
+    return if slug.blank?
+    return if errors[:slug].any? # don't pile on a format/reserved failure
+
+    own_child_id = profileable_id if profileable_type == "ChildAccount"
+    return if self.class.slug_available?(
+      slug, except_id: id, except_child_account_id: own_child_id
+    )
+
+    errors.add(:slug, "is already in use")
   end
 
   # Records the moment slug changes — but only for edits, not the initial

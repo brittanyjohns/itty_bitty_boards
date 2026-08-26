@@ -541,7 +541,10 @@ an explicit decision, not a drive-by edit.
   slugs, allowed only alongside `slug_type: "random"`, and reported as
   `:reserved` **before** any availability lookup — answering `:taken` would make
   `check_slug` an oracle for which generated slugs exist, and a permanent one
-  can never be rotated away once known.
+  can never be rotated away once known. Cross-column availability is validated
+  on the MODEL (`slug_available_across_columns`), because `#update` asked
+  before saving and `#create` never did — a controller-side check is one write
+  path remembering, not an invariant.
 - **An unguessable link is still a bearer token — revocation is `rotate_slug!`,
   and it is NOT renaming.** Whoever a `/my/s-k8x2mf` link was shared with keeps
   access until the address changes, and a permanently-frozen slug had no answer

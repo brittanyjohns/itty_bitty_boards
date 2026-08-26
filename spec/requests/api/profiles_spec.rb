@@ -124,6 +124,41 @@ RSpec.describe "API::Profiles", type: :request do
       expect(Profile.resolve_slug(victim.permanent_slug)).to eq([victim, :permanent])
     end
 
+    # `#update` asked slug_unavailable_reason before saving; `#create` never
+    # did, so a new page could be created straight onto someone else's legacy
+    # address — and since resolve_slug prefers `slug`, take it over. The check
+    # lives on the model now, so every write path gets it.
+    it "refuses to create a page on another profile's legacy address" do
+      victim.update_columns(legacy_slug: "river-stone-old")
+
+      post "/api/profiles",
+           params: { profile: { username: "pat-x", slug: "river-stone-old" } },
+           headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Profile.resolve_slug("river-stone-old")).to eq([victim, :legacy])
+    end
+
+    it "refuses to create a page on a communicator's username" do
+      other = FactoryBot.create(:child_account, user: owner, owner: owner, username: "max-power")
+
+      post "/api/profiles",
+           params: { profile: { username: "pat-y", slug: other.username } },
+           headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    # Not a collision — same entity. A communicator's own page legitimately
+    # carries a slug derived from its own username, which is what every legacy
+    # name-derived page looks like.
+    it "still lets a communicator's own page keep a slug matching its username" do
+      other = FactoryBot.create(:child_account, user: owner, owner: owner, username: "max-power")
+      page = Profile.new(profileable: other, username: "max-power", slug: "max-power")
+
+      expect(page).to be_valid
+    end
+
     # check_slug must not become an oracle for which generated slugs exist —
     # a permanent one can never be rotated away once known.
     it "answers check_slug with 'reserved', revealing nothing about what exists" do
