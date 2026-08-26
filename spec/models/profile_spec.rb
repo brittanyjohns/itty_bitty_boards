@@ -970,6 +970,108 @@ RSpec.describe Profile, type: :model do
       profile.update_columns(legacy_slug: "emma-jones")
       expect(Profile.slug_available?("emma-jones")).to be(false)
     end
+
+    # A permanent slug is a live address on a printed tag. Letting someone else
+    # claim it as their public slug would hijack that QR.
+    it "is false when the value matches another profile's permanent_slug" do
+      profile = Profile.new(profileable: child, username: "emma").tap(&:save!)
+      expect(Profile.slug_available?(profile.permanent_slug)).to be(false)
+    end
+  end
+
+  # `permanent_slug` is the address a printed QR resolves through. It exists so
+  # `slug` is free to change — the two requirements (stable for paper,
+  # revocable for people) can't live in one column (#774).
+  describe "#ensure_permanent_slug" do
+    it "assigns one to every new profile, safety or not" do
+      safety = Profile.new(profileable: child, username: "emma").tap(&:save!)
+      page = Profile.new(profileable: user, profile_kind: "public_page", username: "pat").tap(&:save!)
+
+      expect(safety.permanent_slug).to match(/\As-[a-z0-9]{6}\z/)
+      expect(page.permanent_slug).to match(/\As-[a-z0-9]{6}\z/)
+      expect(safety.permanent_slug).not_to eq(page.permanent_slug)
+    end
+
+    it "is distinct from the public slug, so the two can diverge" do
+      profile = Profile.new(profileable: child, username: "emma").tap(&:save!)
+      expect(profile.permanent_slug).not_to eq(profile.slug)
+    end
+
+    it "falls back to the public slug for a row the backfill hasn't reached" do
+      profile = build_profile(slug: "emma-jones").tap(&:save!)
+      profile.update_columns(permanent_slug: nil)
+
+      expect(profile.reload.printable_slug).to eq("emma-jones")
+      expect(profile.permanent_url).to end_with("/my/emma-jones")
+    end
+  end
+
+  describe "#rotate_slug!" do
+    let(:profile) { Profile.new(profileable: child, username: "emma").tap(&:save!) }
+
+    it "replaces the public slug with a new random one" do
+      old_slug = profile.slug
+      profile.rotate_slug!
+
+      expect(profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+      expect(profile.slug).not_to eq(old_slug)
+      expect(profile.slug_type).to eq("random")
+    end
+
+    # Revocation, not renaming: preserving the old address as legacy_slug would
+    # leave a leaked link 301ing to the new one.
+    it "does not preserve the old address, and clears any it was carrying" do
+      profile.update_columns(legacy_slug: "emma-jones")
+
+      profile.rotate_slug!
+
+      expect(profile.legacy_slug).to be_nil
+    end
+
+    it "leaves the printed address alone" do
+      printed = profile.permanent_slug
+      profile.rotate_slug!
+      expect(profile.permanent_slug).to eq(printed)
+    end
+
+    it "assigns a permanent slug first if the row hasn't got one yet" do
+      profile.update_columns(permanent_slug: nil)
+      profile.reload.rotate_slug!
+      expect(profile.permanent_slug).to match(/\As-[a-z0-9]{6}\z/)
+    end
+  end
+
+  describe ".resolve_slug" do
+    let!(:profile) { Profile.new(profileable: child, username: "emma").tap(&:save!) }
+
+    it "finds by the public slug and calls it canonical" do
+      expect(Profile.resolve_slug(profile.slug)).to eq([profile, :canonical])
+    end
+
+    it "finds by the permanent slug and calls it permanent" do
+      expect(Profile.resolve_slug(profile.permanent_slug)).to eq([profile, :permanent])
+    end
+
+    it "finds by the legacy slug and calls it legacy" do
+      profile.update_columns(legacy_slug: "emma-jones")
+      expect(Profile.resolve_slug("emma-jones")).to eq([profile, :legacy])
+    end
+
+    it "returns nothing for an unknown or blank value" do
+      expect(Profile.resolve_slug("nobody-here")).to eq([nil, nil])
+      expect(Profile.resolve_slug("")).to eq([nil, nil])
+      expect(Profile.resolve_slug(nil)).to eq([nil, nil])
+    end
+
+    # The address someone is actually using wins over any other column that
+    # could match it.
+    it "prefers the public slug over another profile's legacy slug" do
+      other_child = FactoryBot.create(:child_account, user: user, owner: user)
+      other = Profile.new(profileable: other_child, username: "max").tap(&:save!)
+      other.update_columns(legacy_slug: profile.slug)
+
+      expect(Profile.resolve_slug(profile.slug)).to eq([profile, :canonical])
+    end
   end
 
   # The public MySpeak page falls back to synthesizing on EVERY tap when a clip

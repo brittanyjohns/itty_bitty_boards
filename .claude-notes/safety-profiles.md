@@ -705,6 +705,68 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
   **301-redirects** to the current slug, so printed cards / bookmarks keep
   working. `Profile.slug_available?` also checks `legacy_slug` so a freed-up old
   slug can't be re-squatted.
+
+## Three addresses: `slug`, `permanent_slug`, `legacy_slug`
+
+A profile resolves through three columns, and they answer different questions.
+`Profile.resolve_slug` is the ONLY thing that knows all three; it returns
+`[profile, :canonical | :permanent | :legacy]`.
+
+| column | what it is | on a match |
+|---|---|---|
+| `slug` | the address a person reads; may change | serve |
+| `permanent_slug` | what a printed QR resolves through; assigned at create, never rewritten | serve **directly** |
+| `legacy_slug` | a deprecated address | **301** to `slug` |
+
+- **Why the split exists.** Paper needs an address that never moves; people need
+  one they can change or revoke. One column can serve only one of those, and
+  the moment a rename had to preserve the printed target, `slug` had to be
+  frozen — which is precisely what left a leaked link unrevocable. Separating
+  them is what makes both possible.
+- **A `permanent_slug` match is served, not redirected.** Redirecting it would
+  make the printed address depend on whatever `slug` holds today, which is the
+  one thing it must not do. `legacy_slug` still 301s, because that one really is
+  deprecated.
+- **`Profile#permanent_url` is what every printed artifact renders** —
+  `GenerateDeviceTag`, `GenerateSafetyIdCard`, and `GenerateCarePlan` (which
+  also prints the URL as readable text beside its QR, since these get
+  photocopied). None of them may use `public_url`.
+- **Every public surface must resolve all three**, or a link half-works: the
+  page opens and the gated Emergency Info reveal 404s behind it. `#public`,
+  `#safety_view`, `#care_view` and `#check_placeholder` all go through the
+  resolver for that reason.
+- **Nullable, with a fallback.** `printable_slug` is `permanent_slug || slug`,
+  so a row the backfill hasn't reached keeps working and simply doesn't have the
+  guarantee yet — which is exactly what its already-printed tag says anyway.
+  Backfill: `rake profiles:backfill_permanent_slugs`, dry-run by default. It
+  deliberately does **not** re-render tags; an existing tag points at the
+  current public slug, which still resolves, and mass-regenerating would email
+  every parent about a card that works fine.
+- `Profile.generate_random_slug` and `.slug_available?` check all three columns
+  — a "fresh" random slug that collided with a printed QR target, or a public
+  slug someone set to another profile's `permanent_slug`, would hijack a tag.
+
+## Revoking a link (`rotate_slug!`)
+
+An unguessable URL is still a **bearer token**: whoever a `/my/s-k8x2mf` link
+was shared with — a school aide, an ex-partner, a group chat — keeps access
+until the address changes. `POST /api/profiles/:id/rotate_slug` ("Get a new
+link") is the answer, and it is deliberately not renaming.
+
+- **It does not keep the old address.** `legacy_slug` exists to stop a rename
+  breaking shared links; here breaking them IS the request, so the old slug is
+  dropped and any stored `legacy_slug` is cleared as well. A leaked address that
+  still 301s is not revoked.
+- **Not gated on `slug_editable?`.** That governs choosing a *name*; refusing to
+  revoke until a 7-day window opens would be backwards.
+- **It costs no reprint** — the QR resolves through `permanent_slug`, which
+  rotation never touches. `RegenerateSafetyCardsJob` still runs once, for a tag
+  rendered before the column existed; after that first rotation a profile's
+  paper is immune to every future one. A row with no `permanent_slug` gets one
+  before rotating, so rotation self-heals rather than stranding that tag.
+- Owner-only (`can_manage_profile?`, the same rule `#update` enforces), admins
+  included. The response echoes `previous_slug` so the UI can say what stopped
+  working.
 - **Backfill + cards:** `rake profiles:migrate_to_random_slugs` is **dry-run by
   default** (reports what would change, enqueues nothing); apply with
   `DRY_RUN=false`, scope with `USER_ID=N`. When applied it migrates every

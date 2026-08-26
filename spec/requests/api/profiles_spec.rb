@@ -233,6 +233,104 @@ RSpec.describe "API::Profiles", type: :request do
     end
   end
 
+  # An unguessable link is still a bearer token: whoever it was shared with
+  # keeps access until the address changes. Renaming is refused for a safety
+  # page (that's the point of the random slug), so revocation is its own action.
+  describe "POST /api/profiles/:id/rotate_slug" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner) }
+    let!(:profile) do
+      Profile.new(profileable: child, username: "river-stone").tap(&:save!)
+    end
+
+    before do
+      allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    end
+
+    def rotate(as: owner)
+      post "/api/profiles/#{profile.id}/rotate_slug", headers: auth_headers(as)
+    end
+
+    it "mints a new random slug and reports the one it replaced" do
+      old_slug = profile.slug
+
+      rotate
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["previous_slug"]).to eq(old_slug)
+      expect(body["slug"]).to match(/\As-[a-z0-9]{6}\z/)
+      expect(body["slug"]).not_to eq(old_slug)
+      expect(profile.reload.slug_type).to eq("random")
+    end
+
+    # The point of rotating is that the old address STOPS working. Keeping it
+    # as legacy_slug — which is right for a rename — would leave the leaked
+    # link 301ing to the new one, i.e. not revoked at all.
+    it "kills the old address instead of preserving it" do
+      old_slug = profile.slug
+      rotate
+
+      expect(profile.reload.legacy_slug).to be_nil
+
+      get "/api/profiles/public/#{old_slug}"
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "clears a legacy slug the profile was already carrying" do
+      profile.update_columns(legacy_slug: "river-stone")
+
+      rotate
+
+      expect(profile.reload.legacy_slug).to be_nil
+      get "/api/profiles/public/river-stone"
+      expect(response).to have_http_status(:not_found)
+    end
+
+    # The whole reason permanent_slug exists: revoking a link must not cost a
+    # reprint of the tag stuck to the child's iPad.
+    it "leaves the printed address untouched and still resolving" do
+      permanent = profile.permanent_slug
+      expect(permanent).to be_present
+
+      rotate
+
+      expect(profile.reload.permanent_slug).to eq(permanent)
+      get "/api/profiles/public/#{permanent}"
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "regenerates the safety card once, for a tag printed before the column existed" do
+      expect {
+        rotate
+      }.to have_enqueued_job(RegenerateSafetyCardsJob).with(profile.id)
+    end
+
+    it "assigns a permanent slug first when the backfill hasn't reached the row" do
+      profile.update_columns(permanent_slug: nil)
+
+      rotate
+
+      expect(profile.reload.permanent_slug).to match(/\As-[a-z0-9]{6}\z/)
+    end
+
+    it "refuses someone who doesn't own the communicator" do
+      stranger = FactoryBot.create(:user)
+      old_slug = profile.slug
+
+      rotate(as: stranger)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      expect(profile.reload.slug).to eq(old_slug)
+    end
+
+    it "requires authentication" do
+      post "/api/profiles/#{profile.id}/rotate_slug"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe "GET /api/profiles/check_slug" do
     it "returns available: true for a fresh, well-formed slug" do
       get "/api/profiles/check_slug", params: { slug: "totally-fresh" }

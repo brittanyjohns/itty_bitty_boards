@@ -118,6 +118,7 @@ class Profile < ApplicationRecord
 
   before_validation :set_defaults, on: :create
   before_validation :ensure_slug, on: :create
+  before_validation :ensure_permanent_slug, on: :create
 
   before_save :set_kind
   before_save :touch_slug_changed_at
@@ -153,10 +154,39 @@ class Profile < ApplicationRecord
   RANDOM_SLUG_CHARS = (("a".."z").to_a + ("0".."9").to_a - %w[0 o 1 l i]).freeze
   RANDOM_SLUG_LENGTH = 6
 
+  # Every column a URL can resolve through has to be checked, or a "fresh"
+  # random slug can collide with a printed QR target or a redirect source.
   def self.generate_random_slug
     loop do
       candidate = "s-" + Array.new(RANDOM_SLUG_LENGTH) { RANDOM_SLUG_CHARS.sample(random: SecureRandom) }.join
-      break candidate unless exists?(slug: candidate) || exists?(legacy_slug: candidate)
+      break candidate unless exists?(slug: candidate) ||
+                             exists?(legacy_slug: candidate) ||
+                             exists?(permanent_slug: candidate)
+    end
+  end
+
+  # THE single answer to "which profile does this URL segment name". Three
+  # columns can resolve, and every public surface has to agree on all three or
+  # a link half-works: the page opens and the Emergency Info reveal 404s.
+  # Returns [profile, kind] where kind is :canonical, :permanent, or :legacy.
+  #
+  # Order is deliberate. `slug` first, so the address someone is actually using
+  # wins. `permanent_slug` next, served DIRECTLY rather than redirected — it is
+  # what a printed QR points at, and resolving it must never depend on the
+  # mutable `slug` still holding any particular value. `legacy_slug` last,
+  # which the caller 301s, because that one IS a deprecated address.
+  def self.resolve_slug(value)
+    value = value.to_s.strip.downcase
+    return [nil, nil] if value.blank?
+
+    if (found = find_by(slug: value))
+      [found, :canonical]
+    elsif (found = find_by(permanent_slug: value))
+      [found, :permanent]
+    elsif (found = find_by(legacy_slug: value))
+      [found, :legacy]
+    else
+      [nil, nil]
     end
   end
 
@@ -227,17 +257,33 @@ class Profile < ApplicationRecord
 
   # --- Public URLs ---
   def public_url
-    return nil if slug.blank?
+    url_for_slug(slug)
+  end
+
+  # What a printed QR points at. Falls back to `slug` for a row the backfill
+  # hasn't reached (`rake profiles:backfill_permanent_slugs`), which is exactly
+  # what such a row's already-printed tag says anyway — so an un-backfilled
+  # profile keeps working and simply doesn't gain the guarantee yet.
+  def printable_slug
+    permanent_slug.presence || slug
+  end
+
+  def permanent_url
+    url_for_slug(printable_slug)
+  end
+
+  def url_for_slug(value)
+    return nil if value.blank?
 
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     role = profileable&.role.to_s
 
     if role.include?("vendor")
-      "#{base_url}/v/#{slug}"
+      "#{base_url}/v/#{value}"
     elsif profileable_type == "User"
-      "#{base_url}/u/#{slug}"
+      "#{base_url}/u/#{value}"
     else
-      "#{base_url}/my/#{slug}"
+      "#{base_url}/my/#{value}"
     end
   end
 
@@ -351,6 +397,12 @@ class Profile < ApplicationRecord
       slug_editable: slug_editable?,
       slug_changed_at: slug_changed_at,
       slug_editable_at: slug_editable_at,
+      # The printed address, so the owner's page can show what a device tag
+      # already points at and explain why revoking their link is safe. This is
+      # the AUTHENTICATED view — it never rides on a public payload, where it
+      # would just be a second guessable-by-nobody URL to leak.
+      permanent_slug: permanent_slug,
+      permanent_url: permanent_url,
       bio: bio,
       intro: intro,
       profile_kind: profile_kind,
@@ -1265,6 +1317,21 @@ class Profile < ApplicationRecord
     end
   end
 
+  # The identifier a printed QR resolves through, assigned once and never
+  # rewritten — that is the entire point of it. `slug` is the address a person
+  # reads and may have to change (a leaked link must be revocable); a device
+  # tag is stuck to a child's iPad and cannot. Keeping both in one column is
+  # what forced `slug` to be frozen: the moment a rename had to preserve the
+  # printed target, the column could only hold one of the two.
+  #
+  # Assigned to EVERY profile, not just safety ones — a vendor page's card is
+  # printed too, and a rule with an exception is a rule someone forgets.
+  def ensure_permanent_slug
+    return if permanent_slug.present?
+
+    self.permanent_slug = self.class.generate_random_slug
+  end
+
   # --- Slug edit window ---
   # Returns true if the slug can be changed right now — either it has never
   # been edited (post-create) or the SLUG_EDIT_WINDOW has elapsed since the
@@ -1286,6 +1353,31 @@ class Profile < ApplicationRecord
     slug_type == "random"
   end
 
+  # Revocation, not renaming. An unguessable URL is still a bearer token — a
+  # link handed to a school aide, an ex-partner, or a group chat works forever
+  # for whoever holds it — so the owner needs a way to KILL it, which is the
+  # one thing a permanently-frozen slug can't do.
+  #
+  # Deliberately does NOT keep the old slug: `legacy_slug` exists to stop a
+  # rename breaking shared links, and here breaking them IS the request. Any
+  # legacy slug already stored is cleared for the same reason — a leaked
+  # address that still 301s is not revoked.
+  #
+  # `permanent_slug` is untouched, which is the whole point: the QR on the
+  # device tag goes on resolving, so revoking a link never costs a reprint. A
+  # row the backfill hasn't reached gets one here first, so rotation
+  # self-heals rather than stranding that tag.
+  def rotate_slug!
+    ensure_permanent_slug
+
+    update!(
+      slug: self.class.generate_random_slug,
+      slug_type: "random",
+      legacy_slug: nil,
+      slug_changed_at: Time.current,
+    )
+  end
+
   def slug_editable_at
     return nil if slug_changed_at.blank?
     slug_changed_at + SLUG_EDIT_WINDOW
@@ -1302,6 +1394,7 @@ class Profile < ApplicationRecord
     profile_scope = Profile.where(slug: value)
                            .or(Profile.where(username: value))
                            .or(Profile.where(legacy_slug: value))
+                           .or(Profile.where(permanent_slug: value))
     profile_scope = profile_scope.where.not(id: except_id) if except_id
     return false if profile_scope.exists?
 

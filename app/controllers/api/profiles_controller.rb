@@ -28,18 +28,19 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def public
-    @profile = Profile.find_by(slug: params[:slug])
+    @profile, resolved_by = Profile.resolve_slug(params[:slug])
 
     # Legacy-slug fallback — a safety profile migrated to a random slug keeps
     # its old name-based slug in `legacy_slug`. Printed cards, bookmarks, and
     # search results that still point at the old URL get a permanent redirect
     # to the current slug so they keep working.
-    if @profile.nil?
-      legacy_match = Profile.find_by(legacy_slug: params[:slug])
-      if legacy_match
-        redirect_to "/api/profiles/public/#{legacy_match.slug}", status: :moved_permanently
-        return
-      end
+    #
+    # A `permanent_slug` match is NOT redirected: it's the QR target on a
+    # device tag, so it serves the page directly and never depends on what the
+    # public slug happens to be today.
+    if resolved_by == :legacy
+      redirect_to "/api/profiles/public/#{@profile.slug}", status: :moved_permanently
+      return
     end
 
     if @profile.nil?
@@ -78,8 +79,9 @@ class API::ProfilesController < API::ApplicationController
   # zero-friction and notification-free while the actual emergency reveal is
   # both logged and visible to the family.
   def safety_view
-    profile = Profile.find_by(slug: params[:slug]) ||
-              Profile.find_by(legacy_slug: params[:slug])
+    # Resolves the canonical, printed (permanent), and legacy addresses alike —
+    # a QR that opens the page must not 404 on the reveal behind it.
+    profile, = Profile.resolve_slug(params[:slug])
 
     if profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
@@ -111,8 +113,9 @@ class API::ProfilesController < API::ApplicationController
   # reading them is routine; routing them through the emergency alert would
   # train parents to ignore it.
   def care_view
-    profile = Profile.find_by(slug: params[:slug]) ||
-              Profile.find_by(legacy_slug: params[:slug])
+    # Resolves the canonical, printed (permanent), and legacy addresses alike —
+    # a QR that opens the page must not 404 on the reveal behind it.
+    profile, = Profile.resolve_slug(params[:slug])
 
     if profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
@@ -215,7 +218,8 @@ class API::ProfilesController < API::ApplicationController
           render json: {
             error: "slug_permanent",
             message: "This link is randomly generated so the page can't be found by " \
-                     "guessing a name, so it can't be changed.",
+                     "guessing a name, so it can't be renamed. If you need to stop " \
+                     "an old link working, get a new one instead.",
           }, status: :unprocessable_content
           return
         end
@@ -264,6 +268,36 @@ class API::ProfilesController < API::ApplicationController
         details: profile.errors.full_messages,
       }, status: :unprocessable_content
     end
+  end
+
+  # "Get a new link" — mints a fresh random slug and drops the old one.
+  #
+  # This is the answer to a LEAKED link, which a permanently-frozen slug had no
+  # answer for: an unguessable URL is still a bearer token, and whoever holds it
+  # keeps access until the address changes. Not gated on `slug_editable?` — that
+  # governs choosing a name, and refusing to revoke until a 7-day window opens
+  # would be exactly backwards.
+  #
+  # The printed device tag is unaffected (its QR resolves through
+  # `permanent_slug`), but a tag rendered before that column existed still
+  # points at the old address, so the card is regenerated once here. After that
+  # first rotation a profile's paper is immune to every future one.
+  def rotate_slug
+    profile = Profile.find(params[:id])
+
+    unless can_manage_profile?(profile)
+      render json: { error: "not_owner" }, status: :forbidden
+      return
+    end
+
+    previous_slug = profile.slug
+    profile.rotate_slug!
+    RegenerateSafetyCardsJob.perform_later(profile.id) if profile.safety?
+
+    render json: profile.api_view(current_user).merge(previous_slug: previous_slug)
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.warn "[Profiles#rotate_slug] #{e.record.errors.full_messages.join(", ")}"
+    render json: { error: "slug_rotation_failed" }, status: :unprocessable_content
   end
 
   # Live availability check used by the slug picker UI. Returns the same
@@ -331,7 +365,9 @@ class API::ProfilesController < API::ApplicationController
   # end
 
   def check_placeholder
-    profile = Profile.find_by(slug: params[:slug])
+    # This is the printed-card path by definition — someone is typing what's on
+    # a card — so it resolves the permanent address too.
+    profile, = Profile.resolve_slug(params[:slug])
     profile = Profile.find_by(claim_token: params[:slug]) if profile.nil?
     if profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
@@ -385,6 +421,19 @@ class API::ProfilesController < API::ApplicationController
   end
 
   private
+
+  # Same ownership rule #update enforces, in one place so a second write path
+  # can't drift from it: a communicator's page is owner-only, a user's own page
+  # is theirs, and an admin may act on either.
+  def can_manage_profile?(profile)
+    return true if current_user&.admin?
+
+    if profile.profileable_type == "ChildAccount"
+      profile.profileable.editable_by?(current_user)
+    else
+      profile.profileable_id == current_user&.id && profile.profileable_type == "User"
+    end
+  end
 
   # Maps a Profile.slug_unavailable_reason symbol to the JSON shape the
   # client renders next to the slug field. Keep error codes in sync with

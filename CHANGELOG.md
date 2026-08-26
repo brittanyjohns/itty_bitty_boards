@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **You can now get a new link for a MySpeak page, and printed tags keep
+  working.** If a page's link has been shared with someone who shouldn't still
+  have it, "Get a new link" replaces it — and the old one stops working
+  entirely, which is the point. Until now the link could never be changed, so a
+  link that got out stayed out. The QR on a device tag, safety card, or care
+  plan is unaffected: those now point at a separate permanent address that is
+  assigned once and never changes, so revoking a link never means reprinting
+  anything. Existing pages get their permanent address from
+  `rake profiles:backfill_permanent_slugs` (previews by default).
 - **A kit landing page can now give away a PDF you upload, not just a board
   printable.** `/admin/kit_pages` has a Document card: drop in one or more PDFs
   and they become the page's download, so a parent handout or a workshop packet
@@ -79,6 +88,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   pages it moves. A communicator page's random address can't be edited (that
   is the point of it), and trying now explains why instead of showing "You can
   change your link again on ." with no date.
+
 - **"Make this my editable board" no longer reports success while changing
   nothing.** `PATCH /api/boards/:id/make_editable` wrote `editable_board_id`
   and always answered 200, but the read-only gate resolves the edit slot

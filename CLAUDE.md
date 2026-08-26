@@ -516,6 +516,33 @@ an explicit decision, not a drive-by edit.
   rows: `rake profiles:migrate_to_random_slugs`, dry-run by default, which keeps
   the old slug resolving via `legacy_slug` + 301 — so it moves the canonical URL
   but does not make an already-exposed page unfindable.
+- **A profile has THREE resolvable addresses and they mean different things;
+  `Profile.resolve_slug` is the only place that knows all of them.** `slug` is
+  the address a person reads and may have to change; `permanent_slug` is what a
+  printed QR resolves through, assigned once at create and NEVER rewritten;
+  `legacy_slug` is a deprecated address kept alive by a 301. Keeping the first
+  two in one column is what forced the slug to be frozen at all — paper needs
+  stability, people need revocability, and one column can only serve one of
+  them. So the device tag, safety card and care plan all render
+  `Profile#permanent_url`, never `public_url`, and a `permanent_slug` match is
+  served DIRECTLY rather than redirected: the printed address must never depend
+  on what `slug` happens to hold today. Every public surface has to resolve all
+  three or a link half-works — the page opens and the Emergency Info reveal
+  404s — which is why `#public`, `#safety_view`, `#care_view` and
+  `#check_placeholder` all go through the one resolver. The column is nullable
+  and `printable_slug` falls back to `slug`, so a row the backfill
+  (`rake profiles:backfill_permanent_slugs`) hasn't reached still works.
+- **An unguessable link is still a bearer token — revocation is `rotate_slug!`,
+  and it is NOT renaming.** Whoever a `/my/s-k8x2mf` link was shared with keeps
+  access until the address changes, and a permanently-frozen slug had no answer
+  for that. `POST /api/profiles/:id/rotate_slug` mints a fresh random slug and
+  deliberately does **not** keep the old one — `legacy_slug` exists to stop a
+  rename breaking shared links, and here breaking them IS the request, so any
+  stored legacy slug is cleared too. It is not gated on `slug_editable?`: that
+  governs choosing a *name*, and refusing to revoke until a 7-day window opens
+  would be backwards. Rotation costs no reprint because the QR resolves through
+  `permanent_slug`; it regenerates the card once for a tag rendered before that
+  column existed.
 - **A communicator's MySpeak page is FREE on every plan — the communicator SLOT
   is the quota, never a Profile count.** Every communicator auto-mints exactly
   one `Profile` at create time (`ChildAccount#create_profile!`, called from

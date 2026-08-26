@@ -54,7 +54,9 @@ module Communicators
       {
         profile: profile,
         avatar_data_url: avatar_data_url,
-        qr_data_url: qr_data_url_for(effective_qr_url(profile.public_url)),
+        # `permanent_url` — printed card, same rule as the device tag: the QR
+        # must survive the owner changing or revoking their public link.
+        qr_data_url: qr_data_url_for(effective_qr_url(profile.permanent_url)),
         logo: logo_base64,
         display_name: profile.safety_display_name,
         emergency_notes: settings["emergency_notes"].presence || "Please call my emergency contacts.",

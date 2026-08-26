@@ -134,4 +134,56 @@ namespace :profiles do
 
     puts "Copied: #{copied}, Skipped: #{skipped}"
   end
+
+  # Assign the permanent (printed-QR) slug to every profile that predates the
+  # column. Idempotent — a row that already has one is skipped, and a permanent
+  # slug is never regenerated, which is the whole guarantee.
+  #
+  # Deliberately does NOT re-render device tags. An existing tag points at the
+  # profile's current public slug, which still resolves; it starts pointing at
+  # the permanent slug the next time it is regenerated for any reason (a
+  # rotation regenerates it explicitly). Mass-regenerating would email every
+  # parent about a card that works fine.
+  #
+  # Read-only by default (reports what would change). Apply with DRY_RUN=false.
+  #
+  #   rake profiles:backfill_permanent_slugs                 # preview
+  #   DRY_RUN=false rake profiles:backfill_permanent_slugs   # apply
+  desc "Assign permanent_slug to profiles missing one (DRY_RUN=false to apply)"
+  task backfill_permanent_slugs: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    scope = Profile.where(permanent_slug: nil)
+    assigned = 0
+    skipped = 0
+
+    scope.find_each(batch_size: 100) do |profile|
+      if dry_run
+        puts "[DRY RUN] profile ##{profile.id} #{profile.slug.inspect} -> permanent slug"
+        assigned += 1
+        next
+      end
+
+      # update_columns skips validations/callbacks on purpose: an old row may
+      # carry a slug the current format rules would reject, and this task has
+      # no business failing on a field it isn't touching.
+      profile.update_columns(
+        permanent_slug: Profile.generate_random_slug,
+        updated_at: Time.current,
+      )
+      assigned += 1
+    rescue => e
+      Rails.logger.error("Failed to backfill permanent_slug for profile #{profile.id}: #{e.message}")
+      puts "  ! profile ##{profile.id} failed: #{e.message}"
+      skipped += 1
+    end
+
+    if dry_run
+      puts "Dry run only - #{assigned} profile(s) would be assigned a permanent slug. " \
+           "Re-run with DRY_RUN=false to apply."
+      next
+    end
+
+    puts "Assigned: #{assigned}, Skipped: #{skipped}"
+  end
 end
