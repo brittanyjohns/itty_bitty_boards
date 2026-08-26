@@ -94,12 +94,14 @@ RSpec.describe ChildAccount, "status lifecycle", type: :model do
 
     it "emits the canonical public_url so dashboards match the full api_view" do
       account = FactoryBot.create(:child_account, user: user, username: "molly")
-      Profile.create!(profileable: account, username: "molly", slug: "s-8bdsv4")
+      # No explicit slug: the generated shape is reserved for slugs the app
+      # assigns, so a safety profile takes its random one from ensure_slug.
+      profile = Profile.create!(profileable: account, username: "molly")
       account.reload
 
       expect(account.index_api_view[:public_url]).to eq(account.public_url)
       expect(account.index_api_view[:public_url]).to eq(account.api_view(user)[:public_url])
-      expect(account.index_api_view[:public_url]).to end_with("/my/s-8bdsv4")
+      expect(account.index_api_view[:public_url]).to end_with("/my/#{profile.slug}")
     end
 
     it "emits communicator_board_ids across both join paths (clone source AND direct attach)" do

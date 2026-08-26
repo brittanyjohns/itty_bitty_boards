@@ -742,9 +742,54 @@ A profile resolves through three columns, and they answer different questions.
   deliberately does **not** re-render tags; an existing tag points at the
   current public slug, which still resolves, and mass-regenerating would email
   every parent about a card that works fine.
-- `Profile.generate_random_slug` and `.slug_available?` check all three columns
-  — a "fresh" random slug that collided with a printed QR target, or a public
-  slug someone set to another profile's `permanent_slug`, would hijack a tag.
+- **Nullable, but self-healing.** `ensure_permanent_slug` runs on every save
+  (not just create) and no-ops when one is set, so a row predating the column
+  fills itself in the next time it is touched rather than waiting on the
+  backfill.
+
+### Uniqueness: per-column indexes are NOT enough
+
+All three columns carry unique indexes (`slug` outright, `legacy_slug` and
+`permanent_slug` partial on `IS NOT NULL`). That is **within-column** only —
+nothing at the DB level stopped one profile's `slug` equalling another's
+`permanent_slug`, and since `resolve_slug` prefers `slug`, **the claimant won**:
+the victim's printed QR resolved to the claimant's page. It was reachable
+through the ordinary create and update endpoints, not just by chance.
+
+`Profile::RANDOM_SLUG_PATTERN` (`/\As-[a-z0-9]{6}\z/`, the exact shape
+`generate_random_slug` emits) is therefore **reserved**, enforced by
+`slug_not_generated_shape`. A user-chosen slug and a generated one can no longer
+occupy the same namespace at all, which is stronger than any cross-column
+lookup could be.
+
+- The validation allows the shape when `slug_type == "random"` — that is how the
+  app records that IT assigned the slug, and `ensure_slug` / `rotate_slug!` set
+  both together.
+- `slug_unavailable_reason` answers `:reserved` for the shape **before** the
+  availability lookup. Answering `:taken` would turn `check_slug` into an oracle
+  for which generated slugs exist — and unlike a public slug, a permanent one
+  can never be rotated away once known.
+- `ensure_slug` nudges a name that innocently parameterizes into the shape
+  ("S Abc123" → `s-abc123-page`) rather than 422ing a legitimate signup.
+- `generate_random_slug` and `slug_available?` still check all three columns as
+  defence in depth.
+
+**Cross-column availability is validated on the MODEL, not in a controller.**
+`validates :slug, uniqueness: true` is same-column only, and four things
+resolve a URL: `slug`, `permanent_slug`, `legacy_slug`, and
+`ChildAccount#username`. `#update` asked `slug_unavailable_reason` before
+saving; **`#create` never did**, so a new page could be created straight onto
+another profile's legacy address and — since `resolve_slug` prefers `slug` —
+take it over. `slug_available_across_columns` closes that for every write path,
+controllers and rake tasks and console alike. It skips when another slug
+validation already failed, so the error stays specific.
+
+`slug_available?` takes `except_child_account_id:` for the one case that looks
+like a collision but isn't: a communicator's own page carrying a slug derived
+from its own `ChildAccount#username`, which is what every legacy name-derived
+page looks like. Without it the validation would reject them all.
+- It runs under `slug_format_validatable?` (new records, or when the slug is
+  actually changing), so existing rows are undisturbed.
 
 ## Revoking a link (`rotate_slug!`)
 

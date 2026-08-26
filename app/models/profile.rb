@@ -114,11 +114,16 @@ class Profile < ApplicationRecord
   validates :slug, format: { with: SLUG_FORMAT, message: "must be 3–40 lowercase letters, numbers, or hyphens" }, if: :slug_format_validatable?
   validate :slug_not_reserved, if: :slug_format_validatable?
   validate :slug_not_pure_numeric, if: :slug_format_validatable?
+  validate :slug_not_generated_shape, if: :slug_format_validatable?
+  validate :slug_available_across_columns, if: :slug_format_validatable?
   validates :claim_token, presence: true, uniqueness: true, if: -> { placeholder? }
 
   before_validation :set_defaults, on: :create
   before_validation :ensure_slug, on: :create
-  before_validation :ensure_permanent_slug, on: :create
+  # Not `on: :create` — it no-ops when one is already set, so running on every
+  # save lets a row that predates the column self-heal the next time it is
+  # touched, instead of waiting on the backfill to reach it.
+  before_validation :ensure_permanent_slug
 
   before_save :set_kind
   before_save :touch_slug_changed_at
@@ -153,6 +158,18 @@ class Profile < ApplicationRecord
   # card or device tag can't be mistyped. Example: "s-k8x2mf".
   RANDOM_SLUG_CHARS = (("a".."z").to_a + ("0".."9").to_a - %w[0 o 1 l i]).freeze
   RANDOM_SLUG_LENGTH = 6
+
+  # The SHAPE of a generated slug, which is reserved: a user may never choose a
+  # slug that looks like one. Uniqueness indexes are per-column, so nothing at
+  # the DB level stops one profile's `slug` equalling another's
+  # `permanent_slug` — and `resolve_slug` prefers `slug`, so whoever claimed it
+  # WINS and the victim's printed QR silently resolves to the claimant's page.
+  # Checking availability across the columns is not enough on its own either:
+  # answering "taken" for a permanent slug turns `check_slug` into an oracle for
+  # which ones exist, and unlike a public slug a permanent one can never be
+  # rotated away. Refusing the shape outright closes both — a user-chosen slug
+  # and a generated one can no longer occupy the same namespace at all.
+  RANDOM_SLUG_PATTERN = /\As-[a-z0-9]{#{RANDOM_SLUG_LENGTH}}\z/
 
   # Every column a URL can resolve through has to be checked, or a "fresh"
   # random slug can collide with a printed QR target or a redirect source.
@@ -1313,7 +1330,12 @@ class Profile < ApplicationRecord
       self.slug = self.class.generate_random_slug
       self.slug_type = "random"
     elsif username.present?
-      self.slug = username.to_s.parameterize
+      derived = username.to_s.parameterize
+      # A name can innocently parameterize into the generated shape ("S
+      # Abc123" -> "s-abc123"), which `slug_not_generated_shape` refuses. Nudge
+      # it out of that namespace rather than 422ing a legitimate signup.
+      derived = "#{derived}-page" if derived.match?(RANDOM_SLUG_PATTERN)
+      self.slug = derived
     end
   end
 
@@ -1387,7 +1409,11 @@ class Profile < ApplicationRecord
   # that collide with any Profile.slug, Profile.username, or
   # ChildAccount.username — we mirror that here so editing and onboarding
   # agree on what "available" means.
-  def self.slug_available?(value, except_id: nil)
+  # `except_child_account_id` is how a communicator's OWN page is allowed to
+  # carry a slug derived from its own `ChildAccount#username` — that is not a
+  # collision, it's the same entity. Without it, validating availability on
+  # save would reject every legacy name-derived communicator page.
+  def self.slug_available?(value, except_id: nil, except_child_account_id: nil)
     value = value.to_s.strip.downcase
     return false if value.blank?
 
@@ -1398,7 +1424,9 @@ class Profile < ApplicationRecord
     profile_scope = profile_scope.where.not(id: except_id) if except_id
     return false if profile_scope.exists?
 
-    !ChildAccount.exists?(username: value)
+    child_scope = ChildAccount.where(username: value)
+    child_scope = child_scope.where.not(id: except_child_account_id) if except_child_account_id
+    !child_scope.exists?
   end
 
   # Reason codes mirror the JSON returned by ProfilesController#check_slug so
@@ -1408,6 +1436,10 @@ class Profile < ApplicationRecord
     return :format if value.blank? || !value.match?(SLUG_FORMAT)
     return :reserved if RESERVED_SLUGS.include?(value)
     return :reserved if value.match?(/\A\d+\z/)
+    # Answered BEFORE the availability lookup on purpose: reporting "taken"
+    # here would tell a caller which generated slugs exist, and a permanent one
+    # can't be rotated away once known.
+    return :reserved if value.match?(RANDOM_SLUG_PATTERN)
     return :taken unless slug_available?(value)
     nil
   end
@@ -1426,6 +1458,38 @@ class Profile < ApplicationRecord
   def slug_not_pure_numeric
     return if slug.blank?
     errors.add(:slug, "cannot be all numbers") if slug.match?(/\A\d+\z/)
+  end
+
+  # A generated slug is allowed to look like one — that's what `slug_type`
+  # records, and `ensure_slug` / `rotate_slug!` set both together. Anything
+  # else claiming the shape is refused, which is what keeps a user-chosen slug
+  # out of the generated namespace entirely (see RANDOM_SLUG_PATTERN).
+  def slug_not_generated_shape
+    return if slug.blank?
+    return if slug_type == "random"
+    return unless slug.match?(RANDOM_SLUG_PATTERN)
+
+    errors.add(:slug, "is reserved")
+  end
+
+  # `validates :slug, uniqueness: true` is SAME-COLUMN only, but three columns
+  # resolve a URL (`slug`, `permanent_slug`, `legacy_slug`) plus
+  # `ChildAccount#username` — so a slug can be "unique" and still collide with
+  # a live address. `#update` asked `slug_unavailable_reason` before saving;
+  # `#create` never did, so a new page could be created on someone else's
+  # legacy address and, because `resolve_slug` prefers `slug`, take it over.
+  # Validating on the model covers every write path — controllers, rake tasks,
+  # `create_placeholders`, console — instead of the one that remembered.
+  def slug_available_across_columns
+    return if slug.blank?
+    return if errors[:slug].any? # don't pile on a format/reserved failure
+
+    own_child_id = profileable_id if profileable_type == "ChildAccount"
+    return if self.class.slug_available?(
+      slug, except_id: id, except_child_account_id: own_child_id
+    )
+
+    errors.add(:slug, "is already in use")
   end
 
   # Records the moment slug changes — but only for edits, not the initial

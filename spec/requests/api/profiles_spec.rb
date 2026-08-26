@@ -88,6 +88,93 @@ RSpec.describe "API::Profiles", type: :request do
     end
   end
 
+  # Uniqueness indexes are per-column, so nothing at the DB level stopped one
+  # profile's `slug` equalling another's `permanent_slug` — and `resolve_slug`
+  # prefers `slug`, so the claimant WON and the victim's printed QR resolved to
+  # the claimant's page. The generated shape is reserved to close that.
+  describe "claiming a slug in the generated namespace" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner) }
+    let!(:victim) do
+      Profile.new(profileable: child, username: "river-stone").tap(&:save!)
+    end
+    let(:stranger) { FactoryBot.create(:user) }
+
+    it "refuses to create a page on another profile's permanent address" do
+      printed = victim.permanent_slug
+
+      post "/api/profiles",
+           params: { profile: { username: "pat-x", slug: printed } },
+           headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      # The printed address still resolves to the profile it belongs to.
+      expect(Profile.resolve_slug(printed)).to eq([victim, :permanent])
+    end
+
+    it "refuses to rename an existing page onto one" do
+      page = Profile.new(profileable: stranger, profile_kind: "public_page", username: "pat-x")
+                    .tap(&:save!)
+
+      put "/api/profiles/#{page.id}",
+          params: { profile: { slug: victim.permanent_slug } },
+          headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Profile.resolve_slug(victim.permanent_slug)).to eq([victim, :permanent])
+    end
+
+    # `#update` asked slug_unavailable_reason before saving; `#create` never
+    # did, so a new page could be created straight onto someone else's legacy
+    # address — and since resolve_slug prefers `slug`, take it over. The check
+    # lives on the model now, so every write path gets it.
+    it "refuses to create a page on another profile's legacy address" do
+      victim.update_columns(legacy_slug: "river-stone-old")
+
+      post "/api/profiles",
+           params: { profile: { username: "pat-x", slug: "river-stone-old" } },
+           headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Profile.resolve_slug("river-stone-old")).to eq([victim, :legacy])
+    end
+
+    it "refuses to create a page on a communicator's username" do
+      other = FactoryBot.create(:child_account, user: owner, owner: owner, username: "max-power")
+
+      post "/api/profiles",
+           params: { profile: { username: "pat-y", slug: other.username } },
+           headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    # Not a collision — same entity. A communicator's own page legitimately
+    # carries a slug derived from its own username, which is what every legacy
+    # name-derived page looks like.
+    it "still lets a communicator's own page keep a slug matching its username" do
+      other = FactoryBot.create(:child_account, user: owner, owner: owner, username: "max-power")
+      page = Profile.new(profileable: other, username: "max-power", slug: "max-power")
+
+      expect(page).to be_valid
+    end
+
+    # check_slug must not become an oracle for which generated slugs exist —
+    # a permanent one can never be rotated away once known.
+    it "answers check_slug with 'reserved', revealing nothing about what exists" do
+      get "/api/profiles/check_slug", params: { slug: victim.permanent_slug }
+      taken = JSON.parse(response.body)
+
+      get "/api/profiles/check_slug", params: { slug: "s-zzzzzz" }
+      free = JSON.parse(response.body)
+
+      # Identical verdicts for one that exists and one that doesn't. (The body
+      # also echoes the caller's own slug, which tells them nothing.)
+      expect(taken["reason"]).to eq("reserved")
+      expect(taken.slice("available", "reason")).to eq(free.slice("available", "reason"))
+    end
+  end
+
   describe "profiles routing", type: :routing do
     # API::ProfilesController defines no destroy/new/edit; a bare `resources`
     # routed these at missing actions (ActionNotFound => a 500). They now fall
