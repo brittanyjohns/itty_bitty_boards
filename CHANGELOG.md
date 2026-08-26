@@ -41,6 +41,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The admin page for a board printable no longer errors once one of its
+  listings has an Etsy draft.** The "Send video" button on a listing card asked
+  for confirm text that had been dropped when a printable gained the ability to
+  carry several listings, so opening the printable failed outright — taking
+  every listing on the page with it, not just that one button.
+
 - **A built Core 84 set no longer gains a stray tile named after the core board,
   or an extra row.** Three things stacked up. The seeded Core 84 board had two
   tiles parked on the same cell (`all done` sitting on `again`), which hid one
