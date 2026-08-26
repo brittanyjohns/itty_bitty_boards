@@ -17,6 +17,7 @@ namespace :library_images do
   #   bin/rails 'library_images:show[12]'
   #   bin/rails 'library_images:apply[12]'
   #   bin/rails 'library_images:pause[12]'
+  #   bin/rails library_images:reconcile_defaults APPLY=1
   #   bin/rails library_images:default_health
   #
   # Env: LABEL (one label only) · LIMIT (cap groups) · SAMPLE (rows to print,
@@ -96,6 +97,60 @@ namespace :library_images do
     batch.mark_paused!
     puts "Batch ##{batch.id} paused. Queued jobs will return without merging."
     puts "Resume with: bin/rails 'library_images:apply[#{batch.id}]'"
+  end
+
+  # Repair for images left with SEVERAL current docs. `docs.current` is the
+  # library default and is meant to be single-valued per image; a merge that
+  # consolidated two images each carrying their own default left the survivor
+  # with both, so Image#display_doc resolves an arbitrary one
+  # (`docs.current.last`) instead of a curated one. ImageMergeJob now reconciles
+  # this at merge time; this repairs the rows merged before it did.
+  #
+  # Keeps the NEWEST current doc and clears the rest — deterministic, and it
+  # matches what display_doc was already resolving, so no image's picture
+  # changes. Never promotes a doc that was not already a default: an image with
+  # no current doc is a different problem (default_health reports it) and is
+  # decided deliberately in the admin panel.
+  #
+  #   bin/rails library_images:reconcile_defaults            # dry run
+  #   bin/rails library_images:reconcile_defaults APPLY=1
+  desc "Collapse images left with several 'current' docs down to one (dry run unless APPLY=1)"
+  task reconcile_defaults: :environment do
+    apply = ENV["APPLY"] == "1"
+    scope = Images::DuplicateScanner.candidate_scope
+
+    ambiguous = Doc.where(documentable_type: "Image", documentable_id: scope.select(:id), current: true)
+                   .group(:documentable_id)
+                   .having("COUNT(*) > 1")
+                   .count
+
+    if ambiguous.empty?
+      puts "No library image has more than one current doc. Nothing to do."
+      next
+    end
+
+    total_cleared = 0
+    puts "#{ambiguous.size} library images carry several current docs (#{ambiguous.values.sum} flags in total)."
+    puts apply ? "Applying..." : "DRY RUN — pass APPLY=1 to write."
+
+    ambiguous.each_key.each_slice(500) do |image_ids|
+      image_ids.each do |image_id|
+        current_ids = Doc.where(documentable_type: "Image", documentable_id: image_id, current: true)
+                         .order(:id).pluck(:id)
+        next if current_ids.size <= 1
+
+        # The newest is what display_doc already resolves, so keeping it means
+        # no image's picture changes as a side effect of the repair.
+        keeper = current_ids.last
+        losers = current_ids - [keeper]
+        total_cleared += losers.size
+
+        Doc.where(id: losers).update_all(current: false) if apply
+      end
+    end
+
+    puts "#{apply ? "Cleared" : "Would clear"} #{total_cleared} redundant current flags across #{ambiguous.size} images."
+    puts "Re-check with: bin/rails library_images:default_health"
   end
 
   desc "Report on library images with no usable default picture"

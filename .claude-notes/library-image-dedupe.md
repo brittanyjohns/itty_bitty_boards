@@ -69,6 +69,24 @@ Tiles left pointing at art that died with the loser are repaired afterwards by
 `Images::TileArtFanout` with `repair_dead: true` — the only mode that may cross
 ownership, because a URL that no longer resolves is broken for its owner too.
 
+## `docs.current` must stay single-valued through a merge
+
+`docs.current` is the library default, and `Image#display_doc` resolves
+`docs.current.last` — so several current docs on one image is not a crash, it is
+an *arbitrary* default where a curated one is meant to be. Merging two images
+that each carried their own default gave the survivor both. `ImageMergeJob`
+reconciles once per group, after the losers are destroyed, keeping the
+survivor's own pre-existing default when it still has one (a curated choice
+outranks an inherited one) and otherwise the newest inherited one. It never
+PROMOTES a doc that was nobody's default: an image with no current doc keeps
+none, and that is decided deliberately in the admin panel.
+
+This shipped after the first production run, which merged 1,048 groups and left
+~1,864 images ambiguous. Repair for rows merged before the fix:
+`rake library_images:reconcile_defaults APPLY=1` — it keeps the newest current
+doc, which is what `display_doc` was already resolving, so no image's picture
+changes.
+
 ## Idempotency and the kill switch
 
 The unique index on `(image_merge_batch_id, group_index)` is the idempotency
