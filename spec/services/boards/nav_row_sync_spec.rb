@@ -262,7 +262,8 @@ RSpec.describe Boards::NavRowSync do
     # authored rows (defeating `disable_scroll`) or landed it in a hole that
     # only existed because two tiles were stacked. The page stays reachable
     # through the folder tile that opens it.
-    it "skips the anchor when the page's content area is full" do
+    it "skips the anchor when a one-screen page's content area is full" do
+      animals.update!(settings: { "disable_scroll" => true })
       animals.board_images.destroy_all
       %w[dog cat cow pig hen bee].each_with_index { |l, x| tile(animals, l, x: x, y: 0, position: x + 1) }
 
@@ -270,6 +271,21 @@ RSpec.describe Boards::NavRowSync do
 
       home = animals.board_images.reload.select { |bi| bi.predictive_board_id == root.id }
       expect(home).to be_empty
+      expect(animals.board_images.reload.map(&:label)).to include(*%w[dog cat cow pig hen bee])
+    end
+
+    # The narrower half of the same rule: a page that may SCROLL loses nothing
+    # by growing a row, and "every page has a one-tap way home" is the older
+    # invariant. Only the one-screen lock is worth breaking it for.
+    it "still gives a full page its way home when the page may scroll" do
+      animals.board_images.destroy_all
+      %w[dog cat cow pig hen bee].each_with_index { |l, x| tile(animals, l, x: x, y: 0, position: x + 1) }
+
+      described_class.call(root)
+
+      home = animals.board_images.reload.find { |bi| bi.predictive_board_id == root.id }
+      expect(home).to be_present
+      expect(home.display_label).to eq("Animals")
       expect(animals.board_images.reload.map(&:label)).to include(*%w[dog cat cow pig hen bee])
     end
 

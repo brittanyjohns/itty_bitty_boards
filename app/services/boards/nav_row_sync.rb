@@ -121,16 +121,21 @@ module Boards
       return if child.id == @root.id
       return if child.board_images.reload.any? { |bi| bi.predictive_board_id == @root.id }
 
-      # An anchor is chrome, and chrome never displaces vocabulary. The authored
-      # Core 60/84 grids are full, so a page cloned from one has nowhere to put
-      # this: adding it anyway grew the board past its authored rows (defeating
-      # `disable_scroll`) or, where a layout overlap had left a phantom hole,
-      # dropped it into a cell the grid was already double-booking. The page is
-      # still reachable — its folder tile opens it, and every nav cell on it
-      # leads back into the set.
-      if free_content_cell(child).nil?
+      # An anchor is chrome, and chrome never displaces vocabulary — but only a
+      # board LOCKED to one screen is actually harmed by growing to hold it.
+      # `settings["disable_scroll"]` IS that lock: the authored Core 60/84 grids
+      # carry it and their clones inherit it, so a full page cloned from one has
+      # nowhere to put this and adding it anyway pushed the board past its
+      # authored rows, which is what silently defeats the lock. A page that may
+      # scroll takes an extra row and loses nothing, so it keeps the anchor —
+      # "every page in a built set has a one-tap way home" is the older and more
+      # important invariant, and this narrows it as little as possible.
+      #
+      # Free cells are counted as DISTINCT cells (#free_content_cell), so a grid
+      # double-booking a cell reads as full rather than offering the hole.
+      if locked_to_one_screen?(child) && free_content_cell(child).nil?
         Rails.logger.info(
-          "[NavRowSync] board #{child.id} (#{child.name}): no free cell for a way-home tile; skipped",
+          "[NavRowSync] board #{child.id} (#{child.name}): one-screen grid is full; way-home tile skipped",
         )
         return
       end
@@ -152,6 +157,13 @@ module Boards
       )
       place_home_tile!(child, board_image)
       @result.tiles_written += 1
+    end
+
+    # A board the frontend renders on a single screen, sizing rows to fit the
+    # whole grid — so a row this service adds is a row that has to fit too.
+    def locked_to_one_screen?(board)
+      settings = board.settings
+      settings.is_a?(Hash) && settings["disable_scroll"] == true
     end
 
     # The way home goes WHERE THE WAY IN WAS: the same cell as the folder tile

@@ -468,14 +468,20 @@ the root, unmuted so it speaks like a self tile. It has to run *after*
 `evict_occupants!`, which destroys any child folder tile pointing back at the
 root, so an anchor written earlier in the build would not survive.
 
-The one exception, and it is deliberate: **a page with no genuinely free content
-cell gets no anchor.** Chrome never displaces vocabulary, and the alternative is
-worse than the missing tap — growing an authored Core 60/84 grid past its rows
-silently defeats `disable_scroll`, and a page that only *looks* like it has room
-(two tiles stacked on one cell) hands the anchor a hole that isn't there, which
-is how a built Core 84 page ended up with 85 tiles in 84 cells. Such a page is
-still reachable: the folder tile that opens it is one tap away, and its own nav
-row leads back into the set. Free cells are counted as DISTINCT cells
+The one exception, and it is deliberate: **a page LOCKED to one screen with no
+genuinely free content cell gets no anchor.** Chrome never displaces vocabulary,
+and the alternative is worse than the missing tap — growing an authored Core
+60/84 grid past its rows silently defeats `disable_scroll`, and a page that only
+*looks* like it has room (two tiles stacked on one cell) hands the anchor a hole
+that isn't there, which is how a built Core 84 page ended up with 85 tiles in 84
+cells. Such a page is still reachable: the folder tile that opens it is one tap
+away, and its own nav row leads back into the set.
+
+`settings["disable_scroll"]` is the whole test, and the narrowness is the point.
+A page that may SCROLL grows a row and loses nothing, so it keeps its anchor —
+an earlier cut skipped on fullness alone, which on a set whose root is a single
+row (the nav region IS the board, so there is no content area at all) stripped
+the way home from *every* page. Free cells are counted as DISTINCT cells
 (`free_content_cell`), never as `tiles < capacity`.
 
 **The way home goes WHERE THE WAY IN WAS.** A subboard's back tile occupies the

@@ -651,11 +651,14 @@ an explicit decision, not a drive-by edit.
   read side: `Boards::SeededSetCloner` repacks every cloned board after its
   transaction commits, so a source corrupted since it was seeded can't hand the
   defect on. The other half is the write
-  side: `Boards::NavRowSync#ensure_home_tile!` skips the way-home anchor
-  entirely when a page's content area has no genuinely free cell (counted as
-  DISTINCT cells), rather than growing an authored grid past its rows — which
-  silently defeats `disable_scroll` — or colonising a hole that only exists
-  because the grid is double-booking a cell. And a board that is itself the TOP
+  side: `Boards::NavRowSync#ensure_home_tile!` skips the way-home anchor when a
+  page LOCKED to one screen has no genuinely free cell (counted as DISTINCT
+  cells, so a double-booked cell reads as full rather than offering a hole).
+  `settings["disable_scroll"]` is the lock, and it is the whole test: growing
+  such a board past its authored rows is what silently defeats it, while a page
+  that may scroll takes the extra row and loses nothing — so it keeps its
+  anchor. "Every page in a built set has a one-tap way home" is the older
+  invariant; narrow it no further than the lock. And a board that is itself the TOP
   of a set (a `Boards::RobustSets::ROOT_MARKER` root, or another set's
   `builder_root`/`builder_child`) is never walked into as a PAGE by
   `Boards::SeededSetCloner`: cloning one drops a second full core board into the
