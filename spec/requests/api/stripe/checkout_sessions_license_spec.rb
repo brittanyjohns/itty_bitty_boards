@@ -62,6 +62,27 @@ RSpec.describe "POST /api/stripe/checkout_sessions/license", type: :request do
     expect(user.reload.paid_plan_type).to eq("pro_5yr")
   end
 
+  it "reports billing_interval: five_year on checkout_started (never monthly)" do
+    allow(Stripe::Checkout::Session).to receive(:create)
+      .and_return(OpenStruct.new(url: "https://checkout.stripe.com/c/pay/cs_lic_pro"))
+
+    expect(PosthogService).to receive(:capture_for_user).with(
+      an_object_having_attributes(id: user.id),
+      "checkout_started",
+      properties: hash_including(
+        plan: "pro_5yr",
+        billing_interval: "five_year",
+        kind: "license",
+      ),
+    )
+
+    post "/api/stripe/checkout_sessions/license",
+         params: { plan_key: "pro_5yr" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:ok)
+  end
+
   it "400s for an unknown/unconfigured plan_key" do
     post "/api/stripe/checkout_sessions/license",
          params: { plan_key: "gold_10yr" },
