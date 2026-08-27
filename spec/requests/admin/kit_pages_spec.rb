@@ -543,5 +543,100 @@ RSpec.describe "Admin kit pages", type: :request do
         expect(response).to redirect_to(admin_dashboard_kit_pages_path)
       end
     end
+
+    describe "editable templates" do
+      let(:link) { "https://www.canva.com/design/DAGabc123/xyz/view" }
+
+      before { sign_in admin }
+
+      it "saves the rows the repeater posts" do
+        post admin_dashboard_kit_pages_path, params: base_params(
+          canva_templates: [
+            { label: "Lanyard card", url: link, description: "Two per page" },
+          ],
+        )
+
+        expect(KitPage.last.canva_templates).to eq(
+          [{ "label" => "Lanyard card", "url" => link, "description" => "Two per page" }]
+        )
+      end
+
+      # The form always renders a spare row, so a blank one is the normal case
+      # and must not become a validation error.
+      it "drops the blank spare rows the form always renders" do
+        post admin_dashboard_kit_pages_path, params: base_params(
+          canva_templates: [
+            { label: "Lanyard card", url: link, description: "" },
+            { label: "", url: "", description: "" },
+            { label: "", url: "", description: "" },
+          ],
+        )
+
+        expect(response).to have_http_status(:redirect)
+        expect(KitPage.last.canva_templates.size).to eq(1)
+      end
+
+      it "trims whitespace off what was pasted" do
+        post admin_dashboard_kit_pages_path, params: base_params(
+          canva_templates: [{ label: "  Card  ", url: "  #{link}  ", description: "" }],
+        )
+
+        expect(KitPage.last.canva_templates.sole.values_at("label", "url")).to eq(["Card", link])
+      end
+
+      it "re-renders with an error and keeps the typed rows when a link is refused" do
+        bad = "https://example.com/design/DAGabc/x/view"
+
+        expect {
+          post admin_dashboard_kit_pages_path, params: base_params(
+            canva_templates: [{ label: "Lanyard card", url: bad, description: "" }],
+          )
+        }.not_to change(KitPage, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("https link to a Canva design")
+        expect(response.body).to include(bad)
+        expect(response.body).to include("Lanyard card")
+      end
+
+      # A row with a label and no link is a typo, not a spare row — the admin
+      # must be told rather than have it silently swallowed.
+      it "refuses a half-filled row rather than dropping it" do
+        expect {
+          post admin_dashboard_kit_pages_path, params: base_params(
+            canva_templates: [{ label: "Lanyard card", url: "", description: "" }],
+          )
+        }.not_to change(KitPage, :count)
+
+        expect(response.body).to include("needs a Canva link")
+      end
+
+      it "refuses more rows than the cap" do
+        rows = Array.new(KitPage::MAX_TEMPLATES + 1) { { label: "Card", url: link, description: "" } }
+
+        expect { post admin_dashboard_kit_pages_path, params: base_params(canva_templates: rows) }
+          .not_to change(KitPage, :count)
+
+        expect(response.body).to include("at most #{KitPage::MAX_TEMPLATES}")
+      end
+
+      it "clears every template when the rows are emptied" do
+        page = create(:kit_page, canva_templates: [{ "label" => "Card", "url" => link }])
+
+        patch admin_dashboard_kit_page_path(page), params: base_params(
+          slug: page.slug,
+          canva_templates: [{ label: "", url: "", description: "" }],
+        )
+
+        expect(page.reload.canva_templates).to eq([])
+      end
+
+      it "renders the templates card on the new-page form" do
+        get new_admin_dashboard_kit_page_path
+
+        expect(response.body).to include("Editable templates")
+        expect(response.body).to include("canva_templates[][url]")
+      end
+    end
   end
 end

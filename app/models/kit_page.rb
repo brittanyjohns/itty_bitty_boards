@@ -48,6 +48,14 @@ class KitPage < ApplicationRecord
   MAX_DOCUMENT_BYTES = 50.megabytes
   MAX_DOCUMENTS = 5
 
+  # An editable Canva design a visitor gets their own copy of. The link is
+  # checked against an ALLOWLIST of host and path prefix, the same rule
+  # DOCUMENT_CONTENT_TYPES and KIT_IMAGE_ORDER keep: a new Canva URL shape has
+  # to be opted in, never merely "not excluded".
+  CANVA_HOSTS = ["canva.com", "www.canva.com"].freeze
+  CANVA_PATH_PREFIX = "/design/".freeze
+  MAX_TEMPLATES = 5
+
   # How many pages of the uploaded document are rasterized for the landing
   # page's gallery. "A couple" — the hero and one more; a visitor deciding
   # whether to hand over an email needs a look at the thing, not a page-by-page
@@ -81,6 +89,7 @@ class KitPage < ApplicationRecord
   validates :title, presence: true
   validates :printable_variant, inclusion: { in: VARIANTS }
   validate :content_shape
+  validate :canva_templates_shape
 
   scope :published, -> { where(published: true) }
 
@@ -110,6 +119,30 @@ class KitPage < ApplicationRecord
   # tell the frontend to hide the email form rather than render a gate that
   # 422s on submit.
   def downloadable? = download_files.any?
+
+  # True when this page has at least one usable Canva template link.
+  def has_templates? = template_links.any?
+
+  # Whether the page can hand ANYTHING over. Wider than `downloadable?`, which
+  # keeps its narrow meaning (a readable PDF exists) — a page may offer only
+  # editable templates, and the email gate has to open for it.
+  def offers_anything? = downloadable? || has_templates?
+
+  # PUBLIC. What each template IS, with no link to it. Marketing copy, on
+  # exactly the argument #gallery_images makes: a photograph of the thing is
+  # what persuades someone to enter an email; the thing itself is what the
+  # email buys.
+  def template_teasers
+    usable_canva_templates.map { |row| { label: row["label"], description: row["description"].presence } }
+  end
+
+  # GATED. The same rows carrying the link, revealed only by the download
+  # endpoint after a lead is written.
+  def template_links
+    usable_canva_templates.map do |row|
+      { label: row["label"], description: row["description"].presence, url: row["url"] }
+    end
+  end
 
   # True when this page hands over documents uploaded straight onto it. Such a
   # page ignores its printable ENTIRELY — for the download and for the gallery
@@ -221,9 +254,15 @@ class KitPage < ApplicationRecord
     "kit_pages/#{id}/#{SecureRandom.hex(4)}/#{filename}"
   end
 
-  # The public payload. Deliberately carries no file URL — the URL is revealed
-  # only by the download endpoint, after an email. `images` is the exception
-  # that proves it: see #gallery_images.
+  # The public payload. Deliberately carries no URL to the PRODUCT — neither a
+  # file nor a Canva template link. Both are revealed only by the download
+  # endpoint, after an email. Two exceptions prove the rule rather than weaken
+  # it, because both are pictures of the thing rather than the thing: `images`
+  # (see #gallery_images) and `templates`, which carries each template's label
+  # and description and never its link (see #template_teasers).
+  #
+  # `content` is shipped WHOLESALE here. That is why a template's URL has its
+  # own column instead of living under it.
   def public_view
     {
       slug: slug,
@@ -235,6 +274,7 @@ class KitPage < ApplicationRecord
       cta_path: cta_path,
       downloadable: downloadable?,
       images: gallery_images,
+      templates: template_teasers,
     }
   end
 
@@ -337,5 +377,49 @@ class KitPage < ApplicationRecord
 
     closing = content["closing"]
     errors.add(:content, "closing must be an object") if !closing.nil? && !closing.is_a?(Hash)
+
+    how_to = content["how_to"]
+    errors.add(:content, "how_to must be an object") if !how_to.nil? && !how_to.is_a?(Hash)
+  end
+
+  # Rows a visitor can actually be sent to. A row missing its link is dropped
+  # rather than published as a dead button — the same reasoning
+  # #preview_images_view uses for a blank URL.
+  def usable_canva_templates
+    Array(canva_templates).select { |row| row.is_a?(Hash) && row["url"].present? }
+  end
+
+  def canva_templates_shape
+    return errors.add(:canva_templates, "must be a list") unless canva_templates.is_a?(Array)
+
+    if canva_templates.size > MAX_TEMPLATES
+      errors.add(:canva_templates, "can have at most #{MAX_TEMPLATES} templates")
+    end
+
+    canva_templates.each_with_index do |row, index|
+      position = index + 1
+
+      unless row.is_a?(Hash)
+        errors.add(:canva_templates, "template #{position} must be an object")
+        next
+      end
+
+      errors.add(:canva_templates, "template #{position} needs a label") if row["label"].blank?
+
+      if row["url"].blank?
+        errors.add(:canva_templates, "template #{position} needs a Canva link")
+      elsif !canva_template_url?(row["url"])
+        errors.add(:canva_templates, "template #{position} must be an https link to a Canva design")
+      end
+    end
+  end
+
+  def canva_template_url?(value)
+    uri = URI.parse(value.to_s)
+    uri.scheme == "https" &&
+      CANVA_HOSTS.include?(uri.host) &&
+      uri.path.to_s.start_with?(CANVA_PATH_PREFIX)
+  rescue URI::InvalidURIError
+    false
   end
 end

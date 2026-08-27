@@ -24,6 +24,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A kit landing page can now hand over an editable Canva template.** Alongside
+  (or instead of) a PDF, `/admin/kit_pages` takes Canva template links — paste
+  the "Share → Template link" and a visitor gets their own copy of the design to
+  edit, rather than a finished page to print. That is what makes a MySpeak ID
+  card possible as a free download: the visitor adds their own name and photo,
+  and uses Canva's QR Code app with their MySpeak link to put a working code on
+  the card. The link is revealed after the email, exactly like the PDF, and a
+  page may offer templates with no PDF at all.
+- **Your MySpeak link is now shown where you print things.** The Print & share
+  section of a communicator's screen has a copy button for the permanent link —
+  the address that keeps working even if you get a new public link, so it's the
+  one to put on anything you print. The QR code screen now uses that same
+  permanent address, so a code printed from it survives a link change.
 - **You can now get a new link for a MySpeak page, and printed tags keep
   working.** If a page's link has been shared with someone who shouldn't still
   have it, "Get a new link" replaces it — and the old one stops working

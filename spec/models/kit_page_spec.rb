@@ -263,16 +263,140 @@ RSpec.describe KitPage, type: :model do
     end
   end
 
+  describe "canva templates" do
+    let(:link) { "https://www.canva.com/design/DAGabc123/xyz/view" }
+
+    def page_with(templates)
+      build(:kit_page, canva_templates: templates)
+    end
+
+    describe "validation" do
+      it "accepts a well-formed row" do
+        expect(page_with([{ "label" => "Lanyard card", "url" => link }])).to be_valid
+      end
+
+      it "accepts the bare canva.com host" do
+        expect(page_with([{ "label" => "Card", "url" => "https://canva.com/design/DAGabc/x/view" }])).to be_valid
+      end
+
+      it "refuses a value that isn't a list" do
+        page = page_with("nope")
+        expect(page).not_to be_valid
+        expect(page.errors[:canva_templates].join).to include("must be a list")
+      end
+
+      it "refuses a row that isn't an object" do
+        page = page_with(["https://www.canva.com/design/x/y/view"])
+        expect(page).not_to be_valid
+        expect(page.errors[:canva_templates].join).to include("must be an object")
+      end
+
+      it "refuses a row with no label" do
+        page = page_with([{ "url" => link }])
+        expect(page).not_to be_valid
+        expect(page.errors[:canva_templates].join).to include("needs a label")
+      end
+
+      it "refuses a row with no link" do
+        page = page_with([{ "label" => "Card" }])
+        expect(page).not_to be_valid
+        expect(page.errors[:canva_templates].join).to include("needs a Canva link")
+      end
+
+      # The allowlist, one rejection per rule it enforces.
+      it "refuses http, a foreign host, and a canva.com URL outside /design/" do
+        [
+          "http://www.canva.com/design/DAGabc/x/view",
+          "https://canva.example.com/design/DAGabc/x/view",
+          "https://www.canva.com/templates/xyz",
+          "not a url at all",
+        ].each do |bad|
+          page = page_with([{ "label" => "Card", "url" => bad }])
+          expect(page).not_to be_valid, "expected #{bad.inspect} to be refused"
+          expect(page.errors[:canva_templates].join).to include("https link to a Canva design")
+        end
+      end
+
+      it "refuses more rows than the cap" do
+        rows = Array.new(KitPage::MAX_TEMPLATES + 1) { { "label" => "Card", "url" => link } }
+        page = page_with(rows)
+        expect(page).not_to be_valid
+        expect(page.errors[:canva_templates].join).to include("at most #{KitPage::MAX_TEMPLATES}")
+      end
+
+      it "defaults to an empty list" do
+        expect(create(:kit_page).canva_templates).to eq([])
+      end
+    end
+
+    describe "#has_templates? and #offers_anything?" do
+      it "is false with no templates and no printable" do
+        page = create(:kit_page)
+        expect(page.has_templates?).to eq(false)
+        expect(page.offers_anything?).to eq(false)
+      end
+
+      # The whole point: a page may offer ONLY templates, and the email gate
+      # still has to open for it.
+      it "offers something on templates alone, while downloadable? stays false" do
+        page = create(:kit_page, canva_templates: [{ "label" => "Card", "url" => link }])
+
+        expect(page.has_templates?).to eq(true)
+        expect(page.downloadable?).to eq(false)
+        expect(page.offers_anything?).to eq(true)
+      end
+    end
+
+    describe "#template_teasers and #template_links" do
+      let(:page) do
+        create(:kit_page, canva_templates: [
+                 { "label" => "Lanyard card", "url" => link, "description" => "Two per page" },
+               ])
+      end
+
+      it "publishes the label and description but never the link" do
+        teaser = page.template_teasers.sole
+
+        expect(teaser).to eq(label: "Lanyard card", description: "Two per page")
+        expect(teaser.keys).not_to include(:url)
+      end
+
+      it "carries the link on the gated view" do
+        expect(page.template_links.sole).to eq(
+          label: "Lanyard card", description: "Two per page", url: link
+        )
+      end
+
+      it "reports a blank description as nil rather than an empty string" do
+        page = create(:kit_page, canva_templates: [{ "label" => "Card", "url" => link, "description" => "" }])
+
+        expect(page.template_teasers.sole[:description]).to be_nil
+      end
+    end
+  end
+
   describe "#public_view" do
     it "carries no file URL" do
       printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF", variant: "color")
       page = create(:kit_page, board_printable: printable)
 
       expect(page.public_view.keys).to match_array(
-        %i[slug title eyebrow subhead content cta_label cta_path downloadable images]
+        %i[slug title eyebrow subhead content cta_label cta_path downloadable images templates]
       )
       expect(page.public_view[:downloadable]).to eq(true)
       expect(page.public_view.values_at(:slug, :title)).to all(be_present)
+    end
+
+    it "carries template labels and never a template link" do
+      link = "https://www.canva.com/design/DAGabc123/xyz/view"
+      page = create(:kit_page, canva_templates: [
+                      { "label" => "Lanyard card", "url" => link, "description" => "Two per page" },
+                    ])
+
+      expect(page.public_view[:templates]).to eq(
+        [{ label: "Lanyard card", description: "Two per page" }]
+      )
+      expect(page.public_view.to_json).not_to include("canva.com")
     end
 
     it "still carries no PDF URL once the mockups are in the payload" do

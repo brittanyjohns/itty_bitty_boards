@@ -545,6 +545,19 @@ an explicit decision, not a drive-by edit.
   on the MODEL (`slug_available_across_columns`), because `#update` asked
   before saving and `#create` never did — a controller-side check is one write
   path remembering, not an invariant.
+- **`public_url` is for SHARING; `permanent_url` is for PRINTING.** The corollary
+  of the bullet above, and the rule any NEW surface has to be checked against.
+  `slug` is meant to be renameable and revocable — `rotate_slug!` exists so a
+  shared link can be burned — so anything that ends up on paper, or inside a QR
+  code, resolves through `permanent_url` instead: the device tag, the care plan,
+  and now the link a user pastes into Canva's QR Code app to finish a MySpeak ID
+  card themselves. Printing `public_url` produces paper that dies silently the
+  first time its owner rotates. The mistake runs both ways, so the test is what
+  the link is FOR, not which one is handier: `MySpeakOnboardingPage`'s
+  copy-your-page button is a *share* action and correctly copies `public_url`,
+  while the Print & share section's copy button and `QRCodePage`'s code are
+  *print* surfaces and use `permanent_url`. `permanent_url` falls back to `slug`
+  via `printable_slug`, so it is always safe to read.
 - **An unguessable link is still a bearer token — revocation is `rotate_slug!`,
   and it is NOT renaming.** Whoever a `/my/s-k8x2mf` link was shared with keeps
   access until the address changes, and a permanently-frozen slug had no answer
@@ -960,6 +973,24 @@ an explicit decision, not a drive-by edit.
   image variant must be opted in before a visitor can see it, and `about` /
   `page_index` stay out because they are Etsy shop framing. Never widen this by
   excluding what you don't want.
+- **A kit page's Canva TEMPLATE LINK is the product; its label and description
+  are marketing.** A template is an editable Canva design a visitor gets their
+  own copy of — the MySpeak ID card, where the QR can only be made by the person
+  who owns the page. `public_view` carries `template_teasers` (label +
+  description, no link); `#download` carries `template_links`, after the lead,
+  exactly as it carries the PDF. The two reader names differ on purpose so the
+  one holding the product is obvious at the call site. Three rails.
+  `canva_templates` is its OWN COLUMN and not a key under `content`, because
+  `public_view` ships `content` wholesale — parking a link there publishes it,
+  and stripping it back out on the way through is the one-column-two-meanings
+  trap `pdf_files` already records. The URL is checked against an ALLOWLIST
+  (`CANVA_HOSTS` + a `/design/` path prefix, https only), never an exclusion.
+  And `downloadable?` keeps its narrow meaning — "a readable PDF exists" —
+  while `offers_anything?` is what opens the gate, so a page may hand over
+  templates and no PDF at all; the download response still carries `files: []`
+  so a frontend that predates templates hits its existing dead end rather than
+  throwing. Nothing health-checks a link: an unshared design is a dead button
+  the admin must catch.
 - **Kit-page autofill populates the form and nothing else.**
   `KitPages::CopySuggester` writes a whole page from the printable it gives
   away; `Admin::KitPagesController#autofill` merges it BLANKS-ONLY and never

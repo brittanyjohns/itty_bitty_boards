@@ -21,10 +21,10 @@ module API
     end
 
     def download
-      # `downloadable: false` in #show already tells the frontend to hide the
-      # form; this answers the race where a printable is swapped out between
-      # page load and submit.
-      unless @kit_page.downloadable?
+      # `downloadable: false` with no `templates` in #show already tells the
+      # frontend to hide the form; this answers the race where a printable is
+      # swapped out between page load and submit.
+      unless @kit_page.offers_anything?
         return render json: { error: "not_available" }, status: :unprocessable_content
       end
 
@@ -32,7 +32,7 @@ module API
       # otherwise put a fake `kit_<slug>` row in the leads table and fire a
       # Mailchimp upsert for themselves — so previewing the page would corrupt
       # the numbers the page exists to produce.
-      return render(json: { files: @kit_page.download_files }) if preview?
+      return render(json: handover_payload) if preview?
 
       lead = DownloadLead.new(
         email: params[:email],
@@ -47,10 +47,17 @@ module API
       end
 
       enqueue_or_skip_mailchimp(lead)
-      render json: { files: @kit_page.download_files }
+      render json: handover_payload
     end
 
     private
+
+    # Everything the email bought. `files` stays present — as `[]` on a
+    # templates-only page — so a frontend that predates templates renders its
+    # existing "nothing to download" dead end rather than throwing.
+    def handover_payload
+      { files: @kit_page.download_files, templates: @kit_page.template_links }
+    end
 
     # Unpublished and unknown are the same answer on purpose: a draft page's
     # existence isn't public information. A valid preview token is the one way

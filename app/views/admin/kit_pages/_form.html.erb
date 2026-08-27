@@ -113,6 +113,45 @@
   </div>
 
   <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Editable templates</h2>
+    <p class="text-[11px] text-t3 mb-4">
+      Canva designs a visitor edits themselves — a MySpeak ID card, a name tag. In Canva use
+      <strong>Share &rarr; Template link</strong>: they get their own copy and never see your original.
+      Handed over after the email, exactly like the PDF. A page can offer templates with no PDF at all.
+      Blank rows are ignored. Up to <%= KitPage::MAX_TEMPLATES %>.
+    </p>
+
+    <%# Existing rows plus one blank; three blanks on a page with none yet. %>
+    <% template_rows = @kit_page.canva_templates.presence || [] %>
+    <% template_rows = template_rows + Array.new(template_rows.any? ? 1 : 3) { {} } %>
+    <% template_rows.first(KitPage::MAX_TEMPLATES + 1).each_with_index do |row, index| %>
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
+        <div class="md:col-span-3">
+          <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_label_<%= index %>">Label</label>
+          <%= text_field_tag "canva_templates[][label]", row["label"],
+                id: "canva_template_label_#{index}", placeholder: "Lanyard card", class: input_class %>
+        </div>
+        <div class="md:col-span-5">
+          <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_url_<%= index %>">Canva template link</label>
+          <%= text_field_tag "canva_templates[][url]", row["url"],
+                id: "canva_template_url_#{index}", placeholder: "https://www.canva.com/design/...",
+                class: "#{input_class} font-mono text-xs" %>
+        </div>
+        <div class="md:col-span-4">
+          <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_description_<%= index %>">Description</label>
+          <%= text_field_tag "canva_templates[][description]", row["description"],
+                id: "canva_template_description_#{index}", placeholder: "Wallet-sized, two per page", class: input_class %>
+        </div>
+      </div>
+    <% end %>
+
+    <p class="text-[11px] text-t3">
+      Nothing here checks that a link still works — if you delete or unshare the design in Canva, the page
+      offers a dead button. Re-open each link after you edit a design.
+    </p>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
     <h2 class="text-sm font-medium text-t1 mb-1">Content</h2>
     <p class="text-[11px] text-t3 mb-4">
       JSON. <code>items</code> is the "what's inside" list; <code>closing</code> is the block under it.

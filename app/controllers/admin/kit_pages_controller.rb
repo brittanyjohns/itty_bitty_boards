@@ -251,7 +251,20 @@ module Admin
         cta_label: params[:cta_label].to_s.strip.presence,
         cta_path: params[:cta_path].to_s.strip.presence,
         published: ActiveModel::Type::Boolean.new.cast(params[:published]) || false,
+        canva_templates: submitted_canva_templates,
       )
+    end
+
+    # The repeater posts `canva_templates[][label]` and friends, so the params
+    # arrive as an array of ActionController::Parameters. A wholly blank row is
+    # the empty slot the form always renders and is dropped; a HALF-filled row
+    # is kept so the model reports it, rather than swallowing a typo silently.
+    def submitted_canva_templates
+      rows = params.permit(canva_templates: %i[label url description])[:canva_templates]
+
+      Array(rows)
+        .map { |row| row.to_h.stringify_keys.transform_values { |value| value.to_s.strip } }
+        .reject { |row| row["label"].blank? && row["url"].blank? }
     end
 
     def assign_and_save(page)
