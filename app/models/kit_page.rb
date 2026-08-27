@@ -49,11 +49,18 @@ class KitPage < ApplicationRecord
   MAX_DOCUMENTS = 5
 
   # An editable Canva design a visitor gets their own copy of. The link is
-  # checked against an ALLOWLIST of host and path prefix, the same rule
+  # checked against an ALLOWLIST of host and path, the same rule
   # DOCUMENT_CONTENT_TYPES and KIT_IMAGE_ORDER keep: a new Canva URL shape has
   # to be opted in, never merely "not excluded".
-  CANVA_HOSTS = ["canva.com", "www.canva.com"].freeze
-  CANVA_PATH_PREFIX = "/design/".freeze
+  #
+  # Canva's Share menu hands out TWO shapes and both are legitimate — the full
+  # design URL, and a `canva.link` short link that 301s to one. Neither is
+  # rewritten on the way in: the shortener is Canva's own, a visitor following
+  # it lands in the same place, and resolving it here would make saving the
+  # admin form depend on a third-party request that can hang or fail.
+  CANVA_DESIGN_HOSTS = ["canva.com", "www.canva.com"].freeze
+  CANVA_DESIGN_PATH_PREFIX = "/design/".freeze
+  CANVA_SHORT_HOSTS = ["canva.link"].freeze
   MAX_TEMPLATES = 5
 
   # How many pages of the uploaded document are rasterized for the landing
@@ -409,16 +416,27 @@ class KitPage < ApplicationRecord
       if row["url"].blank?
         errors.add(:canva_templates, "template #{position} needs a Canva link")
       elsif !canva_template_url?(row["url"])
-        errors.add(:canva_templates, "template #{position} must be an https link to a Canva design")
+        errors.add(
+          :canva_templates,
+          "template #{position} must be an https canva.com/design/… or canva.link/… link",
+        )
       end
     end
   end
 
   def canva_template_url?(value)
     uri = URI.parse(value.to_s)
-    uri.scheme == "https" &&
-      CANVA_HOSTS.include?(uri.host) &&
-      uri.path.to_s.start_with?(CANVA_PATH_PREFIX)
+    return false unless uri.scheme == "https"
+
+    if CANVA_DESIGN_HOSTS.include?(uri.host)
+      uri.path.to_s.start_with?(CANVA_DESIGN_PATH_PREFIX)
+    elsif CANVA_SHORT_HOSTS.include?(uri.host)
+      # The shortener's entire path IS the id, so there is no prefix to check —
+      # only that the link names something rather than the bare domain.
+      uri.path.to_s.delete_prefix("/").present?
+    else
+      false
+    end
   rescue URI::InvalidURIError
     false
   end

@@ -58,7 +58,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   card possible as a free download: the visitor adds their own name and photo,
   and uses Canva's QR Code app with their MySpeak link to put a working code on
   the card. The link is revealed after the email, exactly like the PDF, and a
-  page may offer templates with no PDF at all.
+  page may offer templates with no PDF at all. Both link shapes Canva hands out
+  work — the full `canva.com/design/…` URL and the `canva.link/…` short link.
 - **Your MySpeak link is now shown where you print things.** The Print & share
   section of a communicator's screen has a copy button for the permanent link —
   the address that keeps working even if you get a new public link, so it's the

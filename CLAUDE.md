@@ -1018,7 +1018,11 @@ an explicit decision, not a drive-by edit.
   `public_view` ships `content` wholesale — parking a link there publishes it,
   and stripping it back out on the way through is the one-column-two-meanings
   trap `pdf_files` already records. The URL is checked against an ALLOWLIST
-  (`CANVA_HOSTS` + a `/design/` path prefix, https only), never an exclusion.
+  — https, and either `CANVA_DESIGN_HOSTS` + a `/design/` path prefix or a
+  `CANVA_SHORT_HOSTS` (`canva.link`) link naming something past the root, since
+  Canva's own Share menu hands out both shapes and a short link is not
+  rewritten on the way in. Never an exclusion, and a refusal must NAME the
+  accepted shapes or the second one reads as a bug.
   And `downloadable?` keeps its narrow meaning — "a readable PDF exists" —
   while `offers_anything?` is what opens the gate, so a page may hand over
   templates and no PDF at all; the download response still carries `files: []`

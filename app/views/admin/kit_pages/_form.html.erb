@@ -117,6 +117,8 @@
     <p class="text-[11px] text-t3 mb-4">
       Canva designs a visitor edits themselves — a MySpeak ID card, a name tag. In Canva use
       <strong>Share &rarr; Template link</strong>: they get their own copy and never see your original.
+      A plain view link opens read-only, which is not what this is for — check yours in a private window.
+      Either shape works: <code>canva.com/design/…</code> or a <code>canva.link/…</code> short link.
       Handed over after the email, exactly like the PDF. A page can offer templates with no PDF at all.
       Blank rows are ignored. Up to <%= KitPage::MAX_TEMPLATES %>.
     </p>
@@ -134,7 +136,7 @@
         <div class="md:col-span-5">
           <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_url_<%= index %>">Canva template link</label>
           <%= text_field_tag "canva_templates[][url]", row["url"],
-                id: "canva_template_url_#{index}", placeholder: "https://www.canva.com/design/...",
+                id: "canva_template_url_#{index}", placeholder: "https://canva.link/... or https://www.canva.com/design/...",
                 class: "#{input_class} font-mono text-xs" %>
         </div>
         <div class="md:col-span-4">

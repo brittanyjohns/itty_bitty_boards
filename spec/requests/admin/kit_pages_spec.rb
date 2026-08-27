@@ -594,7 +594,10 @@ RSpec.describe "Admin kit pages", type: :request do
         }.not_to change(KitPage, :count)
 
         expect(response).to have_http_status(:unprocessable_entity)
-        expect(response.body).to include("https link to a Canva design")
+        # The refusal has to NAME both accepted shapes — listing only the
+        # /design/ one is what made a valid short-link paste look like a bug.
+        expect(response.body).to include("canva.com/design/")
+        expect(response.body).to include("canva.link/")
         expect(response.body).to include(bad)
         expect(response.body).to include("Lanyard card")
       end
