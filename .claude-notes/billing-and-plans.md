@@ -795,6 +795,21 @@ years via `plan_expires_at`. Not a subscription — there is **no**
   **No `payment_method_collection`** — Stripe rejects it on `mode: payment`.
   Prices from `LICENSE_PRICE_ENV_KEYS` (`STRIPE_PRICE_BASIC_5YR` /
   `STRIPE_PRICE_PRO_5YR`), resolved at request time.
+- **The subscription endpoint hard-rejects license keys.** `#create` 400s on any
+  key `license_plan?` recognises (the `LICENSE_PRICE_ENV_KEYS` keys, or any
+  `_5yr` suffix) *before* the price lookup, with
+  `"license plans use /api/stripe/checkout_sessions/license"`. `pro_5yr` used to
+  400 only because it is absent from `PLAN_PRICE_IDS` — an accident, not a
+  guard: adding a license key to that map would have sold a one-time license as
+  a `mode: "subscription"` session with a 14-day trial attached, which is what a
+  frontend that coerced license intents into monthly was doing. The blank-price
+  400 stays as the backstop for genuinely unknown keys.
+- **Analytics interval:** a license is neither monthly nor yearly, so
+  `billing_interval_for` returns `"five_year"` for license keys and both ends of
+  the funnel carry it — `checkout_started` (`#license`) and `checkout_completed`
+  (`handle_license_completed`). `plan` stays the full key (`pro_5yr`) on license
+  events; licenses are analysed as their own product, not as a cadence of a base
+  tier.
 - **Grant:** a one-time payment only fires `checkout.session.completed` (no
   subscription upsert), so `handle_license_completed` (`kind == "license"`) is the
   **sole** grant path — without it a license would silently do nothing. It

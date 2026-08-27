@@ -17,21 +17,22 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
 
   let(:user) { FactoryBot.create(:user) }
 
+  let(:described_price_ids) do
+    {
+      "free" => nil,
+      "basic" => "price_basic_monthly",
+      "pro" => "price_pro_monthly",
+      "basic_yearly" => "price_basic_yearly",
+      "pro_yearly" => "price_pro_yearly",
+      "partner_pro" => "price_partner_pro",
+    }.freeze
+  end
+
   before do
     # PLAN_PRICE_IDS is a frozen constant resolved at class load, so writing
     # to ENV in `before` blocks doesn't update it. Stub the constant directly
     # so the controller sees the test price IDs.
-    stub_const(
-      "API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS",
-      {
-        "free" => nil,
-        "basic" => "price_basic_monthly",
-        "pro" => "price_pro_monthly",
-        "basic_yearly" => "price_basic_yearly",
-        "pro_yearly" => "price_pro_yearly",
-        "partner_pro" => "price_partner_pro",
-      }.freeze
-    )
+    stub_const("API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS", described_price_ids)
     ENV["STRIPE_PARTNER_PILOT_PROMO"] = "PARTNERPILOT26"
     # The controller calls Stripe::Customer.create / Stripe::PromotionCode.list
     # for the partner promo path; stub anything we don't explicitly handle.
@@ -355,6 +356,55 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
     it "does not fire checkout_started for the free-plan short-circuit" do
       expect(PosthogService).not_to receive(:capture_for_user)
       do_post.call({ plan_key: "free" })
+    end
+  end
+
+  # A 5-Year license is a one-time payment; this endpoint only creates
+  # subscription sessions (with a 14-day trial attached), so a license key
+  # reaching it means the caller is about to sell the wrong product.
+  describe "5-Year license keys are refused (never sold as a subscription)" do
+    before { user.update!(stripe_customer_id: "cus_existing") }
+
+    %w[basic_5yr pro_5yr].each do |license_key|
+      it "400s for plan_key=#{license_key} and points at the license endpoint" do
+        expect(Stripe::Checkout::Session).not_to receive(:create)
+
+        do_post.call({ plan_key: license_key })
+
+        expect(response).to have_http_status(:bad_request)
+        expect(JSON.parse(response.body)["error"])
+          .to eq("license plans use /api/stripe/checkout_sessions/license")
+      end
+    end
+
+    it "refuses a license key even when it is present in PLAN_PRICE_IDS" do
+      # The guard must not depend on the price lookup failing — that's the
+      # accident this replaces.
+      stub_const(
+        "API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS",
+        described_price_ids.merge("pro_5yr" => "price_pro_5yr_misconfigured").freeze
+      )
+      expect(Stripe::Checkout::Session).not_to receive(:create)
+
+      do_post.call({ plan_key: "pro_5yr" })
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)["error"])
+        .to eq("license plans use /api/stripe/checkout_sessions/license")
+    end
+
+    it "fires no checkout_started and leaves the plan untouched" do
+      expect(PosthogService).not_to receive(:capture_for_user)
+
+      expect { do_post.call({ plan_key: "pro_5yr" }) }
+        .not_to change { user.reload.attributes.values_at("plan_type", "paid_plan_type") }
+    end
+
+    it "still 400s the generic way for an unknown non-license key" do
+      do_post.call({ plan_key: "gold" })
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)["error"]).to eq("Unknown or unconfigured plan_key")
     end
   end
 

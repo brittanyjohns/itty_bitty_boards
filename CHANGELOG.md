@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A 5-Year license can no longer be sold as a monthly subscription.** The
+  subscription checkout endpoint now refuses `basic_5yr` / `pro_5yr` outright
+  and points at the license endpoint, instead of relying on the key happening to
+  be missing from its price map. Licenses also report their own billing interval
+  (`five_year`) in analytics, so a license buyer is never counted as a monthly
+  subscriber.
+
 - **Copying someone else's board no longer leaves folder tiles that open their
   boards.** A copy has always been one board, but its folder tiles kept pointing
   at the original owner's pages — so they opened boards you don't own, and broke

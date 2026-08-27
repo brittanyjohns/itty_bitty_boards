@@ -65,6 +65,22 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     # `source` the (best-effort) client event does; defaulted so it's never nil.
     source = params[:source].to_s.strip.presence || "web_checkout"
 
+    # A 5-Year license is a ONE-TIME payment and must never be sold through
+    # this endpoint, which creates `mode: "subscription"` sessions with a
+    # 14-day trial attached. The frontend's signed-out flow used to coerce a
+    # license intent into a monthly subscription and land here; that buyer was
+    # charged the wrong thing entirely.
+    #
+    # Refuse it explicitly rather than relying on `pro_5yr` being absent from
+    # PLAN_PRICE_IDS — that absence is an accident, and the day someone adds a
+    # license key to the map the blank-price backstop below stops firing and we
+    # silently subscribe them. The check keys on the key SHAPE as well as the
+    # known keys so a future `plus_5yr` is refused before it exists.
+    if license_plan?(plan_key)
+      render json: { error: "license plans use /api/stripe/checkout_sessions/license" },
+             status: :bad_request and return
+    end
+
     if plan_key == "free"
       # Selecting Free is also how the onboarding "Maybe later" skip is wired,
       # so this fires for people who never intended a plan change at all.
@@ -391,6 +407,11 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       "checkout_started",
       properties: {
         plan: plan_key,
+        # A license is neither monthly nor yearly. `plan` keeps the full key
+        # here (licenses are analysed as their own product, not as a cadence of
+        # a base tier), but the interval must still be honest so a license can
+        # never be counted in the monthly cohort.
+        billing_interval: billing_interval_for(plan_key),
         kind: "license",
         license_years: LICENSE_YEARS,
         source: source,
@@ -513,7 +534,18 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   # `billing_interval_from_price` in the webhook, but derived from the plan_key
   # we already have at session-create time (no Stripe round-trip).
   def billing_interval_for(plan_key)
+    return "five_year" if license_plan?(plan_key)
+
     yearly_plan?(plan_key) ? "yearly" : "monthly"
+  end
+
+  # 5-Year license keys (`basic_5yr` / `pro_5yr`). Matched by the known keys OR
+  # the `_5yr` suffix so a license key added to LICENSE_PRICE_ENV_KEYS later --
+  # or one that only ever exists on the frontend -- is still recognised as a
+  # one-time license by #create's guard and by billing_interval_for.
+  def license_plan?(plan_key)
+    key = plan_key.to_s
+    LICENSE_PRICE_ENV_KEYS.key?(key) || key.end_with?("_5yr")
   end
 
   # Annual self-serve plans (`basic_yearly` / `pro_yearly`). These never carry
