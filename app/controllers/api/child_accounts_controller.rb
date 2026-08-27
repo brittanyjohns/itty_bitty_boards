@@ -391,7 +391,7 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account.passcode = password if password.present? && requested_status != ChildAccount::SANDBOX
 
     # Optional attrs
-    @child_account.settings = params[:settings] if params[:settings].present?
+    @child_account.settings = normalized_settings(params[:settings]) if params[:settings].present?
     @child_account.details = params[:details] if params[:details].present?
 
     # A Free user's sandbox communicator is capped at one board; Pro sandbox
@@ -620,8 +620,30 @@ class API::ChildAccountsController < API::ApplicationController
   # Clearing a top-level key still works by sending an explicit blank/nil —
   # what no longer works is clearing by omission, which nothing does.
   def merged_settings(incoming)
+    (@child_account.settings || {}).merge(normalized_settings(incoming))
+  end
+
+  # A settings blob straight off the wire: plain string-keyed hash (never an
+  # ActionController::Parameters handed to a jsonb column), booleans typed.
+  def normalized_settings(incoming)
     incoming = incoming.to_unsafe_h if incoming.respond_to?(:to_unsafe_h)
-    (@child_account.settings || {}).merge(incoming.to_h.deep_stringify_keys)
+    cast_boolean_settings(incoming.to_h.deep_stringify_keys)
+  end
+
+  # This blob is unwhitelisted by design (each tab sends its own slice and new
+  # keys arrive without a deploy), but the flags the app BRANCHES on have to be
+  # real booleans: a string "false" is truthy in Ruby, so an untyped value
+  # would read as "on" everywhere the setting is checked.
+  def cast_boolean_settings(settings)
+    bool = ActiveModel::Type::Boolean.new
+    DisplaySettingsDefaults::REQUIRED_SETTINGS.each do |key|
+      # nil is left alone: clearing a key by sending nil is how a caller asks
+      # for the model default back (ensure_settings refills it).
+      next if settings[key].nil?
+
+      settings[key] = bool.cast(settings[key]) || false
+    end
+    settings
   end
 
   # Use callbacks to share common setup or constraints between actions.

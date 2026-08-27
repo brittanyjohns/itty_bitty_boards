@@ -325,6 +325,14 @@
         <%= f.check_box :enable_image_display, checked: @user.settings["enable_image_display"] %>
         Enable image display
       </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :show_labels, checked: @user.settings["show_labels"] %>
+        Show labels
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :show_tutorial, checked: @user.settings["show_tutorial"] %>
+        Show tutorial
+      </label>
     </div>
 
     <div class="flex items-center gap-4">

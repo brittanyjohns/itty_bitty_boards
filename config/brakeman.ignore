@@ -1,29 +1,6 @@
 {
   "ignored_warnings": [
     {
-      "warning_type": "Mass Assignment",
-      "warning_code": 105,
-      "fingerprint": "5dd6184726cef310292198ed511d5341b38621d33e2e3bdcc6c120e434a055df",
-      "check_name": "PermitAttributes",
-      "message": "Potentially dangerous key allowed for mass assignment",
-      "file": "app/controllers/admin/users_controller.rb",
-      "line": 235,
-      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
-      "code": "params.require(:user).permit(:name, :email, :role, :locked, :play_demo, :board_limit, :paid_communicator_limit, :demo_communicator_limit, :wait_to_speak, :disable_audit_logging, :enable_text_display, :enable_image_display, :voice => ([:name, :language]))",
-      "render_path": null,
-      "location": {
-        "type": "method",
-        "class": "Admin::UsersController",
-        "method": "user_params"
-      },
-      "user_input": ":role",
-      "confidence": "Medium",
-      "cwe_id": [
-        915
-      ],
-      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment — a non-listed role is ignored."
-    },
-    {
       "warning_type": "SQL Injection",
       "warning_code": 0,
       "fingerprint": "3cc2e3c76861366a0a310f3aefbff7cbdbc5002d95eafdec66a2f3bae327a827",
@@ -156,6 +133,52 @@
         1104
       ],
       "user_note": "Not a vulnerability — Brakeman warns 60 days before a Rails series goes EOL, so this fired on its own on 2026-08-08 and turned the Security workflow red on main. Rails 8.0 support ends 2026-10-07; the fix is the 8.1 upgrade, tracked separately. Remove this entry with that upgrade — the fingerprint is version-specific, so it will not silence the next series' warning."
+    },
+    {
+      "warning_type": "Mass Assignment",
+      "warning_code": 105,
+      "fingerprint": "6de6c1826dedb2b292628584f8cc240ff10731043c3b8f1f769990cbd9508720",
+      "check_name": "PermitAttributes",
+      "message": "Potentially dangerous key allowed for mass assignment",
+      "file": "app/controllers/admin/users_controller.rb",
+      "line": 279,
+      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
+      "code": "params.require(:user).permit(:name, :email, :role, :locked, :play_demo, :board_limit, :paid_communicator_limit, :demo_communicator_limit, *[\"wait_to_speak\", \"disable_audit_logging\", \"enable_image_display\", \"enable_text_display\", \"show_labels\", \"show_tutorial\"], :voice => ([:name, :language]))",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Admin::UsersController",
+        "method": "user_params"
+      },
+      "user_input": ":role",
+      "confidence": "Medium",
+      "cwe_id": [
+        915
+      ],
+      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment — a non-listed role is ignored."
+    },
+    {
+      "warning_type": "Mass Assignment",
+      "warning_code": 105,
+      "fingerprint": "e39ffd43e4d2da6f4708eaaa5dfe394ec08698dfea87a3bd1558505da463f237",
+      "check_name": "PermitAttributes",
+      "message": "Potentially dangerous key allowed for mass assignment",
+      "file": "app/controllers/api/admin/users_controller.rb",
+      "line": 361,
+      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
+      "code": "params.fetch(:user_setting, {}).permit(*[\"wait_to_speak\", \"disable_audit_logging\", \"enable_image_display\", \"enable_text_display\", \"show_labels\", \"show_tutorial\"], :role, :locked, :plan_type, :plan_nickname, :plan_expires_at, :pilot_group, :partner_code, :board_limit, :paid_communicator_limit, :demo_communicator_limit, :voice => ([:name, :speed, :pitch, :rate, :volume, :language]))",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "API::Admin::UsersController",
+        "method": "update_setting_params"
+      },
+      "user_input": ":role",
+      "confidence": "Medium",
+      "cwe_id": [
+        915
+      ],
+      "user_note": "False positive: API::Admin::UsersController requires an admin token, nothing is mass-assigned from these params (every key is read explicitly in #update), and promoting a user to :role \"admin\" is additionally gated on current_admin&.admin?."
     }
   ],
   "updated": null,

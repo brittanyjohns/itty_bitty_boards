@@ -112,18 +112,15 @@ module Admin
       @user.settings["paid_communicator_limit"] = attrs[:paid_communicator_limit].to_i if attrs[:paid_communicator_limit].present?
       @user.settings["demo_communicator_limit"] = attrs[:demo_communicator_limit].to_i if attrs[:demo_communicator_limit].present?
 
-      if attrs.key?(:wait_to_speak)
-        @user.settings["wait_to_speak"] = bool.cast(attrs[:wait_to_speak]) || false
+      # Presence-guarded, never truthiness — an absent key means "leave it
+      # alone". The list is the models' own (DisplaySettingsDefaults), so a
+      # flag the server defaults is always one an admin can also set.
+      DisplaySettingsDefaults::REQUIRED_SETTINGS.each do |key|
+        next unless attrs.key?(key)
+
+        @user.settings[key] = bool.cast(attrs[key]) || false
       end
-      if attrs.key?(:disable_audit_logging)
-        @user.settings["disable_audit_logging"] = bool.cast(attrs[:disable_audit_logging]) || false
-      end
-      if attrs.key?(:enable_text_display)
-        @user.settings["enable_text_display"] = bool.cast(attrs[:enable_text_display]) || false
-      end
-      if attrs.key?(:enable_image_display)
-        @user.settings["enable_image_display"] = bool.cast(attrs[:enable_image_display]) || false
-      end
+
       if attrs[:voice].present?
         voice = (@user.settings["voice"] || {}).merge(attrs[:voice].to_h.compact_blank)
         @user.settings["voice"] = voice
@@ -281,7 +278,7 @@ module Admin
     def user_params
       params.require(:user).permit(:name, :email, :role, :locked, :play_demo,
                                    :board_limit, :paid_communicator_limit, :demo_communicator_limit,
-                                   :wait_to_speak, :disable_audit_logging, :enable_text_display, :enable_image_display,
+                                   *DisplaySettingsDefaults::REQUIRED_SETTINGS,
                                    voice: [:name, :language])
     end
 

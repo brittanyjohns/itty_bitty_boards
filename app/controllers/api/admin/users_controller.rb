@@ -29,17 +29,39 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     render json: @user_api_view
   end
 
+  # Boolean settings an admin may toggle. Written only when the key is PRESENT
+  # in the payload: the admin form submits just the fields the admin touched,
+  # so an absent key means "leave it alone", not `false`. Reading absent as
+  # false silently turned the symbol strip off (`enable_image_display` defaults
+  # to true) for every user whose plan an admin edited. Same guard the HTML
+  # admin path already uses.
+  # Same list the models default (DisplaySettingsDefaults), so a flag can't be
+  # defaulted server-side yet be untouchable by an admin — which is what
+  # happened to show_labels/show_tutorial.
+  BOOLEAN_SETTING_KEYS = DisplaySettingsDefaults::REQUIRED_SETTINGS
+
   def update
     @user = User.find(params[:id])
     user_settings = @user.settings || {}
 
-    user_setting_params = params[:user_setting]
-    voice_settings = user_setting_params[:voice] || {}
-    @user.settings = user_settings.merge(voice: voice_settings)
-    @user.settings["wait_to_speak"] = user_setting_params[:wait_to_speak] || false
-    @user.settings["disable_audit_logging"] = user_setting_params[:disable_audit_logging] || false
-    @user.settings["enable_image_display"] = user_setting_params[:enable_image_display] || false
-    @user.settings["enable_text_display"] = user_setting_params[:enable_text_display] || false
+    user_setting_params = update_setting_params
+    @user.settings = user_settings
+
+    # String key on purpose: `settings` is jsonb, so a symbol `:voice` merges
+    # alongside the existing `"voice"` and is only rescued by serialization
+    # collapsing the two — the in-memory hash is wrong until save. Written only
+    # when sent, so an unrelated edit can't blank a user's stored voice.
+    voice_settings = user_setting_params[:voice]
+    if voice_settings.present?
+      @user.settings["voice"] = voice_settings.to_h.deep_stringify_keys
+    end
+
+    bool = ActiveModel::Type::Boolean.new
+    BOOLEAN_SETTING_KEYS.each do |key|
+      next unless user_setting_params.key?(key)
+
+      @user.settings[key] = bool.cast(user_setting_params[key]) || false
+    end
 
     role = user_setting_params[:role] || @user.role || "user"
     new_partner_user = role == "partner" && @user.role != "partner"
@@ -328,6 +350,19 @@ class API::Admin::UsersController < API::Admin::ApplicationController
 
   def restrict
     redirect_to root_path unless current_user&.admin?
+  end
+
+  # The admin settings payload. Every key below is read explicitly in #update;
+  # nothing is mass-assigned. `fetch` so a request without a `user_setting`
+  # object is a no-op rather than a NoMethodError.
+  def update_setting_params
+    params.fetch(:user_setting, {}).permit(
+      *BOOLEAN_SETTING_KEYS,
+      :role, :locked, :plan_type, :plan_nickname, :plan_expires_at,
+      :pilot_group, :partner_code,
+      :board_limit, :paid_communicator_limit, :demo_communicator_limit,
+      voice: [:name, :speed, :pitch, :rate, :volume, :language],
+    )
   end
 
   # Only allow a list of trusted parameters through.

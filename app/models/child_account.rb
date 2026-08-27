@@ -80,6 +80,11 @@ class ChildAccount < ApplicationRecord
 
   include WordEventsHelper
   include BoardsHelper
+  # Server-side defaults for the display flags in `settings`. Shared with User:
+  # a communicator's board reads the same keys its owner's does, and without
+  # this the backend wrote none of them — the effective default came from
+  # whichever frontend form happened to create the communicator.
+  include DisplaySettingsDefaults
 
   # validates :passcode, presence: true, on: :create
   # validates :passcode, length: { minimum: 6 }, on: :create
@@ -131,6 +136,9 @@ class ChildAccount < ApplicationRecord
 
   before_validation :set_status_from_is_demo, on: :create
   before_save :sync_is_demo_alias
+  # Fills only ABSENT keys, so a stored `false` is never "repaired" back to a
+  # default. `settings` merges on update, so this can't drop a caller's slice.
+  before_save :ensure_settings, unless: :has_all_settings?
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
   before_validation :set_username_if_missing, if: -> { username.blank? }
 
