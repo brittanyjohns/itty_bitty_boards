@@ -279,6 +279,17 @@ RSpec.describe KitPage, type: :model do
         expect(page_with([{ "label" => "Card", "url" => "https://canva.com/design/DAGabc/x/view" }])).to be_valid
       end
 
+      # Canva's own Share menu hands out short links as readily as full design
+      # URLs; refusing them made the feature look broken on a valid paste.
+      it "accepts a canva.link short link" do
+        expect(page_with([{ "label" => "Card", "url" => "https://canva.link/1o8k9nz2xecjq2a" }])).to be_valid
+      end
+
+      it "refuses the bare shortener domain, which names no design" do
+        page = page_with([{ "label" => "Card", "url" => "https://canva.link/" }])
+        expect(page).not_to be_valid
+      end
+
       it "refuses a value that isn't a list" do
         page = page_with("nope")
         expect(page).not_to be_valid
@@ -303,17 +314,20 @@ RSpec.describe KitPage, type: :model do
         expect(page.errors[:canva_templates].join).to include("needs a Canva link")
       end
 
-      # The allowlist, one rejection per rule it enforces.
-      it "refuses http, a foreign host, and a canva.com URL outside /design/" do
+      # The allowlist, one rejection per rule it enforces. Note a LOOKALIKE
+      # host is the case the allowlist exists for.
+      it "refuses http, a foreign host, a lookalike, and a canva.com URL outside /design/" do
         [
           "http://www.canva.com/design/DAGabc/x/view",
+          "http://canva.link/1o8k9nz2xecjq2a",
           "https://canva.example.com/design/DAGabc/x/view",
+          "https://canva.link.example.com/1o8k9nz2xecjq2a",
           "https://www.canva.com/templates/xyz",
           "not a url at all",
         ].each do |bad|
           page = page_with([{ "label" => "Card", "url" => bad }])
           expect(page).not_to be_valid, "expected #{bad.inspect} to be refused"
-          expect(page.errors[:canva_templates].join).to include("https link to a Canva design")
+          expect(page.errors[:canva_templates].join).to include("canva.link")
         end
       end
 

@@ -489,10 +489,27 @@ dynamic Mailchimp tag.
 
 ### URL validation
 
-An **allowlist**, like `DOCUMENT_CONTENT_TYPES` and `KIT_IMAGE_ORDER`:
-`https` scheme, host in `KitPage::CANVA_HOSTS` (`canva.com`, `www.canva.com`),
-path starting `KitPage::CANVA_PATH_PREFIX` (`/design/`). Cap of
-`KitPage::MAX_TEMPLATES` (5). A new Canva URL shape has to be opted in.
+An **allowlist**, like `DOCUMENT_CONTENT_TYPES` and `KIT_IMAGE_ORDER`. `https`
+always, and then either shape Canva's Share menu produces:
+
+| Host | Path rule |
+|---|---|
+| `KitPage::CANVA_DESIGN_HOSTS` — `canva.com`, `www.canva.com` | starts with `/design/` |
+| `KitPage::CANVA_SHORT_HOSTS` — `canva.link` | anything past the root (the whole path IS the id) |
+
+Cap of `KitPage::MAX_TEMPLATES` (5). A new Canva URL shape has to be opted in.
+
+A short link is stored **as pasted, never resolved**. It is Canva's own
+shortener, a visitor following it lands in the same place, and expanding it
+here would make saving the admin form depend on a third-party request that can
+hang or fail. The refusal message names both accepted shapes — the first cut
+listed only the `/design/` one, so pasting the short link Canva had just handed
+out looked like a bug in the form.
+
+Nothing distinguishes a **template** link from a read-only **view** link; both
+are well-formed and only Canva knows which is which. The admin hint says to
+check in a private window, and that stays a human step rather than a guess
+encoded here.
 
 A row missing its `url` is dropped by both readers rather than published as a
 dead button — but the *validation* still refuses it, so a half-filled row is
