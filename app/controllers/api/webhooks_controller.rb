@@ -361,6 +361,10 @@ class API::WebhooksController < API::ApplicationController
       "checkout_completed",
       properties: {
         plan: plan_type,
+        # Matches the `checkout_started` the license endpoint fires, so the
+        # funnel's two ends can be broken down by the same interval. A license
+        # is neither monthly nor yearly.
+        billing_interval: "five_year",
         kind: "license",
         amount_total: session.amount_total,
         currency: session.currency,
