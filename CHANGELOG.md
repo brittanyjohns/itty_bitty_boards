@@ -7,6 +7,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **An admin edit no longer silently turns off your display settings.** Changing
+  anything on a user from the admin screen — a plan type, a limit — used to
+  write "off" to the display preferences the form didn't send, so the picture
+  strip above the board disappeared with nothing to say why. Those settings are
+  now only changed when they're actually edited, and an admin can set "Show
+  labels" and "Show tutorial" too.
+
+- **A communicator's display settings now have a real default.** A communicator
+  whose settings were never saved from a form carried no preference at all, so
+  whether pictures showed above the board depended on which screen had created
+  them. Communicators now start with the same defaults their owner's account
+  has.
+
 - **Copying someone else's board no longer leaves folder tiles that open their
   boards.** A copy has always been one board, but its folder tiles kept pointing
   at the original owner's pages — so they opened boards you don't own, and broke

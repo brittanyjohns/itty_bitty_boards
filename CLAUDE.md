@@ -845,6 +845,21 @@ an explicit decision, not a drive-by edit.
   sandbox→active, mirroring `ChildAccount#promote_to_active!`). Note the
   column has **no DB default**, so `settings` can be `nil` on any row — every
   reader and writer needs `self.settings ||= {}`.
+- **An ABSENT settings key is not `false`, and the defaults live in ONE place.**
+  `DisplaySettingsDefaults` (included by both `User` and `ChildAccount`) owns
+  the boolean display flags and what each defaults to — `enable_image_display`,
+  `show_labels`, `show_tutorial` true; `wait_to_speak`,
+  `disable_audit_logging`, `enable_text_display` false. Two rules ride on it.
+  A WRITER guards on `key?`, never on truthiness: the admin form submits only
+  the fields an admin touched, so `params[:x] || false` wrote `false` to every
+  flag it omitted — turning off the symbol strip for any user whose plan an
+  admin edited, and `ensure_settings` never repaired it because it only fills a
+  `nil`, never a stored `false`. And a flag the models default must be a flag
+  an admin can SET (`show_labels`/`show_tutorial` were defaulted but permitted
+  nowhere), which is why both admin paths and both models read the one list.
+  The communicator blob stays unwhitelisted — each tab sends its own slice —
+  but these keys are boolean-cast on the way in, since a string `"false"` is
+  truthy in Ruby and would read as "on" everywhere the flag is checked.
 - **Email verification is keyed on `email_verified_at`, never `confirmed_at`.**
   `User#mark_email_verified!` is the only writer. Verified status may be
   conferred ONLY by a path where the user clicked a link delivered to their

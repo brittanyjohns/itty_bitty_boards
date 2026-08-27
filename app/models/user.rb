@@ -215,6 +215,9 @@ class User < ApplicationRecord
   include WordEventsHelper
   include StripeHelper
   include UsersHelper
+  # Defaults for the display flags in `settings` — shared with ChildAccount so
+  # a communicator and its owner can't disagree about an absent key.
+  include DisplaySettingsDefaults
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
@@ -997,33 +1000,8 @@ class User < ApplicationRecord
     nil
   end
 
-  def all_required_settings
-    %w[wait_to_speak disable_audit_logging enable_image_display enable_text_display show_labels show_tutorial]
-  end
-
-  def false_settings
-    %w[wait_to_speak disable_audit_logging enable_text_display]
-  end
-
-  def true_settings
-    %w[enable_image_display show_labels show_tutorial]
-  end
-
-  def has_all_settings?
-    all_required_settings.all? { |setting| settings[setting] }
-  end
-
   def audit_logging_disabled?
     settings.present? && settings["disable_audit_logging"] == true
-  end
-
-  def ensure_settings
-    self.settings = {} unless settings
-    all_required_settings.each do |setting|
-      settings[setting] = false if false_settings.include?(setting) && settings[setting].nil?
-      settings[setting] = true if true_settings.include?(setting) && settings[setting].nil?
-    end
-    settings
   end
 
   def create_opening_board

@@ -80,6 +80,24 @@ RSpec.describe "API::ChildAccounts settings merge", type: :request do
       expect(communicator.reload.settings["enable_image_display"]).to be(true)
     end
 
+    # The blob is unwhitelisted by design, but a string "false" is truthy in
+    # Ruby — the flags the app branches on have to be stored as real booleans.
+    it "casts string booleans on the display flags" do
+      update_settings({ enable_image_display: "false", enable_text_display: "true" })
+
+      settings = communicator.reload.settings
+      expect(settings["enable_image_display"]).to be(false)
+      expect(settings["enable_text_display"]).to be(true)
+    end
+
+    it "restores the model default for a display flag sent as nil" do
+      communicator.update!(settings: { "enable_image_display" => false })
+
+      update_settings({ enable_image_display: nil })
+
+      expect(communicator.reload.settings["enable_image_display"]).to be(true)
+    end
+
     it "leaves settings alone when the param is absent" do
       communicator.update!(settings: { "large_layout_cols" => 5 })
 
