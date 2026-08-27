@@ -114,6 +114,12 @@ class Board < ApplicationRecord
   attr_accessor :allow_marketplace_protected_destroy
   attr_accessor :allow_marketplace_protected_change
 
+  # How many tiles `clone_with_images(..., flatten_foreign_links: true)` had to
+  # turn back into ordinary speaking tiles. In-memory only — it describes the
+  # clone that just happened, not a property of the row, and the clone endpoint
+  # reports it so the frontend can tell the user what changed.
+  attr_accessor :flattened_tile_count
+
   # Raised, not `throw :abort`, because the cascades that can reach a protected
   # board ignore a false return: BoardGroup destroys its members with
   # `destroy_all` and Admin::BoardBuildsController with `reverse_each(&:destroy)`.
@@ -1422,7 +1428,16 @@ class Board < ApplicationRecord
   # used by Boards::AssignmentCloner for the sub-boards of an assigned set,
   # which get no ChildBoard of their own but must stay out of the owner's
   # normal board scopes (and the board-limit count) like the root clone does.
-  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil, force_template: false)
+  # `flatten_foreign_links:` is OPT-IN and belongs to the shallow clone alone.
+  # Every tile's `predictive_board_id` is otherwise copied verbatim, because the
+  # deep cloners (Boards::AssignmentCloner, Boards::SeededSetCloner) clone the
+  # linked sub-boards too and rewire the pointers afterwards — nulling one here
+  # would cut the link before their rewire ever sees it. `POST /api/boards/:id/clone`
+  # has no rewire to follow: it copies ONE board, so a folder tile keeps opening
+  # the SOURCE owner's board, which the cloner doesn't own and can't keep working
+  # (the owner may unpublish or delete it). Those tiles are flattened back into
+  # ordinary speaking tiles instead, and the count is reported on the clone.
+  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil, force_template: false, flatten_foreign_links: false)
     if new_name.blank?
       new_name = name
     end
@@ -1439,6 +1454,16 @@ class Board < ApplicationRecord
     @images = @source.images
     @board_images = @source.board_images
     @layouts = @board_images.pluck(:image_id, :layout)
+    # One query for every link target, so the ownership test below doesn't cost
+    # a lookup per tile. A pointer with no row left is treated as foreign — it
+    # is already broken, and carrying it into the clone only hides that.
+    link_owner_ids =
+      if flatten_foreign_links
+        Board.where(id: @board_images.pluck(:predictive_board_id).compact.uniq).pluck(:id, :user_id).to_h
+      else
+        {}
+      end
+    flattened_tiles = 0
 
     @cloned_board = @source.dup
     # A clone gets its own freshly-generated preview (enqueued below via
@@ -1519,6 +1544,15 @@ class Board < ApplicationRecord
 
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
+        # Keep the link only when the cloning user owns what it opens. A tile
+        # pointing at the source board itself fails that test too on a
+        # cross-account clone, which is right: it would navigate out of the
+        # clone and into the original.
+        if flatten_foreign_links && new_board_image.predictive_board_id.present? &&
+           link_owner_ids[new_board_image.predictive_board_id] != cloned_user_id
+          new_board_image.flatten_navigation!
+          flattened_tiles += 1
+        end
         new_board_image.audio_url = board_image.audio_url
         new_board_image.save
 
@@ -1541,6 +1575,8 @@ class Board < ApplicationRecord
     # Boards::SeededSetCloner works around; the reload also clears the
     # loaded-empty association cache on the object we hand back to callers.
     @cloned_board.reload
+    # After the reload — it swaps the attribute set out from under the object.
+    @cloned_board.flattened_tile_count = flattened_tiles
     @cloned_board.run_generate_preview_job if @cloned_board.board_images.any? && @cloned_board.valid?
 
     unless communicator_account.nil? || communicator_account.child_boards.where(board_id: @cloned_board.id).exists?
