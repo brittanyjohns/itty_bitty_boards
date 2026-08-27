@@ -283,6 +283,76 @@ RSpec.describe Board, type: :model do
         expect(letter.display_label).to eq("A")
       end
     end
+
+    describe "flatten_foreign_links:" do
+      let(:other_user) { FactoryBot.create(:user) }
+      let(:target)     { FactoryBot.create(:board, user: user, name: "Food") }
+      let!(:door) do
+        FactoryBot.create(:board_image, board: board, predictive_board_id: target.id,
+                                        data: { "mute_name" => true })
+      end
+
+      it "is off by default, so the deep cloners still get verbatim pointers to rewire" do
+        cloned = board.clone_with_images(other_user.id)
+        pointers = cloned.reload.board_images.map(&:predictive_board_id).compact
+
+        expect(pointers).to eq([target.id])
+        expect(cloned.flattened_tile_count).to eq(0)
+      end
+
+      it "flattens a pointer at a board the cloning user doesn't own" do
+        cloned = board.clone_with_images(other_user.id, nil, nil, nil, flatten_foreign_links: true)
+        tile = cloned.reload.board_images.find_by(label: door.label)
+
+        expect(tile.predictive_board_id).to be_nil
+        expect(cloned.flattened_tile_count).to eq(1)
+      end
+
+      # Dropping the pointer alone would leave a muted tile with nowhere to go —
+      # door_tile? is true on mute_name by itself.
+      it "clears the navigation markers so the flattened tile speaks" do
+        cloned = board.clone_with_images(other_user.id, nil, nil, nil, flatten_foreign_links: true)
+        tile = cloned.reload.board_images.find_by(label: door.label)
+
+        expect(tile.data["mute_name"]).to be_nil
+        expect(tile.door_tile?).to be(false)
+      end
+
+      it "keeps a pointer at a board the cloning user does own" do
+        cloned = board.clone_with_images(user.id, nil, nil, nil, flatten_foreign_links: true)
+        tile = cloned.reload.board_images.find_by(label: door.label)
+
+        expect(tile.predictive_board_id).to eq(target.id)
+        expect(cloned.flattened_tile_count).to eq(0)
+      end
+
+      it "flattens a pointer whose target board is gone" do
+        target.delete # bypass dependent: :nullify so the tile keeps the dangling id
+
+        cloned = board.reload.clone_with_images(user.id, nil, nil, nil, flatten_foreign_links: true)
+        tile = cloned.reload.board_images.find_by(label: door.label)
+
+        expect(tile.predictive_board_id).to be_nil
+        expect(cloned.flattened_tile_count).to eq(1)
+      end
+
+      # A self-pointing tile navigates out of the clone and into the original.
+      it "flattens a pointer at the source board itself on a cross-account clone" do
+        door.update_column(:predictive_board_id, board.id)
+
+        cloned = board.reload.clone_with_images(other_user.id, nil, nil, nil, flatten_foreign_links: true)
+        tile = cloned.reload.board_images.find_by(label: door.label)
+
+        expect(tile.predictive_board_id).to be_nil
+        expect(cloned.flattened_tile_count).to eq(1)
+      end
+
+      it "clones one board only — it never follows the link" do
+        expect {
+          board.clone_with_images(other_user.id, nil, nil, nil, flatten_foreign_links: true)
+        }.to change { Board.count }.by(1)
+      end
+    end
   end
 
   describe "#check_in_use (before_save)" do

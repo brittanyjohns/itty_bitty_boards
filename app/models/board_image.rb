@@ -328,6 +328,20 @@ class BoardImage < ApplicationRecord
     predictive_board_id.present? && predictive_board_id != board_id
   end
 
+  # Every marker that makes a tile navigation rather than vocabulary. They have
+  # to come off together: `door_tile?` is true on `mute_name` / `nav_tile`
+  # ALONE, so dropping the pointer while leaving a flag behind strands a silent
+  # tile with nowhere to go — worse than the broken link it replaced.
+  NAVIGATION_DATA_KEYS = ["mute_name", Boards::NavRowSync::NAV_TILE_KEY, "back_tile", "override_frozen"].freeze
+
+  # Turn a folder/nav tile back into an ordinary speaking tile. In-memory only;
+  # the caller saves. Used by a shallow clone that can't keep a link, where the
+  # alternative is a tile navigating into boards the new owner doesn't own.
+  def flatten_navigation!
+    self.predictive_board_id = nil
+    self.data = (data || {}).except(*NAVIGATION_DATA_KEYS)
+  end
+
   def reset_part_of_speech_and_bg_color!
     reset_part_of_speech!
     set_colors!

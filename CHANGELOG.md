@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Copying someone else's board no longer leaves folder tiles that open their
+  boards.** A copy has always been one board, but its folder tiles kept pointing
+  at the original owner's pages — so they opened boards you don't own, and broke
+  outright if that owner later unpublished or deleted one. Those tiles now become
+  ordinary speaking tiles in your copy, and the app can tell you how many changed.
+  Folder tiles that point at your *own* boards are untouched, and copying still
+  uses one board slot.
+
 - **Boards from the Board Builder are named correctly again.** Building a set
   could name the board — and its board set — after an unrelated admin board
   (for example "Classroom — Core Words Poster") instead of "Core 60" or

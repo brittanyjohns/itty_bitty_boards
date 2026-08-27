@@ -1412,10 +1412,15 @@ class API::BoardsController < API::ApplicationController
     set_board
     # new_name = "Copy of " + @board.name
     new_name = params[:name].presence || @board.name
-    @new_board = @board.clone_with_images(current_user.id, new_name)
+    # Shallow clone: one board, one board slot. Folder tiles whose target board
+    # isn't the cloner's are flattened into speaking tiles rather than left
+    # pointing into the source owner's account — `flattened_tiles` is how many,
+    # so the client can say so. Additive field; 0 when nothing was flattened.
+    @new_board = @board.clone_with_images(current_user.id, new_name, flatten_foreign_links: true)
     @new_board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
     @new_board.save!
     render json: @new_board.api_view_with_images(current_user)
+                           .merge(flattened_tiles: @new_board.flattened_tile_count.to_i)
   end
 
   def create_board_group

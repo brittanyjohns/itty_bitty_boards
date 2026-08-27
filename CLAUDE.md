@@ -416,6 +416,25 @@ an explicit decision, not a drive-by edit.
   paths used to do, one line after `set_labels` had folded it) makes every seed
   board's casing permanent in every board built from it: that is what kept the
   Board Builder emitting Title Case after the creation paths were fixed.
+- **A clone either REWIRES its links or FLATTENS them — never copies them into
+  someone else's account.** `Board#clone_with_images` copies each tile's
+  `predictive_board_id` verbatim because the deep cloners
+  (`Boards::AssignmentCloner`, `Boards::SeededSetCloner`) clone the linked
+  sub-boards too and remap the pointers afterwards; nulling one in the tile loop
+  would cut the link before their rewire ran. `POST /api/boards/:id/clone` is
+  the shallow path and has no rewire to follow — it copies ONE board and one
+  board slot — so a verbatim pointer navigated the cloner into the SOURCE
+  owner's boards, which they don't own and which break the moment that owner
+  unpublishes or deletes one. Hence `flatten_foreign_links:`, opt-in and used
+  only there: a pointer at a board the cloning user doesn't own (a missing row,
+  or the source board itself, both count) is dropped and the tile becomes an
+  ordinary speaking tile. Flattening is `BoardImage#flatten_navigation!`, which
+  clears `NAVIGATION_DATA_KEYS` as well as the pointer — `door_tile?` is true on
+  `mute_name`/`nav_tile` ALONE, so dropping the pointer while leaving a flag
+  behind strands a silent tile with nowhere to go, which is worse than the
+  broken link. The count rides back on the in-memory
+  `Board#flattened_tile_count` and the clone response's additive
+  `flattened_tiles`.
 - **A slug is derived from the name once, at creation, and a rename never
   changes it.** `slug` is the `/pb/<slug>` key that a shared link, a MySpeak
   tile and a printed QR code all resolve through; the name is just a label.
