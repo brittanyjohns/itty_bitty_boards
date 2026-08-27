@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-19 · **Status:** built — see "As built" at the foot of this doc
 **Full plan:** `../drafts/kit-landing-pages-plan.md` (this doc is self-contained; the plan adds context)
-**Counterpart:** `../itty-bitty-frontend/.claude-notes/kit-landing-pages-handoff.md` (blocked on this PR)
+**Counterpart:** `../itty-bitty-frontend/.claude-notes/kit-landing-pages-handoff.md` (also built and shipped)
 **Issue:** none filed
 **Related spokes:** `.claude-notes/board-printables-etsy.md`, `.claude-notes/marketing-integrations.md`,
 `.claude-notes/classroom-lead-tag-handoff.md`

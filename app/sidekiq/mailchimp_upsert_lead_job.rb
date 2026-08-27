@@ -8,8 +8,17 @@ class MailchimpUpsertLeadJob
   sidekiq_options queue: :default, retry: 3, backtrace: true
 
   DEFAULT_LEAD_TAG = "BoardDownloadLead".freeze
+
+  # Applied to every /kit/:slug lead in ADDITION to its per-page tag, so
+  # "has ever downloaded a kit" is one durable segment rather than a list of
+  # per-page tags that has to be re-enumerated by hand every time Brittany adds
+  # a landing page. Deliberately not applied to the SOURCE_TAGS funnels below:
+  # those already have segments and automations built against a single tag each,
+  # and widening them would silently change who those match.
+  KIT_UMBRELLA_TAG = "KitLead".freeze
+
   # Source-specific Mailchimp tags so distinct lead funnels can be segmented.
-  # A "kit_<slug>" source reads its tag off the KitPage row (see #tag_for);
+  # A "kit_<slug>" source reads its tag off the KitPage row (see #tags_for);
   # anything else falls back to DEFAULT_LEAD_TAG.
   SOURCE_TAGS = {
     "classroom_kit" => "ClassroomKitLead",
@@ -36,7 +45,7 @@ class MailchimpUpsertLeadJob
     MailchimpService.new.record_lead(
       email: lead.email,
       name: lead.name,
-      tags: [tag_for(lead)],
+      tags: tags_for(lead),
     )
 
     lead.update(mailchimp_status: "synced")
@@ -53,14 +62,26 @@ class MailchimpUpsertLeadJob
 
   private
 
-  # Derive the Mailchimp tag from the lead's source so different capture funnels
+  # Derive the Mailchimp tags from the lead's source so different capture funnels
   # (e.g. the /classroom kit) land under their own segmentable tag.
   #
   # SOURCE_TAGS stays the explicit map for the three hardcoded funnels; a
   # `kit_<slug>` source resolves its tag from the KitPage row instead, which is
   # the whole reason a new landing page needs no deploy.
-  def tag_for(lead)
-    SOURCE_TAGS.fetch(lead.source) { kit_page_tag(lead.source) || DEFAULT_LEAD_TAG }
+  #
+  # Kit leads get two tags: the per-page one and KIT_UMBRELLA_TAG. The umbrella
+  # is keyed on the source PREFIX, not on the page lookup succeeding, so a lead
+  # whose landing page was later deleted still counts as a kit lead.
+  def tags_for(lead)
+    source = lead.source
+    return [SOURCE_TAGS[source]] if SOURCE_TAGS.key?(source)
+    return [DEFAULT_LEAD_TAG] unless kit_source?(source)
+
+    [kit_page_tag(source) || DEFAULT_LEAD_TAG, KIT_UMBRELLA_TAG]
+  end
+
+  def kit_source?(source)
+    source.to_s.start_with?(KitPage::LEAD_SOURCE_PREFIX)
   end
 
   # Never raises. A page deleted after its leads were captured must fall back
