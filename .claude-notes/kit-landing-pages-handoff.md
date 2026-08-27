@@ -435,3 +435,91 @@ gets an unpublished page past `KitPage.for_public`.
 
 The frontend reads `?preview=` off the location and forwards it to both calls;
 that is the whole of its half.
+
+## Canva templates (the product that isn't a file)
+
+A kit page may hand over **editable Canva designs** as well as, or instead of,
+a PDF. The motivating product is the MySpeak ID card: it only works once it
+carries one communicator's name, photo and QR, so a flat PDF can't be the
+deliverable. The visitor gets their own copy of the design in Canva, and makes
+the QR themselves with Canva's built-in **QR Code app**, pasting their
+`permanent_url`. No Canva API, no OAuth, no QR generation on our side.
+
+### Shape
+
+`kit_pages.canva_templates` — jsonb, `default: []`, `null: false`. One row per
+template:
+
+```json
+{ "label": "Lanyard card", "url": "https://www.canva.com/design/…", "description": "Two per page" }
+```
+
+**Its own column, not a key under `content`.** `public_view` ships `content`
+wholesale (`content: content.presence || {}`), so a link parked there is
+published to anonymous visitors. Stripping it back out on the way through is
+the same one-column-two-meanings trap `pdf_files` records.
+
+### The gate
+
+The rule is identical to the PDF's, and the two reader names say which is which:
+
+| Reader | Carries | Where |
+|---|---|---|
+| `template_teasers` | `label`, `description` | `public_view` — marketing, same argument as `gallery_images` |
+| `template_links` | + `url` | `#download` only, after the lead |
+
+`downloadable?` keeps its narrow meaning — *a readable PDF exists*. The wider
+test is `offers_anything?` (`downloadable? || has_templates?`), which is what
+`#download` guards on and what the frontend checks before rendering the email
+form. A templates-only page therefore reports `downloadable: false` and still
+opens its gate.
+
+The download response always carries **both** keys:
+
+```json
+{ "files": [...], "templates": [...] }
+```
+
+`files` stays present as `[]` on a templates-only page, so a frontend that
+predates this feature renders its existing "nothing to download" dead end
+rather than throwing.
+
+Leads are untouched: same `DownloadLead`, same `kit_<slug>` source, same
+dynamic Mailchimp tag.
+
+### URL validation
+
+An **allowlist**, like `DOCUMENT_CONTENT_TYPES` and `KIT_IMAGE_ORDER`:
+`https` scheme, host in `KitPage::CANVA_HOSTS` (`canva.com`, `www.canva.com`),
+path starting `KitPage::CANVA_PATH_PREFIX` (`/design/`). Cap of
+`KitPage::MAX_TEMPLATES` (5). A new Canva URL shape has to be opted in.
+
+A row missing its `url` is dropped by both readers rather than published as a
+dead button — but the *validation* still refuses it, so a half-filled row is
+reported to the admin instead of being silently swallowed. Only a wholly blank
+row (the spare slot the form always renders) is dropped before validation, in
+`Admin::KitPagesController#submitted_canva_templates`.
+
+### Admin form
+
+A repeater posting `canva_templates[][label]` / `[url]` / `[description]`.
+Existing rows plus one blank; three blanks on a page with none. A failed save
+re-renders what was typed for free, because `assign_and_save` assigns before
+saving — the same mechanism `@content_raw` uses.
+
+### The how-to
+
+`content["how_to"]` (`{ "heading": …, "steps": [ … ] }`) is validated loosely,
+like `items` and `closing`, and rendered in the success card under the template
+buttons. It's where the three-step "copy your MySpeak link → Canva's QR Code
+app → print" instruction lives, so it's editable without a deploy.
+
+### Accepted limits
+
+- **A revealed link is a bearer token and can't be revoked.** Same trade the
+  unsigned PDF CDN URL already makes; the gate is soft by design.
+- **Nothing health-checks a template link.** Delete or unshare the design in
+  Canva and the page offers a dead button with no signal. The admin form says
+  so; a checker isn't worth building.
+- **`KitPages::CopySuggester` is untouched.** It writes copy from a printable
+  and cannot invent a template link.

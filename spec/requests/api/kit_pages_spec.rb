@@ -381,4 +381,97 @@ RSpec.describe "API kit_pages", type: :request do
       }.to change { MailchimpUpsertLeadJob.jobs.size }.by(1)
     end
   end
+
+  # A page whose product is an editable Canva design rather than a PDF. Same
+  # gate, same lead, same `kit_<slug>` source — only the thing handed over
+  # differs.
+  describe "a Canva-template page" do
+    let(:link) { "https://www.canva.com/design/DAGabc123/xyz/view" }
+
+    let(:template_page) do
+      create(
+        :kit_page,
+        slug: "myspeak-id-card", title: "MySpeak ID card",
+        canva_templates: [
+          { "label" => "Lanyard card", "url" => link, "description" => "Two per page" },
+        ],
+      )
+    end
+
+    it "advertises the templates on the public read without their links" do
+      get "/api/kit_pages/#{template_page.slug}"
+
+      body = JSON.parse(response.body)
+      expect(response).to have_http_status(:ok)
+      expect(body["templates"]).to eq(
+        [{ "label" => "Lanyard card", "description" => "Two per page" }]
+      )
+      # The whole invariant, asserted against the raw body rather than a key:
+      # the link may not appear anywhere in the anonymous payload.
+      expect(response.body).not_to include("canva.com")
+    end
+
+    # `downloadable?` keeps its narrow meaning — there is no PDF — and the gate
+    # opens anyway, because the page still has something to hand over.
+    it "reports downloadable: false yet still opens the gate" do
+      get "/api/kit_pages/#{template_page.slug}"
+
+      expect(JSON.parse(response.body)["downloadable"]).to eq(false)
+
+      expect {
+        post "/api/kit_pages/#{template_page.slug}/download", params: { email: "teacher@school.org" }
+      }.to change(DownloadLead, :count).by(1)
+
+      body = JSON.parse(response.body)
+      expect(response).to have_http_status(:ok)
+      expect(body["templates"]).to eq(
+        [{ "label" => "Lanyard card", "description" => "Two per page", "url" => link }]
+      )
+      # Present but empty, so a frontend that predates templates renders its
+      # existing "nothing to download" dead end rather than throwing.
+      expect(body["files"]).to eq([])
+
+      lead = DownloadLead.last
+      expect(lead.source).to eq("kit_myspeak-id-card")
+      expect(MailchimpUpsertLeadJob.jobs.size).to eq(1)
+    end
+
+    it "hands over the PDF and the templates together when the page has both" do
+      attach_all_variants
+      page.update!(canva_templates: [{ "label" => "Lanyard card", "url" => link }])
+
+      post "/api/kit_pages/#{page.slug}/download", params: { email: "teacher@school.org" }
+
+      body = JSON.parse(response.body)
+      expect(body["files"].size).to eq(1)
+      expect(body["templates"].sole["url"]).to eq(link)
+    end
+
+    it "answers not_available only when there is neither a PDF nor a template" do
+      empty = create(:kit_page, slug: "nothing-here")
+
+      expect {
+        post "/api/kit_pages/#{empty.slug}/download", params: { email: "teacher@school.org" }
+      }.not_to change(DownloadLead, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("not_available")
+    end
+
+    it "hands a draft's templates to a preview token without writing a lead" do
+      draft = create(
+        :kit_page, slug: "draft-card", published: false,
+        canva_templates: [{ "label" => "Card", "url" => link }],
+      )
+
+      expect {
+        post "/api/kit_pages/#{draft.slug}/download",
+             params: { email: "admin@speakanyway.com", preview: draft.preview_token }
+      }.not_to change(DownloadLead, :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["templates"].sole["url"]).to eq(link)
+      expect(MailchimpUpsertLeadJob.jobs).to be_empty
+    end
+  end
 end
