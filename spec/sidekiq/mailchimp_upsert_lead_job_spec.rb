@@ -96,14 +96,14 @@ RSpec.describe MailchimpUpsertLeadJob, type: :job do
     # A kit_<slug> source reads its tag off the KitPage row rather than
     # SOURCE_TAGS, which is what lets a new landing page ship without a deploy.
     context "with a kit landing-page source" do
-      it "uses the tag derived from the page's slug" do
+      it "uses the tag derived from the page's slug, alongside the umbrella tag" do
         create(:kit_page, slug: "at-school")
         kit_lead = create(:download_lead, email: "teacher@example.com", name: "Rae", source: "kit_at-school")
 
         expect(mailchimp).to receive(:record_lead).with(
           email: "teacher@example.com",
           name: "Rae",
-          tags: ["AtSchoolLead"],
+          tags: ["AtSchoolLead", "KitLead"],
         )
 
         job.perform(kit_lead.id)
@@ -116,16 +116,36 @@ RSpec.describe MailchimpUpsertLeadJob, type: :job do
         kit_lead = create(:download_lead, email: "teacher@example.com", name: "Rae", source: "kit_at-school")
 
         expect(mailchimp).to receive(:record_lead)
-          .with(hash_including(tags: ["BackToSchool2026"]))
+          .with(hash_including(tags: ["BackToSchool2026", "KitLead"]))
 
         job.perform(kit_lead.id)
       end
 
-      it "falls back to the default tag when the page has been deleted, without raising" do
+      # The page is gone but the lead is still a kit lead, so it keeps the
+      # umbrella tag — the "downloaded any kit" segment must not develop holes
+      # every time an old landing page is deleted. Only the per-page tag, which
+      # can no longer be resolved, degrades to the default.
+      # The umbrella tag is scoped to kit landing pages on purpose. The three
+      # hardcoded funnels already have segments and automations built against a
+      # single tag each; widening them would silently change who those match.
+      it "does not add the umbrella tag to non-kit sources" do
+        %w[free_download classroom_kit ctg].each do |source|
+          other = create(:download_lead, email: "#{source}@example.com", source: source)
+
+          expect(mailchimp).to receive(:record_lead) do |args|
+            expect(args[:tags]).not_to include("KitLead")
+            expect(args[:tags].size).to eq(1)
+          end
+
+          job.perform(other.id)
+        end
+      end
+
+      it "falls back to the default per-page tag when the page has been deleted, without raising" do
         kit_lead = create(:download_lead, email: "teacher@example.com", name: "Rae", source: "kit_gone")
 
         expect(mailchimp).to receive(:record_lead)
-          .with(hash_including(tags: ["BoardDownloadLead"]))
+          .with(hash_including(tags: ["BoardDownloadLead", "KitLead"]))
 
         expect { job.perform(kit_lead.id) }.not_to raise_error
         expect(kit_lead.reload.mailchimp_status).to eq("synced")

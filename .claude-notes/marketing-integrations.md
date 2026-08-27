@@ -233,22 +233,55 @@ the non-credit handlers (`apply_free_plan` on delete/pause, `past_due` on
 **Anonymous lead capture → Mailchimp tags.** `POST /api/download_leads`
 (public, no auth) creates a `DownloadLead` from a bare email and enqueues
 `MailchimpUpsertLeadJob`, which upserts the contact via
-`MailchimpService#record_lead` and tags it. The tag comes from
-`MailchimpUpsertLeadJob::SOURCE_TAGS`, keyed on the lead's free-form `source`
-string (`"classroom_kit"` → `ClassroomKitLead`, `"ctg"` → `ctg-2026`); anything
-unlisted falls back to `DEFAULT_LEAD_TAG`. `source` is not validated against a
-whitelist — a new funnel only needs a `SOURCE_TAGS` entry to get its own
-segmentable tag, and a typo'd source degrades to the default tag rather than
+`MailchimpService#record_lead` and tags it. There are two tagging paths, both
+in `MailchimpUpsertLeadJob#tags_for`:
+
+- **Hardcoded funnels** — `SOURCE_TAGS`, keyed on the lead's free-form `source`
+  string (`"classroom_kit"` → `ClassroomKitLead`, `"ctg"` → `ctg-2026`,
+  `"playground_nomination"` → `PlaygroundNomination`). One tag each.
+- **`/kit/:slug` landing pages** — a `kit_<slug>` source resolves its tag off the
+  `KitPage` row via `KitPage#resolved_mailchimp_tag` (the admin-set
+  `mailchimp_tag` column, else one derived from the slug: `at-school` →
+  `AtSchoolLead`). **This is why a new landing page needs no deploy.** Kit leads
+  get a *second*, shared tag — `KIT_UMBRELLA_TAG` (`KitLead`) — so "has ever
+  downloaded a kit" is one durable segment instead of an ever-growing list of
+  per-page tags. The umbrella is keyed on the `kit_` source prefix, not on the
+  page lookup succeeding, so a lead whose page was later deleted still counts.
+
+Anything unmatched falls back to `DEFAULT_LEAD_TAG`. `source` is not validated
+against a whitelist — a typo'd source degrades to the default tag rather than
 erroring. Campaign UTMs ride along in the lead's `data` jsonb.
+
+**Derived tags are not brand-safe.** `resolved_mailchimp_tag` camelizes the
+slug, so `speakanyway-core-2026` becomes `SpeakanywayCore2026Lead` — which
+violates the SpeakAnyWay capitalization rule. Set `mailchimp_tag` explicitly in
+the admin for any page whose slug contains the brand name. Setting it explicitly
+is worth doing regardless: the derived tag is a function of the slug, so renaming
+a slug silently splits the segment (old contacts keep the old tag, new ones get
+a new one, and nothing errors).
 
 **`record_lead` only ever sends `EMAIL` + `FNAME`**, so every required merge
 field on the audience is a silent break: a permanent 4xx marks the lead
 `failed` and is deliberately *not* re-raised (it would fail identically on
 every retry), so a misconfigured audience kills capture without surfacing an
 exception. Before launching a capture funnel, confirm the audience has no
-required merge fields beyond EMAIL — as of the CTG work the production
-audience (`us2`, list `b7456c33f9`) requires none, and `ADDRESS` is present
-but optional.
+required merge fields beyond EMAIL — the production audience requires none,
+and `ADDRESS` is present but optional.
+
+**Audience IDs — don't confuse these.** The audience is read at call time from
+`ENV["MAILCHIMP_AUDIENCE_ID"]`, which differs per environment:
+
+| List ID | Name | Where it's used |
+|---|---|---|
+| `8ed478c93c` | SpeakAnyWay AAC Users - Production | **Production.** Also the default in `marketing/tools/mailchimp-api.py`. |
+| `b7456c33f9` | Development Users | Local dev — this is what checked-in `config/application.yml` points at. |
+| `602195e1ab` | SpeakAnyWay AAC | Legacy, no longer written to. |
+
+An earlier revision of this file named `b7456c33f9` as the production audience.
+That was wrong — it is the dev list, read out of local `application.yml`.
+Verified 2026-08-27 against the Mailchimp API: the lead tags (`ClassroomKitLead`,
+`PlaygroundNomination`, `BoardDownloadLead`, and the derived kit-page tags) all
+live in `8ed478c93c`.
 
 ## PostHog server-side analytics
 
