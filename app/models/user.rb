@@ -2380,6 +2380,11 @@ class User < ApplicationRecord
 
       # Identity
       email: email,
+      # Account age drives the dashboard's first-visit vs. "Welcome back"
+      # greeting (isNewAccount treats a missing/unparseable value as unknown,
+      # not as "new"), so this has to be a parseable timestamp, not a
+      # locale-formatted date like plan_expires_at.
+      created_at: created_at,
       role: role,
       name: name,
       display_name: display_name,
