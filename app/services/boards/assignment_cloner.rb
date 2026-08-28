@@ -12,8 +12,8 @@ module Boards
   #     board, owner: current_user, communicator: child, voice: "echo"
   #   ).call
   #
-  # Root clone: unchanged contract — is_template, ChildBoard on the
-  # communicator (created inside clone_with_images), UpdateUserBoardsJob.
+  # Root clone: is_template (unless `template_root: false`), ChildBoard on the
+  # communicator, UpdateUserBoardsJob.
   # Sub-board clones: is_template (via force_template), owned by the same
   # user, NO ChildBoard rows (they surface only through folder navigation),
   # marked settings["assignment_child"] + ["assignment_root_id"] so
@@ -28,12 +28,22 @@ module Boards
       ENV.fetch("BOARD_ASSIGN_CLONE_DEPTH", 3).to_i
     end
 
-    def initialize(source_root, owner:, communicator:, voice: nil, name: nil)
-      @source_root  = source_root
-      @owner        = owner
-      @communicator = communicator
-      @voice        = voice
-      @name         = name
+    # `template_root:` decides what the ROOT clone is, and it is the whole
+    # difference between an assignment and a board the user owns. An
+    # assignment (assign_boards / assign_accounts) mints a per-communicator
+    # template: invisible in the owner's board list, uncountable against
+    # `board_limit`, hard-deleted when the last dashboard detaches it. The
+    # MySpeak wizard's starter is not that — it is the parent's own board,
+    # published on their child's public page, and one they must be able to
+    # find and edit — so it clones as `template_root: false` and is gated by
+    # `at_board_limit?` like any other board create.
+    def initialize(source_root, owner:, communicator:, voice: nil, name: nil, template_root: true)
+      @source_root   = source_root
+      @owner         = owner
+      @communicator  = communicator
+      @voice         = voice
+      @name          = name
+      @template_root = template_root
     end
 
     # Returns the cloned root Board. Transactional: a mid-clone failure leaves
@@ -42,8 +52,18 @@ module Boards
       ActiveRecord::Base.transaction do
         sources = PredictiveLinkSet.collect(@source_root, max_depth: self.class.depth_cap)
 
-        root_clone = @source_root.clone_with_images(@owner.id, @name || @source_root.name, @voice, @communicator)
+        # No communicator passed down: `clone_with_images` derives
+        # `is_template` from its presence (board.rb), so handing it over would
+        # force a template root and take `template_root:` away from the
+        # caller. We ask for the template flag explicitly and create the
+        # ChildBoard ourselves instead — same row, same columns.
+        root_clone = @source_root.clone_with_images(
+          @owner.id, @name || @source_root.name, @voice, nil,
+          force_template: @template_root,
+        )
         raise CloneError, "failed to clone board #{@source_root.id}" if root_clone.nil?
+
+        attach_root!(root_clone)
 
         map = { @source_root.id => root_clone }
         sources.each do |src|
@@ -65,6 +85,27 @@ module Boards
         PredictiveLinkSet.rewire!(map, out_of_set: :keep)
         root_clone
       end
+    end
+
+    private
+
+    # Mirrors what Board#clone_with_images does when a communicator is passed:
+    # same columns, same idempotency guard, same log-don't-raise failure mode
+    # (a dashboard row is not worth losing the clone over).
+    def attach_root!(root_clone)
+      return if @communicator.nil?
+      return if @communicator.child_boards.where(board_id: root_clone.id).exists?
+
+      child_board = @communicator.child_boards.new(
+        board: root_clone,
+        created_by_id: @owner.id,
+        original_board: @source_root,
+      )
+      return if child_board.save
+
+      Rails.logger.error "[AssignmentCloner] Error creating ChildBoard for communicator " \
+                         "#{@communicator.id} and board #{root_clone.id}: " \
+                         "#{child_board.errors.full_messages.join(', ')}"
     end
   end
 end

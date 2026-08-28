@@ -95,6 +95,7 @@ module API
 
           profile = nil
           child = nil
+          starter_board = nil
           adopted = target.present?
 
           ActiveRecord::Base.transaction do
@@ -128,7 +129,7 @@ module API
 
             profile.save!
 
-            attach_starter_board(child, board_id)
+            starter_board = attach_starter_board(child, board_id)
             ensure_team_for(child)
           end
 
@@ -182,8 +183,13 @@ module API
           # the user already had, rather than a new one — the difference the
           # confirmation copy needs. Status stays :created either way: from the
           # caller's side the MySpeak page did not exist before this request.
+          # `starter_board` reports what happened to the board step —
+          # attached or skipped, and why. The wizard never blocks on it, so
+          # without a report a refused clone (at the board limit, say) looks
+          # to the frontend exactly like a successful one.
           render json: profile.safety_view.merge(
             adopted: adopted,
+            starter_board: starter_board,
             settings: profile.public_settings(kind: :safety)
                              .merge(profile.safety_sensitive_settings),
           ), status: :created
@@ -343,30 +349,74 @@ module API
         end
 
         # The frontend sends a Board#id (integer) for the picked public
-        # starter, "later" / nil to skip, or the string form of either. We
-        # clone the picked board for current_user so admin edits to the
-        # master never leak into a family's communicator, then favorite the
-        # ChildBoard that clone_with_images creates.
+        # starter, a board the user ALREADY OWNS, "later" / nil to skip, or
+        # the string form of any of those. Returns the result hash the create
+        # response echoes back as `starter_board` — the board step must never
+        # block setup, so every refusal is a reported skip, not an error.
         #
-        # Anything unparseable, unknown, or not in Board.public_boards is
-        # logged and skipped — the board step must never block setup.
+        # Branch order is load-bearing: the public picker is checked FIRST.
+        # For User::DEFAULT_ADMIN_ID a public starter is also a board they
+        # own, and an ownership-first branch would attach the shared master
+        # itself to a communicator instead of cloning it.
         def attach_starter_board(child, board_id)
-          return if board_id.blank?
-          return if board_id.to_s == "later"
+          return skipped_board(:not_requested) if board_id.blank?
+          return skipped_board(:not_requested) if board_id.to_s == "later"
 
           board = Board.find_by(id: board_id.to_i)
           unless board
             Rails.logger.warn "[Onboarding::Myspeak] board id #{board_id.inspect} not found — skipping"
-            return
+            return skipped_board(:not_found)
           end
 
           # Allowlist against the picker's own scope. clone_with_images
           # doesn't enforce ownership, so without this guard a client could
           # send any id and clone a stranger's private board.
-          unless Board.public_boards.exists?(id: board.id)
-            Rails.logger.warn "[Onboarding::Myspeak] board #{board.id} is not a public board — skipping"
-            return
+          return clone_starter_board(child, board) if Board.public_boards.exists?(id: board.id)
+
+          # A board the user already owns needs no clone — this is the "use
+          # the board I already have" pick, and it is the only answer we have
+          # for a user who is at their board limit.
+          #
+          # `current_user.boards` and not `Board.find_by(...).user_id ==`: the
+          # association filters `is_template: false`, which is what stops the
+          # frontend re-attaching one of the invisible template clones this
+          # wizard used to mint (#795) and reproducing the same split.
+          owned = current_user.boards.find_by(id: board.id)
+          return attach_owned_board(child, owned) if owned
+
+          Rails.logger.warn "[Onboarding::Myspeak] board #{board.id} is neither a public starter nor owned by user #{current_user.id} — skipping"
+          skipped_board(:not_permitted)
+        end
+
+        # Clone a public starter for this user.
+        #
+        # The clone is a REAL board: `template_root: false`, so it lands in
+        # `GET /api/boards`, counts toward `board_limit`, and can be opened,
+        # renamed and deleted by the parent. It used to be an invisible
+        # per-communicator template — which meant the board on the child's
+        # public page was one its owner could not reach, while she edited a
+        # different copy (#795). A board nobody can see is not a board.
+        #
+        # And because it counts, it has to be gated like every other create.
+        def clone_starter_board(child, board)
+          # Fresh instance so the count isn't stale from earlier in the
+          # request — same reason API::BoardsController's create gate refetches.
+          limit_user = User.find(current_user.id)
+          if limit_user.at_board_limit?
+            # No substitute, no guess. Favoriting PUBLISHES a board one-way
+            # (ChildBoard#publish_for_myspeak), so quietly picking a board she
+            # already owns would publish one she never chose. The frontend
+            # gets the reason and offers her own boards instead.
+            Rails.logger.info "[Onboarding::Myspeak] user #{current_user.id} at board limit " \
+                              "(#{limit_user.countable_board_count}/#{limit_user.board_limit}) — skipping starter clone"
+            return skipped_board(:board_limit_reached)
           end
+
+          # The per-communicator caps the other two AssignmentCloner call
+          # sites apply. Unreachable on a fresh communicator (it has no
+          # boards); reachable on the adoption path, where the page being set
+          # up may belong to a communicator already holding its boards.
+          return skipped_board(:communicator_board_limit_reached) if communicator_board_limit_reached?(child)
 
           # Deep clone: a starter board with folder tiles gets its linked
           # sub-boards cloned + rewired too (usually a no-op — starters are
@@ -375,17 +425,66 @@ module API
             cloned = Boards::AssignmentCloner.new(board, owner: current_user,
                                                          communicator: child,
                                                          voice: child.voice,
-                                                         name: board.name).call
+                                                         name: board.name,
+                                                         template_root: false).call
           rescue Boards::AssignmentCloner::CloneError => e
             Rails.logger.warn "[Onboarding::Myspeak] clone failed for board #{board.id}: #{e.message}"
-            return
+            return skipped_board(:clone_failed)
           end
 
-          # The root clone gets a ChildBoard join row (inside
-          # clone_with_images). Mark it the communicator's favorite to match
-          # the old behavior (the wizard's pick is the home board).
-          child_board = ChildBoard.find_by(child_account: child, board: cloned)
+          favorite_starter!(child, cloned, source: "clone")
+        end
+
+        # Put a board the user already owns on the communicator. No clone, so
+        # no limit applies — nothing is created but the join row.
+        def attach_owned_board(child, board)
+          child_board = child.child_boards.find_or_create_by!(board: board)
+          favorite_starter!(child, board, child_board: child_board, source: "existing")
+        end
+
+        # Favoriting is what puts the board on the public MySpeak page, and
+        # ChildBoard's after_save publishes it (and cascades its set) as a
+        # one-way move. Report `published` back so the frontend can say so —
+        # on the owned-board path this is a board that may have been private
+        # until now.
+        def favorite_starter!(child, board, child_board: nil, source:)
+          child_board ||= ChildBoard.find_by(child_account: child, board: board)
           child_board&.update(favorite: true)
+
+          {
+            attached: child_board.present?,
+            source: child_board.present? ? source : nil,
+            board_id: child_board.present? ? board.id : nil,
+            child_board_id: child_board&.id,
+            published: board.reload.published?,
+            reason: child_board.present? ? nil : "attach_failed",
+          }
+        end
+
+        def communicator_board_limit_reached?(child)
+          if child.sandbox?
+            demo_limit = (child.settings&.dig("demo_board_limit") || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
+            if child.child_boards.count >= demo_limit
+              Rails.logger.info "[Onboarding::Myspeak] communicator #{child.id} at demo board limit (#{demo_limit}) — skipping starter clone"
+              return true
+            end
+          end
+
+          return false unless child.at_assigned_board_limit?
+
+          Rails.logger.info "[Onboarding::Myspeak] communicator #{child.id} at assigned board limit — skipping starter clone"
+          true
+        end
+
+        def skipped_board(reason)
+          {
+            attached: false,
+            source: nil,
+            board_id: nil,
+            child_board_id: nil,
+            published: false,
+            reason: reason.to_s,
+          }
         end
 
         def unique_slug_for(base)

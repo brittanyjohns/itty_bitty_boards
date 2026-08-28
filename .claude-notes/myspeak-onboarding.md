@@ -15,7 +15,7 @@ Frontend lives in `itty-bitty-frontend` at
 | `name`              | `ChildAccount#name`. On a **create**, also `ChildAccount#username` (parameterized) mirrored to `Profile#username`; the slug is random, never name-derived. On an **adopt**, only `#name` — the username is left alone (see Adoption below) |
 | `pronouns`          | `Profile#settings["pronouns"]` (jsonb)                                                    |
 | `photo_data_url`    | `Profile#avatar` via Active Storage (data URL → `StringIO`)                              |
-| `board_id`          | One of `basics` / `feelings` / `social` → favorited `ChildBoard`; `later` → skip          |
+| `board_id`          | A `Board#id` — a public starter (cloned) or a board the user already owns (attached as-is) → favorited `ChildBoard`; `later`/`null` → skip. See Starter boards |
 | `about_me`          | `Profile#bio` — PUBLIC, printed as About Me on the open page                              |
 | `emergency_notes`   | `Profile#settings["emergency_notes"]` — PRIVATE, behind the gated safety reveal           |
 | `care_notes`        | Legacy clients only. Framed as safety info, so it routes to the PRIVATE `emergency_notes`, never the public bio |
@@ -53,7 +53,7 @@ by `API::ApplicationController#authenticate_token!`)
 
 | Status | Body shape                                                                       | When                                          |
 |--------|----------------------------------------------------------------------------------|-----------------------------------------------|
-| 201    | `Profile#safety_view` + `adopted: <bool>`                                        | success (created **or** adopted)              |
+| 201    | `Profile#safety_view` + `adopted: <bool>` + `starter_board: {...}`               | success (created **or** adopted)              |
 | 401    | `{ error: "Unauthorized" }`                                                      | no/bad bearer token                           |
 | 403    | `{ error: "communicator_slot_unavailable", message }`                            | plan has 0 communicator slots                 |
 | 422    | `{ error: "communicator_slot_unavailable", message }`                            | out of slots, nothing adoptable               |
@@ -162,10 +162,9 @@ decided at the final POST after six steps, and there is no picker to send
 3. If `photo_data_url` matches `data:<ct>;base64,<payload>`, decode
    and `avatar.attach`.
 4. `profile.save!`.
-5. If `board_id` ∈ `{basics, feelings, social}`, look up
-   `Board.find_by(slug: "myspeak-#{board_id}")` and create a favorited
-   `ChildBoard`. **Silently skipped** if the board isn't seeded —
-   logs a `Rails.logger.warn`, doesn't 422.
+5. `attach_starter_board(child, board_id)` — see Starter boards below. Every
+   refusal is a **reported skip**, never a 422: the board step must not be able
+   to lose a page the parent just filled in.
 6. `ensure_team_for(child)` — mirrors `API::ChildAccountsController#create`:
    creates a `Team` named `"<name>'s Communication Team"`, attaches
    the child via `TeamAccount`, and adds `current_user` as admin
@@ -178,27 +177,69 @@ heavy and not relevant to the wire-up.
 
 ## Starter boards
 
-Three predefined boards back the `board_id` picker. Seed them with:
+`board_id` is a **`Board#id`** (integer, or its string form). The picker itself
+is a separate endpoint — `GET /api/public_boards?myspeak=true` →
+`Board.myspeak_public_boards`.
 
-```bash
-bin/rails runner db/seeds/myspeak_starter_boards.rb
+`attach_starter_board` takes one of three paths, and **the order matters**:
+
+1. **A public starter** (`Board.public_boards`) → deep-clone it for the user
+   (`Boards::AssignmentCloner`, so a starter with folder tiles brings its
+   sub-boards and rewires the links), then favorite the resulting `ChildBoard`.
+   Checked FIRST because for `User::DEFAULT_ADMIN_ID` a public starter is also
+   a board they own — an ownership-first branch would attach the shared master
+   itself to a communicator.
+2. **A board the user already owns** (`current_user.boards.find_by(id:)`) →
+   attach it as-is, no clone. This is the "use the board I already have" pick,
+   and it is the only answer for a user at their board limit. The lookup goes
+   through the association on purpose: it filters `is_template: false`, which
+   is what stops the frontend re-attaching one of the invisible template clones
+   the wizard used to mint (#795).
+3. Anything else → skipped and logged.
+
+### The clone is the parent's own board, and it is gated
+
+`template_root: false`, so the root clone is `is_template: false`: it appears
+in `GET /api/boards`, counts toward `User#board_limit`, and can be opened,
+renamed and deleted. It used to be a per-communicator template like an SLP
+assignment — which meant the board on the child's public page was one its owner
+could not see, while she edited a different copy of it (#795).
+
+Because it counts, it is gated like any other board create: `at_board_limit?`
+on a freshly-refetched `User` (the count is memoized), plus the per-communicator
+caps the other `AssignmentCloner` call sites apply. **At the limit the wizard
+does not clone and does not substitute a board of its own choosing** —
+favoriting PUBLISHES a board one-way (`ChildBoard#publish_for_myspeak`), so a
+guessed substitute would publish a board the parent never chose. It reports the
+reason and lets the frontend offer her own boards.
+
+Linked sub-board clones stay `is_template: true` with `settings["assignment_child"]`,
+exactly as for an assignment.
+
+### `starter_board` in the response
+
+```json
+{ "attached": false, "source": null, "board_id": null,
+  "child_board_id": null, "published": false, "reason": "board_limit_reached" }
 ```
 
-| Wizard `board_id` | Board slug          | Name              |
-|-------------------|---------------------|-------------------|
-| `basics`          | `myspeak-basics`    | Basic needs       |
-| `feelings`        | `myspeak-feelings`  | Feelings & needs  |
-| `social`          | `myspeak-social`    | Out & about       |
-| `later`           | (no attachment)     | —                 |
+`source` is `"clone"` or `"existing"`. `reason` is `null` on success, else one
+of `not_requested`, `not_found`, `not_permitted`, `board_limit_reached`,
+`communicator_board_limit_reached`, `clone_failed`, `attach_failed`.
 
-The seed creates **empty** boards (no tiles). Admin populates tiles
-in the editor when ready. If you raise this to full seeded tiles
-later, the existing `Board#find_or_create_images_from_word_list`
-helper is the right entry point — it enqueues image-gen jobs, so
-**don't** call it from tests.
+`published` is disclosure, not decoration: favoriting publishes the board and
+cascades its set, one-way, so on the own-board path the wizard may have just
+made a board public that wasn't. The frontend needs to be able to say so.
 
-The seed is idempotent — `find_by(slug:)` then `assign_attributes` +
-`save!`. Safe to re-run.
+### Auditing the boards the old behavior left behind
+
+```bash
+bin/rails myspeak:stale_starter_clones
+```
+
+Read-only. Lists favorited `is_template` boards on MySpeak safety pages whose
+owner and attacher are both the page owner — the shape the pre-#795 wizard
+minted. It reports, it never repoints: a live public page is a decision.
 
 ## Footguns you'll hit
 
@@ -263,4 +304,6 @@ fetches from ui-avatars.com.
   `User::FREE_PLAN_LIMITS` and friends (`app/models/user.rb`)
 - Analytics: `Analytics::CommunicatorEvents`
   (`app/models/analytics/communicator_events.rb`)
-- Seed: `db/seeds/myspeak_starter_boards.rb`
+- Board clone: `Boards::AssignmentCloner` (`app/services/boards/assignment_cloner.rb`)
+- Board-limit gate: `User#at_board_limit?` / `#countable_board_count` (`app/models/user.rb`)
+- Stale-clone report: `lib/tasks/myspeak.rake` (`myspeak:stale_starter_clones`)
