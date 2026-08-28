@@ -2423,6 +2423,10 @@ class Board < ApplicationRecord
       status: status,
       slug: slug,
       name: name,
+      # Speak mode reads this endpoint, and its ⋮ menu gates "Edit this board"
+      # on can_edit. Same derivation as boards#show (owner/admin plus the
+      # plan-based read-only rule), so the two answers can't disagree.
+      can_edit: can_edit_for(viewing_user),
       frozen: settings && settings["freeze_board"] == true,
       images: @board_images.map do |board_image|
         @board_image = board_image

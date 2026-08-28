@@ -21,6 +21,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A brand-new account is greeted as new, and speak mode offers "Edit this
+  board" again.** Two fields the app reads were missing from the API responses
+  it reads them from, so shipped behavior never appeared: the current-user
+  response carried no `created_at`, so a thirty-second-old account landed on the
+  dashboard reading "Welcome back" with the plan-limit card the first-visit
+  welcome exists to hide; and the board payload speak mode loads carried no
+  `can_edit`, so a board's own owner saw a one-row ⋮ menu one screen after being
+  told the board was theirs to edit. Both fields are now served, using the same
+  ownership and read-only rules the rest of the app already applies.
+
 - **An admin edit no longer silently turns off your display settings.** Changing
   anything on a user from the admin screen — a plan type, a limit — used to
   write "off" to the display preferences the form didn't send, so the picture
