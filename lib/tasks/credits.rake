@@ -1,10 +1,9 @@
 namespace :credits do
   desc "Backfill an initial plan credit grant for every user based on their plan_type"
-  # HAZARD: this task grants to every user lacking a plan_grant row, with no
-  # email-verification check. Since Task 2b, initial credits are gated on
-  # email_verified_at (see User#mark_email_verified!) — running this task as-is
-  # would hand credits to every unverified account and undo that gate. Do not
-  # change this behavior without an explicit decision to do so.
+  # Grants to every user lacking a plan_grant row, verified or not. That is
+  # correct now: the initial grant happens at signup
+  # (User#grant_signup_ai_allowance) and email verification no longer gates
+  # AI credits. This task exists to heal accounts that predate either change.
   task backfill: :environment do
     granted = 0
     skipped = 0
@@ -26,6 +25,26 @@ namespace :credits do
       print "." if granted % 100 == 0
     end
     puts "\nBackfill complete. granted=#{granted} skipped=#{skipped}"
+  end
+
+  desc "Grant welcome tokens to unverified accounts left at zero by the old email-verification gate"
+  # Scoped to accounts that are still unverified AND carry no
+  # `welcome_tokens_granted_at` stamp — i.e. exactly the cohort that signed up
+  # while the initial grant was deferred to email verification and never
+  # clicked the link. A verified account has already been granted (before the
+  # stamp existed), so widening this scope would double-grant it. AI credits
+  # for the same cohort need no task: RefreshFreeTierCreditsJob now picks them
+  # up on its next run (plan_credits_reset_at IS NULL), or run credits:backfill.
+  task backfill_welcome_tokens: :environment do
+    granted = 0
+
+    User.where(email_verified_at: nil)
+      .where("settings->>'welcome_tokens_granted_at' IS NULL")
+      .find_each do |user|
+      granted += 1 if user.grant_welcome_tokens!
+    end
+
+    puts "Welcome-token backfill complete. granted=#{granted}"
   end
 
   desc "Re-grant plan credits to users zeroed out by the stale-plan_expires_at backfill bug (issue #110)"

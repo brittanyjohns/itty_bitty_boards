@@ -24,18 +24,34 @@ RSpec.describe User, "email verification state" do
   end
 
   describe "welcome tokens" do
-    it "does NOT grant tokens on account creation" do
+    it "grants tokens on account creation, without waiting for verification" do
       user = FactoryBot.create(:user)
-      expect(user.tokens).to eq(0)
+
+      expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
+      expect(user.email_verified?).to be(false)
     end
 
-    it "grants tokens when the address is verified" do
+    it "does not grant a second batch when the address is later verified" do
       user = FactoryBot.create(:user)
 
       expect(user.mark_email_verified!).to be(true)
 
-      expect(user.reload.tokens).to eq(10)
+      expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
       expect(user.email_verified?).to be(true)
+    end
+
+    # The healing path for accounts created while the initial grant was still
+    # deferred to verification: no stamp, no tokens, and they only ever get
+    # them by clicking the link.
+    it "grants tokens on verification to a legacy account that never got them" do
+      user = FactoryBot.create(:user)
+      user.update_columns(tokens: 0)
+      user.settings.delete("welcome_tokens_granted_at")
+      user.update_columns(settings: user.settings)
+
+      expect(user.reload.mark_email_verified!).to be(true)
+
+      expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
     end
 
     # Deliberately NOT cleared. Email security scanners (Outlook Safe Links,
@@ -58,7 +74,7 @@ RSpec.describe User, "email verification state" do
       user.mark_email_verified!
 
       expect(user.mark_email_verified!).to be(false)
-      expect(user.reload.tokens).to eq(10)
+      expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
     end
 
     it "leaves an already-verified user's balance untouched" do
@@ -71,40 +87,41 @@ RSpec.describe User, "email verification state" do
   end
 
   describe "AI credit grant" do
-    it "does NOT grant plan credits on account creation" do
-      user = FactoryBot.create(:user)
-      expect(user.credit_transactions.where(kind: "plan_grant")).to be_empty
-      expect(CreditService.balance(user)[:total]).to eq(0)
-    end
-
-    it "grants the free-tier credit allowance on verification" do
+    it "grants the free-tier credit allowance on account creation" do
       user = FactoryBot.create(:user)
 
-      user.mark_email_verified!
-
+      expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
       expect(CreditService.balance(user.reload)[:total]).to eq(
         CreditService.monthly_credits_for("free")
       )
     end
 
-    it "grants both currencies in one call" do
+    it "grants both currencies at signup, unverified" do
       user = FactoryBot.create(:user)
 
-      user.mark_email_verified!
-
-      expect(user.reload.tokens).to eq(10)
+      expect(user.reload.email_verified?).to be(false)
+      expect(user.tokens).to eq(User::WELCOME_TOKENS)
       expect(CreditService.balance(user)[:total]).to eq(25)
     end
 
-    it "does not double-grant credits when called twice" do
+    it "does not double-grant credits when the account is later verified" do
       user = FactoryBot.create(:user)
-      user.mark_email_verified!
-      user.reload
 
       user.mark_email_verified!
 
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
       expect(CreditService.balance(user.reload)[:total]).to eq(25)
+    end
+
+    it "grants credits on verification to a legacy account that has none" do
+      user = FactoryBot.create(:user)
+      reset_user_credits!(user)
+
+      user.reload.mark_email_verified!
+
+      expect(CreditService.balance(user.reload)[:total]).to eq(
+        CreditService.monthly_credits_for("free")
+      )
     end
   end
 

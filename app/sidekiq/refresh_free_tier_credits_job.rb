@@ -18,14 +18,13 @@
 #   - plan_type is in REFRESHABLE_PLAN_TYPES
 #   - plan_credits_reset_at IS NULL (never granted) OR has passed
 #   - stripe_subscription_id is blank (no Stripe-driven renewal incoming)
-#   - Email is verified (email_verified_at present) — but ONLY for the free
-#     allowance (plan_type free/basic_trial). Tiers with no Stripe
-#     subscription rely on THIS job for their monthly re-grant regardless of
-#     verification: 5-year licenses, RevenueCat/App Store, and partner_pro
-#     have already paid, and clinician is a free, manually-approved comp
-#     tier (not a self-serve signup, so it isn't an abuse vector) — either
-#     way, an unclicked verification email must never zero their balance.
 #   - Skip admins
+#
+# Email verification is NOT a condition. It used to gate the free allowance
+# (free/basic_trial), which meant an unclicked verification email quietly
+# zeroed an honest user's monthly AI budget forever. Credits are now granted
+# at signup (User#grant_signup_ai_allowance) and refreshed here on the same
+# terms for every tier.
 #
 # Idempotent in practice: grant_plan! expires leftovers and sets
 # plan_credits_reset_at forward, so the same user won't requalify until
@@ -49,13 +48,6 @@ class RefreshFreeTierCreditsJob
     vendor
     premium
   ].freeze
-
-  # Only these plan types require a verified email before this job will
-  # refresh their allowance. Everything else in REFRESHABLE_PLAN_TYPES has
-  # already paid (5-year licenses, clinician, RevenueCat/App Store,
-  # partner_pro) and rides this job for its monthly re-grant regardless of
-  # verification — see the `eligible_users` comment below.
-  VERIFICATION_GATED_PLAN_TYPES = %w[free basic_trial].freeze
 
   def perform
     refreshed = 0
@@ -95,13 +87,5 @@ class RefreshFreeTierCreditsJob
         "stripe_subscription_id IS NULL OR stripe_subscription_id = '' " \
         "OR settings->>'billing_interval' = 'yearly'",
       )
-      # Verification gates the FREE allowance only. Tiers without a Stripe
-      # subscription rely on this job for their monthly re-grant regardless of
-      # verification: 5-year licenses, RevenueCat/App Store, and partner_pro
-      # have already paid, and clinician is a free, manually-approved comp
-      # tier (not a self-serve signup, so it isn't an abuse vector) — either
-      # way, an unclicked verification email must never zero their balance.
-      # See .claude-notes/credits.md ("No-subscription paid plans ride the refresh job").
-      .where("email_verified_at IS NOT NULL OR plan_type NOT IN (?)", VERIFICATION_GATED_PLAN_TYPES)
   end
 end

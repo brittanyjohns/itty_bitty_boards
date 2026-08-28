@@ -525,19 +525,6 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: stripped_prompt, image_type: "Generated")
     end
 
-    # image_generation is free for first-time fills (no `check_credits!` call
-    # below in that case) — so on THIS route email verification is the only
-    # gate standing between an unverified account and free OpenAI spend. Note
-    # the communicator-side twin, API::Account::ImagesController#run_generate,
-    # has no token/credit/verification guard at all; it is only weakly
-    # reachable (a Free user's self-created communicator is forced to SANDBOX,
-    # which has no passcode and so no child token). Tracked separately.
-    # Checked after the
-    # accessible_image lookup so a non-owner's private image still 404s before
-    # this, same precedence as check_board_editable!'s resource-then-permission
-    # ordering.
-    return unless require_verified_email!
-
     # Building the library is free: only charge when the image already has a
     # displayable picture for this user (i.e. they're replacing/customizing it).
     # First-time generation for an empty tile generates the image but isn't billed.
@@ -890,24 +877,6 @@ class API::ImagesController < API::ApplicationController
     return relation.find(id) if current_user.admin?
 
     relation.where("images.is_private IS NOT TRUE OR images.user_id = ?", current_user.id).find(id)
-  end
-
-  # Gate for #generate: image generation — including the free first-fill
-  # path — is only for verified accounts. Unverified accounts hold zero
-  # legacy tokens and zero AI credits (see User#mark_email_verified!), but
-  # the free-first-fill path never calls check_credits!, so without this an
-  # unverified account could still drive paid OpenAI generation for free.
-  # 403, not 402/429: this is a permission gate, not credit exhaustion or
-  # rate limiting. Never renders internals — generic message only.
-  def require_verified_email!
-    return true if @current_user.admin?
-    return true if @current_user.email_verified?
-
-    render json: {
-      error: "email_verification_required",
-      message: "Please verify your email address to generate images.",
-    }, status: :forbidden
-    false
   end
 
   def check_update_board_image(saved_image_url = nil)

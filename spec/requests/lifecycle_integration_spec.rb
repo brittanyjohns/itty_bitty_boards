@@ -49,12 +49,10 @@ RSpec.describe "Subscription lifecycle (end-to-end)", type: :request do
     # ----- Step 1: legacy basic_trial account -----
     # New signups now land on free (the no-CC soft trial was removed,
     # drafts/drop-basic-trial-option-a.md), but basic_trial remains a valid
-    # fallback state we must keep handling. Construct one explicitly, then
-    # verify: the 400-credit grant is deferred to email verification
-    # (User#mark_email_verified! → CreditService.ensure_initial_grant!,
-    # task-2b) rather than firing on create.
+    # fallback state we must keep handling. Construct one explicitly; the
+    # 400-credit grant fires on create (User#grant_signup_ai_allowance →
+    # CreditService.ensure_initial_grant!), not on verification.
     user = FactoryBot.create(:user, stripe_customer_id: "cus_lifecycle", plan_type: "basic_trial")
-    user.mark_email_verified!
     user.reload
     expect(user.plan_type).to eq("basic_trial")
     expect(user.plan_credits_balance).to eq(400)

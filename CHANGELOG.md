@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **AI credits now arrive the moment you sign up.** Your welcome tokens and your
+  plan's monthly AI credits used to wait until you clicked the link in the
+  verification email — so a brand-new account that hadn't opened its email yet
+  had a zero balance, couldn't generate a tile picture, and got its allowance
+  zeroed again by the monthly refresh. Credits are granted at signup on every
+  plan, the monthly refresh runs for verified and unverified accounts alike, and
+  image generation no longer asks whether your email is verified. Verifying your
+  email still matters — it's how we know we can reach you — it just doesn't hold
+  your credits hostage. Accounts created under the old behavior get their
+  credits on the next monthly refresh, and their welcome tokens the first time
+  they verify.
+
 ### Fixed
 
 - **An admin edit no longer silently turns off your display settings.** Changing

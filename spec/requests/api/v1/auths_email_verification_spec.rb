@@ -1,8 +1,9 @@
 require "rails_helper"
 
-# Signup no longer grants tokens up front — see
-# drafts/2026-07-26-email-verification-design.md. Both `sign_up` and
-# `email_signup` send a verification email now (task-7r): `set_password` /
+# Signup grants welcome tokens and the plan's AI credits up front
+# (User#grant_signup_ai_allowance) — email verification no longer gates them.
+# What verification still means is unchanged: both `sign_up` and
+# `email_signup` send a verification email (task-7r), and `set_password` /
 # invitation-accept no longer confers verified status (devise_invitable
 # stamps confirmed_at on accept_invitation! regardless, which is not proof of
 # inbox ownership — see the task-7r brief), so email_signup's welcome receipt
@@ -27,11 +28,14 @@ RSpec.describe "signup email verification", type: :request do
       expect(JSON.parse(response.body)["token"]).to be_present
     end
 
-    it "creates the account unverified with a zero token balance" do
+    it "creates the account unverified but already funded" do
       sign_up
       user = User.find_by(email: "new@example.com")
       expect(user.email_verified?).to be(false)
-      expect(user.tokens).to eq(0)
+      expect(user.tokens).to eq(User::WELCOME_TOKENS)
+      expect(CreditService.balance(user)[:total]).to eq(
+        CreditService.monthly_credits_for("free")
+      )
     end
 
     it "issues a verification token and sends the email" do
@@ -72,12 +76,13 @@ RSpec.describe "signup email verification", type: :request do
       expect(User.find_by(email: "paid@example.com").email_verification_token).to be_present
     end
 
-    it "creates the account unverified with a zero balance" do
+    it "creates the account unverified but already funded" do
       post "/api/v1/users/email_signup", params: { email: "paid@example.com" }, as: :json
 
       user = User.find_by(email: "paid@example.com")
       expect(user.email_verified?).to be(false)
-      expect(user.tokens).to eq(0)
+      expect(user.tokens).to eq(User::WELCOME_TOKENS)
+      expect(CreditService.balance(user)[:total]).to be > 0
     end
 
     it "still succeeds and returns a token when the verification mail enqueue raises (e.g. Redis is down)" do
@@ -106,7 +111,9 @@ RSpec.describe "verification is earned only by an emailed link", type: :request 
   # THE security regression test for this task. Reaching set_password requires
   # only the session email_signup already handed out — no inbox access — so it
   # must not confer verified status, even though devise_invitable's
-  # accept_invitation! stamps confirmed_at underneath us.
+  # accept_invitation! stamps confirmed_at underneath us. Credits are no longer
+  # what rides on this — the account is funded at signup either way — but
+  # `email_verified_at` still has to mean "this inbox was opened".
   it "does NOT verify a user who sets a password without clicking an emailed link" do
     post "/api/v1/users/email_signup", params: { email: "nobody@example.com" }, as: :json
     user = User.find_by(email: "nobody@example.com")
@@ -117,11 +124,9 @@ RSpec.describe "verification is earned only by an emailed link", type: :request 
 
     expect(response).to have_http_status(:ok)
     expect(user.reload.email_verified?).to be(false)
-    expect(user.tokens).to eq(0)
-    expect(CreditService.balance(user)[:total]).to eq(0)
   end
 
-  it "verifies and grants on a successful temp login" do
+  it "verifies on a successful temp login without re-granting" do
     user = FactoryBot.create(:user, email_verified_at: nil)
     user.update!(temp_login_token: "temptoken123", temp_login_expires_at: 1.hour.from_now)
 
@@ -129,7 +134,7 @@ RSpec.describe "verification is earned only by an emailed link", type: :request 
 
     expect(response).to have_http_status(:ok)
     expect(user.reload.email_verified?).to be(true)
-    expect(user.tokens).to eq(10)
+    expect(user.tokens).to eq(User::WELCOME_TOKENS)
   end
 
   it "does not double-grant when an already-verified user uses a temp login" do
