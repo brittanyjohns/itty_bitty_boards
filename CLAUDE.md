@@ -868,9 +868,26 @@ an explicit decision, not a drive-by edit.
   confer it — `email_signup` signs the user in before any email is opened, and
   `devise_invitable` stamps `confirmed_at` on `accept_invitation!` for any model
   carrying that column, so `confirmed_at` cannot be a verification signal.
-  Unverified accounts hold zero welcome tokens and zero AI credits and are
-  refused image generation (403 `email_verification_required`); they can still
-  sign in and use the app — **verification never gates authentication**.
+  **Verification does not gate AI, and must not be made to again.** Welcome
+  tokens and the plan's AI credit allowance are granted at SIGNUP
+  (`User#grant_signup_ai_allowance`, an `after_commit on: :create` — never
+  `after_create`, since `grant_plan!`'s nested transaction would let a swallowed
+  error turn the user's own COMMIT into a ROLLBACK). Deferring the grant until
+  the link was clicked was a free abuse gate on paper — a zero balance is a
+  check no future AI code path can forget — but the bill fell on every honest
+  account that hadn't opened its email yet, and three separate places had to
+  agree about it: the grant, `RefreshFreeTierCreditsJob` (which re-zeroed the
+  free allowance a month later), and a bespoke 403 `email_verification_required`
+  on `POST /api/images/generate`, needed only because the free first-fill path
+  never calls `check_credits!` and so had no balance to stop it. All three are
+  gone; the credit ledger is the only gate. `mark_email_verified!` still calls
+  the two grants because both are idempotent — `ensure_initial_grant!` on an
+  existing `plan_grant` row, `grant_welcome_tokens!` on its own
+  `settings["welcome_tokens_granted_at"]` stamp — which is what heals an
+  account created while the old gate was live (`rake
+  credits:backfill_welcome_tokens` for the ones that never verify).
+  Verification is still stamped, still emailed, and still means "this inbox was
+  opened"; it just buys nothing. It never gated authentication either.
 - **A blank `board_images.display_image_url` means "this tile has no picture"
   — resolve tile art with a bare `||`, never `.presence`.** The app stops on
   the blank because `""` is truthy in Ruby

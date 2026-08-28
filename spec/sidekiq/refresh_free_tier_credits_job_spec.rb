@@ -42,10 +42,9 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
 
     it "refreshes an UNVERIFIED pro_5yr user (paid tiers ride this job regardless of verification)" do
       # 5-Year licenses have no Stripe subscription, so this job is their only
-      # monthly re-grant path. Verification gates the FREE allowance only —
-      # a paying customer who never clicks the verification email must not
-      # be stuck at zero credits once ExpirePlanCreditsJob zeroes their
-      # initial grant.
+      # monthly re-grant path. A paying customer who never clicks the
+      # verification email must not be stuck at zero credits once
+      # ExpirePlanCreditsJob zeroes their initial grant.
       user = FactoryBot.create(:user, plan_type: "pro_5yr", email_verified_at: nil)
       user.update_columns(
         plan_credits_balance: 0,
@@ -122,23 +121,35 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
   end
 
-  describe "email verification gating" do
-    it "refreshes credits for a verified free user" do
-      user = FactoryBot.create(:user, email_verified_at: Time.current)
+  # This job used to require email_verified_at for the free allowance, which
+  # meant an unclicked verification email zeroed an honest user's monthly AI
+  # budget forever. Verification is no longer a condition here.
+  describe "email verification" do
+    it "refreshes a verified free user" do
+      user = FactoryBot.create(:user, plan_type: "free", email_verified_at: Time.current)
+      user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)
 
-      described_class.new.perform
-
-      expect(CreditService.balance(user.reload)[:total]).to be > 0
+      expect {
+        described_class.new.perform
+      }.to change { user.reload.plan_credits_balance }.from(0).to(25)
     end
 
-    # Without this the monthly cron would hand 25 credits to every unverified
-    # account, silently undoing the signup gate a month later.
-    it "skips an unverified user" do
-      user = FactoryBot.create(:user, email_verified_at: nil)
+    it "refreshes an unverified free user on the same terms" do
+      user = FactoryBot.create(:user, plan_type: "free", email_verified_at: nil)
+      user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)
 
-      described_class.new.perform
+      expect {
+        described_class.new.perform
+      }.to change { user.reload.plan_credits_balance }.from(0).to(25)
+    end
 
-      expect(CreditService.balance(user.reload)[:total]).to eq(0)
+    it "refreshes an unverified basic_trial user on the same terms" do
+      user = FactoryBot.create(:user, plan_type: "basic_trial", email_verified_at: nil)
+      user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)
+
+      expect {
+        described_class.new.perform
+      }.to change { user.reload.plan_credits_balance }.from(0).to(400)
     end
   end
 end

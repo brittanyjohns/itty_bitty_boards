@@ -14,7 +14,7 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
   end
 
   describe "happy path" do
-    it "creates a passwordless invited user on the free plan with zero credits until verified" do
+    it "creates a passwordless invited user on the free plan, already funded" do
       expect {
         do_post(email: "buyer@example.com")
       }.to change(User, :count).by(1)
@@ -27,10 +27,13 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
       expect(user.invitation_accepted_at).to be_nil
       expect(user.valid_password?("anything")).to be_falsey
       expect(user.plan_type).to eq("free")
-      # The initial credit grant is deferred to email verification (task-2b).
-      # Wiring the invitation-accept flow to verification is a later task
-      # (Task 7) — until then an invited-but-unaccepted user holds nothing.
-      expect(user.plan_credits_balance.to_i).to eq(0)
+      # The initial credit grant fires at signup — an invited-but-unaccepted
+      # user gets the free allowance like anyone else. It used to be deferred
+      # to email verification, which left this account at zero.
+      expect(user.plan_credits_balance.to_i).to eq(
+        CreditService.monthly_credits_for("free")
+      )
+      expect(user.tokens).to eq(User::WELCOME_TOKENS)
     end
 
     it "returns the same envelope as sign_up, with needs_password true" do

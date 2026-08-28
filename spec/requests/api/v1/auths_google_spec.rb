@@ -62,11 +62,11 @@ RSpec.describe "POST /api/v1/auths/google", type: :request do
       )
     end
 
-    it "grants the welcome tokens immediately, since Google's verification is trusted" do
+    it "grants the welcome tokens on signup" do
       do_post(id_token: "valid-id-token")
 
       user = User.find_by(email: google_email)
-      expect(user.tokens).to eq(10)
+      expect(user.tokens).to eq(User::WELCOME_TOKENS)
     end
   end
 

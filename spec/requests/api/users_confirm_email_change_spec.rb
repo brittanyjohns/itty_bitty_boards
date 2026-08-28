@@ -47,7 +47,7 @@ RSpec.describe "GET /api/confirm_email_change", type: :request do
       end
     end
 
-    it "verifies an unverified user and grants welcome tokens + AI credits" do
+    it "verifies an unverified user, whose signup grants are already in place" do
       get "/api/confirm_email_change", params: { confirmation_token: unverified_user.confirmation_token },
                                         headers: auth_headers(unverified_user)
 
@@ -55,7 +55,7 @@ RSpec.describe "GET /api/confirm_email_change", type: :request do
       unverified_user.reload
       expect(unverified_user.email).to eq("new@example.com")
       expect(unverified_user.email_verified?).to be(true)
-      expect(unverified_user.tokens).to eq(10)
+      expect(unverified_user.tokens).to eq(User::WELCOME_TOKENS)
       expect(CreditService.balance(unverified_user)[:total]).to eq(
         CreditService.monthly_credits_for("free")
       )

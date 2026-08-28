@@ -7,7 +7,7 @@ RSpec.describe "GET /api/verify_email", type: :request do
     get "/api/verify_email", params: { token: token }
   end
 
-  it "verifies the account and grants the welcome tokens" do
+  it "verifies the account" do
     token = user.generate_email_verification_token!
 
     verify(token)
@@ -15,7 +15,7 @@ RSpec.describe "GET /api/verify_email", type: :request do
     expect(response).to have_http_status(:ok)
     expect(JSON.parse(response.body)["email_verified"]).to be(true)
     expect(user.reload.email_verified?).to be(true)
-    expect(user.tokens).to eq(10)
+    expect(user.tokens).to eq(User::WELCOME_TOKENS)
   end
 
   it "works without authentication — the link is clicked from an inbox" do
@@ -39,7 +39,6 @@ RSpec.describe "GET /api/verify_email", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(user.reload.email_verified?).to be(false)
-    expect(user.tokens).to eq(0)
   end
 
   # Double-clicks and email security scanners (Outlook Safe Links, Mimecast)
@@ -48,13 +47,13 @@ RSpec.describe "GET /api/verify_email", type: :request do
   it "reports success on a replayed link without double-granting" do
     token = user.generate_email_verification_token!
     verify(token)
-    expect(user.reload.tokens).to eq(10)
+    expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
 
     verify(token)
 
     expect(response).to have_http_status(:ok)
     expect(JSON.parse(response.body)["email_verified"]).to be(true)
-    expect(user.reload.tokens).to eq(10)
+    expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
   end
 
   it "still reports success for an already-verified user past the expiry window" do
@@ -65,7 +64,7 @@ RSpec.describe "GET /api/verify_email", type: :request do
     verify(token)
 
     expect(response).to have_http_status(:ok)
-    expect(user.reload.tokens).to eq(10)
+    expect(user.reload.tokens).to eq(User::WELCOME_TOKENS)
   end
 end
 

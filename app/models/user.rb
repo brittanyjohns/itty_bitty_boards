@@ -236,10 +236,9 @@ class User < ApplicationRecord
   # already defaults to "free"; this callback just applies the Free-tier
   # limits in-memory on create so the account has a board slot, a communicator
   # slot, and the AI monthly limit set from the start. The initial AI credit
-  # grant is deferred to email verification — see User#mark_email_verified!.
-  # Its size is the plan's monthly allowance, read from
-  # CreditService::PLAN_MONTHLY_CREDITS for the user's plan_type; don't
-  # restate the number here, it drifts.
+  # grant follows on commit — see grant_signup_ai_allowance. Its size is the
+  # plan's monthly allowance, read from CreditService::PLAN_MONTHLY_CREDITS
+  # for the user's plan_type; don't restate the number here, it drifts.
   before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
@@ -266,6 +265,26 @@ class User < ApplicationRecord
   # already in `settings`) on every plan change. See
   # reconcile_paid_sandbox_promotions!.
   after_save :reconcile_paid_sandbox_promotions!, if: :saved_change_to_plan_type?
+
+  # Legacy welcome tokens + the plan's AI credit allowance land at SIGNUP, not
+  # at email verification. The grant used to be deferred until the user
+  # clicked the verification link, on the theory that a zero balance was a
+  # free abuse gate that no future AI code path could forget to check — but
+  # the cost fell on every honest account that hadn't opened its email yet,
+  # which on day one is most of them. Verification is still stamped, still
+  # emailed, and still means what it says; it just no longer gates AI.
+  #
+  # `after_commit`, never `after_create`: CreditService.grant_plan! opens its
+  # own transaction, so from inside the create transaction a DB error there
+  # would be swallowed by ensure_initial_grant!'s rescue while still marking
+  # the outer transaction aborted — turning the COMMIT into a ROLLBACK and
+  # taking the new user row with it. Same trap mark_email_verified! documents.
+  after_commit :grant_signup_ai_allowance, on: :create
+
+  def grant_signup_ai_allowance
+    grant_welcome_tokens!
+    grant_initial_plan_credits
+  end
 
   def grant_initial_plan_credits
     CreditService.ensure_initial_grant!(self)
@@ -375,6 +394,11 @@ class User < ApplicationRecord
   # avoid. See drafts/2026-07-26-email-verification-design.md.
   EMAIL_VERIFICATION_VALIDITY = 7.days
   EMAIL_VERIFICATION_RESEND_INTERVAL = 5.minutes
+
+  # Legacy per-image `tokens` handed to every new account (still spent by
+  # API::ImagesController#find_or_create). Not AI credits — those are the
+  # CreditService ledger.
+  WELCOME_TOKENS = 10
 
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
@@ -1096,10 +1120,10 @@ class User < ApplicationRecord
   # double token grant. `set_password` / invitation-accept must NOT call this:
   # see the in-body note below for why.
   #
-  # Welcome tokens are granted here rather than on create: an unverified
-  # account holds a zero balance, so there is no separate "can this user spend"
-  # gate to forget in a future AI code path. images_controller's existing
-  # `tokens > 0` check does the right thing unmodified.
+  # The grants below are idempotent no-ops for any account created since
+  # grant_signup_ai_allowance started running at signup. They stay so that an
+  # account created BEFORE that change — which was left at zero tokens and
+  # zero credits by the old gate — is healed the first time it verifies.
   #
   # Returns true if this call newly verified the account, false if it was
   # already verified.
@@ -1134,10 +1158,9 @@ class User < ApplicationRecord
       update!(email_verified_at: Time.current)
 
       # `tokens` is the legacy field (still spent by
-      # images_controller#find_or_create) — granted here, not on create, so an
-      # unverified account holds nothing spendable. Idempotent: reached only
-      # once thanks to the guard above.
-      add_welcome_tokens
+      # images_controller#find_or_create). Idempotent on its own stamp, so an
+      # account that already got its signup grant is untouched here.
+      grant_welcome_tokens!
     end
 
     # AI credits are granted OUTSIDE the lock/transaction, deliberately.
@@ -1148,15 +1171,29 @@ class User < ApplicationRecord
     # becomes a ROLLBACK, undoing email_verified_at and the token grant too.
     # Sitting here, a credit-grant failure can never take verification down
     # with it. Safe to call unconditionally: ensure_initial_grant! is
-    # idempotent (no-ops once a plan_grant exists), and the guard above
-    # already guarantees only one caller reaches this line per account.
+    # idempotent (no-ops once a plan_grant exists), which since the signup
+    # grant landed is the normal case.
     grant_initial_plan_credits
     true
   end
 
   # Token management
-  def add_welcome_tokens
-    add_tokens(10)
+  # Idempotent on `settings["welcome_tokens_granted_at"]`. Signup is the
+  # normal grant point (grant_signup_ai_allowance); mark_email_verified! calls
+  # it too, which is what heals an account created while the initial grant was
+  # still gated on verification. Returns true only when it actually granted.
+  def grant_welcome_tokens!
+    current = settings || {}
+    return false if current["welcome_tokens_granted_at"].present?
+
+    # Non-bang `update`, like the add_tokens call this replaced: a failure here
+    # must not raise out of mark_email_verified!'s with_lock and roll the
+    # verification back. Nothing is stamped unless the write lands, so a failed
+    # grant is simply retried the next time this runs.
+    update(
+      tokens: tokens.to_i + WELCOME_TOKENS,
+      settings: current.merge("welcome_tokens_granted_at" => Time.current.iso8601),
+    )
   end
 
   def add_tokens(amount)
