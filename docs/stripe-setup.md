@@ -36,6 +36,16 @@ the Stripe Dashboard and set its **metadata**:
 Existing env vars stay as they are (`STRIPE_PRICE_MYSPEAK`,
 `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_PRO`, yearly variants, partner pro).
 
+> **`plan_type` on the Basic and Pro monthly Prices is now load-bearing for
+> EVERY new account, not just for checkout.** Since signup starts the trial
+> directly (`Billing::StartTrial` — see `.claude-notes/billing-and-plans.md`),
+> `STRIPE_PRICE_BASIC` and `STRIPE_PRICE_PRO` are what every new web signup
+> subscribes to. If either Price is missing `metadata.plan_type`, the webhook
+> preserves the user's current plan rather than downgrading — so the trialist
+> sits on Free holding a real Stripe subscription. Verify both Prices carry it
+> in **test and live** before deploying. If the env var itself is unset, no
+> trial is attempted and the signup still succeeds on Free.
+
 ## 2. Top-up credit pack Products (new)
 
 Create three **one-time** Products in Stripe:
