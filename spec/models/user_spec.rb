@@ -78,9 +78,8 @@ RSpec.describe User, type: :model do
       expect(partner).not_to respond_to(:supporter_limit)
     end
 
-    it "gets Pro board/communicator/board-set limits" do
+    it "gets Pro board/communicator limits" do
       expect(partner.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
-      expect(partner.board_group_limit).to eq(User::PRO_PLAN_LIMITS["board_group_limit"])
       expect(partner.settings["paid_communicator_limit"]).to eq(User::PRO_PLAN_LIMITS["paid_communicator_limit"])
     end
   end
@@ -431,7 +430,10 @@ RSpec.describe User, type: :model do
 
     it "applies Free-tier limits on signup" do
       user = FactoryBot.create(:user)
-      expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      # board_limit resolves from plan_type; settings holds only an admin
+      # override, so a fresh signup has no stamped copy (#796).
+      expect(user.board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      expect(user.settings).not_to have_key("board_limit")
       expect(user.settings["paid_communicator_limit"]).to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
       expect(user.settings["demo_communicator_limit"]).to eq(User::FREE_PLAN_LIMITS["demo_communicator_limit"])
       # ai_monthly_limit was removed — AI is gated by the credit ledger now.
@@ -527,7 +529,7 @@ RSpec.describe User, type: :model do
       user = FactoryBot.create(:user, confirmed_at: nil)
 
       expect(user.plan_type).to eq("free")
-      expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      expect(user.board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
       expect(user.settings).not_to have_key("ai_monthly_limit")
       # At least the Free-tier communicator slot so the MySpeak wizard doesn't 403.
       expect(user.settings["paid_communicator_limit"])
@@ -768,12 +770,13 @@ RSpec.describe User, type: :model do
   end
 
   describe "#api_view board set (BoardGroup) usage" do
-    it "exposes board_group_limit and board_group_count" do
+    # Usage only — Board Sets carry no cap of their own since #796, so the
+    # payload deliberately no longer ships a board_group_limit.
+    it "exposes board_group_count and no board_group_limit" do
       user = FactoryBot.create(:free_user)
       view = user.api_view
-      expect(view).to have_key(:board_group_limit)
+      expect(view).not_to have_key(:board_group_limit)
       expect(view).to have_key(:board_group_count)
-      expect(view[:board_group_limit]).to eq(user.board_group_limit)
       expect(view[:board_group_count]).to eq(0)
     end
 

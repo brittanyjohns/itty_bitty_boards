@@ -39,8 +39,10 @@ RSpec.describe "plans rake task", type: :task do
       expect(settings["demo_communicator_limit"]).to eq(1)
       # Free can host 1 claimed loaner/active (paid_communicator_limit=1).
       expect(settings["paid_communicator_limit"]).to eq(1)
-      expect(settings["board_limit"]).to eq(1)
       expect(settings["plan_nickname"]).to eq("free")
+      # board_limit is not stamped — it resolves from plan_type (#796).
+      expect(settings).not_to have_key("board_limit")
+      expect(myspeak_user.board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
     end
 
     it "leaves other plans untouched" do
@@ -78,7 +80,16 @@ RSpec.describe "plans rake task", type: :task do
       settings = pro.reload.settings
       expect(settings["paid_communicator_limit"]).to eq(10) # preserved
       expect(settings["demo_communicator_limit"]).to eq(User::PRO_PLAN_LIMITS["demo_communicator_limit"])
-      expect(settings["board_limit"]).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      # board_limit is deliberately NOT backfilled any more: it resolves from
+      # plan_type, and re-stamping it would undo clear_stamped_board_limits.
+      # A stored 0 is still an explicit admin override ("no new boards"), so it
+      # is left exactly as found; removing the key is what restores the plan
+      # value, and that is plans:clear_stamped_board_limits' job.
+      expect(settings["board_limit"]).to eq(0)
+      expect(pro.board_limit).to eq(0)
+
+      pro.update!(settings: pro.settings.except("board_limit"))
+      expect(pro.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
     end
 
     it "fills the new Free paid_communicator_limit=1 onto legacy Free users" do

@@ -7,6 +7,13 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
   before { allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob) }
 
+  # Every board in a builder set counts against board_limit now (#796), and the
+  # gate reserves room for the WHOLE set — up to
+  # Boards::BuilderSetSize.legacy_worst_case boards, far past the Free cap of 1.
+  # Give the user headroom by default so unrelated examples exercise what they
+  # are about; the cap itself has its own context below, which overrides this.
+  before { user.update!(settings: (user.settings || {}).merge("board_limit" => 500)) }
+
   # The "home" template resolves every core label -> Image. Core labels now
   # create-if-missing, so seeding isn't required for a build to succeed; these
   # specs seed to exercise the reuse path and keep label assertions stable.
@@ -523,7 +530,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
 
       it "falls back to the owner's voice" do
-        user.update!(settings: { "voice" => { "name" => "openai:nova" } })
+        user.update!(settings: (user.settings || {}).merge("voice" => { "name" => "openai:nova" }))
 
         post "/api/v1/board_builder",
              params: { template: "home" }.to_json, headers: headers
@@ -536,8 +543,6 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       # build has nothing to collide with. Room in the set limit is raised here
       # so this isolates the absence of a 409 from the 422 cap below.
       it "does not 409 on a second build — each is just another Board Set" do
-        user.update!(settings: (user.settings || {}).merge("board_group_limit" => 5))
-
         2.times do
           post "/api/v1/board_builder",
                params: { template: "home" }.to_json, headers: headers
@@ -547,8 +552,8 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(user.board_groups.where(builder: true).count).to eq(2)
       end
 
-      it "still enforces the board-set limit" do
-        allow_any_instance_of(User).to receive(:at_board_group_limit?).and_return(true)
+      it "still enforces the board limit" do
+        user.update!(settings: (user.settings || {}).merge("board_limit" => 1))
 
         expect {
           post "/api/v1/board_builder",
@@ -556,6 +561,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         }.not_to change { Board.count }
 
         expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error_code"]).to eq("board_limit_reached")
       end
 
       # Only an ABSENT id is the unattached path — a present-but-bad one is
@@ -618,7 +624,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       # RuntimeError("no Image for label \"Food\"") when the curated symbols
       # weren't seeded. Core labels now self-heal, so the build succeeds.
       it "builds successfully, creating images for the core labels" do
-        no_seed_user = create(:user)
+        no_seed_user = create(:user, settings: { "board_limit" => 500 })
         no_seed_comm = create(:child_account, user: no_seed_user)
         no_seed_headers = auth_headers(no_seed_user).merge("Content-Type" => "application/json")
 
@@ -656,12 +662,16 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
-    context "board-set-limit gate (a built tree counts as ONE Board Set, zero boards)" do
-      it "returns 422, builds nothing, and enqueues no job when the user is already at their board-set limit" do
-        # A builder set is a Board Set, so the gate is the board_group limit
-        # (Free = 1). A standalone board no longer blocks a build — an existing
-        # builder/hand-made group does.
-        user.board_groups.create!(name: "Existing Set", builder: true) # Free group_limit 1 → at limit
+    # Issue #796: one cap, and it is boards. A build has to fit ENTIRELY, since
+    # the job has no coherent way to stop halfway — so the gate reserves
+    # Boards::BuilderSetSize.worst_case(level) slots up front.
+    context "board-limit gate (the whole set has to fit)" do
+      let(:legacy_required) { Boards::BuilderSetSize.legacy_worst_case }
+
+      it "returns 422, builds nothing, and enqueues no job when there isn't room for the set" do
+        # Free's cap is 1 board, so a set can never fit — the Board Builder is a
+        # paid feature by arithmetic, not by a separate flag.
+        user.update!(settings: (user.settings || {}).merge("board_limit" => 1))
         jobs_before = BuildBoardSetJob.jobs.size
 
         expect {
@@ -673,26 +683,68 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
         expect(response).to have_http_status(:unprocessable_content)
         body = JSON.parse(response.body)
-        expect(body["error"]).to match(/board set limit/)
+        expect(body["error"]).to eq("board_limit_reached")
+        expect(body["error_code"]).to eq("board_limit_reached")
         expect(body["limit"]).to eq(1)
-        expect(body["count"]).to eq(1)
+        expect(body["count"]).to eq(0)
+        expect(body["required"]).to eq(legacy_required)
+        expect(body["remaining"]).to eq(1)
       end
 
-      it "leaves the standalone board limit untouched — a Free user with a builder set can still make a standalone board" do
-        # Build a set (consumes the 1 board-set slot, 0 board slots).
+      it "refuses when there is SOME room but not enough for the whole set" do
+        user.update!(settings: (user.settings || {}).merge("board_limit" => legacy_required))
+        create(:board, user: user, name: "In the way")
+
+        expect {
+          post "/api/v1/board_builder",
+               params: { communicator_id: communicator.id, template: "home" }.to_json,
+               headers: headers
+        }.not_to change { Board.count }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["remaining"]).to eq(legacy_required - 1)
+      end
+
+      it "is level-sensitive — a starter set fits where an extended one doesn't" do
+        user.update!(settings: (user.settings || {})
+          .merge("board_limit" => Boards::BuilderSetSize.worst_case("starter")))
+
         post "/api/v1/board_builder",
-             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             params: { communicator_id: communicator.id, level: "extended" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["required"])
+          .to eq(Boards::BuilderSetSize.worst_case("extended"))
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, level: "starter" }.to_json,
              headers: headers
         expect(response).to have_http_status(:created)
-        BuildBoardSetJob.drain
-
-        fresh = User.find(user.id)
-        expect(fresh.countable_board_group_count).to eq(1)
-        expect(fresh.countable_board_count).to eq(0)   # board slot still free
-        expect(fresh.at_board_limit?).to be(false)     # standalone create still allowed
       end
 
-      it "counts the whole built tree as one Board Set (0 boards), so a second builder run is blocked" do
+      it "answers unknown_template before the limit, even for a capped user" do
+        user.update!(settings: (user.settings || {}).merge("board_limit" => 1))
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "nope" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to eq("unknown_template")
+      end
+
+      it "never limits an admin" do
+        admin = create(:admin_user, settings: { "board_limit" => 1 })
+        admin_comm = create(:child_account, user: admin)
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: admin_comm.id, template: "home" }.to_json,
+             headers: auth_headers(admin).merge("Content-Type" => "application/json")
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "counts every board in the built tree against the board limit" do
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home",
                        interests: ["dinosaurs"] }.to_json,
@@ -701,27 +753,42 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         BuildBoardSetJob.drain
 
         fresh = User.find(user.id)
-        # The tree persisted multiple boards, but they're all group members, so
-        # the set costs zero board slots and exactly one board-set slot.
-        expect(fresh.boards.where(predefined: false).count).to be > 1
-        expect(fresh.countable_board_count).to eq(0)
-        expect(fresh.countable_board_group_count).to eq(1)
+        expect(fresh.countable_board_count).to eq(fresh.boards.where(predefined: false).count)
+        expect(fresh.countable_board_count).to be > 1
+        # The bound the gate reserved has to actually hold.
+        expect(fresh.countable_board_count).to be <= Boards::BuilderSetSize.legacy_worst_case
+      end
 
-        # A plain re-run for the SAME communicator now hits the existing-set
-        # 409 first (it offers replace, which works even at the set cap); the
-        # 422 set-limit gate still blocks a confirmed STACK at the cap.
+      it "still lets a capped user REPLACE, because the destroy frees the room first" do
+        # Room for exactly one set. Stacking a second needs another full set's
+        # worth and is refused; replacing destroys the first one before the gate
+        # runs, which is the only move a capped user has.
+        user.update!(settings: (user.settings || {}).merge("board_limit" => legacy_required))
+
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
              headers: headers
-        expect(response).to have_http_status(:conflict)
+        expect(response).to have_http_status(:created)
+        BuildBoardSetJob.drain
+        expect(User.find(user.id).countable_board_count).to be > 0
 
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home", confirm: true }.to_json,
              headers: headers
         expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error_code"]).to eq("board_limit_reached")
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home", replace: true }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
       end
 
-      it "keeps the whole built set editable (no spurious board_locked)" do
+      it "locks the built set to the editable subset once the user is over their limit" do
+        # The other half of the collapse, stated on purpose: a Free user's
+        # builder set now consumes slots, so board_limit_locks? applies and only
+        # the designated board stays editable. Usage never breaks — this is the
+        # edit lock, the same one any over-limit user gets.
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home",
                        interests: ["dinosaurs"] }.to_json,
@@ -729,20 +796,19 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         BuildBoardSetJob.drain
         root = Board.find(JSON.parse(response.body)["id"])
 
+        user.update!(plan_type: "free", settings: (user.settings || {}).except("board_limit"))
         fresh = User.find(user.id)
-        child = fresh.boards.where("COALESCE((settings->>'builder_child')::boolean, false)").first
-        expect(child).to be_present
-        expect(fresh.board_editable?(root)).to be(true)
-        expect(fresh.board_editable?(child)).to be(true)
+        set_boards = fresh.boards.where(predefined: false).to_a
+        expect(fresh.at_board_limit?).to be(true)
+        # Free's limit is 1, so exactly one board stays editable and the rest of
+        # the set is read-only — still fully usable, which is the invariant.
+        expect(fresh.editable_board_ids.size).to eq(1)
+        expect(set_boards.count { |b| fresh.board_editable?(b) }).to eq(1)
+        expect(root.reload.viewable_by?(fresh)).to be(true)
       end
     end
 
     context "re-run guard (issue #269)" do
-      # Raise the board-SET limit so the limit gate doesn't pre-empt the re-run
-      # guard — the gate only blocks users at their board_group cap; the dup
-      # problem is paid users (issue #407 flipped this gate from board_limit).
-      before { user.update!(settings: user.settings.to_h.merge("board_group_limit" => 10)) }
-
       it "warns with 409 board_builder_set_exists on a re-run and builds nothing" do
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
@@ -847,9 +913,6 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       # retry idempotency) lives in spec/sidekiq/build_board_set_job_spec.rb;
       # this covers the user-visible request-level artifact.
       it "leaves the root as the failed artifact and the next run 409s until confirmed" do
-        # Lift the Free board-set limit so the second POST reaches the 409 guard
-        # (the limit gate runs first and the failed set still holds one group slot).
-        user.update!(settings: user.settings.to_h.merge("board_group_limit" => 10))
         allow_any_instance_of(Boards::BoardTreeBuilder)
           .to receive(:call).and_raise(Boards::BoardTreeBuilder::BuildError, "boom")
 
@@ -903,9 +966,11 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         root.reload
         expect(root.status).to eq("complete")
 
-        # The whole cloned set is one Board Set: 0 board slots, 1 board-set slot.
-        expect(User.find(user.id).countable_board_count).to eq(0)
-        expect(User.find(user.id).countable_board_group_count).to eq(1)
+        # Every board in the cloned set counts (#796); the set is still one group.
+        fresh = User.find(user.id)
+        expect(fresh.countable_board_count).to eq(fresh.boards.where(predefined: false).count)
+        expect(fresh.countable_board_count).to be > 1
+        expect(fresh.countable_board_group_count).to eq(1)
 
         # Cloned core tiles landed on the SAME root the 201 returned.
         expect(root.board_images.map(&:display_label)).to include("I", "Food")
@@ -924,9 +989,9 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(Boards::RobustSets.all_roots.pluck(:id)).not_to include(root.id)
       end
 
-      it "is blocked by the board-set limit (422) — a cloned set is one Board Set" do
+      it "is blocked by the board limit (422) — a cloned set has to fit too" do
         seed_robust_set!
-        user.board_groups.create!(name: "Existing Set", builder: true) # Free group_limit 1 → at limit
+        user.update!(settings: (user.settings || {}).merge("board_limit" => 1))
 
         expect {
           post "/api/v1/board_builder",
@@ -935,12 +1000,11 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         }.not_to change { communicator.child_boards.count }
 
         expect(response).to have_http_status(:unprocessable_content)
-        expect(JSON.parse(response.body)["error"]).to match(/board set limit/)
+        expect(JSON.parse(response.body)["error_code"]).to eq("board_limit_reached")
       end
 
       it "warns with 409 on a re-run unless confirm=true" do
         seed_robust_set!
-        user.update!(settings: user.settings.to_h.merge("board_group_limit" => 10))
 
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "core-60" }.to_json,

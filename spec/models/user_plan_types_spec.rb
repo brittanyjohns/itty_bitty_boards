@@ -1,8 +1,9 @@
 require "rails_helper"
 
 # Covers the new 5-Year license (basic_5yr / pro_5yr) and clinician plan types:
-# predicates, limits (setup_limits), board_group_limit, and monthly credit
-# amounts.
+# predicates, limits, and monthly credit amounts. `board_limit` resolves from
+# plan_type at read time (#796) — it is deliberately NOT stamped into settings,
+# so these assert the reader, not the blob.
 RSpec.describe User, "5-Year license + clinician plan types", type: :model do
   describe "basic_5yr" do
     let(:user) { FactoryBot.create(:user, plan_type: "basic_5yr") }
@@ -14,9 +15,9 @@ RSpec.describe User, "5-Year license + clinician plan types", type: :model do
     end
 
     it "gets Basic limits" do
-      expect(user.settings["board_limit"]).to eq(User::BASIC_PLAN_LIMITS["board_limit"])
+      expect(user.board_limit).to eq(User::BASIC_PLAN_LIMITS["board_limit"])
+      expect(user.settings).not_to have_key("board_limit")
       expect(user.settings["paid_communicator_limit"]).to eq(User::BASIC_PLAN_LIMITS["paid_communicator_limit"])
-      expect(user.board_group_limit).to eq(User::BASIC_PLAN_LIMITS["board_group_limit"])
     end
 
     it "has the Basic monthly credit amount" do
@@ -33,9 +34,9 @@ RSpec.describe User, "5-Year license + clinician plan types", type: :model do
     end
 
     it "gets Pro limits" do
-      expect(user.settings["board_limit"]).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      expect(user.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      expect(user.settings).not_to have_key("board_limit")
       expect(user.settings["paid_communicator_limit"]).to eq(User::PRO_PLAN_LIMITS["paid_communicator_limit"])
-      expect(user.board_group_limit).to eq(User::PRO_PLAN_LIMITS["board_group_limit"])
     end
 
     it "has the Pro monthly credit amount" do
@@ -53,11 +54,10 @@ RSpec.describe User, "5-Year license + clinician plan types", type: :model do
       expect(user.professional?).to be(false)
     end
 
-    it "gets Basic-shaped clinician limits (100 boards / 25 groups / 2 loaner / 2 sandbox)" do
-      expect(user.settings["board_limit"]).to eq(100)
+    it "gets Basic-shaped clinician limits (100 boards / 2 loaner / 2 sandbox)" do
+      expect(user.board_limit).to eq(100)
       expect(user.settings["paid_communicator_limit"]).to eq(2)
       expect(user.settings["demo_communicator_limit"]).to eq(2)
-      expect(user.board_group_limit).to eq(25)
     end
 
     it "has 400 monthly credits" do

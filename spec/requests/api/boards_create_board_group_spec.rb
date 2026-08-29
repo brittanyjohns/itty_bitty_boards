@@ -51,15 +51,15 @@ RSpec.describe "API::Boards#create_board_group", type: :request do
     expect(group.user_id).to eq(user.id)
   end
 
-  it "returns the standard board-set-limit 422 shape when the user is at their limit" do
-    user.update!(settings: (user.settings || {}).merge("board_group_limit" => 0))
+  # Board Sets carry no cap of their own since #796 — the boards inside them are
+  # what count — so grouping boards a user already owns can never be refused,
+  # even for a user sitting over their board limit.
+  it "creates the group even when the user is over their board limit" do
+    user.update!(settings: (user.settings || {}).merge("board_limit" => 0))
 
     post "/api/boards/#{home.id}/create_board_group", headers: auth_headers(user)
 
-    expect(response).to have_http_status(:unprocessable_content)
-    body = JSON.parse(response.body)
-    expect(body["error"]).to be_present
-    expect(body).to have_key("limit")
-    expect(body).to have_key("count")
+    expect(response).to have_http_status(:created)
+    expect(BoardGroup.find(JSON.parse(response.body)["id"]).user_id).to eq(user.id)
   end
 end

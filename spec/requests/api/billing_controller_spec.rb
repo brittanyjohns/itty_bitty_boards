@@ -64,7 +64,12 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
          params: { plan_key: "basic", purchase_platform: "ios" },
          headers: auth_headers(user)
 
-    expect(user.reload.settings["board_limit"]).to eq(User::BASIC_PLAN_LIMITS["board_limit"])
+    # board_limit resolves from plan_type (#796) — never stamped into settings —
+    # so the assertion is that the plan landed, not that a copy was written.
+    expect(user.reload.board_limit).to eq(User::BASIC_PLAN_LIMITS["board_limit"])
+    expect(user.settings).not_to have_key("board_limit")
+    expect(user.settings["paid_communicator_limit"])
+      .to eq(User::BASIC_PLAN_LIMITS["paid_communicator_limit"])
   end
 
   it "rejects with 403 when RevenueCat can't verify the entitlement" do

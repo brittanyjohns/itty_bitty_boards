@@ -7,7 +7,7 @@ namespace :users do
 
     puts "=== Creating demo user (plan: #{plan_type}) with #{num_communicators} communicator(s) over #{days_ago} days ==="
 
-    user = create_seed_user(plan_type: plan_type, communicator_limit: num_communicators, board_limit: 50)
+    user = create_seed_user(plan_type: plan_type, communicator_limit: num_communicators)
 
     num_communicators.times do |i|
       name = FFaker::Name.html_safe_name
@@ -110,7 +110,7 @@ namespace :users do
 
   desc "Create a new user with optional communicator account and board. Example: rake users:create_basic_user_with_optional_communicator[true]"
   task :create_basic_user_with_optional_communicator, [:create_communicator] => :environment do |t, args|
-    user = create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
+    user = create_seed_user(plan_type: "basic", communicator_limit: 1)
     if args[:create_communicator]
       puts "Creating communicator account for user"
       communicator_account = create_seed_communicator(user)
@@ -231,10 +231,13 @@ def create_board_for_communicator(communicator_account)
   communication_board
 end
 
-def create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
+# No board_limit here on purpose: it resolves from plan_type (User#board_limit)
+# and settings only carries a deliberate admin override, so seeding one would
+# stop dev fixtures exercising the real resolution path.
+def create_seed_user(plan_type: "basic", communicator_limit: 1)
   user = User.create!(email: FFaker::Internet.safe_email,
                       password: "111111", password_confirmation: "111111",
-                      name: FFaker::Name.name, plan_type: plan_type, settings: { "paid_communicator_limit" => communicator_limit, "board_limit" => board_limit })
+                      name: FFaker::Name.name, plan_type: plan_type, settings: { "paid_communicator_limit" => communicator_limit })
   puts "User created with email: #{user.email} and password: 111111"
   stripe_customer = Stripe::Customer.create({
     name: user.name,

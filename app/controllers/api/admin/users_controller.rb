@@ -105,7 +105,20 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.save # Save here to ensure plan_type is set before adjusting limits
     @user.locked = user_setting_params[:locked] || false
     @user.settings["locked"] = user_setting_params[:locked] || false
-    @user.settings["board_limit"] = user_setting_params[:board_limit] || @user.board_limit
+    # `board_limit` in settings is an OVERRIDE now, not a copy of the plan
+    # value — writing the resolved value back on every save would freeze the
+    # user out of any future plan or ENV change. Only touch it when the caller
+    # actually sent the field; a blank clears back to the plan default. Coerced,
+    # because a JSON string here made `countable_board_count >= board_limit`
+    # raise on every board create.
+    if user_setting_params.key?(:board_limit)
+      raw = user_setting_params[:board_limit]
+      if raw.to_s.strip.empty?
+        @user.settings.delete("board_limit")
+      else
+        @user.settings["board_limit"] = raw.to_i
+      end
+    end
     @user.settings["paid_communicator_limit"] = user_setting_params[:paid_communicator_limit] || params[:communicator_limit] || @user.comm_account_limit
     @user.settings["demo_communicator_limit"] = user_setting_params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
     @user.skip_plan_setup = true # prevent resetting limits based on plan_type since we're directly setting them here

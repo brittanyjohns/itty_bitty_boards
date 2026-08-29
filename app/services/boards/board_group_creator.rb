@@ -3,7 +3,6 @@ module Boards
   # available, even when the board was never built via the Board Builder
   # wizard and so never got a builder: true group automatically.
   class BoardGroupCreator
-    class LimitReached < StandardError; end
     # BoardGroup#add_board rescues RecordInvalid/StandardError internally and
     # returns nil rather than raising, so the ActiveRecord::Base.transaction
     # below can't roll back on a failed member add on its own — we have to
@@ -27,7 +26,6 @@ module Boards
           resync_membership!(existing)
           @group = existing
         else
-          raise LimitReached if owner.at_board_group_limit?
           @group = create_group!
           @created = true
         end

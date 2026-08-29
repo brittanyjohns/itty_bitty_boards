@@ -1,4 +1,6 @@
 class API::MenusController < API::ApplicationController
+  include BoardCreationLimit
+
   before_action :set_menu, only: %i[ show edit update destroy ]
   before_action :check_board_create_permissions, only: %i[ create ]
 
@@ -240,17 +242,5 @@ class API::MenusController < API::ApplicationController
     # Strip it for everyone else so a regular user can't self-promote (#27).
     permitted.delete(:predefined) unless current_user&.admin?
     permitted
-  end
-
-  def check_board_create_permissions
-    unless current_user
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-    if current_user.at_board_limit?
-      render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_content
-      return
-    end
-    return true
   end
 end

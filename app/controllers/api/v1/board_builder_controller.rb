@@ -1,6 +1,8 @@
 module API
   module V1
     class BoardBuilderController < API::ApplicationController
+      include BoardCreationLimit
+
       RECOMMENDED_SMALL_SET = "core-60"
       RECOMMENDED_LARGE_SET = "core-84"
 
@@ -110,23 +112,45 @@ module API
           end
         end
 
-        # A builder set is a Board Set (BoardGroup), so it counts against the
-        # board-SET cap, not the per-board cap. Exactly one group slot, zero
-        # board slots (see User#countable_board_count / #countable_board_group_count).
-        if current_user.reload.at_board_group_limit?
-          render json: { error: "You've reached your plan's board set limit (#{current_user.countable_board_group_count}/#{current_user.board_group_limit}). Upgrade to add more.",
-                         limit: current_user.board_group_limit,
-                         count: current_user.countable_board_group_count },
-                 status: :unprocessable_content
-          return
-        end
-
-        # Resolve the build key: `level` (new) or `template` (legacy).
+        # Resolve the build key: `level` (new) or `template` (legacy). Hoisted
+        # above the limit gate because the gate needs the level to know how big
+        # the set will be. An unknown key still 422s as `unknown_template` (the
+        # method-level rescue catches it), which is the better answer to give a
+        # capped user than a limit error about a build they couldn't have run.
         build_key = resolve_build_key
         root_name = resolve_root_name(build_key)
 
         owner = communicator ? (communicator.owner || communicator.user) : current_user
         raise Boards::BoardTreeBuilder::BuildError, "no owning user" unless owner
+
+        # Every board in a builder set counts against `board_limit` now (#796),
+        # so the gate reserves room for the WHOLE set — the job has no coherent
+        # way to stop halfway. Deliberately placed AFTER the existing-set
+        # handling above: `replace=true` destroys the old set first, so a capped
+        # user can still rebuild, which is the only move they have.
+        #
+        # Checked against `owner`, since that is who the boards below belong to.
+        # `communicator_accounts` is keyed on owner_id, so today that always
+        # resolves to the acting user — this names the right subject rather than
+        # relying on the two staying identical.
+        builder = board_limit_user(owner)
+        required = Boards::BuilderSetSize.worst_case(build_key)
+        if board_limit_exceeded?(builder, required: required)
+          remaining = board_limit_remaining(builder)
+          render json: board_limit_error_payload(
+            builder, required: required,
+            # This controller's other refusals put a CODE in `error` and the
+            # prose in `message` (board_builder_set_exists, unknown_template,
+            # build_failed) — match its own siblings rather than the sentence
+            # convention the board-create paths use.
+            error: BoardCreationLimit::BOARD_LIMIT_ERROR_CODE,
+            message: "Building this set needs room for #{required} boards, but your plan " \
+                     "has #{remaining} of #{builder.board_limit} left. Upgrade, or delete " \
+                     "some boards, to make room.",
+          ), status: :unprocessable_content
+          notify_mailchimp_hit_limit(builder)
+          return
+        end
 
         raw_interests = params[:interests]
         interests  = Boards::InterestWords.normalize_list(raw_interests)

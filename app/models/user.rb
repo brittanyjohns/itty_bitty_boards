@@ -403,21 +403,18 @@ class User < ApplicationRecord
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
-    "board_group_limit" => ENV.fetch("FREE_BOARD_GROUP_LIMIT", 1).to_i,
     "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
   }.freeze
   BASIC_PLAN_LIMITS = {
     "plan_type" => "basic",
     "board_limit" => ENV.fetch("BASIC_BOARD_LIMIT", 100).to_i,
-    "board_group_limit" => ENV.fetch("BASIC_BOARD_GROUP_LIMIT", 25).to_i,
     "paid_communicator_limit" => ENV.fetch("BASIC_PAID_COMMUNICATOR_LIMIT", 2).to_i,
     "demo_communicator_limit" => ENV.fetch("BASIC_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
   }.freeze
   PRO_PLAN_LIMITS = {
     "plan_type" => "pro",
     "board_limit" => ENV.fetch("PRO_BOARD_LIMIT", 300).to_i,
-    "board_group_limit" => ENV.fetch("PRO_BOARD_GROUP_LIMIT", 50).to_i,
     "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 5).to_i,
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 10).to_i,
   }.freeze
@@ -433,10 +430,33 @@ class User < ApplicationRecord
   CLINICIAN_PLAN_LIMITS = {
     "plan_type" => "clinician",
     "board_limit" => ENV.fetch("CLINICIAN_BOARD_LIMIT", 100).to_i,
-    "board_group_limit" => ENV.fetch("CLINICIAN_BOARD_GROUP_LIMIT", 25).to_i,
     "paid_communicator_limit" => ENV.fetch("CLINICIAN_PAID_COMMUNICATOR_LIMIT", 2).to_i,
     "demo_communicator_limit" => ENV.fetch("CLINICIAN_DEMO_COMMUNICATOR_LIMIT", 2).to_i,
   }.freeze
+
+  # The one plan_type -> limits lookup. Three hand-rolled copies of this case
+  # statement used to exist (setup_limits, the old board_group_limit, and
+  # beta_audit.rake's entitlement_for) and they disagreed: two omitted the
+  # 5-year license types, and the audit one omitted Clinician entirely, so it
+  # measured Clinician users against the FREE entitlement. An unknown or blank
+  # plan_type resolves to FREE — the safe direction, and what the old
+  # board_group_limit else-branch already did.
+  PLAN_LIMITS_BY_TYPE = {
+    "free" => FREE_PLAN_LIMITS,
+    "basic" => BASIC_PLAN_LIMITS,
+    "basic_yearly" => BASIC_PLAN_LIMITS,
+    "basic_trial" => BASIC_PLAN_LIMITS,
+    "basic_5yr" => BASIC_PLAN_LIMITS,
+    "pro" => PRO_PLAN_LIMITS,
+    "pro_yearly" => PRO_PLAN_LIMITS,
+    "pro_5yr" => PRO_PLAN_LIMITS,
+    "partner_pro" => PRO_PLAN_LIMITS,
+    "clinician" => CLINICIAN_PLAN_LIMITS,
+  }.freeze
+
+  def self.plan_limits_for(plan_type)
+    PLAN_LIMITS_BY_TYPE.fetch(plan_type.to_s, FREE_PLAN_LIMITS)
+  end
 
   # Length of the Partner Program pilot. Signup creates a real Stripe no-card
   # trial of this length; extend a pilot by moving the subscription's
@@ -470,35 +490,30 @@ class User < ApplicationRecord
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
-    self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
   end
 
   def setup_pro_limits
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
-    self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
   end
 
   def setup_clinician_limits
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = CLINICIAN_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = CLINICIAN_PLAN_LIMITS["demo_communicator_limit"]
-    self.settings["board_limit"] = CLINICIAN_PLAN_LIMITS["board_limit"]
   end
 
   def setup_basic_limits
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = BASIC_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = BASIC_PLAN_LIMITS["demo_communicator_limit"]
-    self.settings["board_limit"] = BASIC_PLAN_LIMITS["board_limit"]
   end
 
   def setup_free_limits
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
-    self.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
   end
 
   def communicator_limit=(value)
@@ -596,27 +611,18 @@ class User < ApplicationRecord
     boards.main_boards.where(id: board_ids).limit(10)
   end
 
+  # The single per-plan board creation cap. Resolves from `plan_type` at READ
+  # time: the value used to be stamped into settings by the plan setters, so
+  # every user who had ever changed plans carried a frozen copy and changing a
+  # constant (or an ENV override) reached nobody. `settings["board_limit"]` now
+  # means one thing only — a deliberate admin override — and is coerced because
+  # the admin JSON path can store a String, which would otherwise make
+  # `countable_board_count >= board_limit` raise.
   def board_limit
-    settings["board_limit"] || FREE_PLAN_LIMITS["board_limit"]
-  end
+    override = (settings || {})["board_limit"]
+    return override.to_i if override.present?
 
-  # Per-plan Board Set (BoardGroup) creation cap. Mirrors `board_limit`, but
-  # resolves from the plan hash by `plan_type` so existing paid users get the
-  # right cap without a settings backfill. An explicit `settings` override
-  # still wins. Defaults: free 1, basic 25, pro 50 (all ENV-overridable).
-  def board_group_limit
-    return settings["board_group_limit"].to_i if settings["board_group_limit"].present?
-
-    case plan_type
-    when "basic", "basic_yearly", "basic_trial", "basic_5yr"
-      BASIC_PLAN_LIMITS["board_group_limit"]
-    when "pro", "pro_yearly", "partner_pro", "pro_5yr"
-      PRO_PLAN_LIMITS["board_group_limit"]
-    when "clinician"
-      CLINICIAN_PLAN_LIMITS["board_group_limit"]
-    else
-      FREE_PLAN_LIMITS["board_group_limit"]
-    end
+    self.class.plan_limits_for(plan_type)["board_limit"]
   end
 
   def comm_account_limit
@@ -1652,7 +1658,7 @@ class User < ApplicationRecord
   # so pro? must treat it as Pro. This single predicate feeds paid_plan?,
   # partner_pro?, the lending gate, and the api_view `pro`
   # flag — so a partner is Pro everywhere those are checked. pro_yearly is
-  # included for parity with the setup_limits / board_group_limit case bodies.
+  # included for parity with the setup_limits / PLAN_LIMITS_BY_TYPE bodies.
   def pro?
     %w[pro pro_yearly partner_pro pro_5yr].include?(plan_type)
   end
@@ -1964,11 +1970,14 @@ class User < ApplicationRecord
 
   def admin_api_view
     view = as_json
-    board_limit = settings["board_limit"]
-    board_limit = board_limit.to_i if board_limit
-    board_limit = 1 unless board_limit && board_limit > 0
-    board_count = boards.count
-    board_limit_reached = board_count >= board_limit
+    # Read through the model, never re-derived from settings: `board_limit`
+    # resolves from plan_type now, and `countable_board_count` / `at_board_limit?`
+    # are what actually gate creation. `board_limit_source` tells an admin whether
+    # they are looking at a deliberate override or the plan default.
+    board_limit = self.board_limit
+    board_count = countable_board_count
+    board_limit_reached = at_board_limit?
+    board_limit_source = (settings || {})["board_limit"].present? ? "override" : "plan"
     view["admin"] = admin?
     view["free"] = free?
     view["pro"] = pro?
@@ -1998,6 +2007,8 @@ class User < ApplicationRecord
     view["display_name"] = display_name
     view["stripe_customer_id"] = stripe_customer_id
     view["board_limit"] = board_limit
+    view["board_limit_source"] = board_limit_source
+    view["board_count"] = board_count
     view["comm_account_limit_reached"] = comm_account_limit_reached
     view["board_limit_reached"] = board_limit_reached
     view["can_create_boards"] = can_create_boards
@@ -2047,29 +2058,15 @@ class User < ApplicationRecord
   end
 
   # Single source of truth for "how many boards count against the limit."
-  # Excludes predefined boards and every board that belongs to one of the user's
-  # Board Builder groups — a builder wizard run persists a whole linked tree but
-  # the user only chose one thing, so it costs exactly ONE board-set slot
-  # (countable_board_group_count) and ZERO board slots. Memoized because board
-  # list serialization calls board_editable? once per board.
-  #
-  # This replaced the older settings["builder_child"] flag exclusion: "set-ness"
-  # now lives in the builder BoardGroup, not a fragile JSONB marker (issue #407).
+  # Excludes predefined (admin-curated) boards; EVERY board the user owns
+  # otherwise counts, Board Builder sets included. There is exactly one creation
+  # cap — boards — because a Board Set cannot exist without them, and two caps
+  # for one resource is what let a user at their board limit run the builder,
+  # receive a whole tree, and still be told "1 of 1 boards" (issue #796). Board
+  # Sets themselves are uncapped. Memoized because board list serialization
+  # calls board_editable? once per board.
   def countable_board_count
-    @countable_board_count ||=
-      boards.where(predefined: false)
-            .where.not(id: builder_grouped_board_ids)
-            .count
-  end
-
-  # Board ids that belong to one of THIS user's builder board groups. A builder
-  # set's boards (root + every child) are members of a `builder: true` BoardGroup,
-  # so they're excluded from the board-limit count.
-  def builder_grouped_board_ids
-    BoardGroupBoard
-      .joins(:board_group)
-      .where(board_groups: { user_id: id, builder: true })
-      .select(:board_id)
+    @countable_board_count ||= boards.where(predefined: false).count
   end
 
   # The one gate every board-creation path checks. Admins are never limited.
@@ -2083,17 +2080,12 @@ class User < ApplicationRecord
     !at_board_limit?
   end
 
-  # Board Sets the user owns that count against their plan cap. Predefined
-  # (admin-curated) sets are excluded — only the user's own sets count.
+  # Board Sets the user owns, excluding predefined (admin-curated) ones. NOT a
+  # cap any more — Board Set creation is uncapped, since the boards inside a set
+  # are what count (see countable_board_count). Kept as a real usage number for
+  # api_view and the board_groups rake reports.
   def countable_board_group_count
     board_groups.where(predefined: [false, nil]).count
-  end
-
-  # The gate every Board Set creation path checks. Admins are never limited.
-  def at_board_group_limit?
-    return false if admin?
-
-    countable_board_group_count >= board_group_limit
   end
 
   # The single board a limited-plan user keeps full edit access to. Returns
@@ -2294,7 +2286,6 @@ class User < ApplicationRecord
   def top_editable_board_ids
     @top_editable_board_ids ||=
       boards.where(predefined: false)
-            .where.not(id: builder_grouped_board_ids)
             .order(favorite: :desc, updated_at: :desc)
             .limit(board_limit.to_i)
             .pluck(:id)
@@ -2310,15 +2301,19 @@ class User < ApplicationRecord
     # ---- Limits from Stripe/user settings ----
     comm_limit = (settings["paid_communicator_limit"] || 0).to_i + extra_communicator_slots # REAL communicators included (base + Pro add-on slots)
     demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
-    board_limit = (settings["board_limit"] || 1).to_i
+    board_limit = self.board_limit
 
     # ---- Memoize common collections ----
     memoized_teams = teams_with_read_access
-    memoized_boards = boards.alphabetical
     memoized_communicators = communicator_accounts.limit(5)
 
     # ---- Counts ----
-    board_count = memoized_boards.count
+    # The number the CAP enforces, so board_count / board_limit_reached /
+    # can_create_boards can no longer disagree in one payload (they used to:
+    # board_count was every board incl. predefined, board_limit_reached compared
+    # it against a locally re-read setting, and can_create_boards used the real
+    # gate two lines below).
+    board_count = countable_board_count
 
     paid_comm_count = paid_communicator_accounts.length
     demo_comm_count = demo_communicator_accounts.length
@@ -2363,12 +2358,13 @@ class User < ApplicationRecord
       # Boards
       board_limit: board_limit,
       board_count: board_count,
-      has_boards: board_count > 0,
-      board_limit_reached: board_count >= board_limit,
-      # Board Set (BoardGroup) usage — mirrors the board_limit/board_count
-      # pair so a future "Board Sets: X of Y" surface can read it off the
-      # current-user payload (the model methods already exist).
-      board_group_limit: board_group_limit,
+      # NOT board_count > 0: this drives the dashboard empty state and has to
+      # keep meaning "owns any board at all", so a user whose only boards are
+      # predefined isn't shown the empty state.
+      has_boards: boards.exists?,
+      board_limit_reached: at_board_limit?,
+      # Board Set usage. No limit alongside it any more — Board Sets are
+      # uncapped; the boards inside them are what count (issue #796).
       board_group_count: countable_board_group_count,
       can_create_boards: can_create_boards,
       editable_board_id: effective_editable_board_id,

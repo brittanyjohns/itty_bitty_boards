@@ -4,8 +4,9 @@ namespace :board_groups do
   # the root board's settings["builder_root"] JSONB marker, the root counted as
   # a board, and deleting the root orphaned its children. #407 made new builds
   # write a real `builder: true` BoardGroup (root + every predictive child as
-  # board_group_boards) so the set counts as ONE Board Set (board_group_limit),
-  # zero board slots, and cascade-deletes as a unit.
+  # board_group_boards) so the set is a real Board Set and cascade-deletes as a
+  # unit. (Board Sets carried their own cap back then; since #796 the boards
+  # inside a set are what count, and group membership affects no limit at all.)
   #
   # Existing builder sets in prod predate that and have no BoardGroup. This task
   # wraps each `builder_root` tree that lacks a builder BoardGroup into one,
@@ -19,14 +20,12 @@ namespace :board_groups do
   # Idempotent: a root that already has a builder BoardGroup (root_board_id
   # match) is skipped, so re-runs create no duplicate groups or join rows.
   #
-  # Logs each user's countable_board_group_count before/after and prints a
-  # report of any user left OVER their board_group_limit (e.g. a Free user with
-  # both a hand-made set and a builder set reads 2/1). Per issue #409 those
-  # users are left as-is — limits are enforced only on create, so no one loses
-  # access to existing sets; they just can't make new ones until under cap.
+  # Logs each user's countable_board_group_count before/after. There is no
+  # over-limit report any more: Board Sets are uncapped since #796, so wrapping
+  # existing trees into groups can't push anyone over anything.
   #
   # APPLIES BY DEFAULT. Preview with DRY_RUN=1 (per the deploy ordering in #409:
-  # run --dry-run, review the over-limit report, then run for real). Scope to one
+  # run --dry-run, review what it would wrap, then run for real). Scope to one
   # owner with USER_ID=N:
   #   DRY_RUN=1 rake board_groups:backfill_builder_sets        # preview all
   #   rake board_groups:backfill_builder_sets                  # apply all
@@ -85,34 +84,18 @@ namespace :board_groups do
       end
     end
 
-    # Per-user before/after + over-limit report.
-    over_limit = []
+    # Per-user before/after. Board Sets are uncapped (#796), so there is nothing
+    # to flag here — this is telemetry for the backfill, not a limit report.
     puts "\nPer-user board-set counts (countable_board_group_count):"
     by_user.each do |uid, user_roots|
       user = User.find(uid)
       before = before_counts[uid]
       after = dry_run ? before + user_roots.size : user.countable_board_group_count
-      limit = user.board_group_limit
-      flag = (after > limit)
-      puts "  user ##{uid} (#{user.plan_type || 'free'}): #{before} -> #{after} (limit #{limit})" \
-           "#{flag ? '  *** OVER LIMIT' : ''}"
-      over_limit << { user: user, before: before, after: after, limit: limit } if flag
+      puts "  user ##{uid} (#{user.plan_type || 'free'}): #{before} -> #{after}"
     end
 
     puts "\n#{dry_run ? '[DRY RUN] would create' : 'Created'} #{created_groups} builder " \
          "BoardGroup(s); #{attached_boards} board(s) attached."
-
-    if over_limit.any?
-      puts "\n=== OVER board_group_limit after backfill (#{over_limit.size} user(s)) ==="
-      puts "Left as-is per #409 — limits enforced only on create, so existing sets stay accessible."
-      over_limit.each do |row|
-        admin = row[:user].admin? ? " [admin — exempt from gate]" : ""
-        puts "  user ##{row[:user].id} (#{row[:user].plan_type || 'free'}): " \
-             "#{row[:after]}/#{row[:limit]}#{admin}"
-      end
-    else
-      puts "\nNo users left over board_group_limit."
-    end
 
     puts "\nDry run only — re-run without DRY_RUN to apply." if dry_run
   end

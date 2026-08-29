@@ -108,7 +108,15 @@ module Admin
 
       # Limits live in settings; the model's *_limit= setters save immediately,
       # so write the keys directly instead of assigning attributes.
-      @user.settings["board_limit"] = attrs[:board_limit].to_i if attrs[:board_limit].present?
+      # An OVERRIDE of the plan-resolved board_limit — blank clears it back to
+      # the plan default rather than leaving the last override in place.
+      if attrs.key?(:board_limit)
+        if attrs[:board_limit].to_s.strip.empty?
+          @user.settings.delete("board_limit")
+        else
+          @user.settings["board_limit"] = attrs[:board_limit].to_i
+        end
+      end
       @user.settings["paid_communicator_limit"] = attrs[:paid_communicator_limit].to_i if attrs[:paid_communicator_limit].present?
       @user.settings["demo_communicator_limit"] = attrs[:demo_communicator_limit].to_i if attrs[:demo_communicator_limit].present?
 

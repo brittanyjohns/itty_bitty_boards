@@ -3,22 +3,19 @@ namespace :plans do
   # inside the task body. Rakefiles get loaded during asset precompile
   # before Rails boots — a top-level `User::FREE_PLAN_LIMITS` raises
   # `NameError: uninitialized constant User` during deploy.
-  BACKFILL_LIMIT_KEYS = %w[paid_communicator_limit demo_communicator_limit board_limit].freeze
+  # `board_limit` is deliberately NOT here: it resolves from plan_type at read
+  # time now (User#board_limit) and settings only ever holds a deliberate admin
+  # override, so backfilling it would re-stamp exactly what
+  # `plans:clear_stamped_board_limits` exists to remove (issue #796).
+  BACKFILL_LIMIT_KEYS = %w[paid_communicator_limit demo_communicator_limit].freeze
 
   desc "Backfill per-tier limits onto user.settings, filling missing/zero values without clobbering admin-tuned higher values"
   task backfill_communicator_limits: :environment do
-    # Built at task-execution time (after :environment), so User is
-    # available. partner_pro and basic_trial inherit their paid tier's
-    # slot math (matches User#setup_limits).
-    limits_by_plan = {
-      "free"         => User::FREE_PLAN_LIMITS,
-      "basic"        => User::BASIC_PLAN_LIMITS,
-      "basic_yearly" => User::BASIC_PLAN_LIMITS,
-      "basic_trial"  => User::BASIC_PLAN_LIMITS,
-      "pro"          => User::PRO_PLAN_LIMITS,
-      "pro_yearly"   => User::PRO_PLAN_LIMITS,
-      "partner_pro"  => User::PRO_PLAN_LIMITS,
-    }.freeze
+    # Read at task-execution time (after :environment), so User is available.
+    # User::PLAN_LIMITS_BY_TYPE is the one plan -> limits map; the local copy
+    # this replaced omitted clinician, basic_5yr and pro_5yr, so those users
+    # fell into the `skipped` branch and were never backfilled at all.
+    limits_by_plan = User::PLAN_LIMITS_BY_TYPE
 
     dry_run = ENV["DRY_RUN"] == "true"
     only_plans = ENV["PLANS"]&.split(",")&.map(&:strip)
@@ -301,5 +298,77 @@ namespace :plans do
     else
       puts "\nReconcile complete. reconciled=#{reconciled} failed=#{failed}"
     end
+  end
+
+  # One-time cleanup for issue #796. `board_limit` used to be STAMPED into
+  # settings by the five plan setters, so every user who ever changed plans
+  # carries a frozen copy — which, now that settings means "deliberate admin
+  # override", would freeze them out of every future plan/ENV change.
+  #
+  # Only clears a value a plan setter for that user's CURRENT plan_type could
+  # plausibly have written: the value the constant resolves to today, plus the
+  # pre-#796 defaults, plus anything in EXTRA_STAMPED_VALUES for environments
+  # that ran with non-default ENV. Anything else is treated as a real override,
+  # kept, and reported.
+  #
+  # Users with a blank or unknown plan_type are NEVER touched: they resolve to
+  # FREE at read time, so clearing a stranded paid user's stamped 300 would
+  # silently drop them to 1. Misclassification in the other direction is
+  # harmless — an admin's deliberate value equal to a default gets cleared and
+  # the user resolves to that same default.
+  desc "One-time (#796): clear settings['board_limit'] values that were stamped by a plan setter, keeping genuine admin overrides"
+  task clear_stamped_board_limits: :environment do
+    dry_run = ENV.fetch("DRY_RUN", "true") == "true"
+    extra = ENV["EXTRA_STAMPED_VALUES"].to_s.split(",").map { |v| v.strip.to_i }.reject(&:zero?)
+
+    # Values the setters wrote before #796, by the plan hash they came from.
+    legacy_defaults = {
+      User::FREE_PLAN_LIMITS => [1],
+      User::BASIC_PLAN_LIMITS => [100],
+      User::PRO_PLAN_LIMITS => [300],
+      User::CLINICIAN_PLAN_LIMITS => [100],
+    }
+
+    cleared = 0
+    kept = 0
+    skipped_unknown_plan = 0
+    kept_rows = []
+
+    scope = User.where.not("settings->>'board_limit' IS NULL")
+    puts "[plans:clear_stamped_board_limits] dry_run=#{dry_run} candidates=#{scope.count}"
+
+    scope.find_each(batch_size: 200) do |user|
+      stored = user.settings["board_limit"].to_i
+      next if stored.zero?
+
+      unless User::PLAN_LIMITS_BY_TYPE.key?(user.plan_type.to_s)
+        skipped_unknown_plan += 1
+        next
+      end
+
+      plan = User.plan_limits_for(user.plan_type)
+      stamped_values = ([plan["board_limit"].to_i] + legacy_defaults.fetch(plan, []) + extra).uniq
+
+      unless stamped_values.include?(stored)
+        kept += 1
+        kept_rows << "  kept user=#{user.id} plan=#{user.plan_type} override=#{stored} (plan default #{plan["board_limit"]})"
+        next
+      end
+
+      cleared += 1
+      next if dry_run
+
+      user.settings.delete("board_limit")
+      # update_columns to skip callbacks — plan_type isn't changing and we don't
+      # want any save-time hook writing the key back.
+      user.update_columns(settings: user.settings, updated_at: Time.current)
+    rescue => e
+      warn "[plans:clear_stamped_board_limits] user #{user.id} failed: #{e.class} #{e.message}"
+    end
+
+    puts kept_rows.join("\n") unless kept_rows.empty?
+    puts "[plans:clear_stamped_board_limits] #{dry_run ? "would clear" : "cleared"}=#{cleared} " \
+         "kept_as_override=#{kept} skipped_unknown_plan=#{skipped_unknown_plan}"
+    puts "DRY RUN — no changes written. Re-run with DRY_RUN=false to apply." if dry_run
   end
 end

@@ -1,4 +1,6 @@
 class API::BoardsController < API::ApplicationController
+  include BoardCreationLimit
+
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf free_download_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
@@ -1439,12 +1441,6 @@ class API::BoardsController < API::ApplicationController
     # merge it in so callers can identify the root board without a second call.
     view = board_group.api_view_with_boards(current_user).merge(root_board_id: board_group.root_board_id)
     render json: view, status: status
-  rescue Boards::BoardGroupCreator::LimitReached
-    render json: {
-      error: "You've reached your plan's board set limit. Upgrade to create more.",
-      limit: current_user.board_group_limit,
-      count: current_user.countable_board_group_count,
-    }, status: :unprocessable_content
   end
 
   def create_from_template
@@ -1620,39 +1616,6 @@ class API::BoardsController < API::ApplicationController
            else []
            end
     list.map { |word| word.to_s.strip }.reject(&:blank?)
-  end
-
-  def check_board_create_permissions
-    unless current_user
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-    return if current_user.admin?
-
-    # Fresh instance so the count isn't stale from earlier in the request.
-    refreshed_user = User.find(current_user.id)
-    if refreshed_user.at_board_limit?
-      render json: { error: "Maximum number of boards reached (#{refreshed_user.countable_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_content
-      notify_mailchimp_hit_limit(refreshed_user)
-    end
-  end
-
-  # Enqueue the Mailchimp "hit_limit" Customer Journey when a Free user
-  # bumps into the board cap. Deduped per user (Rails.cache, 14d TTL) so
-  # a user mashing the create button doesn't get the email re-sent. Fires
-  # for create / clone / create_from_template (the three actions gated by
-  # check_board_create_permissions). Guarded — any Redis/Sidekiq blip
-  # logs a warning rather than 500ing the API request.
-  def notify_mailchimp_hit_limit(user)
-    return unless user.plan_type == "free"
-
-    dedupe_key = "mailchimp:hit_limit:#{user.id}"
-    return if Rails.cache.read(dedupe_key)
-
-    MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "hit_limit" })
-    Rails.cache.write(dedupe_key, true, expires_in: 14.days)
-  rescue StandardError => e
-    Rails.logger.warn("[Mailchimp] hit_limit enqueue failed for user #{user.id}: #{e.message}")
   end
 
   def apply_filter(scope, filter)

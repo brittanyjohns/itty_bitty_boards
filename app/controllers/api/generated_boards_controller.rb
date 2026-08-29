@@ -1,4 +1,6 @@
 class API::GeneratedBoardsController < API::ApplicationController
+  include BoardCreationLimit
+
   skip_before_action :authenticate_token!, only: %i[create show pdf]
   before_action :set_generated_board_by_token, only: %i[show claim pdf]
   WORD_COUNT_OPTIONS = [9, 12, 16, 20, 24, 30, 36, 42, 48, 54, 60].freeze
@@ -67,8 +69,10 @@ class API::GeneratedBoardsController < API::ApplicationController
       render json: { error: "You must be logged in to claim a board" }, status: :unauthorized
       return
     end
-    if current_user.at_board_limit?
-      render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_content
+    claimer = board_limit_user
+    if board_limit_exceeded?(claimer)
+      render json: board_limit_error_payload(claimer), status: :unprocessable_content
+      notify_mailchimp_hit_limit(claimer)
       return
     end
 

@@ -129,12 +129,12 @@ module Boards
       board.assign_parent                            # => parent is the owning User
       board.voice = VoiceService.normalize_voice(@communicator&.voice || @owner.voice)
       board.generate_unique_slug
-      # Sub-boards (folders) don't count against the user's board limit — the
-      # whole tree counts as one via its root. See User#countable_board_count.
+      # Marks a page of the set, so listings show the set as its root rather
+      # than as every page (Board.not_builder_child). Every board in the set
+      # still counts against the user's board limit (#796).
       board.settings = (board.settings || {}).merge("builder_child" => true) if depth.positive?
       # Mark the root so a re-run can detect an existing builder set and warn
-      # instead of silently duplicating it (issue #269). Root stays countable —
-      # countable_board_count only excludes builder_child, not builder_root.
+      # instead of silently duplicating it (issue #269).
       board.settings = (board.settings || {}).merge("builder_root" => true) if depth.zero?
       board.save!
       board
