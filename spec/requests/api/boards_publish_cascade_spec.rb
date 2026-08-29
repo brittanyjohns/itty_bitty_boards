@@ -171,7 +171,12 @@ RSpec.describe "API::Boards publish cascade", type: :request do
 
   # #633 — the same cascade, driven by a plain owner rather than an admin.
   describe "a non-admin owner cascading their own set" do
-    let(:owner) { create(:user) }
+    # Paid, because since #796 every board in a builder set counts against
+    # board_limit — a Free owner holding one is over their cap, and
+    # check_board_editable! answers 403 board_locked before the cascade is
+    # reached. That lock is its own subject (board_read_only_spec); this file is
+    # about the cascade.
+    let(:owner) { create(:user, plan_type: "pro") }
 
     it "prompts with 409 and writes nothing until confirmed" do
       root, members = build_builder_set(owner: owner)
