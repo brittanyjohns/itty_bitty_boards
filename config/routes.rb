@@ -102,6 +102,23 @@ Rails.application.routes.draw do
         post :finish
       end
     end
+    # Registry + health for the Board Builder's seed material: the standalone
+    # fringe page templates and the Core 60/84 robust vocab sets. Member :id is
+    # always a BOARD id. Tile editing happens in the real board editor, which this
+    # page deep-links to.
+    resources :board_builder_templates, only: %i[index show new create],
+              as: :dashboard_board_builder_templates do
+      collection do
+        post :register
+        post :reseed_fringe
+        post :reseed_vocab_set
+      end
+      member do
+        post :unregister
+        post :repair_layout
+        get :export
+      end
+    end
     # Lead-magnet landing pages served at /kit/:slug on the frontend.
     resources :kit_pages, only: [:index, :new, :create, :edit, :update], as: :dashboard_kit_pages do
       member do

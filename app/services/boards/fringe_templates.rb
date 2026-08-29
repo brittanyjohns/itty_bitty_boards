@@ -5,12 +5,24 @@ module Boards
 
     module_function
 
+    # Ordered by :id so the winner is the OLDEST row rather than whatever the
+    # planner happens to be handed — the same rule Boards::RobustSets.all_roots
+    # follows. Two boards on one category is a fault the admin registry reports;
+    # until it is cleaned up, at least every build clones the same one.
     def find(category_name)
       return nil if category_name.blank?
 
+      all_for(category_name).first
+    end
+
+    # Every admin-owned board registered for a category. More than one is a
+    # misconfiguration, so the registry needs to see them all.
+    def all_for(category_name)
+      return Board.none if category_name.blank?
+
       Board.where(user_id: admin_id)
         .where("LOWER(settings->>'#{TEMPLATE_MARKER}') = ?", category_name.to_s.strip.downcase)
-        .first
+        .order(:id)
     end
 
     def all_templates
@@ -30,9 +42,15 @@ module Boards
     end
 
     def seed_obf!(path)
-      obf_data = JSON.parse(File.read(path))
+      seed_data!(JSON.parse(File.read(path)))
+    end
+
+    # The same seed pass, from already-parsed OBF data. Split out so an admin
+    # creating a template from a pasted .obf goes through the IDENTICAL code path
+    # as the rake task reading a file off disk — including the destructive
+    # prune — rather than a second, drifting implementation.
+    def seed_data!(obf_data)
       category = obf_data["name"]
-      obf_id = obf_data["id"]
 
       admin_user = User.find_by(id: admin_id)
       raise "Admin user (#{admin_id}) not found" unless admin_user

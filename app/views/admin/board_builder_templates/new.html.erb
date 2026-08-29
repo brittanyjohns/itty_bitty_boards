@@ -1,0 +1,49 @@
+<% content_for :page_title, "New fringe template" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">New fringe template</h1>
+    <p class="text-sm text-t3 mt-0.5">
+      Paste an authored <code>.obf</code> — the same format the files in
+      <code>db/seeds/board_builder_sets/fringe-pages</code> carry.
+    </p>
+  </div>
+  <%= link_to "Back", admin_dashboard_board_builder_templates_path,
+        class: "text-xs font-medium px-3 py-2 rounded border admin-input text-t1" %>
+</div>
+
+<% if @error.present? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm"><%= @error %></div>
+<% end %>
+
+<div class="admin-card-alt border rounded-xl p-4 mb-6 text-xs text-t2 leading-relaxed">
+  The document's <code>"name"</code> is the category this template serves, and it must be one the planner
+  produces — <span class="text-t1"><%= selectable_categories.to_sentence %></span>. The <code>"id"</code> is the
+  upsert key, so give it a namespaced one like <code>fringe:animals</code>; without it a re-seed forks a second
+  board. This creates the board through the same pass the rake task runs on a file, so it cannot drift from a
+  seeded template — but there is no file for it on disk until you
+  <strong class="text-t1">Export</strong> it and commit it, so a re-seed cannot heal it until you do.
+</div>
+
+<%= form_tag admin_dashboard_board_builder_templates_path, method: :post do %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <label class="block text-xs font-medium text-t2 mb-1" for="obf">Authored .obf</label>
+    <%= text_area_tag :obf, @obf_raw, id: "obf", rows: 22, spellcheck: false, required: true,
+          placeholder: JSON.pretty_generate(
+            "format" => "open-board-0.1",
+            "id" => "fringe:animals",
+            "locale" => "en",
+            "name" => "Animals",
+            "grid" => { "rows" => 1, "columns" => 2, "order" => [[1, 2]] },
+            "buttons" => [
+              { "id" => 1, "label" => "dog", "part_of_speech" => "noun" },
+              { "id" => 2, "label" => "cat", "part_of_speech" => "noun" },
+            ],
+            "images" => [], "sounds" => []
+          ),
+          class: "admin-input border rounded px-3 py-2 text-sm w-full font-mono text-xs focus:border-indigo-500 focus:outline-none" %>
+  </div>
+
+  <%= submit_tag "Create template",
+        class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>
+<% end %>

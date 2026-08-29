@@ -697,6 +697,14 @@ an explicit decision, not a drive-by edit.
   set, which — having no nav cell bearing its name — is then handed an anchor
   labelled with the core set's own name. Repair: `rake
   board_builder:repair_stray_core_pages`.
+  **And `open_grid_cells` is a WRITE, so it can never be called from a read
+  path.** It opens with `update_board_layout`, which does `self.save` and rewrites
+  every tile's `layout` — fine for a builder about to place tiles, fatal for an
+  admin index that renders sixty template boards and would mass-write on a GET.
+  Read-only substitutes: count DISTINCT cells off each tile's own
+  `layout["lg"]` (what `Boards::TemplateHealth` does), or
+  `Boards::LayoutRepacker.unstack_screen!(board, "lg", dry_run: true)`, which
+  returns the displaced count before any save.
 - **The robust-set marker is IDENTITY, so a clone must never inherit it and a
   built set's NAME must never be read off the seed row.** `Boards::RobustSets`
   decides which board IS the Core 60/84 seed from two `settings` keys alone —
@@ -721,7 +729,27 @@ an explicit decision, not a drive-by edit.
   moved. Cleanup for rows cloned before the strip: `rake
   board_builder:unmark_stray_vocab_roots` (dry run by default; unmarks only —
   it never renames, unpublishes, or destroys, and it reports the built sets that
-  took a stray's name rather than renaming them).
+  took a stray's name rather than renaming them). The admin registry at
+  `/admin/board_builder_templates` therefore exposes NO write path to either
+  marker — a board becomes a root only through `VocabSets.seed_slug!` from
+  authored source, and strays are reported read-only with the rake command. The
+  fringe marker rides the same rule one column over: `clone_with_images` strips
+  `Boards::FringeTemplates::TEMPLATE_MARKER` too, because `FringeTemplates.find`
+  is scoped to the seed admin and so an ADMIN-owned clone of a template would
+  become a rival for that category. `find` orders by `:id` for the same reason
+  `all_roots` does — oldest row wins, never an unordered `.first`.
+- **A Board Builder template is EDITABLE, but a re-seed reverts it.**
+  `VocabSets.seed_slug!` and `Boards::FringeTemplates.seed_obf!` are destructive
+  syncs against the authored `.obf` in `db/seeds/board_builder_sets/`: they
+  destroy tiles (and pages) that are not in the source and re-pin the rest. That
+  is how a content revision fully applies, and it is why an edit made in the
+  board editor is not permanent — the loop is edit → `Boards::SeedSourceExporter`
+  → commit the file → re-seed. Corollary for the fringe marker:
+  `Board.not_builder_seed` keys on it and is the ONLY thing keeping an
+  admin-owned, published, predefined board out of `Board.public_boards`, so
+  un-registering a template must clear `predefined` as well — and must NOT touch
+  `published`, which is the marketplace-protection raise path and the `/pb/<slug>`
+  a printed sheet resolves through.
 - **"Format with AI" is a PERMUTATION at a uniform 1x1.** `AiBoardFormatter`
   chooses an ORDER and nothing else: no tile size, no x/y, no column count, and
   it never adds or drops a word. `Board#pack_layout_row_major` is the single
@@ -1066,7 +1094,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/marketing-integrations.md` | Mailchimp CRM sync + Customer Journeys (all journey keys + ENV wiring), dual-welcome design, plan-welcome idempotency, PostHog server-side events + `distinct_id` contract |
 | `.claude-notes/safety-profiles.md` | MySpeak safety pages: gated emergency-info reveal, view logging + parent alerts + throttling, coarse IP geolocation, random slugs + legacy-slug fallback |
 | `.claude-notes/boards-and-teams.md` | Team permissions / owner-pinning, SLP→family hand-off, board assignment deep clone (`AssignmentCloner`), non-destructive board removal, board deletion warn+confirm (409), frozen published slugs, Board Sets (BoardGroup) CRUD + limits, responsive layouts (sm/md derived from lg), OBF/OBZ import copyright policy, Make a Board From Screenshot |
-| `.claude-notes/board-builder.md` | Board Builder wizard end-to-end: starter templates, complexity levels + `StructurePlanner`, Core 60/84 robust vocab sets + seed self-healing, communicator AAC profile, gestalt (GLP) support, all builder rake tasks |
+| `.claude-notes/board-builder.md` | Board Builder wizard end-to-end: starter templates, complexity levels + `StructurePlanner`, Core 60/84 robust vocab sets + seed self-healing, communicator AAC profile, gestalt (GLP) support, all builder rake tasks, the `/admin/board_builder_templates` registry + health page |
 | `.claude-notes/ops.md` | Monitoring/alerting details, AppSignal APM config, full Rack::Attack throttle rules + ENV vars |
 | `.claude-notes/marketing-assets.md` | AAC Classroom Kit hosting: `MarketingAsset`, internal endpoints, marketing print style, QR scannability rule (do not re-add long UTMs to tag QRs) |
 | `.claude-notes/internal-api.md` | Internal `/api/internal/` surface: bearer auth + admin identity, public-CDN download path (`src` vs `original_url`), image + board search endpoints, `Images::CommercialLicense` licensing rule |

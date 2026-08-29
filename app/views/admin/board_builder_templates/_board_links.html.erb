@@ -1,0 +1,10 @@
+<%# The tile work happens in the real board editor, so every row deep-links out
+    to it rather than duplicating a grid editor in here. %>
+<div class="flex items-center gap-2">
+  <%= link_to "Edit tiles", board_editor_url(board), target: "_blank", rel: "noopener",
+        class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+  <%= link_to "Layout", board_layout_url(board), target: "_blank", rel: "noopener",
+        class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+  <%= link_to "Open", board_speak_url(board), target: "_blank", rel: "noopener",
+        class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+</div>

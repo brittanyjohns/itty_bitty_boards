@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Board Builder templates are visible and manageable from the admin
+  dashboard.** The seed material every built board set is cloned from — the Core
+  60/84 vocabulary sets and the eleven fringe category pages — lived only in the
+  database, reachable through a Rails console and a rake task. There was no way
+  to tell whether a template was healthy, and a defect in one is a defect in
+  every set built after it. `/admin/board_builder_templates` now lists all of it
+  with a health report (stacked tiles, duplicates, missing pictures, grid size,
+  and — for a fringe page — whether the builder can actually reach that category
+  or is quietly paying for an AI-generated page instead), links straight into the
+  board editor for tile work, and adds Repair, Re-seed and Export. A new fringe
+  template is added by building the board under Board Builds and registering it
+  against a category here.
+
+  One thing the page is explicit about: re-seeding is a destructive sync against
+  the authored files in the repo, so an edit made in the board editor is reverted
+  by the next re-seed. Export downloads the board as its authored `.obf` so the
+  change can be committed and made permanent.
+
 ### Changed
 
 - **AI credits now arrive the moment you sign up.** Your welcome tokens and your

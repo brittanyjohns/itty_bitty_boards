@@ -1,0 +1,222 @@
+<% content_for :page_title, "Board Builder Templates" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Board Builder Templates</h1>
+    <p class="text-sm text-t3 mt-0.5">
+      The seed material every built board set is cloned from. A defect here is a defect in every set built after it.
+    </p>
+  </div>
+</div>
+
+<% if @error.present? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm"><%= @error %></div>
+<% end %>
+
+<div class="admin-card-alt border rounded-xl p-4 mb-6 text-xs text-t2 leading-relaxed">
+  <strong class="text-t1">Editing a template is not permanent on its own.</strong>
+  A re-seed is a destructive sync against the authored <code>.obf</code> files in
+  <code>db/seeds/board_builder_sets/</code>: tiles that are not in the source are destroyed and the rest are
+  re-pinned to their authored cells. To make an edit stick, open the board editor, make the change,
+  then <strong class="text-t1">Export</strong> the board and commit the file over its copy in the seed directory.
+</div>
+
+<%# ---------------- Core vocab sets ---------------- %>
+<div class="admin-card border rounded-xl overflow-hidden mb-6">
+  <div class="px-5 py-4" style="border-bottom: 1px solid var(--border);">
+    <h2 class="text-sm font-medium text-t1">Core vocab sets</h2>
+    <p class="text-[11px] text-t3 mt-0.5">
+      Cloned whole into every build. Read-only registry: a set becomes a set by being seeded from authored
+      source, never by a button here — the marker is the set's identity.
+    </p>
+  </div>
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Set", "Root board", "Pages", "Health", "Board", "Actions"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @sets.each do |row| %>
+        <tr class="admin-hover-row transition-colors align-top" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3 whitespace-nowrap">
+            <%= link_to row[:set_name], admin_dashboard_board_builder_template_path(row[:root]),
+                  class: "text-accent hover:underline font-medium" %>
+            <div class="text-[11px] text-t3 mt-0.5"><%= row[:slug] %></div>
+          </td>
+          <td class="px-5 py-3">
+            <%# Shown greyed and separately: the seed row's name is NOT the set's
+                name. display_name_for is keyed on the slug so a renamed seed
+                cannot rename every user's board. %>
+            <span class="text-t3 text-xs"><%= row[:root].name %></span>
+            <div class="text-[11px] text-t3 mt-0.5">the seed row's own name — not the set name</div>
+          </td>
+          <td class="px-5 py-3 text-t2 whitespace-nowrap"><%= row[:page_count] %></td>
+          <td class="px-5 py-3"><%= render "health_badges", health: row[:health] %></td>
+          <td class="px-5 py-3"><%= render "board_links", board: row[:root] %></td>
+          <td class="px-5 py-3">
+            <div class="flex items-center gap-2">
+              <%= button_to "Repair layout", repair_layout_admin_dashboard_board_builder_template_path(row[:root]),
+                    method: :post,
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                    form: { data: { turbo_confirm: "Dedupe and un-stack every page of #{row[:set_name]}? Tiles move into gaps only — the grid never grows a row." } } %>
+              <% if row[:source_present] %>
+                <%= button_to "Re-seed", reseed_vocab_set_admin_dashboard_board_builder_templates_path(slug: row[:slug]),
+                      method: :post,
+                      class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                      form: { data: { turbo_confirm: "Re-seed #{row[:set_name]} from db/seeds? This DESTROYS any tile or page not in the authored .obf source and re-pins the rest. It touches admin-owned boards in the #{row[:slug]} namespace only — no user's built set." } } %>
+              <% else %>
+                <span class="text-[11px] text-t3">no authored source on disk</span>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @sets.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-t3">
+      No vocab sets seeded here. Run <code>bin/rails vocab_sets:seed</code>.
+    </div>
+  <% end %>
+
+  <% if @missing_sets.any? %>
+    <div class="px-5 py-3 text-[11px] text-t3" style="border-top: 1px solid var(--border-light);">
+      Authored but not seeded here: <%= @missing_sets.to_sentence %> — run <code>bin/rails vocab_sets:seed</code>.
+    </div>
+  <% end %>
+</div>
+
+<%# ---------------- Fringe page templates ---------------- %>
+<div class="admin-card border rounded-xl overflow-hidden mb-6">
+  <div class="px-5 py-4" style="border-bottom: 1px solid var(--border);">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-medium text-t1">Fringe page templates</h2>
+        <p class="text-[11px] text-t3 mt-0.5">
+          Cloned per build for an interest category the core set has no page for. Without one, that category
+          costs AI credits every time.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+      <%= link_to "New from .obf", new_admin_dashboard_board_builder_template_path,
+            class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition-colors" %>
+      <%= button_to "Re-seed all", reseed_fringe_admin_dashboard_board_builder_templates_path, method: :post,
+            class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
+            form: { data: { turbo_confirm: "Re-seed every fringe template from db/seeds? Any tile not in the authored .obf source is destroyed." } } %>
+      </div>
+    </div>
+  </div>
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Category", "Board", "Health", "Open", "Actions"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @fringe.each do |row| %>
+        <tr class="admin-hover-row transition-colors align-top" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3 whitespace-nowrap">
+            <%= link_to row[:category], admin_dashboard_board_builder_template_path(row[:board]),
+                  class: "text-accent hover:underline font-medium" %>
+          </td>
+          <td class="px-5 py-3 text-t2"><%= row[:board].name %></td>
+          <td class="px-5 py-3"><%= render "health_badges", health: row[:health] %></td>
+          <td class="px-5 py-3"><%= render "board_links", board: row[:board] %></td>
+          <td class="px-5 py-3">
+            <div class="flex items-center gap-2">
+              <%= button_to "Repair", repair_layout_admin_dashboard_board_builder_template_path(row[:board]),
+                    method: :post,
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                    form: { data: { turbo_confirm: "Dedupe and un-stack “#{row[:board].name}”?" } } %>
+              <%= link_to "Export", export_admin_dashboard_board_builder_template_path(row[:board]),
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+              <%= button_to "Unregister", unregister_admin_dashboard_board_builder_template_path(row[:board]),
+                    method: :post,
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                    form: { data: { turbo_confirm: "Unregister “#{row[:board].name}” as the #{row[:category]} template? Builds will pay for an AI-generated page for that category instead. The board stays, but is unpublished from the catalogue." } } %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @fringe.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-t3">
+      No fringe templates registered. Run <code>bin/rails fringe_templates:seed</code>, or register a board below.
+    </div>
+  <% end %>
+
+  <% if @unseeded_fringe_files.any? %>
+    <div class="px-5 py-3 text-[11px] text-t3" style="border-top: 1px solid var(--border-light);">
+      Authored but not seeded here: <%= @unseeded_fringe_files.to_sentence %> — use Re-seed all.
+    </div>
+  <% end %>
+</div>
+
+<%# ---------------- Register ---------------- %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Register an existing board as a fringe template</h2>
+  <p class="text-[11px] text-t3 mb-4 leading-relaxed">
+    To author one from scratch instead, use
+    <%= link_to "New from .obf", new_admin_dashboard_board_builder_template_path, class: "text-accent hover:underline" %>.
+    Or build the board first in <%= link_to "Board Builds", admin_dashboard_board_builds_path, class: "text-accent hover:underline" %>,
+    then point a category at it here. Registering publishes the board, marks it predefined, and turns on
+    <code>disable_scroll</code> — which locks it to one screen. Categories come from
+    <code>Boards::InterestCategories</code>: the planner can only ever select one of those.
+  </p>
+
+  <%= form_tag register_admin_dashboard_board_builder_templates_path, method: :post do %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="board_id">Board</label>
+        <%= select_tag :board_id,
+              options_from_collection_for_select(registerable_boards, :id, :name, params[:board_id]),
+              include_blank: "Pick a board…", id: "board_id",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="category">Category</label>
+        <%= select_tag :category,
+              options_for_select(selectable_categories, params[:category]),
+              include_blank: "Pick a category…", id: "category",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <%= submit_tag "Register template",
+              class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @uncovered_categories.any? %>
+    <p class="text-[11px] text-t3 mt-4">
+      Categories with no core page and no template — every build that needs one pays AI credits:
+      <span class="text-t2"><%= @uncovered_categories.to_sentence %></span>
+    </p>
+  <% end %>
+</div>
+
+<%# ---------------- Stray roots ---------------- %>
+<% if @stray_roots.any? %>
+  <div class="admin-flash-err border rounded-xl p-5">
+    <h2 class="text-sm font-medium mb-1">Stray vocab-set roots</h2>
+    <p class="text-xs mb-3 leading-relaxed">
+      These boards carry the robust-set marker but are not visible as seeds. A stray can supply the grid and the
+      name for every build of its level. Reported read-only on purpose — the rake task also reports which built
+      sets took a stray's name, and that does not fit in a button.
+    </p>
+    <ul class="text-xs space-y-1 mb-3">
+      <% @stray_roots.each do |board| %>
+        <li>#<%= board.id %> — <%= board.name %> (user <%= board.user_id %>, slug <%= Boards::RobustSets.slug_for(board) %>)</li>
+      <% end %>
+    </ul>
+    <code class="text-xs">bin/rails board_builder:unmark_stray_vocab_roots</code>
+  </div>
+<% end %>
