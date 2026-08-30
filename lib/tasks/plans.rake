@@ -316,7 +316,7 @@ namespace :plans do
   # silently drop them to 1. Misclassification in the other direction is
   # harmless — an admin's deliberate value equal to a default gets cleared and
   # the user resolves to that same default.
-  desc "One-time (#796): clear settings['board_limit'] values that were stamped by a plan setter, keeping genuine admin overrides"
+  desc "One-time (#796): clear settings['board_limit'] values that were stamped by a plan setter, keeping genuine overrides and never touching admins"
   task clear_stamped_board_limits: :environment do
     dry_run = ENV.fetch("DRY_RUN", "true") == "true"
     extra = ENV["EXTRA_STAMPED_VALUES"].to_s.split(",").map { |v| v.strip.to_i }.reject(&:zero?)
@@ -332,7 +332,9 @@ namespace :plans do
     cleared = 0
     kept = 0
     skipped_unknown_plan = 0
+    skipped_admin = 0
     kept_rows = []
+    admin_rows = []
 
     scope = User.where.not("settings->>'board_limit' IS NULL")
     puts "[plans:clear_stamped_board_limits] dry_run=#{dry_run} candidates=#{scope.count}"
@@ -340,6 +342,19 @@ namespace :plans do
     scope.find_each(batch_size: 200) do |user|
       stored = user.settings["board_limit"].to_i
       next if stored.zero?
+
+      # Admins are never touched, whatever the stored value is. An admin whose
+      # stamp happens to EQUAL the plan default would otherwise be cleared like
+      # any other row — it only looked safe in the first dry run because the
+      # admin's value (3000) didn't match Pro's 300. Admins bypass the cap
+      # anyway (`at_board_limit?` / `board_editable?` short-circuit on
+      # `admin?`), so their settings key is a deliberate operational value and
+      # not ours to reconcile.
+      if user.admin?
+        skipped_admin += 1
+        admin_rows << "  skipped admin user=#{user.id} plan=#{user.plan_type} value=#{stored}"
+        next
+      end
 
       unless User::PLAN_LIMITS_BY_TYPE.key?(user.plan_type.to_s)
         skipped_unknown_plan += 1
@@ -366,9 +381,11 @@ namespace :plans do
       warn "[plans:clear_stamped_board_limits] user #{user.id} failed: #{e.class} #{e.message}"
     end
 
+    puts admin_rows.join("\n") unless admin_rows.empty?
     puts kept_rows.join("\n") unless kept_rows.empty?
     puts "[plans:clear_stamped_board_limits] #{dry_run ? "would clear" : "cleared"}=#{cleared} " \
-         "kept_as_override=#{kept} skipped_unknown_plan=#{skipped_unknown_plan}"
+         "kept_as_override=#{kept} skipped_admin=#{skipped_admin} " \
+         "skipped_unknown_plan=#{skipped_unknown_plan}"
     puts "DRY RUN — no changes written. Re-run with DRY_RUN=false to apply." if dry_run
   end
 end

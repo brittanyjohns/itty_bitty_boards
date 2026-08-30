@@ -72,6 +72,60 @@ RSpec.describe "plans:clear_stamped_board_limits", type: :task do
 
   # A stranded paid user resolves to FREE at read time, so wiping their stamped
   # 300 would silently drop them to 1. Never touch an unknown plan_type.
+  describe "admins" do
+    def stamped_admin(plan_type, value)
+      create(:admin_user).tap do |u|
+        u.update_columns(
+          plan_type: plan_type,
+          settings: (u.settings || {}).merge("board_limit" => value),
+        )
+      end
+    end
+
+    # The case the production dry run could NOT reveal: the live admin's value
+    # (3000) happened not to match Pro's 300, so it landed in `kept` by
+    # coincidence rather than by rule. An admin stamped with the plan default
+    # would have been cleared like any other row.
+    it "never clears an admin whose value equals the plan default" do
+      admin = stamped_admin("pro", User::PRO_PLAN_LIMITS["board_limit"])
+
+      output = run_task
+
+      expect(admin.reload.settings["board_limit"]).to eq(
+        User::PRO_PLAN_LIMITS["board_limit"],
+      )
+      expect(output).to include("skipped admin user=#{admin.id}")
+      expect(output).to include("skipped_admin=1")
+    end
+
+    it "never clears an admin holding a deliberate high override" do
+      admin = stamped_admin("pro", 3000)
+
+      run_task
+
+      expect(admin.reload.settings["board_limit"]).to eq(3000)
+    end
+
+    it "counts an admin as skipped, not as a kept override" do
+      stamped_admin("pro", User::PRO_PLAN_LIMITS["board_limit"])
+
+      output = run_task
+
+      expect(output).to include("skipped_admin=1")
+      expect(output).to include("kept_as_override=0")
+    end
+
+    it "still clears non-admins in the same run" do
+      admin = stamped_admin("pro", User::PRO_PLAN_LIMITS["board_limit"])
+      ordinary = stamped("pro", User::PRO_PLAN_LIMITS["board_limit"])
+
+      run_task
+
+      expect(admin.reload.settings["board_limit"]).to be_present
+      expect(ordinary.reload.settings).not_to have_key("board_limit")
+    end
+  end
+
   it "never touches a user with an unknown plan_type" do
     user = create(:user)
     user.update_columns(plan_type: "legacy_myspeak", settings: { "board_limit" => 300 })
