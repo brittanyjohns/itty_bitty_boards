@@ -42,6 +42,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   room. Your plan's board limit also tracks your plan directly now, so a change
   to a tier reaches everyone on it instead of only new accounts.
 
+- **Every new account now starts a 14-day free trial of Basic or Pro.** You pick
+  a plan when you sign up and the trial starts immediately — no credit card, and
+  no trip through a payment page, because there's nothing to charge during a
+  trial. If the trial ends without a card on file nothing is deleted and nothing
+  is charged: the account simply continues on the free tier, with over-limit
+  boards read-only and over-limit communicators in fallback mode. Signups in the
+  iOS and Android apps are unchanged and still start free, since the app stores
+  require their own in-app purchases for subscriptions. Existing accounts are
+  unaffected.
+
 - **AI credits now arrive the moment you sign up.** Your welcome tokens and your
   plan's monthly AI credits used to wait until you clicked the link in the
   verification email — so a brand-new account that hadn't opened its email yet

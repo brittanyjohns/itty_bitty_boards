@@ -44,6 +44,17 @@ module API
 
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+          # After the update above, so the Stripe customer id assigned in memory
+          # is persisted before Billing::StartTrial reads it. Returns nil (and
+          # leaves the user on Free) for anything that isn't an eligible web
+          # signup — including the "default"/"marketing"/"demo" strings older
+          # frontends send here as plan_type.
+          trial = Billing::StartTrial.call(
+            user,
+            plan_key: params["plan_type"],
+            source: "signup",
+            platform: platform,
+          )
           user.ensure_minimum_communicator_slot!
           user.record_signup_context!(platform: platform, method: "standard", ref: params[:ref])
           user.notify_admin_of_signup!
@@ -73,7 +84,10 @@ module API
           # #trigger_journey still upserts-and-retries when it loses the race —
           # but there's no reason to hand the trigger a head start.
           MailchimpEventJob.perform_async(user.id, "sign_up")
-          if params["plan_type"] != "partner_pro" && user.should_send_welcome_email?
+          # A started trial has already had its plan-correct welcome sent by
+          # Billing::StartTrial — sending the Free one on top would tell a new
+          # Basic/Pro trialist they're on the free tier.
+          if params["plan_type"] != "partner_pro" && trial.nil? && user.should_send_welcome_email?
             user.send_welcome_email("free")
             MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end
@@ -148,6 +162,14 @@ module API
 
         sign_in user
         user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+        # The plan the pricing CTA carried (`?plan=basic|pro`). This path used to
+        # hand off to Stripe Checkout for it; the trial is now started here.
+        Billing::StartTrial.call(
+          user,
+          plan_key: params["plan_type"],
+          source: "email_signup",
+          platform: platform,
+        )
         user.ensure_minimum_communicator_slot!
         user.record_signup_context!(platform: platform, method: "email_only", ref: params[:ref])
         user.notify_admin_of_signup!
@@ -168,10 +190,13 @@ module API
         rescue => e
           Rails.logger.error "email_signup: email verification setup failed for #{user.email}: #{e.class}: #{e.message} — continuing; user can request a new verification email"
         end
-        # email_signup is the paid-intent path: no plan picked yet, so send a
-        # plan-neutral receipt now. The real plan welcome ships from the Stripe
-        # webhook once trial/active. The Mailchimp `welcome` journey is still
-        # enqueued here (follow-up: make journey plan-aware too).
+        # The receipt is plan-neutral and always sent: it carries the magic link
+        # this passwordless account needs to set a password, so it is not
+        # suppressed when a trial started. The plan-specific welcome rides
+        # alongside it from Billing::StartTrial (previously from the Stripe
+        # webhook after checkout — same two emails, one round trip earlier).
+        # The Mailchimp `welcome` journey is still enqueued here (follow-up:
+        # make journey plan-aware too).
         # Audience upsert first — see the note in #sign_up.
         MailchimpEventJob.perform_async(user.id, "sign_up")
         if user.should_send_welcome_receipt_email?
@@ -296,6 +321,17 @@ module API
 
         sign_in user
         user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+        # Only a brand-new account gets a trial. This one endpoint both signs up
+        # and signs in, so starting one unconditionally would create a second
+        # subscription for a returning customer.
+        trial = if is_new_user
+          Billing::StartTrial.call(
+            user,
+            plan_key: params["plan_type"],
+            source: "google_signup",
+            platform: platform,
+          )
+        end
         user.ensure_minimum_communicator_slot!
 
         if is_new_user
@@ -303,7 +339,9 @@ module API
           user.notify_admin_of_signup!
           # Audience upsert first — see the note in #sign_up.
           MailchimpEventJob.perform_async(user.id, "sign_up")
-          if user.should_send_welcome_email?
+          # Suppressed when a trial started — Billing::StartTrial already sent
+          # the plan-correct welcome. Same rule as #sign_up.
+          if trial.nil? && user.should_send_welcome_email?
             user.send_welcome_email("free")
             MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end

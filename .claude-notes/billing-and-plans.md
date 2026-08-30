@@ -97,6 +97,51 @@ in PR #333 / issue #331.
   `"stripe+revenuecat"`. The admin Mission Control view shows the Stripe/App
   Store sub split, per-source plan breakdowns, and an error state.
 
+### Trial at signup — no Checkout redirect (`Billing::StartTrial`)
+
+Every new **web** signup picks Basic or Pro on the sign-up form and is put
+straight into a 14-day no-card trial by `Billing::StartTrial`, called from all
+three entry points in `API::V1::AuthsController` — `#sign_up`, `#email_signup`,
+and `#google` (the last only when `is_new_user`, or a returning customer gets a
+second subscription). Nothing is charged during a trial, so there was nothing
+for Stripe's hosted page to collect; the redirect was pure friction.
+
+It is the same subscription shape `User#ensure_partner_pro_trial_subscription!`
+has created for partner pilots since #264 — `trial_period_days: 14` plus
+`trial_settings.end_behavior.missing_payment_method: "cancel"` — so it rides all
+of the reverse-trial machinery documented below without adding a second path.
+
+Four things are load-bearing:
+
+- **Mobile never gets one.** `MOBILE_PLATFORMS` (`ios`/`android`) returns nil:
+  App Store and Play require IAP for subscriptions, and those accounts already
+  skip Stripe customer creation at signup. They stay on Free and upgrade
+  through RevenueCat.
+- **Monthly prices only** (`STRIPE_PRICE_BASIC` / `STRIPE_PRICE_PRO`, resolved
+  at call time). A yearly price with a trial zeroes the amount due, which breaks
+  minimum-amount promo codes — the same reason `CheckoutSessionsController`
+  skips the trial on yearly checkouts.
+- **It sends the plan welcome itself.** `handle_subscription_upsert` guards its
+  send on a `plan_status` TRANSITION into `trialing`, and the service has
+  already mirrored that status locally so the signup response isn't stale — so
+  the webhook sees no transition and would never send it.
+  `send_plan_welcome_email_once!` is idempotent per plan_type, so the webhook
+  re-calling it is a no-op. The controllers suppress the Free welcome whenever a
+  trial started. (`#email_signup`'s plan-neutral receipt is still always sent —
+  it carries the magic link a passwordless account needs to set a password.)
+- **It never raises.** The account is created and signed in before this runs, so
+  a Stripe outage logs and leaves the user on Free — exactly the pre-existing
+  behavior — rather than 500ing a signup.
+
+Credits stay webhook-only (`handle_trial_credit_grant`, idempotent on event id);
+the service grants none. An unrecognized `plan_key` — including the
+`"default"`/`"marketing"`/`"demo"` viewType strings older frontends send as
+`plan_type` — falls through to Free, so a stale client is unaffected.
+
+Free is not gone: it is where a trial lands when it ends with no card, where
+cancellations land, and where existing free users stay. It is simply no longer
+something a new signup can *choose*.
+
 ### No-card reverse trial (Basic/Pro)
 
 Basic/Pro trials default to **no credit card** (issue #264). In
