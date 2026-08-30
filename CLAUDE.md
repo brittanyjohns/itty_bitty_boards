@@ -232,10 +232,30 @@ an explicit decision, not a drive-by edit.
   re-points only a `"User"` parent (so a hand-off still follows the owner).
   Anything derived from `parent` must key on `parent_type`, never on
   `board_type`. Repair for already-severed rows: `rake menu_boards:relink`.
-- **`User#countable_board_count` / `at_board_limit?` is the single source of
-  truth for board counting.** Builder sub-boards (`builder_child`) are
-  excluded so a built tree counts as one; every creation gate routes through
-  it.
+- **There is ONE creation cap and it is boards.** `User#countable_board_count`
+  (own, non-predefined) and `at_board_limit?` are the single source of truth,
+  and every creation gate routes through `BoardCreationLimit`. Board Builder
+  sets used to be exempt — their boards were excluded from the count and the
+  builder gated on a second `board_group_limit` cap instead — which is how a
+  user at their board limit could run the wizard, receive a whole tree, and
+  still be told "1 of 1 boards": the builder gated on one number while the
+  dashboard reported the other, and neither matched `can_create_boards`. Two
+  caps for one resource, since a Board Set cannot exist without boards. Board
+  Sets are now uncapped and `board_group_limit` is gone. Two corollaries. A
+  builder run has to fit ENTIRELY (`Boards::BuilderSetSize.worst_case(level)`,
+  reserved up front) because the job cannot stop halfway — which is what makes
+  the Board Builder a paid feature by arithmetic rather than by a flag, since
+  Free's cap of 1 can never hold a set. And `board_limit` resolves from
+  `plan_type` at READ time (`User.plan_limits_for`): it used to be stamped into
+  `settings` by the five plan setters, so every user who ever changed plans
+  carried a frozen copy and moving a constant reached nobody.
+  `settings["board_limit"]` now means one thing only — a deliberate admin
+  override, coerced with `.to_i` because the admin JSON path could store a
+  String and make `countable_board_count >= board_limit` raise. Cleanup for
+  historical stamps: `rake plans:clear_stamped_board_limits` (dry run by
+  default). Every limit 422 carries a stable
+  `error_code: "board_limit_reached"`; the existing `error` strings are left
+  byte-identical, since some are sentences the frontend renders verbatim.
 - **Webhooks are the sole credit-grant authority** (Stripe + RevenueCat).
   Client-called endpoints may reflect plan state but never grant credits. All
   credit movement goes through `CreditService` and the immutable

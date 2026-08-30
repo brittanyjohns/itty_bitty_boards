@@ -1,8 +1,9 @@
 require "rails_helper"
 
 # Covers the user-facing CRUD opened up in the board-sets-user-crud work:
-# owner-or-admin authorization on every mutating action, per-plan creation
-# limits, the predefined/featured flag guard, and the new add_board route.
+# owner-or-admin authorization on every mutating action, the predefined/featured
+# flag guard, and the add_board route. Board Sets carry NO creation cap since
+# #796 — the boards inside them are the capped resource.
 RSpec.describe "API::BoardGroups", type: :request do
   let(:user)  { FactoryBot.create(:user) }        # free, owns nothing yet
   let(:other) { FactoryBot.create(:user) }
@@ -28,16 +29,26 @@ RSpec.describe "API::BoardGroups", type: :request do
       expect(response).to have_http_status(:created)
     end
 
-    it "returns 422 with limit/count when a free user is at their limit" do
-      FactoryBot.create(:board_group, user: user) # free limit is 1
+    # Board Sets are uncapped (#796): a set is a container, and every board
+    # inside it already counts against the one plan limit. A Free user making
+    # five empty sets consumes nothing.
+    it "lets a free user create as many sets as they like" do
+      5.times do |i|
+        post "/api/board_groups", params: { board_group: { name: "Set #{i}" } },
+                                  headers: auth_headers(user)
+        expect(response).to have_http_status(:created)
+      end
 
-      post "/api/board_groups", params: { board_group: { name: "Second" } }, headers: auth_headers(user)
+      expect(user.reload.countable_board_group_count).to eq(5)
+    end
 
-      expect(response).to have_http_status(:unprocessable_content)
-      body = JSON.parse(response.body)
-      expect(body["error"]).to match(/board set limit/i)
-      expect(body["limit"]).to eq(1)
-      expect(body["count"]).to eq(1)
+    it "creates a set even for a user over their BOARD limit" do
+      user.update!(settings: (user.settings || {}).merge("board_limit" => 0))
+
+      post "/api/board_groups", params: { board_group: { name: "Still fine" } },
+                                headers: auth_headers(user)
+
+      expect(response).to have_http_status(:created)
     end
 
     it "lets an admin create without a limit" do

@@ -80,16 +80,10 @@ class API::BoardGroupsController < API::ApplicationController
     render json: record.api_view, status: :created
   end
 
+  # Board Set creation is UNCAPPED: the boards inside a set are what count
+  # against the one plan limit (User#countable_board_count, issue #796), and an
+  # empty set is a container, not a resource.
   def create
-    if current_user.at_board_group_limit?
-      render json: {
-        error: "You've reached your plan's board set limit. Upgrade to create more.",
-        limit: current_user.board_group_limit,
-        count: current_user.countable_board_group_count,
-      }, status: :unprocessable_content
-      return
-    end
-
     board_group = BoardGroup.new
     board_group.user = current_user
     Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"

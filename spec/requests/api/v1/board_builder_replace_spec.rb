@@ -11,7 +11,10 @@ RSpec.describe "API::V1::BoardBuilder replace flow", type: :request do
 
   before do
     allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
-    user.update!(settings: user.settings.to_h.merge("board_group_limit" => 10))
+    # Every board in a builder set counts against board_limit (#796), and the
+    # gate reserves room for the WHOLE set. Give this file's user room by
+    # default; the cap-specific example below overrides it.
+    user.update!(settings: user.settings.to_h.merge("board_limit" => 500))
     BuildBoardSetJob.clear
   end
 
@@ -74,9 +77,16 @@ RSpec.describe "API::V1::BoardBuilder replace flow", type: :request do
     expect(communicator.child_boards.count).to eq(1)
   end
 
-  it "replace works for a user at their board-set cap (destroy frees the slot first)" do
+  # Room for exactly one set: stacking a second needs another full set's worth
+  # and is refused, but replacing destroys the first one before the gate runs.
+  it "replace works for a user at their board cap (destroy frees the room first)" do
+    user.update!(settings: user.settings.to_h
+      .merge("board_limit" => Boards::BuilderSetSize.legacy_worst_case))
     built_root_id!
-    user.update!(settings: user.settings.to_h.merge("board_group_limit" => user.reload.countable_board_group_count))
+
+    build!(confirm: true)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(JSON.parse(response.body)["error_code"]).to eq("board_limit_reached")
 
     build!(replace: true)
     expect(response).to have_http_status(:created)

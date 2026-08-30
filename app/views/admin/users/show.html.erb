@@ -270,8 +270,13 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       <div>
         <label class="block text-[10px] text-t3 mb-1">Board limit</label>
-        <%= f.number_field :board_limit, value: @user.board_limit, min: 0,
+        <%# The OVERRIDE, not the resolved value: board_limit comes from the
+            plan unless settings carries an explicit override, so rendering the
+            resolved number would make every save stamp one. Blank clears. %>
+        <%= f.number_field :board_limit, value: @user.settings["board_limit"], min: 0,
+              placeholder: "Plan default (#{@user.board_limit})",
               class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+        <p class="text-[10px] text-t3 mt-1">Blank = plan default (<%= @user.board_limit %>)</p>
       </div>
       <div>
         <label class="block text-[10px] text-t3 mb-1">Paid communicator limit</label>

@@ -38,14 +38,14 @@ RSpec.describe Boards::BoardGroupCreator do
       expect(group.user_id).not_to eq(admin.id)
     end
 
-    it "checks the board owner's limit, not the acting admin's" do
+    it "creates the group regardless of the owner's board limit" do
       admin = create(:admin_user)
       home = create(:board, user: user, name: "Home")
-      user.update!(settings: (user.settings || {}).merge("board_group_limit" => 0))
+      user.update!(settings: (user.settings || {}).merge("board_limit" => 0))
 
       expect {
         described_class.new(board: home, user: admin).call
-      }.to raise_error(Boards::BoardGroupCreator::LimitReached)
+      }.to change(BoardGroup, :count).by(1)
     end
   end
 
@@ -100,24 +100,22 @@ RSpec.describe Boards::BoardGroupCreator do
     end
   end
 
-  describe "when the user is at their board-group limit" do
-    before { user.update!(settings: (user.settings || {}).merge("board_group_limit" => 0)) }
+  # Board Sets are uncapped since #796 — the boards inside them are what count
+  # against the one plan limit, so grouping boards a user already owns can never
+  # be refused. LimitReached is gone with the second cap.
+  describe "when the user is over their board limit" do
+    before { user.update!(settings: (user.settings || {}).merge("board_limit" => 0)) }
 
-    it "raises LimitReached and creates nothing" do
+    it "still creates the group" do
       home = create(:board, user: user, name: "Home")
 
       expect {
         described_class.new(board: home, user: user).call
-      }.to raise_error(Boards::BoardGroupCreator::LimitReached)
-      expect(BoardGroup.count).to eq(0)
+      }.to change(BoardGroup, :count).by(1)
     end
 
-    it "still returns the existing group without raising, even at the limit" do
-      home = create(:board, user: user, name: "Home")
-      existing = create(:board_group, user: user, builder: true)
-      existing.add_board(home)
-
-      expect { described_class.new(board: home, user: user).call }.not_to raise_error
+    it "no longer defines a LimitReached error" do
+      expect(defined?(Boards::BoardGroupCreator::LimitReached)).to be_nil
     end
   end
 end

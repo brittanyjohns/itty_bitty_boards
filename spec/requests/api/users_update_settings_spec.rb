@@ -27,8 +27,11 @@ RSpec.describe "PUT /api/users/:id/update_settings", type: :request do
 
       settings = user.reload.settings
       expect(settings["wait_to_speak"]).to be(true)
-      # Plan/limit keys are owned by the webhook/admin paths, never this endpoint.
-      expect(settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      # Plan/limit keys are owned by the webhook/admin paths, never this
+      # endpoint. board_limit isn't stamped at all now (#796), so a self-serve
+      # write would be the only thing that could put the key there.
+      expect(settings).not_to have_key("board_limit")
+      expect(user.board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
       expect(settings).not_to have_key("ai_monthly_limit")
       expect(settings).not_to have_key("hacked")
       # Rails request metadata must never land in settings.

@@ -993,13 +993,12 @@ collections of boards. CRUD is open to any signed-in user;
 - **Protected flags.** `board_group_params` strips `predefined` and `featured`
   for non-admins, so a regular user can't self-promote their set into the
   curated/featured pools.
-- **Per-plan creation limits.** Mirrors the board-limit pattern.
-  `User#board_group_limit` resolves from the plan hash by `plan_type` (Free 1,
-  Basic 25, Pro 50; ENV-overridable via `FREE_/BASIC_/PRO_BOARD_GROUP_LIMIT`),
-  with a `settings["board_group_limit"]` override. `User#countable_board_group_count`
-  counts own non-predefined sets; `User#at_board_group_limit?` is the gate
-  (admins exempt). `create` returns **HTTP 422** `{ error, limit, count }` at
-  the cap. **Not 402** — 402 is reserved for credit exhaustion.
+- **No creation limit.** Board Sets are uncapped since #796: a set is a
+  container, and every board inside it already counts against the one plan cap
+  (`User#countable_board_count`). `board_group_limit` / `at_board_group_limit?`
+  and `Boards::BoardGroupCreator::LimitReached` are gone.
+  `User#countable_board_group_count` survives as a usage number — `api_view`
+  ships `board_group_count` with no limit beside it.
 - **A new set always gets a thumbnail.** Board previews are rendered
   asynchronously, so at creation time a member board typically has neither a
   `preview_image` nor a `display_image_url` — it renders as a broken image on
@@ -1034,9 +1033,8 @@ collections of boards. CRUD is open to any signed-in user;
   `board_images.predictive_board_id` from the board and every reachable board
   becomes a member. The group's owner is **always `board.user`** (the board's
   real owner), never the acting user — an admin creating on behalf of someone
-  else must not end up owning the group, be limited by their own
-  `at_board_group_limit?`, or under/over-count the real owner's usage. When an
-  eligible group already exists, the service reuses it and **re-syncs**
+  else must not end up owning the group or under/over-count the real owner's
+  usage. When an eligible group already exists, the service reuses it and **re-syncs**
   membership (re-runs the BFS and adds any newly-reachable board that isn't
   already a member — never removes existing members) so re-calling the
   endpoint after adding a new folder link is both idempotent and additive

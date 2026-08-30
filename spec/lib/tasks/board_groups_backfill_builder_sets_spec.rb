@@ -66,12 +66,15 @@ RSpec.describe "board_groups:backfill_builder_sets rake task", type: :task do
       expect(group.board_ids).to match_array([tree[:root].id, tree[:child].id, tree[:grandchild].id])
     end
 
-    it "makes the whole tree count as ONE board set (zero extra board slots)" do
+    it "makes the whole tree count as ONE board set without changing the board count" do
+      before_boards = owner.countable_board_count
+
       run_task
+
       expect(owner.reload.countable_board_group_count).to eq(1)
-      # Every board in the set is now a builder-group member, so it costs no
-      # board slots.
-      expect(owner.countable_board_count).to eq(0)
+      # Grouping boards changes no count since #796 — every board counts either
+      # way, and Board Sets are uncapped.
+      expect(User.find(owner.id).countable_board_count).to eq(before_boards)
     end
 
     it "previews without writing anything in DRY_RUN=1" do
@@ -102,31 +105,25 @@ RSpec.describe "board_groups:backfill_builder_sets rake task", type: :task do
     end
   end
 
-  describe "over-limit report" do
-    # A Free user (board_group_limit 1) who already has a hand-made set AND a
-    # builder set ends up at 2/1 after backfill — kept, but flagged.
+  # Board Sets are uncapped since #796, so wrapping existing trees into groups
+  # can't push anyone over anything — the task reports before/after counts and
+  # nothing else.
+  describe "per-user reporting" do
     let(:free_user) { create(:user, plan_type: "free") }
     let!(:handmade_set) { create(:board_group, user: free_user, predefined: false) }
     let!(:tree) { build_builder_tree!(free_user) }
 
-    it "reports the user as over board_group_limit and still backfills (kept, not blocked)" do
-      expect(free_user.board_group_limit).to eq(1)
-
-      expect { run_task }.to output(/OVER board_group_limit/).to_stdout
+    it "backfills a Free user who already has a hand-made set, with no limit report" do
+      expect { run_task }.to output(/Per-user board-set counts/).to_stdout
 
       free_user.reload
       expect(free_user.countable_board_group_count).to eq(2)
-      expect(free_user.countable_board_group_count).to be > free_user.board_group_limit
-      # The builder set was still created — no one loses access to existing sets.
       expect(BoardGroup.builder.find_by(root_board_id: tree[:root].id)).to be_present
     end
 
-    it "does not flag a user who stays within their limit" do
-      basic_user = create(:user, plan_type: "basic")
-      build_builder_tree!(basic_user, root_name: "Within Limit Set")
-
-      ENV["USER_ID"] = basic_user.id.to_s
-      expect { run_task }.to output(/No users left over board_group_limit/).to_stdout
+    it "no longer prints a board_group_limit report at all" do
+      ENV["USER_ID"] = free_user.id.to_s
+      expect { run_task }.not_to output(/board_group_limit/).to_stdout
     end
   end
 

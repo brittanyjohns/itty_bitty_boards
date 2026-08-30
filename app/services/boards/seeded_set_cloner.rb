@@ -9,10 +9,12 @@
 # layout, core-tile borders, and part_of_speech colors of the seeded set, which a
 # rebuild-from-image_ids (Boards::BoardTreeBuilder) would drop.
 #
-# The whole set counts as ONE board against the user's limit: the cloned root is
-# marked settings["builder_root"], every other cloned/created board
-# settings["builder_child"] (excluded from User#countable_board_count), exactly
-# like Boards::BoardTreeBuilder.
+# The cloned root is marked settings["builder_root"] and every other
+# cloned/created board settings["builder_child"], exactly like
+# Boards::BoardTreeBuilder — which is what makes the set show up in listings as
+# its root rather than as thirty pages. It is NOT a cap exemption: every board
+# in the set counts against the user's board_limit (#796), which is why the
+# Board Builder reserves room for the whole set before it starts.
 #
 #   root = Boards::SeededSetCloner.new(
 #     source_root_board, communicator: child, interests: ["apple", "grandma"]
@@ -283,8 +285,9 @@ module Boards
       Boards::PredictiveLinkSet.rewire!(@map, out_of_set: :null)
     end
 
-    # Root counts as one board; every other board in the set is excluded from
-    # User#countable_board_count. Same markers Boards::BoardTreeBuilder sets.
+    # Marks the set's root and its pages so listings show the set as one entry.
+    # Not a cap exemption — every board counts (#796). Same markers
+    # Boards::BoardTreeBuilder sets.
     def mark_builder_settings!
       @map.each do |src_id, cloned|
         key = (src_id == @source_root.id) ? "builder_root" : "builder_child"

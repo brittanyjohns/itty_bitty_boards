@@ -27,6 +27,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **One board limit, and the Board Builder counts against it.** Your plan used to
+  carry two separate caps — one for boards and one for Board Sets — and the Board
+  Builder only checked the second. So a user sitting at their board limit could
+  run the wizard, receive a whole 20-plus board set, and still see "1 of 1
+  boards" on their dashboard: the builder was gating on one number while the
+  dashboard reported the other. There is one number now. Every board the builder
+  creates counts, Board Sets themselves are no longer capped, and the wizard
+  checks up front that the entire set will fit rather than starting a build it
+  can't finish. Two things follow. On the Free plan a set no longer fits at all,
+  so the Board Builder is a paid feature; and a Free account that already built a
+  set is now over the limit, which means those boards become read-only — still
+  fully usable for communication, just not editable until you upgrade or make
+  room. Your plan's board limit also tracks your plan directly now, so a change
+  to a tier reaches everyone on it instead of only new accounts.
+
 - **AI credits now arrive the moment you sign up.** Your welcome tokens and your
   plan's monthly AI credits used to wait until you clicked the link in the
   verification email — so a brand-new account that hadn't opened its email yet

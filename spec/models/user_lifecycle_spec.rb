@@ -13,7 +13,7 @@ RSpec.describe User, type: :model do
       user = User.new(email: "a@example.com", password: "password123", plan_type: nil)
       user.save!
       expect(user.plan_type).to eq("free")
-      expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      expect(user.board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
     end
 
     it "keeps a fresh free user on free even within the old trial window" do

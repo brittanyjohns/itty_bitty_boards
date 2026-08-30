@@ -390,7 +390,9 @@ RSpec.describe "Admin::Users", type: :request do
       freshie.reload
       expect(freshie.plan_type).to eq("pro")
       expect(freshie.plan_status).to eq("active")
-      expect(freshie.settings["board_limit"]).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      # Resolved from plan_type, never stamped into settings (#796).
+      expect(freshie.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      expect(freshie.settings).not_to have_key("board_limit")
       expect(freshie.paid_plan?).to be(true)
     end
 

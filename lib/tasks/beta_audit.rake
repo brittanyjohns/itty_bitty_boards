@@ -10,29 +10,27 @@ namespace :beta do
     csv_path = ENV["BETA_AUDIT_CSV"].presence ||
       Rails.root.join("tmp", "beta_audit_#{Date.current.strftime("%Y-%m-%d")}.csv").to_s
 
-    # Mirrors User#setup_limits' plan_type → limits routing. Unknown/blank
-    # plan types get the Free entitlement, matching how enforcement falls
-    # back (User#board_limit etc. default to FREE_PLAN_LIMITS).
+    # Resolves through User.plan_limits_for — the same map enforcement reads,
+    # so the audit can't drift from it. The hand-rolled copy this replaced
+    # omitted clinician (auditing clinicians against the FREE entitlement) and
+    # both 5-year license types. Unknown/blank plan types get Free, matching how
+    # enforcement falls back.
     entitlement_for = lambda do |plan_type|
-      case plan_type.to_s
-      when "basic", "basic_yearly", "basic_trial"
-        ["basic", User::BASIC_PLAN_LIMITS]
-      when "pro", "pro_yearly", "partner_pro"
-        ["pro", User::PRO_PLAN_LIMITS]
-      when "free"
-        ["free", User::FREE_PLAN_LIMITS]
-      else
-        ["free (fallback)", User::FREE_PLAN_LIMITS]
-      end
+      limits = User.plan_limits_for(plan_type)
+      known = User::PLAN_LIMITS_BY_TYPE.key?(plan_type.to_s)
+      [known ? limits["plan_type"] : "free (fallback)", limits]
     end
 
     # Same counting rules as the enforcement paths:
-    #   boards — User#countable_board_count (own, non-template, non-predefined,
-    #            non-builder_child)
+    #   boards — User#countable_board_count (own, non-template, non-predefined).
+    #            The `.not_builder_child` filter this used to carry excluded
+    #            builder-set pages, which count like any other board since #796.
+    #            (The marker itself is still live — it scopes the public
+    #            catalogue and skips preview renders — just not the board cap.)
     #   communicators — Permissions::CommunicatorLimits.owned_slot_count
     #            (owned loaner + active)
     board_counts = Board.where(is_template: false, predefined: false)
-      .not_builder_child.group(:user_id).count
+      .group(:user_id).count
     slot_counts = ChildAccount
       .where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE])
       .group(:owner_id).count

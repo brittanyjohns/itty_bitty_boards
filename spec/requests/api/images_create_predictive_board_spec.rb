@@ -53,10 +53,13 @@ RSpec.describe "API::Images create_predictive_board", type: :request do
 
   # countable_board_count memoizes, and `reload` does not clear the ivar — a
   # fresh User instance is the only way to observe the change.
-  it "keeps the new page out of the plan's board count, like the rest of the set" do
+  #
+  # Since #796 a builder set's boards count like any others, so a new page adds
+  # one. (This endpoint has no creation gate at all — tracked separately.)
+  it "counts the new page against the plan's board limit, like the rest of the set" do
     _root, _group, page = build_builder_set
 
-    expect { create_folder!(page) }.not_to change { User.find(user.id).countable_board_count }
+    expect { create_folder!(page) }.to change { User.find(user.id).countable_board_count }.by(1)
   end
 
   it "leaves the new page covered by the publish cascade" do

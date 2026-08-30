@@ -118,16 +118,30 @@ RSpec.describe "beta:audit_entitlements", type: :task do
     expect(output).to include("Over-entitled settings by plan: none")
   end
 
-  it "excludes builder_child and predefined boards from the board count" do
+  # Matches User#countable_board_count exactly: predefined boards are excluded,
+  # everything else the user owns counts — builder-set members included, since
+  # #796 collapsed the two caps into one.
+  it "excludes predefined boards from the board count, and nothing else" do
     user = FactoryBot.create(:user, plan_type: "free")
     FactoryBot.create(:board, user: user)
     FactoryBot.create(:board, user: user, predefined: true)
-    FactoryBot.create(:board, user: user, settings: { "builder_child" => true })
 
     invoke_task
 
     # 1 countable board == free limit, so not over and not in the CSV.
     expect(row_for(user)).to be_nil
+  end
+
+  it "counts a builder-set board, matching enforcement" do
+    user = FactoryBot.create(:user, plan_type: "free")
+    FactoryBot.create(:board, user: user)
+    builder_board = FactoryBot.create(:board, user: user)
+    group = user.board_groups.create!(name: "Built Set", builder: true)
+    group.board_group_boards.create!(board: builder_board)
+
+    invoke_task
+
+    expect(row_for(user)["board_count"]).to eq("2")
   end
 
   it "performs no writes" do

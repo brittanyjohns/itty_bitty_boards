@@ -35,8 +35,11 @@ RSpec.describe User, "plan limits", type: :model do
       user.setup_free_limits
 
       expect(user.settings["demo_communicator_limit"]).to eq(1)
-      expect(user.settings["board_limit"]).to eq(1)
       expect(user.settings["paid_communicator_limit"]).to eq(1)
+      # board_limit is NOT stamped — it resolves from plan_type at read time,
+      # and settings only ever holds a deliberate admin override (#796).
+      expect(user.settings).not_to have_key("board_limit")
+      expect(user.board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
       # ai_monthly_limit is no longer written — AI is credit-gated.
       expect(user.settings).not_to have_key("ai_monthly_limit")
     end
@@ -71,11 +74,10 @@ RSpec.describe User, "plan limits", type: :model do
     end
   end
 
-  # Issue #407: a Board Builder set is a real `builder: true` BoardGroup. It
-  # costs EXACTLY one board-set slot and ZERO board slots — its member boards
-  # (root + children) are excluded from countable_board_count, and the group
-  # itself counts as one in countable_board_group_count. Hand-made groups are
-  # unchanged in this phase: their member boards still count against board_limit.
+  # Issue #796: there is ONE cap and it is boards. A Board Builder set's member
+  # boards (root + children) count exactly like any others — group membership
+  # affects no limit at all, and Board Sets themselves are uncapped.
+  # countable_board_group_count survives as a usage number, not a gate.
   describe "builder-set vs standalone vs hand-made counting matrix" do
     let(:user) { create(:free_user) }
 
@@ -110,32 +112,46 @@ RSpec.describe User, "plan limits", type: :model do
       expect(user.countable_board_group_count).to eq(0)
     end
 
-    it "1 builder set (root + 3 children) => 0 boards / 1 set" do
+    it "1 builder set (root + 3 children) => 4 boards / 1 set" do
       make_builder_set(user, children: 3)
-      expect(user.countable_board_count).to eq(0)
+      expect(user.countable_board_count).to eq(4)
       expect(user.countable_board_group_count).to eq(1)
     end
 
-    it "1 builder set + 2 standalone boards => 2 boards / 1 set" do
+    it "1 builder set + 2 standalone boards => 6 boards / 1 set" do
       make_builder_set(user, children: 3)
       2.times { |i| create(:board, user: user, name: "Standalone #{i}") }
-      expect(user.countable_board_count).to eq(2)
+      expect(user.countable_board_count).to eq(6)
       expect(user.countable_board_group_count).to eq(1)
     end
 
-    it "1 builder set + 1 hand-made group (2 boards) => 2 boards / 2 sets" do
+    it "1 builder set + 1 hand-made group (2 boards) => 6 boards / 2 sets" do
       make_builder_set(user, children: 3)
       make_manual_group(user, boards: 2)
-      # Hand-made members still count against board_limit in this phase.
-      expect(user.countable_board_count).to eq(2)
+      expect(user.countable_board_count).to eq(6)
       expect(user.countable_board_group_count).to eq(2)
     end
 
-    it "2 builder sets => 0 boards / 2 sets" do
+    it "2 builder sets => 7 boards / 2 sets" do
       make_builder_set(user, children: 3, name: "Set A")
       make_builder_set(user, children: 2, name: "Set B")
-      expect(user.countable_board_count).to eq(0)
+      expect(user.countable_board_count).to eq(7)
       expect(user.countable_board_group_count).to eq(2)
+    end
+
+    it "puts builder-set boards in the editable pool, since they consume slots" do
+      group = make_builder_set(user, children: 3)
+      member_ids = group.board_group_boards.map(&:board_id)
+      user.settings["board_limit"] = 10
+      user.save!
+
+      expect(User.find(user.id).top_editable_board_ids).to include(*member_ids)
+    end
+
+    it "no longer has a separate Board Set cap" do
+      expect(user).not_to respond_to(:at_board_group_limit?)
+      expect(user).not_to respond_to(:board_group_limit)
+      expect(user).not_to respond_to(:builder_grouped_board_ids)
     end
   end
 

@@ -663,9 +663,12 @@ RSpec.describe BuildBoardSetJob do
       expect(member_ids).to include(root.id)
       expect(built_ids.size).to be > 1
 
-      # The whole set costs zero board slots and one board-set slot.
+      # Every board in the set costs a board slot (#796); it is still one set.
+      # The bound the builder gate reserved has to hold, or a build can overrun
+      # the cap it was checked against.
       fresh = User.find(user.id)
-      expect(fresh.countable_board_count).to eq(0)
+      expect(fresh.countable_board_count).to eq(built_ids.size)
+      expect(fresh.countable_board_count).to be <= Boards::BuilderSetSize.legacy_worst_case
       expect(fresh.countable_board_group_count).to eq(1)
     end
 
@@ -710,7 +713,9 @@ RSpec.describe BuildBoardSetJob do
       described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
 
       expect(group.reload.boards.pluck(:id)).to match_array([root.id, *pages.map(&:id)])
-      expect(User.find(user.id).countable_board_count).to eq(0)
+      # Group membership no longer changes the count — every board counts (#796).
+      expect(User.find(user.id).countable_board_count)
+        .to eq(user.boards.where(predefined: false).count)
     end
 
     # A tile pointing at a board the owner doesn't own (a shared or admin seed

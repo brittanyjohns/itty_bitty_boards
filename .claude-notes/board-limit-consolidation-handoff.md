@@ -1,156 +1,153 @@
-# Handoff: board limit consolidation (backend)
+# Board limit consolidation (backend) — SHIPPED
 
-**Date:** 2026-06-25 · **Status:** not started
-**Full plan:** `speakanyway/drafts/board-limit-consolidation-plan.md` (this doc is self-contained; the plan adds context)
-**Counterpart:** `itty-bitty-frontend/.claude-notes/board-limit-consolidation-handoff.md` (blocked on this PR)
+**Issue:** #796 · **Status:** implemented
+**Supersedes** the 2026-06-25 draft of this doc, which prescribed a different
+design (count MAIN boards only, a builder set costs 1, Free becomes 3). None of
+that shipped — do not implement it. What follows is what the code does.
 
-## Decisions (already made — don't re-litigate)
+## The shape
 
-- **One enforced cap: `board_limit`.** Delete the second cap (`board_group_limit`).
-- **Count rule: non-predefined MAIN boards only** (`sub_board: false/nil`).
-  Sub-pages never count — builder children and manual sub-pages alike. So a
-  Board Builder set counts as **1** (its top-level board), regardless of size.
-- A **manual Board Set** (`BoardGroup`) counts **0 extra**. No cap on creating sets.
-- **Displayed count = enforced count.** `api_view`'s `board_count` must report the
-  same number the cap enforces (today it counts every board, incl. sub-pages).
-- **Edit-lock: N-editable when over limit.** When a user is over their board
-  limit (post-downgrade), the **N most-recently-updated main boards are editable**
-  (N = `board_limit`), not a single pinned board — so a downgraded free user gets
-  all 3 editable. See Work item 7.
-- **`FREE_BOARD_LIMIT` default = 3.** Builder set is 1 of the 3, not 3 on top.
-- Basic (100) / Pro (300) board limits unchanged.
+One creation cap, and it is **boards**. `board_group_limit` is gone.
 
-## Current state (what exists today)
+- `User#countable_board_count` — own, `predefined: false`. Nothing else is
+  excluded: a Board Builder set's boards count exactly like any others.
+- `User#at_board_limit?` / `#can_create_boards` — the gate. Admins exempt.
+- `User#countable_board_group_count` — still here, still correct, no longer a
+  gate. Board Sets are uncapped: a set is a container, and its boards already
+  count.
 
-All in `app/models/user.rb` unless noted.
+Why boards and not sets: a Board Set cannot exist without boards, so two caps
+for one resource is what let a user at their board limit run the Board Builder,
+receive a 20–35 board tree, and still be told "1 of 1 boards" — the builder
+gated on `at_board_group_limit?` while the dashboard reported `board_count` and
+neither matched `can_create_boards`.
 
-- **Plan hashes** (~L309–328): `FREE/BASIC/PRO_PLAN_LIMITS` each carry both
-  `board_limit` and `board_group_limit` (the latter ENV `*_BOARD_GROUP_LIMIT`,
-  defaults 1 / 25 / 50).
-- **`countable_board_count`** (~L1367): counts own, non-predefined boards
-  `where.not(id: builder_grouped_board_ids)` — i.e. excludes the **entire**
-  builder tree (root + children). This makes a builder set count as **0** boards.
-- **`builder_grouped_board_ids`** (~L1377): board ids in any `builder: true`
-  BoardGroup the user owns.
-- **`at_board_limit?`** (~L1385) wraps `countable_board_count >= board_limit`.
-- **`board_group_limit`** (~L460), **`countable_board_group_count`** (~L1397)
-  (`board_groups.where(predefined: [false, nil]).count`), **`at_board_group_limit?`**
-  (~L1402) — the second cap and its gate.
-- **`api_view`** exposes `board_group_limit` (grep to confirm the exact line in the
-  groups payload / user view).
-- **Builder gate:** `app/controllers/api/v1/board_builder_controller.rb` L77 —
-  `if current_user.at_board_group_limit?` → 422 "You've reached your plan's board
-  set limit (N/M)…".
-- **Manual set gate:** `app/controllers/api/board_groups_controller.rb` L59–63 —
-  `def create` gates on `current_user.at_board_group_limit?` → 422 "board set limit".
+## `board_limit` resolves at READ time
 
-## Work items
+`User.plan_limits_for(plan_type)` (backed by `User::PLAN_LIMITS_BY_TYPE`) is the
+one plan → limits map; three hand-rolled copies of that case statement used to
+exist and they disagreed about `clinician`, `basic_5yr` and `pro_5yr`.
 
-1. **Count main boards only.** Change `countable_board_count` to count
-   non-predefined **main boards** — `boards.where(predefined: false).main_boards`
-   (the `main_boards` scope = `non_menus.where(sub_board: [false, nil])`). This
-   makes a builder set count as **1** (its top-level board; the linked sub-pages
-   are `sub_board: true` and drop out) and also stops manual sub-pages from
-   counting — one consistent rule. Drop the `builder_grouped_board_ids` exclusion
-   (no longer needed) and update the method comment (it currently says the tree
-   costs ZERO board slots).
-   - **Verify** in a spec that a freshly built set's children are actually
-     `sub_board: true` (set via `Board#check_is_sub_board`, which keys off
-     `parent_boards`). If any child isn't flagged, fall back to also excluding
-     `settings["builder_child"] = true` boards so no set member leaks into the count.
+```ruby
+def board_limit
+  override = (settings || {})["board_limit"]
+  return override.to_i if override.present?
 
-2. **Re-gate the builder on the board limit.** In
-   `board_builder_controller.rb` L77, change `at_board_group_limit?` →
-   `at_board_limit?`. Replace the "board set limit" 422 body with the board-limit
-   message + fields (`limit: current_user.board_limit`,
-   `count: current_user.countable_board_count`). Match the copy other board-limit
-   422s use (grep "board limit" / "Maximum number of boards").
+  self.class.plan_limits_for(plan_type)["board_limit"]
+end
+```
 
-3. **Drop the manual-set cap.** In `board_groups_controller.rb` `create`, remove
-   the `at_board_group_limit?` gate and its 422 branch. Manual sets group
-   already-counted boards, so no cap is needed.
+- The five `setup_*_limits` setters **no longer stamp** `board_limit`. They used
+  to, so every user who ever changed plans carried a frozen copy and moving a
+  constant (or an ENV override) reached nobody.
+- `settings["board_limit"]` means exactly one thing now: a **deliberate admin
+  override**. Coerced with `.to_i` because `API::Admin::UsersController` stored
+  the param uncoerced, and a String there made
+  `countable_board_count >= board_limit` raise on every board create.
+- A stored `0` is a real override ("no new boards"), not a missing value.
+  Removing the key is what restores the plan default.
+- Unknown / blank `plan_type` resolves to FREE — the safe direction, and what
+  the old `board_group_limit` else-branch already did.
+- Both admin write paths are `key?`-guarded now, and a **blank clears** the
+  override. The admin form renders the override with the plan value as
+  placeholder; rendering the resolved value would make every save stamp one.
 
-4. **Delete the second cap.** Remove `board_group_limit`,
-   `countable_board_group_count`, `at_board_group_limit?`, and the
-   `board_group_limit` keys from `FREE/BASIC/PRO_PLAN_LIMITS`. Remove the
-   `*_BOARD_GROUP_LIMIT` ENV fetches. Grep the whole repo for `board_group_limit`
-   / `at_board_group_limit` and clear every reference (api_view, serializers,
-   any policy). Leave `builder: true` BoardGroups themselves intact — they still
-   group boards, they just stop being a counting mechanism.
+**Cleanup for historical stamps:** `rake plans:clear_stamped_board_limits`
+(`DRY_RUN=true` by default). It clears only values a setter for that user's
+*current* plan could have written — the current constant, the pre-#796 defaults,
+plus `EXTRA_STAMPED_VALUES` for environments that ran with non-default ENV —
+keeps and reports anything else as an override, and **never touches a user with
+a blank or unknown `plan_type`** (they resolve to FREE, so wiping a stranded
+paid user's stamped 300 would silently drop them to 1). `board_limit` is also
+out of `plans.rake`'s `BACKFILL_LIMIT_KEYS`, or the backfill would re-stamp
+exactly what this removes.
 
-5. **Set Free = 3.** `FREE_PLAN_LIMITS["board_limit"]` →
-   `ENV.fetch("FREE_BOARD_LIMIT", 3).to_i`.
+## The Board Builder gate
 
-6. **Align the displayed count with the enforced count.** In `api_view`,
-   `board_count` is currently `memoized_boards.count` (every board, incl.
-   sub-pages and builder children) while the cap uses `countable_board_count`.
-   They must match or the UI shows e.g. "13 boards" against a cap of 3. Set the
-   user-facing count to `countable_board_count` (and `board_limit_reached`/
-   `has_boards` derived from it). Grep for `board_count` in serializers /
-   `user_api_view` and make them consistent.
+A build has to fit **entirely** — the job has no coherent way to stop halfway,
+and a half-built set is worse than no set. `Boards::BuilderSetSize.worst_case`
+answers "how many boards will this run persist?" before the async job starts,
+derived from constants so a new seed page or GLP board moves the bound:
 
-7. **Fix the edit-lock: make N boards editable when over limit.** Today
-   `board_editable?` (in `app/models/user.rb`) reads:
-   ```ruby
-   def board_editable?(board)
-     return true if admin?
-     return true if board.nil? || board.user_id != id
-     return true if paid_plan?
-     return true if countable_board_count <= board_limit
-     board.id == effective_editable_board_id   # <-- single editable board
-   end
-   ```
-   Replace the final line so that, when over limit, the **N most-recently-updated
-   main boards are editable** (N = `board_limit`). Compute the editable set once
-   (memoize) — e.g. the ids of `boards.where(predefined: false).main_boards
-   .order(updated_at: :desc).limit(board_limit)` — and return
-   `editable_ids.include?(board.id)`. Keep `effective_editable_board_id` /
-   `editable_board_id` as the user's *preferred* board (still pin it into the
-   editable set first if set), but the test is now count-based, not single-id.
-   Update the "Assumes FREE_BOARD_LIMIT == 1" comment — that assumption is gone.
-   - Check callers of `effective_editable_board_id` / `make_editable` so nothing
-     still assumes exactly one editable board (grep both; the `make_editable`
-     endpoint and cooldown still work — they just set the *preferred* board now).
+| component | source |
+|---|---|
+| root | created by the controller |
+| seed pages | `SeededSetCloner` runs `exclude_fringe: []` — the whole authored tree clones regardless of the plan (`SEED_SET_PAGES`: 8 for core-60, 11 for core-84) |
+| planned pages | `StructurePlanner#cap_pages` caps the fringe list at the level's `max_pages` |
+| phrases layer | `PhrasesPageBuilder`: 1 + `GlpTemplates::TEMPLATES.size` |
+| favorites | "My Favorites", created once |
 
-8. **Docs in this repo.** Rewrite the README "Plans & limits: boards vs. Board
-   Sets" section and the CLAUDE.md Board Builder / board-limit sections to the
-   single-cap model (builder set = 1 board; no `board_group_limit`). Add a
-   CHANGELOG entry: builder sets count as one board; Free now includes 3 boards.
-   (Note: PR #420 documented the old two-cap model and is being closed — don't
-   build on it.)
+Today: **starter 23 / standard 27 / extended 35**; a legacy `template:` build
+never reaches `StructurePlanner`, so it uses `legacy_worst_case` (the max over
+the levels). Free's cap of 1 can never hold a set, which is what makes the
+Board Builder a paid feature — by arithmetic, not by a flag.
 
-## Testing
+Two orderings are load-bearing in `API::V1::BoardBuilderController#create`:
 
-- `bundle exec rspec` — focus:
-  - `spec/models/user_spec.rb` — main-board counting (top-level boards count;
-    sub-pages and builder children don't), `at_board_limit?`, Free limit = 3,
-    and `api_view` `board_count` == `countable_board_count`. Remove/blow away
-    `board_group_limit` / `at_board_group_limit?` specs.
-  - `spec/requests/api/v1/board_builder*` — 422 now fires on `at_board_limit?`
-    with board-limit copy; a built set (standard AND extended/Core 84) consumes
-    exactly 1 slot.
-  - `spec/requests/api/board_groups*` — manual set creation no longer 422s on a
-    set cap.
-  - Edit-lock: a Free user at/under limit edits all their boards; a user OVER
-    limit (simulate a downgrade with >3 main boards) gets exactly
-    `board_limit` (3) editable — the 3 most-recently-updated — and the rest
-    read-only. Update/extend existing `board_editable?` specs accordingly.
-- Manual sanity: a Free user (limit 3) can build one builder communicator (1 slot)
-  and still create 2 more top-level boards; the 3rd extra top-level board is
-  blocked with 422; a multi-page manual board still counts as 1.
+- `resolve_build_key` is hoisted **above** the gate (the gate needs the level).
+  Its `UnknownTemplate` raise is still caught by the method-level rescue, so a
+  bad `level` 422s as `unknown_template` even for a capped user — the better
+  answer than a limit error about a build they couldn't have run.
+- The gate stays **after** the existing-set handling, so `replace=true` destroys
+  the old set before the check. That is the only move a capped user has.
 
-## Deploy notes
+## The error contract
 
-- **ENV:** set `FREE_BOARD_LIMIT=3` default (in code). Remove
-  `FREE/BASIC/PRO_BOARD_GROUP_LIMIT` from code and any deploy env config.
-- **No migration.** Nothing was a DB column. Stray per-user
-  `settings["board_group_limit"]` keys become dead/harmless — optional cleanup.
-- Safe to deploy alone; the frontend tolerates the now-absent `board_group_limit`
-  field (it's null-guarded) until Phase 2 lands.
+Every limit 422 carries `error_code: "board_limit_reached"`. Existing `error`
+strings are **byte-identical** — several are human sentences the frontend
+renders verbatim (`cloneBoardWithResult`, `FirstBoardPage`), and flipping one to
+a code would be a silent break. Bodies also carry `limit`, `count`, `required`,
+`remaining`, and a `message`.
 
-## Git rules (Brittany's)
+`app/controllers/concerns/board_creation_limit.rb` is the single implementation,
+included by `API::BoardsController`, `API::MenusController`,
+`API::GeneratedBoardsController` and `API::V1::BoardBuilderController`. The four
+copies it replaced had drifted: menus had no fresh re-read and no Mailchimp
+notify, generated_boards had no notify, and the builder gated on the other cap.
+`User.find(current_user.id)` rather than `current_user.reload` is deliberate —
+`countable_board_count` memoizes into a plain ivar and `reload` doesn't clear
+it, which matters on the builder's `replace=true` path.
 
-Run `bin/install-hooks` once at session start. Branch off `origin/main` in a
-worktree (`git fetch origin && git worktree add -b <branch> .claude/worktrees/<name> origin/main`).
-Code changes get tests. Conventional Commit prefixes. Never push to main or merge —
-open the PR and stop.
+`board_builder#create` is the one caller that puts the CODE in `error` and the
+prose in `message`, matching its own siblings (`board_builder_set_exists`,
+`unknown_template`, `build_failed`).
+
+## `api_view`
+
+`board_count` is `countable_board_count` and `board_limit_reached` is
+`at_board_limit?`, so the three usage numbers can no longer disagree in one
+payload. `has_boards` is `boards.exists?` on purpose — it drives the dashboard
+empty state and must keep meaning "owns any board at all", so a user whose only
+boards are predefined isn't shown the empty state. `board_group_limit` is gone
+from the payload; `board_group_count` stays. `admin_api_view` matches, and adds
+`board_limit_source` (`"override"` / `"plan"`).
+
+## Accepted consequences
+
+- **A Free user's existing builder set becomes read-only.** Their
+  `countable_board_count` jumps past 1, so `board_limit_locks?` applies and only
+  the designated board stays editable. Deliberate, not grandfathered — the same
+  lock any over-limit user gets. AAC usage never breaks: the boards stay fully
+  viewable, tappable and audible.
+- **Plan constants were not retuned.** Free 1 / Basic 100 / Pro 300 /
+  Clinician 100, unchanged. At those numbers Basic fits ~2 extended sets. All
+  four are ENV-overridable (`FREE_/BASIC_/PRO_/CLINICIAN_BOARD_LIMIT`), so
+  retuning is a Hatchbox env change rather than a deploy.
+- `top_editable_board_ids` dropped the builder exclusion too: once builder
+  boards consume slots they have to be eligible to fill one, or an over-limit
+  user has boards eating slots they can never edit.
+
+## Follow-ups (not in this change)
+
+- **Frontend** (`itty-bitty-frontend`): `boardBuilderCapacity.ts` pre-checks
+  against `board_group_limit`/`board_group_count`, which the payload no longer
+  ships — it resolves to `{status: "unknown"}` and never blocks, so nothing is
+  broken, but it should read `board_limit`/`board_count`. The Free funnels
+  (`/start`, MySpeak onboarding, `FreeDashboard`, `SideMenu`) route into a
+  builder Free can no longer use and should say so.
+- **Three authenticated endpoints create countable boards with no gate at all**:
+  `images#create_predictive_board`, `scenarios#answer`,
+  `board_images#update_multiple` (which also uses a non-bang `Board.create`
+  behind a truthiness check that passes for an invalid record).
+- `attr_accessor :skip_plan_setup` is written by both admin controllers and read
+  by nothing.

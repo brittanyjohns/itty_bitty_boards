@@ -179,9 +179,10 @@ class Board < ApplicationRecord
   scope :created_today, -> { where("created_at > ?", 1.day.ago.end_of_day) }
   scope :created_yesterday, -> { where("created_at > ? AND created_at < ?", 1.day.ago.beginning_of_day, Time.zone.now.beginning_of_day) }
   scope :communikate_boards, -> { where("name ILIKE ?", "%CommuniKate%") }
-  # Board Builder persists a linked tree (root + folder sub-boards). The
-  # sub-boards are marked settings["builder_child"]=true so the whole tree
-  # counts as ONE board against the user's limit (see User#countable_board_count).
+  # Board Builder persists a linked tree (root + folder sub-boards), and the
+  # sub-boards are marked settings["builder_child"]=true. This scope is about
+  # LISTINGS — a built set shows up as its root, not thirty pages — not about
+  # the plan cap: every board in a set counts against board_limit (#796).
   scope :not_builder_child, -> { where("NOT COALESCE((settings->>'builder_child')::boolean, false)") }
 
   scope :including_images, -> { includes(board_images: :image) }
