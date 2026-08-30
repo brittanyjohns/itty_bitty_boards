@@ -1,0 +1,114 @@
+<% content_for :page_title, @board.name %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @board.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <% case @kind %>
+      <% when :fringe %>
+        Fringe page template for <%= @health.category %>.
+      <% when :robust_root %>
+        Core vocab set <%= Boards::RobustSets.display_name_for(@slug) %> (<%= @slug %>) — root board.
+      <% else %>
+        Page of the <%= Boards::RobustSets.display_name_for(@slug) %> vocab set.
+      <% end %>
+    </p>
+  </div>
+  <%= link_to "Back", admin_dashboard_board_builder_templates_path,
+        class: "text-xs font-medium px-3 py-2 rounded border admin-input text-t1" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-4">Health</h2>
+  <%= render "health_badges", health: @health %>
+
+  <div class="flex items-center gap-2 mt-4">
+    <%= render "board_links", board: @board %>
+    <%= button_to "Repair layout", repair_layout_admin_dashboard_board_builder_template_path(@board),
+          method: :post,
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+          form: { data: { turbo_confirm: "Dedupe and un-stack “#{@board.name}”? Tiles move into gaps only — the grid never grows a row." } } %>
+    <%= link_to "Export .obf", export_admin_dashboard_board_builder_template_path(@board),
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+    <% if @kind == :fringe %>
+      <%= button_to "Unregister", unregister_admin_dashboard_board_builder_template_path(@board),
+            method: :post,
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+            form: { data: { turbo_confirm: "Unregister “#{@board.name}”? Builds will pay for an AI-generated page for #{@health.category} instead." } } %>
+    <% end %>
+  </div>
+
+  <p class="text-[11px] text-t3 mt-4 leading-relaxed">
+    Edits made in the board editor are reverted by the next re-seed. Export this board and commit the file over
+    its copy in <code>db/seeds/board_builder_sets/</code> to make a change permanent.
+  </p>
+</div>
+
+<% if @set_pages.any? %>
+  <div class="admin-card border rounded-xl overflow-hidden mb-6">
+    <div class="px-5 py-4" style="border-bottom: 1px solid var(--border);">
+      <h2 class="text-sm font-medium text-t1">Set pages</h2>
+      <p class="text-[11px] text-t3 mt-0.5">Every admin-owned board in the <code><%= @slug %>:</code> namespace — exactly what a re-seed rewrites.</p>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <% ["Page", "OBF id", "Health", "Board"].each do |label| %>
+            <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @set_pages.each do |page_health| %>
+          <tr class="admin-hover-row transition-colors align-top" style="border-bottom: 1px solid var(--border-light);">
+            <td class="px-5 py-3 text-t1 whitespace-nowrap"><%= page_health.board.name %></td>
+            <td class="px-5 py-3 text-t3 text-xs whitespace-nowrap"><%= page_health.board.obf_id %></td>
+            <td class="px-5 py-3"><%= render "health_badges", health: page_health %></td>
+            <td class="px-5 py-3"><%= render "board_links", board: page_health.board %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+
+<div class="admin-card border rounded-xl overflow-hidden">
+  <div class="px-5 py-4" style="border-bottom: 1px solid var(--border);">
+    <h2 class="text-sm font-medium text-t1">Tiles (<%= @tiles.size %>)</h2>
+  </div>
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Label", "Part of speech", "Cell", "Picture", "Opens"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @tiles.each do |tile| %>
+        <% cell = tile.layout.is_a?(Hash) ? tile.layout["lg"] : nil %>
+        <tr class="admin-hover-row transition-colors" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3 text-t1 whitespace-nowrap"><%= tile.display_label.presence || tile.label %></td>
+          <td class="px-5 py-3 text-t2 text-xs whitespace-nowrap"><%= tile.part_of_speech.presence || "—" %></td>
+          <td class="px-5 py-3 text-t3 text-xs whitespace-nowrap">
+            <%= cell ? "#{cell["x"]},#{cell["y"]}" : "—" %>
+          </td>
+          <td class="px-5 py-3 text-xs whitespace-nowrap">
+            <%# A BLANK display_image_url is the deliberate "hide pictures" marker,
+                not a missing picture — the two must never read the same. %>
+            <% if tile.picture_hidden? %>
+              <span class="text-t3">hidden</span>
+            <% elsif tile.display_image_url.present? || Boards::ImageResolver.art?(tile.image) %>
+              <span class="text-green-400">yes</span>
+            <% else %>
+              <span class="text-red-400">missing</span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-t3 text-xs whitespace-nowrap">
+            <%= tile.predictive_board_id.present? ? "board ##{tile.predictive_board_id}" : "—" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

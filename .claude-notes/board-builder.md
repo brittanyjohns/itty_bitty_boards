@@ -386,8 +386,83 @@ Standalone OBF boards seeded from `db/seeds/board_builder_sets/fringe-pages/`.
 - Seeded via `bin/rails fringe_templates:seed` (also auto-runs after
   `vocab_sets:seed`)
 
-To add a new fringe template: create a `.obf` file in the seed directory
-following the existing format (see any `.obf` file), then run the seed task.
+To add a new fringe template, any of:
+- author a `.obf` file in the seed directory (see any existing one) and run the
+  seed task — the durable path, because the file is the source of truth;
+- paste an authored `.obf` into `/admin/board_builder_templates` → **New from
+  .obf**, which runs `Boards::FringeTemplates.seed_data!` — the identical pass the
+  rake task runs on a file, so a hand-created template cannot drift from a seeded
+  one; or
+- build the board in `/admin/board_builds` and **register** it against a category.
+
+The last two produce a template with no file under `SEED_DIR`, so `rake
+fringe_templates:seed` can neither see nor heal it. The registry flags those rows,
+and Export gives you the `.obf` to commit into the seed directory.
+
+The category must be a `Boards::InterestCategories` key. `source_for_category`
+only reaches `:prebuilt` for a category the planner already produces, so a
+template named anything else is unreachable — dead, while looking healthy.
+
+### Admin registry: `/admin/board_builder_templates`
+
+`Admin::BoardBuilderTemplatesController` — the one place the builder's seed
+material is visible from the app. Lists both kinds with a health report, links out
+to the real board editor for tile work, and offers register / unregister / repair /
+re-seed / export.
+
+**A re-seed is a destructive sync, so an edit made in the board editor is not
+permanent.** `VocabSets.seed_slug!` and `FringeTemplates.seed_obf!` destroy any
+tile (and, for a vocab set, any page) that is not in the authored `.obf`, then
+re-pin the rest to their authored cells. That is how a content revision fully
+applies, and it is also how a hand edit silently disappears. The loop that makes an
+edit stick is: edit in the board editor → **Export** → commit the file over its
+copy in `db/seeds/board_builder_sets/` → re-seed. Every re-seed button names what it
+destroys in its confirm text.
+
+Three rails in the controller:
+
+- **The robust markers are never written here.** `Boards::RobustSets` decides which
+  board IS the Core 60/84 seed from two `settings` keys, so a "mark this as the
+  root" button would re-open the door `rake board_builder:unmark_stray_vocab_roots`
+  exists to close. Becoming a root stays `VocabSets.seed_slug!` from authored
+  source. Strays are reported read-only, with the rake command — the task also
+  reports which built sets took a stray's name, which does not fit in a button.
+  For the same reason there is no rename field: `RobustSets.display_name_for` is
+  keyed on the SLUG so a renamed seed row cannot rename every user's board, and a
+  rename box would imply otherwise. The seed row's own name is shown greyed and
+  labelled as not the set name.
+- **Unregister clears `predefined` alongside the marker.** `Board.not_builder_seed`
+  keys on `settings["fringe_template_category"]` and is the *only* thing keeping an
+  admin-owned, published, predefined board out of `Board.public_boards` — dropping
+  the marker alone publishes the template to the gallery. `published` is
+  deliberately left alone: unpublishing is the marketplace-protection raise path and
+  it breaks `/pb/<slug>` for any sheet already printed.
+- **`index` performs no writes.** `Board#open_grid_cells` is the obvious way to
+  report grid fullness and is not usable here: it opens with `update_board_layout`,
+  which does `self.save` and rewrites every tile's `layout`. `Boards::TemplateHealth`
+  computes the same numbers read-only, from each tile's own `layout["lg"]`.
+
+Registering also turns on `disable_scroll`, which locks the board to one screen —
+so a board with stacked tiles is refused, because a stacked cell there reads as a
+free cell a build will then spend.
+
+`Boards::TemplateHealth` reports, per board: tile count, grid, distinct occupied
+cells, displaced tiles (`LayoutRepacker.unstack_screen!` with `dry_run: true`),
+duplicates, tiles missing art (a BLANK `display_image_url` is "hidden", not
+missing), the flags, and — fringe only — whether the category is planner-reachable,
+which levels' core sets shadow it, whether a second board claims the same category,
+and whether authored source exists on disk.
+
+`Boards::SeedSourceExporter` emits the authored `.obf` shape (namespaced id,
+integer button ids from `data["obf_button_id"]`, `part_of_speech`, grid order) — not
+`Boards::ObfExporter`, which serializes a board for a user to take elsewhere and
+carries DB ids, images, sounds and no `part_of_speech`. It builds the grid from each
+tile's own `lg` cell rather than `Board#format_grid`, whose matrix loses the tile id
+when the board's denormalized `layout` column is stale.
+
+Re-seeds and whole-set repairs run in `SeedBoardBuilderTemplatesJob` /
+`RepairBoardBuilderTemplateJob`; a single fringe template is repaired inline so the
+health panel is correct on the redirect.
 
 ### AI page generation (`Boards::AiPageGenerator`)
 

@@ -1489,12 +1489,16 @@ class Board < ApplicationRecord
     # marketing poster clone ended up naming (and supplying the grid for) every
     # user's Board Builder set. Stripping here covers every clone path at once;
     # `Boards::SeededSetCloner#strip_template_markers!` does the same thing for
-    # the boards it copies by hand.
+    # the boards it copies by hand. The fringe-template marker rides along for
+    # the same reason one step down: `Boards::FringeTemplates.find` is scoped to
+    # the seed admin, so an ADMIN-owned clone of a fringe template would become a
+    # rival template for that category.
     @cloned_board.write_attribute(:display_image_url, nil)
     @cloned_board.settings = (@cloned_board.settings || {}).merge(
       "display_image_source" => "preview",
     ).except("preset_display_image_url", "preview_status", "preview_generated_at",
-             Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER)
+             Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER,
+             Boards::FringeTemplates::TEMPLATE_MARKER)
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false

@@ -1,0 +1,35 @@
+<%# Health summary for one template board. Green/amber/red, with the reason in
+    plain English — a bare number ("3 displaced") tells an admin nothing. %>
+<div class="flex flex-wrap items-center gap-1.5">
+  <% case health.status %>
+  <% when "ok" %>
+    <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">healthy</span>
+  <% when "warn" %>
+    <span class="bg-amber-900/60 text-amber-300 inline-block text-xs rounded px-2 py-0.5">check</span>
+  <% else %>
+    <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2 py-0.5">needs attention</span>
+  <% end %>
+  <span class="admin-card-alt text-t2 inline-block text-xs rounded px-2 py-0.5">
+    <%= health.tile_count %> tiles · <%= health.grid_label %>
+  </span>
+  <% if health.open_cells.positive? %>
+    <span class="admin-card-alt text-t3 inline-block text-xs rounded px-2 py-0.5">
+      <%= health.open_cells %> open
+    </span>
+  <% end %>
+</div>
+
+<% if health.problems.any? %>
+  <ul class="mt-1.5 space-y-0.5">
+    <% health.problems.each do |problem| %>
+      <li class="text-[11px] text-red-400 leading-snug"><%= problem %></li>
+    <% end %>
+  </ul>
+<% end %>
+<% if health.notes.any? %>
+  <ul class="mt-1.5 space-y-0.5">
+    <% health.notes.each do |note| %>
+      <li class="text-[11px] text-t3 leading-snug"><%= note %></li>
+    <% end %>
+  </ul>
+<% end %>

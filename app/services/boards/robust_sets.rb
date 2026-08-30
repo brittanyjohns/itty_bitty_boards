@@ -50,6 +50,18 @@ module Boards
       all_roots.where("boards.settings->>'#{SLUG_MARKER}' = ?", slug.to_s).first
     end
 
+    # Every admin-owned board in a slug's OBF namespace — the root and all its
+    # pages. Same scope VocabSets.prune_removed_boards! sync-owns, so this is
+    # exactly the set a re-seed would rewrite, which is what the admin registry
+    # needs to report on and repair. Ordered by :id so the root leads.
+    def set_boards(slug)
+      return Board.none if slug.blank?
+
+      Board.where(user_id: User::DEFAULT_ADMIN_ID)
+        .where("obf_id LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(slug.to_s)}:%")
+        .order(:id)
+    end
+
     # The slug stamped on a root board (nil if it isn't a robust-set root).
     def slug_for(board)
       board&.settings&.dig(SLUG_MARKER)
