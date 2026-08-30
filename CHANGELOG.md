@@ -27,6 +27,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Going over your board limit no longer freezes everything but one board.**
+  If your plan's boards are read-only — a lapsed trial, a downgrade — you now
+  keep your five most recently used boards editable instead of a single one.
+  This matters most after a trial: a set built with the Board Builder is
+  20-plus boards, and being left with one editable board out of thirty made a
+  fortnight's work unreachable. Nothing about your plan changed and nothing is
+  deleted: every board stays fully usable for communication as always, and you
+  still can't create new boards until you upgrade or make room.
+
 - **One board limit, and the Board Builder counts against it.** Your plan used to
   carry two separate caps — one for boards and one for Board Sets — and the Board
   Builder only checked the second. So a user sitting at their board limit could

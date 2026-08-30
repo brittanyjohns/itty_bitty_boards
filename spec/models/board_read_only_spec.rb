@@ -1,8 +1,13 @@
 require "rails_helper"
 
-# Read-only boards for downgraded users: a free user over their board limit
-# keeps full edit access to one designated board; the rest become read-only
-# (still fully usable — view/tap/audio).
+# Read-only boards for downgraded users: a user on a locked plan and over their
+# board limit keeps full edit access to `editable_slot_count` boards — the
+# designated pick plus the most recently updated — and the rest become read-only
+# (still fully usable: view/tap/audio).
+#
+# `editable_slot_count` is `max(board_limit, EDITABLE_BOARD_FLOOR)`, so on Free
+# (limit 1) the lock does not bite until the user is holding more than
+# EDITABLE_BOARD_FLOOR boards. These examples create enough boards to cross it.
 RSpec.describe "Board read-only on downgrade", type: :model do
   describe "User#board_editable?" do
     let(:user) { create(:free_user) } # board_limit 1, past trial window
@@ -13,21 +18,40 @@ RSpec.describe "Board read-only on downgrade", type: :model do
     end
 
     context "when a free user is over their board limit" do
-      let!(:board_a) { create(:board, user: user) }
-      let!(:board_b) { create(:board, user: user) }
+      # One more than the floor, so exactly one board is locked out. Ordered
+      # oldest-first so `stalest` is the one recency drops.
+      let!(:boards) do
+        Array.new(User::EDITABLE_BOARD_FLOOR + 1) { create(:board, user: user) }
+          .each_with_index { |b, i| b.update_column(:updated_at, (20 - i).days.ago) }
+      end
+      let(:stalest) { boards.first }
+      let(:newest) { boards.last }
 
-      it "allows only the designated editable board" do
-        user.update!(editable_board_id: board_a.id)
+      it "keeps the designated board editable and locks what recency drops" do
+        user.update!(editable_board_id: stalest.id)
         fresh = User.find(user.id)
-        expect(fresh.board_editable?(board_a)).to be true
-        expect(fresh.board_editable?(board_b)).to be false
+        # The explicit pick is pinned even though it is the stalest board; the
+        # slot it takes comes off the bottom of the recency list.
+        expect(fresh.board_editable?(stalest)).to be true
+        expect(fresh.board_editable?(newest)).to be true
+        locked = boards.count { |b| !fresh.board_editable?(b) }
+        expect(locked).to eq(1)
       end
 
       it "falls back to a favorite board when none is designated" do
-        board_b.update!(favorite: true)
+        stalest.update!(favorite: true)
         fresh = User.find(user.id)
-        expect(fresh.board_editable?(board_b)).to be true
-        expect(fresh.board_editable?(board_a)).to be false
+        expect(fresh.board_editable?(stalest)).to be true
+      end
+
+      it "locks nothing while at or under the floor, even though the plan allows one board" do
+        # The floor is what makes Free behave like every other locked plan
+        # instead of collapsing to a single editable board. Creation is still
+        # capped at 1 — this only governs what stays writable.
+        quiet = create(:free_user)
+        few = Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: quiet) }
+        fresh = User.find(quiet.id)
+        expect(few.all? { |b| fresh.board_editable?(b) }).to be true
       end
     end
 
@@ -42,11 +66,15 @@ RSpec.describe "Board read-only on downgrade", type: :model do
       # board_limit override so the test doesn't have to create 100+ boards.
       let(:clinician) do
         create(:user, plan_type: "clinician").tap do |u|
-          u.update!(settings: u.settings.merge("board_limit" => 2))
+          u.update!(settings: u.settings.merge("board_limit" => 6))
         end
       end
 
       it "keeps the board_limit most-recently-updated boards editable and locks the rest" do
+        # board_limit 6 is above EDITABLE_BOARD_FLOOR, so the limit is what
+        # binds here, not the floor. Seven boards: the stalest locks.
+        filler = Array.new(4) { create(:board, user: clinician) }
+        filler.each_with_index { |b, i| b.update_column(:updated_at, (5 - i).hours.ago) }
         oldest = create(:board, user: clinician)
         mid = create(:board, user: clinician)
         newest = create(:board, user: clinician)
@@ -67,8 +95,7 @@ RSpec.describe "Board read-only on downgrade", type: :model do
 
       it "reports lock_reason plan_board_limit (not free_plan_board_limit) on a locked board" do
         oldest = create(:board, user: clinician)
-        create(:board, user: clinician)
-        create(:board, user: clinician)
+        Array.new(6) { create(:board, user: clinician) }
         oldest.update_column(:updated_at, 5.days.ago)
 
         view = oldest.api_view(User.find(clinician.id))
@@ -161,7 +188,9 @@ RSpec.describe "Board read-only on downgrade", type: :model do
     it "is false on a locked board and true on the designated board" do
       user = create(:free_user)
       designated = create(:board, user: user)
+      Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: user) }
       locked = create(:board, user: user)
+      locked.update_column(:updated_at, 9.days.ago)
       user.update!(editable_board_id: designated.id)
       fresh = User.find(user.id)
       expect(designated.can_edit_for(fresh)).to be true
@@ -173,7 +202,9 @@ RSpec.describe "Board read-only on downgrade", type: :model do
     it "marks an over-limit non-designated board as locked" do
       user = create(:free_user)
       designated = create(:board, user: user)
+      Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: user) }
       locked = create(:board, user: user)
+      locked.update_column(:updated_at, 9.days.ago)
       user.update!(editable_board_id: designated.id)
       fresh = User.find(user.id)
 

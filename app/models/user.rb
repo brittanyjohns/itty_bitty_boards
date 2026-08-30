@@ -2240,9 +2240,9 @@ class User < ApplicationRecord
   # else they own becomes read-only (still fully usable — view/tap/audio, AAC
   # usage never breaks). Full paid plans (Basic/Pro/licenses/Partner Pro) are
   # never board-locked — their limit only gates creation. See editable_board_ids
-  # for how the editable subset is chosen (Free keeps its single designated board
-  # via make_editable + cooldown; Clinician keeps its board_limit most-recently-
-  # updated boards).
+  # for how the editable subset is chosen (the designated make_editable pick,
+  # then most-recently-updated boards up to `editable_slot_count` — the plan's
+  # board limit or EDITABLE_BOARD_FLOOR, whichever is kinder).
   def board_editable?(board)
     return true if admin?
     return true if board.nil? || board.user_id != id
@@ -2261,23 +2261,45 @@ class User < ApplicationRecord
     clinician?
   end
 
+  # How many boards stay editable when a locked plan is over its board limit.
+  #
+  # This is deliberately NOT `board_limit`. The limit governs how many boards
+  # you may CREATE; this governs how much of what you already made stays
+  # writable once you are past it, and the two stopped being the same question
+  # when #801 made Board Builder boards count. A Free account that ran the
+  # builder lands 23-35 boards over a limit of 1, and collapsing that to a
+  # single editable board is a cliff — the boards are all still usable for
+  # communication, but a parent who spent a fortnight building a set can only
+  # edit one of them.
+  #
+  # The floor makes Free behave the way every other locked plan already did.
+  # Clinician (limit 100) keeps its hundred most-recent boards editable; Free
+  # kept exactly one, purely because its limit happens to be 1. Now both fill
+  # by the same rule, and Free stops being a special case.
+  #
+  # It grants nothing: you still cannot CREATE a second board on Free, the
+  # pricing page's "1 board" is still true, and `at_board_limit?` is untouched.
+  # ENV-overridable like the plan limits themselves, so it can be retuned from
+  # Hatchbox without a deploy.
+  EDITABLE_BOARD_FLOOR = ENV.fetch("EDITABLE_BOARD_FLOOR", 5).to_i
+
+  # The number of editable slots this user gets while locked — their plan's
+  # board limit, or the floor, whichever is kinder.
+  def editable_slot_count
+    [board_limit.to_i, EDITABLE_BOARD_FLOOR].max
+  end
+
   # The set of this user's board ids that stay editable when over the board
-  # limit. Free (limit 1) keeps the single designated board so the existing
-  # make_editable pick + cooldown flow is unchanged; a higher-limit locked plan
-  # (Clinician, 100) pins the designated board and fills the remaining slots
-  # with its most-recently-updated owned boards (favorites first) — the active
-  # work stays editable, stale boards lock.
+  # limit: the designated `make_editable` pick, then the rest of the slots
+  # filled by their most-recently-updated owned boards (favorites first) — the
+  # active work stays editable, stale boards lock.
   def editable_board_ids
-    if board_limit.to_i <= 1
-      [effective_editable_board_id].compact
-    else
-      # The explicit make_editable pick is pinned first, then the rest of the
-      # slots fill by recency. Without the pin, a higher-limit locked plan
-      # ignored `editable_board_id` outright, so make_editable answered 200 and
-      # changed nothing at all — a silent no-op with no error in the UI.
-      pinned = [effective_editable_board_id].compact
-      (pinned + top_editable_board_ids).uniq.first(board_limit.to_i)
-    end
+    # The explicit make_editable pick is pinned first, then the rest of the
+    # slots fill by recency. Without the pin, a locked plan ignored
+    # `editable_board_id` outright, so make_editable answered 200 and changed
+    # nothing at all — a silent no-op with no error in the UI.
+    pinned = [effective_editable_board_id].compact
+    (pinned + top_editable_board_ids).uniq.first(editable_slot_count)
   end
 
   # Fills the editable slots by recency. `editable_board_ids` pins the explicit
@@ -2287,7 +2309,7 @@ class User < ApplicationRecord
     @top_editable_board_ids ||=
       boards.where(predefined: false)
             .order(favorite: :desc, updated_at: :desc)
-            .limit(board_limit.to_i)
+            .limit(editable_slot_count)
             .pluck(:id)
   end
 

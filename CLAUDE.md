@@ -515,6 +515,19 @@ an explicit decision, not a drive-by edit.
 - **Downgrades retain, never delete.** Over-limit boards become read-only;
   over-limit communicators enter fallback mode (public MySpeak page stays
   up). No plan change destroys user content.
+- **How many boards you may CREATE and how many stay WRITABLE are two
+  different numbers.** `board_limit` gates creation; `editable_slot_count`
+  (`max(board_limit, User::EDITABLE_BOARD_FLOOR)`) is how much of what you
+  already own stays editable once you are over it. They were the same number
+  until #801 made Board Builder boards count — at which point a lapsed trial
+  could land 23-35 boards over a limit of 1, and the lock collapsed to a single
+  editable board. The floor makes Free behave like every other locked plan
+  (Clinician already kept its `board_limit` most-recent boards) instead of
+  being a special case, and it grants nothing: `at_board_limit?` is untouched,
+  so Free still creates exactly one board and the pricing page stays true.
+  `EDITABLE_BOARD_FLOOR` is ENV-overridable — retune from Hatchbox, no deploy.
+  Note the lock is inert at or below the floor; that is the trade, and the
+  upgrade lever there is that creation is still blocked.
 - **External-service failures fail soft.** Redis blips, PostHog, Mailchimp,
   and geolocation errors are rescued and logged — they can never 500 a
   request or a webhook.
