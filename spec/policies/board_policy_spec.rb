@@ -5,7 +5,14 @@ RSpec.describe BoardPolicy do
     context "a free user over their board limit" do
       let(:user) { create(:free_user) }
       let!(:designated) { create(:board, user: user) }
-      let!(:other_board) { create(:board, user: user) }
+      # Enough boards to cross EDITABLE_BOARD_FLOOR — below it nothing locks,
+      # since the floor decouples the editable set from board_limit.
+      let!(:filler) do
+        Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: user) }
+      end
+      let!(:other_board) do
+        create(:board, user: user).tap { |b| b.update_column(:updated_at, 30.days.ago) }
+      end
 
       it "denies editing a non-designated owned board" do
         user.update!(editable_board_id: designated.id)

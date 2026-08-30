@@ -3,12 +3,22 @@ require "rails_helper"
 # A downgraded (free) user over their board limit: the boards beyond their
 # limit are read-only. They can still be viewed (usage never breaks), but
 # content-mutating endpoints return HTTP 403 board_locked.
+#
+# The editable set is `editable_slot_count` = max(board_limit,
+# EDITABLE_BOARD_FLOOR), so Free's lock only bites past the floor — hence the
+# filler boards. `locked_board` is aged so recency drops it.
 RSpec.describe "API board read-only gating", type: :request do
   let(:user) { create(:free_user) } # board_limit 1, past trial window
   let!(:editable_board) { create(:board, user: user, name: "Editable") }
   let!(:locked_board)   { create(:board, user: user, name: "Locked") }
+  let!(:filler) do
+    Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: user) }
+  end
 
-  before { user.update!(editable_board_id: editable_board.id) }
+  before do
+    locked_board.update_column(:updated_at, 30.days.ago)
+    user.update!(editable_board_id: editable_board.id)
+  end
 
   describe "PATCH /api/boards/:id" do
     it "returns 403 board_locked when editing a locked board" do
@@ -57,17 +67,25 @@ RSpec.describe "API board read-only gating", type: :request do
   describe "clinician (paid but board-limited) over their board limit" do
     let(:clinician) do
       create(:user, plan_type: "clinician").tap do |u|
-        u.update!(settings: u.settings.merge("board_limit" => 1))
+        # Above EDITABLE_BOARD_FLOOR so this example is about board_limit
+        # rather than the floor — the two bind at different sizes now.
+        u.update!(settings: u.settings.merge("board_limit" => 6))
       end
     end
     let!(:keep) { create(:board, user: clinician, name: "Keep") }
     let!(:over) { create(:board, user: clinician, name: "Over") }
+    let!(:clinician_filler) do
+      Array.new(6) { create(:board, user: clinician) }
+    end
 
     before do
-      # `keep` is the single most-recently-updated board → editable; `over` is
-      # older → locked.
+      # `keep` is among the most-recently-updated → editable; `over` is the
+      # stalest of seven against six slots → locked.
+      clinician_filler.each_with_index do |b, i|
+        b.update_column(:updated_at, (i + 2).hours.ago)
+      end
       keep.update_column(:updated_at, 1.hour.ago)
-      over.update_column(:updated_at, 3.days.ago)
+      over.update_column(:updated_at, 30.days.ago)
     end
 
     it "returns 403 board_locked when editing an over-limit board" do
@@ -161,7 +179,12 @@ RSpec.describe "API board read-only gating", type: :request do
   # silent no-op there.
   describe "make_editable on a plan with more than one editable slot" do
     let(:multi) do
-      create(:free_user).tap { |u| u.update!(settings: u.settings.merge("board_limit" => 2)) }
+      # board_limit above EDITABLE_BOARD_FLOOR, so the limit is what caps the
+      # editable set and the displacement below is a real displacement.
+      create(:free_user).tap { |u| u.update!(settings: u.settings.merge("board_limit" => 6)) }
+    end
+    let!(:multi_filler) do
+      Array.new(4) { |i| create(:board, user: multi, updated_at: (i + 10).minutes.ago) }
     end
     let!(:recent_a) { create(:board, user: multi, name: "Recent A", updated_at: 1.minute.ago) }
     let!(:recent_b) { create(:board, user: multi, name: "Recent B", updated_at: 2.minutes.ago) }
@@ -175,10 +198,11 @@ RSpec.describe "API board read-only gating", type: :request do
       expect(response).to have_http_status(:ok)
       fresh = User.find(multi.id)
       expect(stale.locked_for?(fresh)).to be false
-      # Still only board_limit slots: the pin displaced the older of the two.
-      expect(fresh.editable_board_ids.size).to eq(2)
-      expect(fresh.editable_board_ids).to include(stale.id, recent_a.id)
-      expect(fresh.editable_board_ids).not_to include(recent_b.id)
+      # Still only board_limit slots: the pin displaced the least recent of
+      # the boards that held one.
+      expect(fresh.editable_board_ids.size).to eq(6)
+      expect(fresh.editable_board_ids).to include(stale.id, recent_a.id, recent_b.id)
+      expect(fresh.editable_board_ids).not_to include(multi_filler.last.id)
     end
   end
 
