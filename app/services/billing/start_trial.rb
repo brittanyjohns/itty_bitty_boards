@@ -150,7 +150,9 @@ module Billing
         (trial_end.present? ? Time.at(trial_end) : TRIAL_DAYS.days.from_now).iso8601
 
       # update!/save! rather than update_columns: `before_save :setup_limits`
-      # is what applies the plan's board and communicator limits.
+      # is what applies the plan's communicator limits. (The board limit is no
+      # longer stamped — #801 resolves it from plan_type at read time — but the
+      # communicator ones still are, so this must go through the callback.)
       user.save!
     end
   end

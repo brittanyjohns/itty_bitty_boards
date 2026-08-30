@@ -82,7 +82,14 @@ RSpec.describe Billing::StartTrial do
       described_class.call(user, plan_key: "pro")
 
       user.reload
-      expect(user.settings["board_limit"]).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      # #801 made board_limit resolve from plan_type at READ time, and
+      # `settings["board_limit"]` now means only a deliberate admin override —
+      # so the trialist's board limit is asserted on the resolved value, and
+      # `settings` is expected to stay clean. The communicator limit is still
+      # stamped, which is what keeps `save!` (not update_columns) load-bearing:
+      # `before_save :setup_limits` is the only thing that writes it.
+      expect(user.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      expect(user.settings["board_limit"]).to be_nil
       expect(user.settings["paid_communicator_limit"]).to eq(User::PRO_PLAN_LIMITS["paid_communicator_limit"])
     end
 
