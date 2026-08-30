@@ -515,6 +515,17 @@ an explicit decision, not a drive-by edit.
 - **Downgrades retain, never delete.** Over-limit boards become read-only;
   over-limit communicators enter fallback mode (public MySpeak page stays
   up). No plan change destroys user content.
+- **A trial-end warning must be computed against the plan the user is about to
+  LAND on, not the one they hold.** Mid-trial a Basic/Pro limit means nothing is
+  over it, so any naive "boards over the limit" count reads 0 for the entire
+  trial and the warning fires with nothing to say.
+  `User#boards_locking_at_trial_end` resolves Free's limit explicitly and
+  compares against that; it returns 0 whenever nothing will lock (card on file,
+  RevenueCat, admin, or a set that already fits). It rides on
+  `trial_api_view[:boards_locking]` and on the trial-wrap journey's `LOCKING`
+  merge field. The webhook that fires it (`customer.subscription.trial_will_end`,
+  ~3 days out) is the same one that recomputes `has_payment_method`, so the
+  count is calculated after that correction, not before.
 - **How many boards you may CREATE and how many stay WRITABLE are two
   different numbers.** `board_limit` gates creation; `editable_slot_count`
   (`max(board_limit, User::EDITABLE_BOARD_FLOOR)`) is how much of what you

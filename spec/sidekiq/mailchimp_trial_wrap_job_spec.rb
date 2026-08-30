@@ -25,13 +25,39 @@ RSpec.describe MailchimpTrialWrapJob, type: :job do
 
         expect(mailchimp).to receive(:update_merge_fields).with(
           user,
-          { "TRIAL_END" => "June 20", "BOARDS" => "2", "COMMS" => "1" },
+          {
+            "TRIAL_END" => "June 20", "BOARDS" => "2", "COMMS" => "1",
+            # Not on a no-card Stripe trial in this example, so nothing locks.
+            "LOCKING" => "0",
+          },
         ).ordered
         expect(mailchimp).to receive(:trigger_journey).with(
           user, journey_id: 50, step_id: 60
         ).ordered
 
         job.perform(user.id, epoch)
+      end
+
+      it "sends the count of boards that go read-only if the trial lapses" do
+        # A no-card Stripe trial holding a builder-sized set: this is the
+        # number the day-11 warning exists to name.
+        user.update!(
+          plan_type: "pro",
+          plan_status: "trialing",
+          stripe_subscription_id: "sub_locking",
+          settings: (user.settings || {}).merge("has_payment_method" => false),
+        )
+        create_list(:board, 24, user: user)
+        fresh = User.find(user.id)
+        expected = fresh.boards_locking_at_trial_end
+        expect(expected).to be > 0
+
+        expect(mailchimp).to receive(:update_merge_fields).with(
+          user, hash_including("LOCKING" => expected.to_s)
+        )
+        allow(mailchimp).to receive(:trigger_journey)
+
+        job.perform(user.id, nil)
       end
 
       it "falls back to 'soon' when no trial-end date is given" do
