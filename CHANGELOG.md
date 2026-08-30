@@ -27,6 +27,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **The "your trial is wrapping up" reminder now says what actually happens to
+  your boards.** Three days out, the reminder knew your trial was ending but not
+  what ending it would cost — so a parent who built a full board set during the
+  trial found out which boards had gone read-only only after it happened. The
+  reminder now carries that number, and the in-app banner says it too. Nothing
+  is deleted and every board stays usable for communication; this is about not
+  being surprised.
+
 - **Going over your board limit no longer freezes everything but one board.**
   If your plan's boards are read-only — a lapsed trial, a downgrade — you now
   keep your five most recently used boards editable instead of a single one.

@@ -1925,6 +1925,28 @@ class User < ApplicationRecord
     nil
   end
 
+  # How many of this user's boards would become read-only if the trial ended
+  # right now with no card on file — the number the day-11 warning quotes.
+  #
+  # It has to be computed against the plan they are ABOUT to land on, not the
+  # one they are on: mid-trial they hold a Basic or Pro limit and nothing is
+  # over it, so the naive `countable_board_count - editable_board_ids.size` is
+  # always 0 while the trial is running. Free is where a lapsed no-card trial
+  # lands (`missing_payment_method: "cancel"` -> subscription deleted ->
+  # apply_free_plan), so Free's numbers are the ones that matter.
+  #
+  # Zero whenever nothing is going to lock: no trial, a card already on file
+  # (the trial converts), a RevenueCat trial (they paid through the store), or
+  # an admin (never board-locked).
+  def boards_locking_at_trial_end
+    return 0 if admin?
+    return 0 unless trial_needs_payment_method?
+
+    free_limit = self.class.plan_limits_for("free")["board_limit"].to_i
+    free_editable_slots = [free_limit, EDITABLE_BOARD_FLOOR].max
+    [countable_board_count - free_editable_slots, 0].max
+  end
+
   def trial_api_view
     {
       active: show_trial_ui?,
@@ -1933,6 +1955,10 @@ class User < ApplicationRecord
       provider: trial_provider,
       needs_payment_method: trial_needs_payment_method?,
       plan_label: trial_plan_label,
+      # Lets the banner say what actually happens at the end of the trial
+      # instead of only that it is ending. 0 means "nothing locks" — the
+      # client shows the plain countdown.
+      boards_locking: boards_locking_at_trial_end,
     }
   end
 

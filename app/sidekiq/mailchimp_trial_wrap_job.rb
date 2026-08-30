@@ -1,15 +1,21 @@
 # Triggers the Mailchimp "trial_wrap" Customer Journey ~3 days before a
 # Stripe trial ends (enqueued from the `customer.subscription.trial_will_end`
 # webhook). Personalizes the email by first pushing the contact's merge
-# fields — TRIAL_END (formatted date), BOARDS, COMMS — so the journey copy
-# can say "you made N boards and M communicators; keep them by continuing."
+# fields — TRIAL_END (formatted date), BOARDS, COMMS, LOCKING — so the journey
+# copy can say "you made N boards and M communicators; keep them by
+# continuing", and name how many of those boards go read-only if it lapses.
 #
 # Soft trials (basic_trial) were retired — every new signup lands on Free —
 # so the only trials are Stripe no-card reverse trials (#264), which this
 # webhook path covers.
 #
 # Merge-field tags (create these in the Mailchimp audience, ≤10 chars each):
-#   TRIAL_END · BOARDS · COMMS
+#   TRIAL_END · BOARDS · COMMS · LOCKING
+#
+# LOCKING is how many boards become read-only if the trial ends with no card
+# (see User#boards_locking_at_trial_end). It is "0" whenever nothing locks — a
+# card already on file, or few enough boards to fit Free's editable slots — so
+# journey copy that names it must be conditional on LOCKING > 0.
 #
 # Partner pilots ride the same Stripe reverse trial, so this same webhook path
 # covers them — but they get a DIFFERENT journey (`partner_pilot_wrap`): copy
@@ -49,6 +55,7 @@ class MailchimpTrialWrapJob
       "TRIAL_END" => format_trial_end(trial_end_epoch),
       "BOARDS" => user.countable_board_count.to_s,
       "COMMS" => user.communicator_accounts.count.to_s,
+      "LOCKING" => user.boards_locking_at_trial_end.to_s,
     })
     mailchimp.trigger_journey(user, journey_id: journey[:journey_id], step_id: journey[:step_id])
   rescue => e
