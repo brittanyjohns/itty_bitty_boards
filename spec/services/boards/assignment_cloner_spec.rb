@@ -21,12 +21,12 @@ RSpec.describe Boards::AssignmentCloner do
     create(:board_image, board: source_food, image: create(:image, label: "apple"))
   end
 
-  def call!
+  def call!(**opts)
     described_class.new(source_root, owner: owner, communicator: communicator,
-                                     voice: "echo", name: source_root.name).call
+                                     voice: "echo", name: source_root.name, **opts).call
   end
 
-  it "clones the root with the existing contract: is_template + ChildBoard on the communicator" do
+  it "clones the root with the default contract: is_template + ChildBoard on the communicator" do
     root_clone = call!
     expect(root_clone.user_id).to eq(owner.id)
     expect(root_clone.is_template).to be true
@@ -69,7 +69,38 @@ RSpec.describe Boards::AssignmentCloner do
   end
 
   it "does not change the owner's countable board count (clones are templates)" do
-    expect { call! }.not_to change { owner.reload.countable_board_count }
+    expect { call! }.not_to change { User.find(owner.id).countable_board_count }
+  end
+
+  # The MySpeak wizard's starter is the parent's OWN board, not a
+  # per-communicator template — it has to show up in her board list and count
+  # against her limit, because it is the board her child's public page links
+  # to (#795).
+  context "template_root: false" do
+    it "clones a real, countable board and still puts it on the communicator" do
+      root_clone = call!(template_root: false)
+
+      expect(root_clone.is_template).to be false
+      expect(owner.boards).to include(root_clone)
+      expect(
+        communicator.child_boards.where(board_id: root_clone.id,
+                                        original_board_id: source_root.id,
+                                        created_by_id: owner.id),
+      ).to exist
+    end
+
+    it "counts toward the owner's board limit" do
+      expect { call!(template_root: false) }.to change { User.find(owner.id).countable_board_count }.by(1)
+    end
+
+    it "still clones sub-boards as templates with no ChildBoard rows" do
+      root_clone = call!(template_root: false)
+      sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
+
+      expect(sub_clone.is_template).to be true
+      expect(sub_clone.settings["assignment_root_id"]).to eq(root_clone.id)
+      expect(ChildBoard.where(board_id: sub_clone.id)).not_to exist
+    end
   end
 
   # Assignment is the path that produced a communicator dashboard of boards with

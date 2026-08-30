@@ -56,6 +56,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Setting up a MySpeak page no longer quietly makes a second copy of a
+  board.** If you'd already used your board slot, the MySpeak setup wizard
+  cloned another board anyway — and that copy didn't show up in your board list,
+  didn't count on your dashboard, and couldn't be opened or edited, even though
+  it was the board your child's public page linked to. Edit "your" board and the
+  page kept showing the copy. Now the wizard's board is an ordinary board of
+  yours: it appears in your board list, counts toward your limit, and opens like
+  any other. If you're already at your limit it doesn't create anything at all —
+  it tells the app why, so you can point the page at a board you already have.
+  You can also hand it a board you already own and it attaches that one instead
+  of copying it. Boards already on a MySpeak page stay published, as before.
+
 - **A brand-new account is greeted as new, and speak mode offers "Edit this
   board" again.** Two fields the app reads were missing from the API responses
   it reads them from, so shipped behavior never appeared: the current-user

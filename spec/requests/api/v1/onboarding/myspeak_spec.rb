@@ -280,6 +280,76 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(cb.board.name).to eq(starter.name)
         # Master untouched.
         expect(starter.reload.user_id).to eq(User::DEFAULT_ADMIN_ID)
+
+        # The clone is the parent's OWN board, not an invisible template
+        # (#795): countable, listed, editable.
+        expect(cb.board.is_template).to eq(false)
+        expect(user.boards).to include(cb.board)
+        expect(User.find(user.id).countable_board_count).to eq(1)
+
+        # And the join row carries what clone_with_images used to write.
+        expect(cb.created_by_id).to eq(user.id)
+        expect(cb.original_board_id).to eq(starter.id)
+
+        body = JSON.parse(response.body)
+        expect(body["starter_board"]).to include(
+          "attached" => true, "source" => "clone", "board_id" => cb.board_id,
+          "published" => true, "reason" => nil,
+        )
+      end
+
+      it "lists the cloned board in GET /api/boards" do
+        starter
+
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+        expect(response).to have_http_status(:created)
+
+        cb = user.communicator_accounts.last.child_boards.last
+
+        get "/api/boards", headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        listed = body.is_a?(Hash) ? (body["boards"] || []) : body
+        expect(listed.map { |b| b["id"] }).to include(cb.board_id)
+      end
+
+      context "when the user is already at their board limit" do
+        it "does not clone, does not substitute a board, and reports why" do
+          starter
+          # The board /start already gave her — countable, so she is at 1 of 1.
+          FactoryBot.create(:board, user: user, name: "Leo's Basic Core")
+          expect(User.find(user.id).at_board_limit?).to eq(true)
+
+          expect {
+            post "/api/v1/onboarding/myspeak",
+                 params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+          }.to change { Board.count }.by(0)
+           .and change { ChildBoard.count }.by(0)
+
+          # The wizard still finishes — the board step never blocks setup.
+          expect(response).to have_http_status(:created)
+          child = user.communicator_accounts.last
+          expect(child.profile).to be_present
+          expect(child.child_boards).to be_empty
+
+          body = JSON.parse(response.body)
+          expect(body["starter_board"]).to include(
+            "attached" => false, "board_id" => nil, "reason" => "board_limit_reached",
+          )
+        end
+      end
+
+      it "still clones for an admin, whose board limit does not apply" do
+        starter
+        user.update_columns(role: "admin")
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+        }.to change { ChildBoard.count }.by(1)
+
+        expect(response).to have_http_status(:created)
       end
 
       it "accepts board_id as a string (JSON normally sends integers, but be defensive)" do
@@ -294,14 +364,10 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
 
       it "silently skips when board_id references a board outside the public picker" do
-        private_board = Board.create!(
-          name: "Private board",
-          user: user, # not admin → not in Board.public_boards
-          parent: user,
-          predefined: false,
-          published: false,
-          board_type: "board",
-        )
+        # Someone else's board: not in Board.public_boards, and not one the
+        # user owns either, so neither branch will touch it.
+        private_board = FactoryBot.create(:board, user: FactoryBot.create(:user),
+                                                  name: "Private board")
 
         expect {
           post "/api/v1/onboarding/myspeak",
@@ -309,6 +375,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         }.not_to change { ChildBoard.count }
 
         expect(response).to have_http_status(:created)
+        expect(JSON.parse(response.body)["starter_board"]).to include("reason" => "not_permitted")
       end
 
       it "silently skips when board_id is unknown" do
@@ -318,6 +385,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         }.not_to change { ChildBoard.count }
 
         expect(response).to have_http_status(:created)
+        expect(JSON.parse(response.body)["starter_board"]).to include("reason" => "not_found")
       end
 
       it "silently skips when board_id is nil" do
@@ -327,6 +395,83 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         }.not_to change { ChildBoard.count }
 
         expect(response).to have_http_status(:created)
+        expect(JSON.parse(response.body)["starter_board"]).to include("reason" => "not_requested")
+      end
+    end
+
+    # The "use the board I already have" pick. It is the only answer for a
+    # user at their board limit, so it must work regardless of the limit —
+    # nothing is created but the join row.
+    context "board_id names a board the user already owns" do
+      let!(:owned) { FactoryBot.create(:board, user: user, name: "Leo's Basic Core") }
+
+      it "attaches it without cloning, favorites it, and publishes it" do
+        expect(User.find(user.id).at_board_limit?).to eq(true)
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: owned.id).to_json, headers: headers
+        }.to change { ChildBoard.count }.by(1)
+         .and change { Board.count }.by(0)
+
+        expect(response).to have_http_status(:created)
+
+        cb = user.communicator_accounts.last.child_boards.last
+        expect(cb.board_id).to eq(owned.id)
+        expect(cb.favorite).to eq(true)
+        # A board on a MySpeak page has to be published or its card 404s.
+        expect(owned.reload.published).to eq(true)
+
+        expect(JSON.parse(response.body)["starter_board"]).to include(
+          "attached" => true, "source" => "existing",
+          "board_id" => owned.id, "published" => true, "reason" => nil,
+        )
+      end
+
+      it "does not re-attach one of the invisible template clones this bug minted" do
+        stale = FactoryBot.create(:board, user: user, name: "Basic Core", is_template: true)
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: stale.id).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+        expect(JSON.parse(response.body)["starter_board"]).to include("reason" => "not_permitted")
+      end
+
+      it "skips a board owned by someone else" do
+        theirs = FactoryBot.create(:board, user: FactoryBot.create(:user), name: "Not yours")
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: theirs.id).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+        expect(JSON.parse(response.body)["starter_board"]).to include("reason" => "not_permitted")
+      end
+
+      # The (board_id, child_account_id) uniqueness validation would 422 the
+      # ENTIRE wizard, page and all, if the attach were a plain create.
+      it "is idempotent when the board is already on the communicator" do
+        child = FactoryBot.create(:child_account, user: user, owner: user,
+                                                  name: "Existing Kid",
+                                                  username: "existing-kid",
+                                                  status: ChildAccount::SANDBOX)
+        Profile.create!(profileable: child, username: child.username,
+                        slug: child.username.parameterize)
+        child.child_boards.create!(board: owned, created_by_id: user.id)
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: owned.id).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+        body = JSON.parse(response.body)
+        expect(body["adopted"]).to be(true)
+        expect(body["starter_board"]).to include("attached" => true, "source" => "existing")
       end
     end
 

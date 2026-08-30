@@ -655,6 +655,23 @@ an explicit decision, not a drive-by edit.
   Board Builder set is synced again in `BuildBoardSetJob` because at favorite
   time the set is still empty. `child_boards.published` is a dead column that
   nothing writes; read `board.published?`.
+- **The MySpeak wizard's starter board is the PARENT'S OWN board, and it is
+  gated like any other board create.** Every other `Boards::AssignmentCloner`
+  call site mints a per-communicator template — invisible in the owner's board
+  list, uncountable against `board_limit`, capped per communicator instead. The
+  wizard is not an assignment: the board it attaches is the one the child's
+  PUBLIC page links to, so an owner who cannot see it edits a different copy and
+  the two diverge permanently, with the world reading the one she can't reach.
+  It clones `template_root: false` and is refused by `at_board_limit?` — which
+  it must read off a freshly-refetched `User`, since `countable_board_count` is
+  memoized. At the limit the wizard **skips the board and reports the reason**
+  rather than substituting a board of its own choosing: favoriting PUBLISHES,
+  one-way, so a guess publishes a board the parent never picked. A `board_id`
+  naming a board she already owns is attached with no clone, looked up through
+  `current_user.boards` (the association's `is_template: false` filter is what
+  stops a stale invisible clone being re-attached). The board step never blocks
+  setup, so every refusal rides back in the response's `starter_board` — a
+  silent skip is indistinguishable from success to the client.
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);
