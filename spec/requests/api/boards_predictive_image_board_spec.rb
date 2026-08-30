@@ -33,7 +33,11 @@ RSpec.describe "GET /api/boards/:id/predictive_image_board", type: :request do
   it "agrees with boards#show for a plan-locked board" do
     free_user = create(:free_user)
     editable_board = create(:board, user: free_user, name: "Editable")
+    # Past EDITABLE_BOARD_FLOOR, or nothing is locked to compare against: the
+    # editable subset is max(board_limit, floor), not board_limit.
+    Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: free_user) }
     locked_board = create(:board, user: free_user, name: "Locked")
+    locked_board.update_column(:updated_at, 30.days.ago)
     free_user.update!(editable_board_id: editable_board.id)
 
     get "/api/boards/#{locked_board.id}/predictive_image_board", headers: auth_headers(free_user)

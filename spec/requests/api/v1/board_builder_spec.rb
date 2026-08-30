@@ -786,9 +786,9 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
       it "locks the built set to the editable subset once the user is over their limit" do
         # The other half of the collapse, stated on purpose: a Free user's
-        # builder set now consumes slots, so board_limit_locks? applies and only
-        # the designated board stays editable. Usage never breaks — this is the
-        # edit lock, the same one any over-limit user gets.
+        # builder set now consumes slots, so board_limit_locks? applies and the
+        # set beyond `editable_slot_count` is read-only. Usage never breaks —
+        # this is the edit lock, the same one any over-limit user gets.
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home",
                        interests: ["dinosaurs"] }.to_json,
@@ -797,13 +797,22 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         root = Board.find(JSON.parse(response.body)["id"])
 
         user.update!(plan_type: "free", settings: (user.settings || {}).except("board_limit"))
+        # The set this fixture builds is smaller than a real one, and the
+        # editable subset is `editable_slot_count` (max(board_limit,
+        # EDITABLE_BOARD_FLOOR)) rather than board_limit — so pad past the floor
+        # or there is no lock to assert. A production set is 23-35 boards and
+        # crosses it on its own.
+        slots = User::EDITABLE_BOARD_FLOOR
+        create_list(:board, slots, user: user)
         fresh = User.find(user.id)
         set_boards = fresh.boards.where(predefined: false).to_a
         expect(fresh.at_board_limit?).to be(true)
-        # Free's limit is 1, so exactly one board stays editable and the rest of
-        # the set is read-only — still fully usable, which is the invariant.
-        expect(fresh.editable_board_ids.size).to eq(1)
-        expect(set_boards.count { |b| fresh.board_editable?(b) }).to eq(1)
+        expect(set_boards.size).to be > slots
+        # A workable slice stays editable and the rest is read-only — still
+        # fully usable either way, which is the invariant.
+        expect(fresh.editable_board_ids.size).to eq(slots)
+        expect(set_boards.count { |b| fresh.board_editable?(b) }).to eq(slots)
+        expect(set_boards.count { |b| !fresh.board_editable?(b) }).to be > 0
         expect(root.reload.viewable_by?(fresh)).to be(true)
       end
     end
