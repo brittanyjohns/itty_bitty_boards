@@ -62,7 +62,7 @@ origin/main where noted — re-verify after your fetch.
 | Clone public board with folder tiles into other user's account | folder tiles become regular (nil predictive_board_id), `flattened_tiles` = count, one new board only |
 | Clone own board with folder tiles into own account | pointers preserved, `flattened_tiles: 0` |
 | Clone at Free board limit | existing 422 upgrade message unchanged |
-| MySpeak onboarding starter-board attach | unchanged (AssignmentCloner path untouched) |
+| MySpeak onboarding starter-board attach | unchanged (SetCloner path untouched) |
 | Clone response shape | `api_view_with_images` fields intact + `flattened_tiles` |
 
 Specs: extend the boards request specs covering `clone`; run the boards
@@ -83,7 +83,7 @@ and stop — never merge. Commit this doc in the PR so it survives the session.
 **Implemented** 2026-08-27 on `claude/activation-gap-handoff-6c8a66`. Work items 1–3
 landed as `Board#clone_with_images(flatten_foreign_links:)` +
 `BoardImage#flatten_navigation!` + `flattened_tiles` on the clone response.
-The flatten is OPT-IN rather than unconditional: `Boards::AssignmentCloner` and
+The flatten is OPT-IN rather than unconditional: `Boards::SetCloner` and
 `Boards::SeededSetCloner` both rely on the verbatim pointer and rewire it after
 their own sub-board clones, so an ownership test alone would have cut those
 links before the rewire ran. The pre-existing "no ownership/public check on the

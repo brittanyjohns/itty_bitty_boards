@@ -5,7 +5,7 @@ module Boards
   # board BEHIND each card is gated on `Board#viewable_by?`, which returns
   # false for an anonymous visitor unless `published?`. Favoriting alone
   # therefore published a card that 404s on tap — and that was the DEFAULT
-  # state, since Board Builder roots and AssignmentCloner clones are both born
+  # state, since Board Builder roots and SetCloner clones are both born
   # unpublished.
   #
   # This closes the gap from the write side: favoriting publishes. The read

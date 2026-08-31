@@ -52,6 +52,16 @@ RSpec.describe "board-limit 422 contract", type: :request do
     it_behaves_like "a board-limit refusal"
   end
 
+  # The clone PREVIEW shares the gate, so a user with no room meets the upgrade
+  # path before the confirm dialog rather than after it.
+  describe "GET /api/boards/:id/clone_plan" do
+    def make_request
+      get "/api/boards/#{existing_board.id}/clone_plan", headers: headers
+    end
+
+    it_behaves_like "a board-limit refusal"
+  end
+
   describe "POST /api/boards/create_from_template" do
     def make_request
       post "/api/boards/create_from_template", params: { data: "{}" }, headers: headers

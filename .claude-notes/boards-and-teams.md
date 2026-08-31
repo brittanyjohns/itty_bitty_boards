@@ -74,34 +74,66 @@ known backend-enforcement gaps — lives in
 `marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
 section in sync when the rules change.
 
-### Board assignment is a DEEP clone (`Boards::AssignmentCloner`)
+### Every clone is a SET clone (`Boards::SetCloner`)
 
-Putting a board on a communicator (`assign_boards`, `assign_accounts`, the
-MySpeak starter attach) goes through **`Boards::AssignmentCloner`**
-(`app/services/boards/`), not a bare `clone_with_images`. The old shallow
-clone copied `predictive_board_id` verbatim, so an assigned board's folder
-tiles kept opening the **source owner's live sub-boards** — shared state that
-changed/broke when the source owner edited or deleted them.
+Copying a board — an assignment (`assign_boards`, `assign_accounts`), the
+MySpeak starter attach, or `POST /api/boards/:id/clone` — goes through
+**`Boards::SetCloner`** (was `AssignmentCloner`, renamed once it stopped being
+only about assignments), not a bare `clone_with_images`. A shallow copy left
+`predictive_board_id` verbatim, so the copy's folder tiles kept opening the
+**source owner's live sub-boards** — shared state that changed or broke when
+that owner edited or deleted them.
 
 - The cloner BFS-collects the linked set (**`Boards::PredictiveLinkSet`**,
-  extracted from `SeededSetCloner` and shared with it), depth-capped by
-  `BOARD_ASSIGN_CLONE_DEPTH` (default 3), clones each sub-board for the same
-  owner, and rewires the folder tiles to the clones. Pointers past the depth
-  cap are **kept verbatim** (assignment sets are arbitrary user boards —
-  nulling would break deep sets), unlike the builder's `:null` policy.
-- Root clone contract unchanged: `is_template: true` + ChildBoard on the
-  communicator (created inside `clone_with_images`). Sub-clones are also
-  `is_template` (via the new `force_template:` kwarg on `clone_with_images`),
-  get **no ChildBoard rows**, and carry `settings["assignment_child"]` +
-  `["assignment_root_id"]` so `ChildBoardsController#destroy`'s **orphan
-  sweep** can delete them when the root clone is removed and hard-deleted
-  (same `orphan_template?` guards per sub-board; iterates until a pass
-  deletes nothing so nested folders unwind).
+  shared with `SeededSetCloner`), clones each sub-board for the same owner,
+  and rewires the folder tiles to the clones. `collect` takes `max_depth:`
+  **and `max_boards:`** — depth alone does not bound a WIDE graph (one board
+  with 200 folder tiles is depth 1) and every caller hydrates the result.
+- `rewire!`'s `out_of_set:` is the whole link decision: `:keep` for assignments
+  (arbitrary user boards — nulling would break deep sets), `:null` for builder
+  sets, **`:flatten`** for anything the user owns, which calls
+  `BoardImage#flatten_navigation!` so the tile stops being a `door_tile?`
+  rather than becoming a silent button. It returns how many pointers it acted
+  on — that count is the response's `flattened_tiles`.
+- **`template_root:` governs the sub-boards too, and it is what a copy COSTS.**
+  `true` (assignments): every board `is_template`, uncountable, invisible in
+  the owner's list, capped per communicator. `false` (MySpeak starter, public
+  clone): the whole set is the user's own — listed, editable, **one board slot
+  per board**. Sub-clones used to be forced to templates regardless, so a
+  six-board set cost one slot and hid its five pages from the board list.
+- **`Boards::CloneSetPlanner` is the single budget.** It sizes the set against
+  `User#board_limit_remaining` and is shared by `GET /boards/:id/clone_plan`
+  (the client's confirm) and the copy itself, so the dialog can't promise
+  something the copy won't do. Over budget the copy is breadth-first and
+  partial — nearest pages survive, the rest flatten — reported as
+  `boards_created` / `boards_in_set` / `flattened_tiles` / `limited_by`.
+  `limited_by: "board_limit"` is the only value that earns an upgrade prompt;
+  `"set_size"` is the per-copy ceiling (`BOARD_CLONE_SET_MAX_BOARDS`, default
+  50, a request-timeout guard — a Pro user has 300 slots) which no upgrade
+  lifts. Depth is `BOARD_CLONE_SET_DEPTH` (default 6) for owned copies,
+  `BOARD_ASSIGN_CLONE_DEPTH` (default 3) for assignments.
+- Root clone contract unchanged for assignments: `is_template: true` +
+  ChildBoard on the communicator. Sub-clones get **no ChildBoard rows** and
+  carry `settings["assignment_root_id"]`, which `Boards::PublishCascade` walks
+  with **no `is_template` filter** — that is what publishes a MySpeak
+  starter's pages with its root instead of leaving every folder tile 404ing,
+  so it is stamped on countable sub-clones too. `settings["assignment_child"]`
+  is stamped **only on templates**: it marks a throwaway per-communicator page,
+  and a board the user owns and paid a slot for is not throwaway.
+- **The orphan sweep can only ever delete templates.** Both halves in
+  `ChildBoardsController#destroy` — `orphan_template?` and
+  `assignment_sub_templates` — are scoped `is_template: true`, so detaching an
+  OWNED set leaves every board in place (the owner deletes those themselves),
+  while a throwaway assignment set still unwinds (same `orphan_template?`
+  guards per sub-board; iterates until a pass deletes nothing so nested folders
+  unwind).
 - **Per-communicator assigned-board cap** (`ChildAccount.max_assigned_boards`,
   ENV `MAX_ASSIGNED_BOARDS_PER_COMMUNICATOR`, default 80 — matches the
   favorites cap): assigned clones are deliberately uncounted toward the
   owner's board limit (the original already counted), so this cap is what
-  stops assignment minting unlimited board rows. `assign_boards` returns
+  stops assignment minting unlimited board rows. It applies to the MySpeak
+  wizard's **owned-board** branch as well — attaching a board she already owns
+  fills a dashboard exactly as much as a fresh clone does. `assign_boards` returns
   **422 `assigned_board_limit`** `{ error, message, limit, count }`;
   `assign_accounts` appends a per-communicator message to its existing
   `record_errors` 422 array.
@@ -871,7 +903,7 @@ The cascade set has **two** membership sources, unioned:
 
 1. the root's builder `BoardGroup` membership — the same set
    `Boards::UsageCheck#builder_group` cascades on delete; and
-2. `Boards::AssignmentCloner`'s sub-clones, which carry
+2. `Boards::SetCloner`'s sub-clones, which carry
    `settings["assignment_root_id"] = <root clone id>` and have **no**
    `BoardGroup` at all. Without this source a cloned starter's folder tiles
    404'd on a published root — the exact failure the cascade exists to prevent.

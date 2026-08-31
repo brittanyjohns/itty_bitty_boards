@@ -582,10 +582,10 @@ class API::ChildAccountsController < API::ApplicationController
       voice = @child_account.voice || "polly:kevin"
       # Deep clone: linked sub-boards are cloned + rewired too, so the
       # communicator's set is self-contained (not shared with the source).
-      Boards::AssignmentCloner.new(board, owner: current_user,
+      Boards::SetCloner.new(board, owner: current_user,
                                           communicator: @child_account,
                                           voice: voice, name: board.name).call
-    rescue Boards::AssignmentCloner::CloneError => e
+    rescue Boards::SetCloner::CloneError => e
       Rails.logger.error "[assign_boards] #{e.message}"
     end
     render json: @child_account.api_view(current_user), status: :ok

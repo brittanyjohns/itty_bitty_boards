@@ -61,7 +61,7 @@ class API::ChildBoardsController < API::ApplicationController
     # while preserving the old cleanup for a self-created template clone.
     if @board && @board.is_template && orphan_template?(@board)
       Rails.logger.info "Deleting orphaned template board ID: #{@board.id}"
-      # Deep-cloned sub-boards (Boards::AssignmentCloner) are marked with the
+      # Deep-cloned sub-boards (Boards::SetCloner) are marked with the
       # root clone's id; collect them before the root goes so they can be
       # swept once the root's folder tiles no longer reference them.
       sweepable = assignment_sub_templates(@board)
@@ -91,7 +91,7 @@ class API::ChildBoardsController < API::ApplicationController
     board.user_id == current_user&.id
   end
 
-  # Sub-board clones minted by Boards::AssignmentCloner for this root clone.
+  # Sub-board clones minted by Boards::SetCloner for this root clone.
   def assignment_sub_templates(root_board)
     Board.where(user_id: current_user&.id, is_template: true)
          .where("settings->>'assignment_root_id' = ?", root_board.id.to_s)

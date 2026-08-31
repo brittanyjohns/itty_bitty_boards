@@ -11,7 +11,7 @@ module Boards
   #   1. the root's builder BoardGroup — the SAME set
   #      Boards::UsageCheck#builder_group cascades on delete, so a built set
   #      publishes, unpublishes, and deletes as one unit; and
-  #   2. Boards::AssignmentCloner's sub-clones, which carry
+  #   2. Boards::SetCloner's sub-clones, which carry
   #      settings["assignment_root_id"] and have no BoardGroup at all.
   #
   # Deliberately NOT PredictiveLinkSet: hand-linked folder tiles outside the
@@ -121,7 +121,7 @@ module Boards
       group.boards.distinct.pluck(:id)
     end
 
-    # Boards::AssignmentCloner deep-clones a starter's sub-boards and stamps
+    # Boards::SetCloner deep-clones a starter's sub-boards and stamps
     # each with settings["assignment_root_id"] = <root clone id>. It creates NO
     # BoardGroup, so a clone tree is invisible to `builder_group` — publishing
     # such a root left every folder tile 404ing, the exact failure this class

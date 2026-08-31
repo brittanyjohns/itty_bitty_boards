@@ -436,25 +436,54 @@ an explicit decision, not a drive-by edit.
   paths used to do, one line after `set_labels` had folded it) makes every seed
   board's casing permanent in every board built from it: that is what kept the
   Board Builder emitting Title Case after the creation paths were fixed.
-- **A clone either REWIRES its links or FLATTENS them — never copies them into
-  someone else's account.** `Board#clone_with_images` copies each tile's
-  `predictive_board_id` verbatim because the deep cloners
-  (`Boards::AssignmentCloner`, `Boards::SeededSetCloner`) clone the linked
-  sub-boards too and remap the pointers afterwards; nulling one in the tile loop
-  would cut the link before their rewire ran. `POST /api/boards/:id/clone` is
-  the shallow path and has no rewire to follow — it copies ONE board and one
-  board slot — so a verbatim pointer navigated the cloner into the SOURCE
-  owner's boards, which they don't own and which break the moment that owner
-  unpublishes or deletes one. Hence `flatten_foreign_links:`, opt-in and used
-  only there: a pointer at a board the cloning user doesn't own (a missing row,
-  or the source board itself, both count) is dropped and the tile becomes an
-  ordinary speaking tile. Flattening is `BoardImage#flatten_navigation!`, which
-  clears `NAVIGATION_DATA_KEYS` as well as the pointer — `door_tile?` is true on
-  `mute_name`/`nav_tile` ALONE, so dropping the pointer while leaving a flag
-  behind strands a silent tile with nowhere to go, which is worse than the
-  broken link. The count rides back on the in-memory
-  `Board#flattened_tile_count` and the clone response's additive
-  `flattened_tiles`.
+- **Copying a board copies its SET, and whether a link survives is a question
+  about the set — never one `clone_with_images` may answer.** Every clone path
+  goes through `Boards::SetCloner`, which walks the linked sub-boards
+  (`Boards::PredictiveLinkSet.collect`), clones them, and only then translates
+  each `predictive_board_id` through `rewire!`. `clone_with_images` therefore
+  copies every pointer VERBATIM: it sees one board, and which of that board's
+  links can be kept depends on which other boards the same operation copied.
+  Nulling one in the tile loop cuts the link before the rewire can translate
+  it, which is why `flatten_foreign_links:` was removed — two mechanisms for
+  one outcome, and the ownership test it used got a self-link wrong (a tile
+  aiming at its own board is IN the set and now maps to the root clone).
+  `rewire!`'s `out_of_set:` policy is the whole decision: `:keep` for
+  assignments (a link past the depth cap works exactly as it did before deep
+  cloning), `:null` for builder sets, `:flatten` for anything a USER owns — a
+  copied tile must never point into the source owner's live account, which
+  breaks the moment they unpublish or delete. Flattening is
+  `BoardImage#flatten_navigation!`, which clears `NAVIGATION_DATA_KEYS` as well
+  as the pointer: `door_tile?` is true on `mute_name`/`nav_tile` ALONE, so
+  dropping the pointer while leaving a flag behind strands a silent tile with
+  nowhere to go, worse than the broken link.
+- **`template_root:` decides what a copied set COSTS, and it governs the
+  sub-boards as well as the root.** An assignment
+  (`assign_boards` / `assign_accounts`) is scaffolding: `template_root: true`,
+  every board `is_template`, invisible in the owner's list, uncountable, capped
+  per communicator and swept when the last dashboard detaches it. A board the
+  user OWNS — the MySpeak starter, `POST /boards/:id/clone` — is
+  `template_root: false` throughout, so the whole set is listed, editable, and
+  costs ONE BOARD SLOT PER BOARD. The sub-clones used to be forced to templates
+  regardless, which made a six-board set cost exactly one slot and hid its five
+  pages from the board list entirely: reachable by tapping a folder tile, and
+  impossible to find in order to edit. `Boards::CloneSetPlanner` budgets the
+  copy against `User#board_limit_remaining` and is the SINGLE source of truth
+  shared by `GET /boards/:id/clone_plan` (which sizes the copy so the client can
+  confirm the cost) and the copy itself — a confirm dialog that could disagree
+  with what gets created is worse than no dialog. Over budget the copy is
+  breadth-first and PARTIAL: the pages nearest the root survive and the tiles
+  that opened the rest are flattened, reported as `boards_created` /
+  `boards_in_set` / `flattened_tiles` / `limited_by`. Only
+  `limited_by: "board_limit"` earns an upgrade prompt — `"set_size"` is the
+  per-copy ceiling (`BOARD_CLONE_SET_MAX_BOARDS`, a request-timeout guard, since
+  a Pro user has 300 slots) and paying more would not lift it. Two markers stay
+  split: `assignment_root_id` is stamped on EVERY sub-clone because
+  `Boards::PublishCascade` walks it with no `is_template` filter — without it a
+  published MySpeak starter leaves every folder tile 404ing — while
+  `assignment_child` marks a throwaway page and belongs only on templates. Both
+  halves of the orphan sweep in `API::ChildBoardsController` are scoped
+  `is_template: true`, which is what stops detaching an owned set destroying
+  boards its owner paid slots for.
 - **A slug is derived from the name once, at creation, and a rename never
   changes it.** `slug` is the `/pb/<slug>` key that a shared link, a MySpeak
   tile and a printed QR code all resolve through; the name is just a label.
@@ -667,7 +696,7 @@ an explicit decision, not a drive-by edit.
   gated on `Board#viewable_by?`, which refuses an anonymous visitor an
   unpublished board — so favoriting alone served a working card that 404'd on
   tap, and that was the DEFAULT state (Board Builder roots and
-  `AssignmentCloner` clones are both born unpublished). Both halves are
+  `SetCloner` clones are both born unpublished). Both halves are
   required. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
   `favorite` transition so no call site can forget it, publishes the board and
   cascades to its set. READ: `Profile#communication_boards` and
@@ -680,8 +709,8 @@ an explicit decision, not a drive-by edit.
   time the set is still empty. `child_boards.published` is a dead column that
   nothing writes; read `board.published?`.
 - **The MySpeak wizard's starter board is the PARENT'S OWN board, and it is
-  gated like any other board create.** Every other `Boards::AssignmentCloner`
-  call site mints a per-communicator template — invisible in the owner's board
+  gated like any other board create.** The two ASSIGNMENT `Boards::SetCloner`
+  call sites mint a per-communicator template — invisible in the owner's board
   list, uncountable against `board_limit`, capped per communicator instead. The
   wizard is not an assignment: the board it attaches is the one the child's
   PUBLIC page links to, so an owner who cannot see it edits a different copy and
@@ -695,7 +724,16 @@ an explicit decision, not a drive-by edit.
   `current_user.boards` (the association's `is_template: false` filter is what
   stops a stale invisible clone being re-attached). The board step never blocks
   setup, so every refusal rides back in the response's `starter_board` — a
-  silent skip is indistinguishable from success to the client.
+  silent skip is indistinguishable from success to the client. That report also
+  carries `boards_created` / `flattened_tiles`, because a starter with folder
+  tiles now brings its pages along at one slot each and "we set up her board"
+  should say what it actually made. Two more things the wizard has to respect:
+  the per-communicator cap applies to BOTH branches (a board she already owns
+  fills a dashboard exactly as much as a fresh clone, and the check used to sit
+  inside the clone branch only), and `favorite_starter!` must publish when the
+  board is not published rather than relying on the favorite TRANSITION — an
+  already-favorited row saved nothing, never reached `MySpeakPublisher`, and
+  left a card on a public page that 404s on tap.
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);
@@ -781,7 +819,7 @@ an explicit decision, not a drive-by edit.
   either of which a clone fails — and ordered by `:id`, so the winner is the
   oldest row rather than an alphabetical accident. `clone_with_images` strips
   both keys alongside the cover-snapshot keys it already dropped, which covers
-  every clone path (`POST /api/boards/:id/clone`, `AssignmentCloner`,
+  every clone path (`POST /api/boards/:id/clone`, `SetCloner`,
   `BoardSnapshotService`, MySpeak onboarding, `from_vocab_set`) at once; where a
   caller can supply `settings`, strip AFTER the merge or the caller puts them
   back. And the name comes from `RobustSets.display_name_for(slug)` — a
@@ -1154,7 +1192,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/credits.md` | AI credit ledger: `CreditService`, feature costs, `check_credits!` / 402 contract, grant lifecycle + refresh/expiry cron jobs, menu image budget + refunds, free first-fill image generation, credits rake tasks, beta entitlement audit, email verification's welcome-token/credit grant |
 | `.claude-notes/marketing-integrations.md` | Mailchimp CRM sync + Customer Journeys (all journey keys + ENV wiring), dual-welcome design, plan-welcome idempotency, PostHog server-side events + `distinct_id` contract |
 | `.claude-notes/safety-profiles.md` | MySpeak safety pages: gated emergency-info reveal, view logging + parent alerts + throttling, coarse IP geolocation, random slugs + legacy-slug fallback |
-| `.claude-notes/boards-and-teams.md` | Team permissions / owner-pinning, SLP→family hand-off, board assignment deep clone (`AssignmentCloner`), non-destructive board removal, board deletion warn+confirm (409), frozen published slugs, Board Sets (BoardGroup) CRUD + limits, responsive layouts (sm/md derived from lg), OBF/OBZ import copyright policy, Make a Board From Screenshot |
+| `.claude-notes/boards-and-teams.md` | Team permissions / owner-pinning, SLP→family hand-off, board/set deep clone (`SetCloner`, `CloneSetPlanner`), non-destructive board removal, board deletion warn+confirm (409), frozen published slugs, Board Sets (BoardGroup) CRUD + limits, responsive layouts (sm/md derived from lg), OBF/OBZ import copyright policy, Make a Board From Screenshot |
 | `.claude-notes/board-builder.md` | Board Builder wizard end-to-end: starter templates, complexity levels + `StructurePlanner`, Core 60/84 robust vocab sets + seed self-healing, communicator AAC profile, gestalt (GLP) support, all builder rake tasks, the `/admin/board_builder_templates` registry + health page |
 | `.claude-notes/ops.md` | Monitoring/alerting details, AppSignal APM config, full Rack::Attack throttle rules + ENV vars |
 | `.claude-notes/marketing-assets.md` | AAC Classroom Kit hosting: `MarketingAsset`, internal endpoints, marketing print style, QR scannability rule (do not re-add long UTMs to tag QRs) |

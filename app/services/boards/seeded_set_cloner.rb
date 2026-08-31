@@ -114,7 +114,7 @@ module Boards
     end
 
     # BFS over predictive_board_id links from the root (shared with
-    # Boards::AssignmentCloner via PredictiveLinkSet).
+    # Boards::SetCloner via PredictiveLinkSet).
     def collect_source_boards(root)
       Boards::PredictiveLinkSet.collect(root, max_depth: MAX_DEPTH,
                                               exclude: method(:excluded_source?))
@@ -280,7 +280,7 @@ module Boards
     # Translate every cloned folder tile's pointer to its cloned counterpart.
     # A pointer that leaves the set (out of depth, or a cycle target we didn't
     # collect) is nulled — never leave a user tile opening an admin-owned board.
-    # (Shared with Boards::AssignmentCloner via PredictiveLinkSet.)
+    # (Shared with Boards::SetCloner via PredictiveLinkSet.)
     def rewire_predictive_links!
       Boards::PredictiveLinkSet.rewire!(@map, out_of_set: :null)
     end

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Boards::AssignmentCloner do
+RSpec.describe Boards::SetCloner do
   let(:slp)          { create(:user) }
   let(:owner)        { create(:user) }
   let(:communicator) { create(:child_account, user: owner) }
@@ -89,18 +89,96 @@ RSpec.describe Boards::AssignmentCloner do
       ).to exist
     end
 
-    it "counts toward the owner's board limit" do
-      expect { call!(template_root: false) }.to change { User.find(owner.id).countable_board_count }.by(1)
+    # ONE SLOT PER BOARD. The sub-clones used to be forced to templates
+    # regardless, so a 6-board set cost exactly 1 slot and its 5 pages were
+    # invisible in the owner's board list — reachable only by tapping a folder
+    # tile, and impossible to find in order to edit.
+    it "counts every board in the set toward the owner's board limit" do
+      expect { call!(template_root: false) }
+        .to change { User.find(owner.id).countable_board_count }.by(2)
     end
 
-    it "still clones sub-boards as templates with no ChildBoard rows" do
+    it "clones sub-boards as real, listed boards — still with no ChildBoard rows" do
       root_clone = call!(template_root: false)
       sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
 
-      expect(sub_clone.is_template).to be true
-      expect(sub_clone.settings["assignment_root_id"]).to eq(root_clone.id)
+      expect(sub_clone.is_template).to be false
+      expect(owner.boards).to include(sub_clone)
+      # Sub-boards surface through folder navigation, never as their own
+      # dashboard card.
       expect(ChildBoard.where(board_id: sub_clone.id)).not_to exist
     end
+
+    # assignment_root_id is what Boards::PublishCascade walks to publish a
+    # starter's pages with its root (it does NOT filter on is_template), so it
+    # is stamped either way. assignment_child means "throwaway per-communicator
+    # page" and its one reader is lib/tasks/myspeak.rake — a board the user owns
+    # and paid a slot for is not throwaway.
+    it "stamps assignment_root_id but not assignment_child" do
+      root_clone = call!(template_root: false)
+      sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
+
+      expect(sub_clone.settings["assignment_root_id"]).to eq(root_clone.id)
+      expect(sub_clone.settings["assignment_child"]).to be_nil
+    end
+
+    it "reports how many boards it created" do
+      cloner = described_class.new(source_root, owner: owner, communicator: communicator,
+                                                template_root: false)
+      cloner.call
+
+      expect(cloner.boards_created).to eq(2)
+      expect(cloner.tiles_flattened).to eq(0)
+    end
+  end
+
+  describe "max_boards: (the slot budget)" do
+    it "clones only what fits and flattens the tiles whose targets were dropped" do
+      cloner = described_class.new(source_root, owner: owner, communicator: communicator,
+                                                template_root: false, max_boards: 1,
+                                                out_of_set: :flatten)
+      root_clone = cloner.call
+
+      expect(cloner.boards_created).to eq(1)
+      expect(cloner.tiles_flattened).to eq(1)
+      expect(root_clone.board_images.where.not(predictive_board_id: nil)).to be_empty
+      expect(User.find(owner.id).countable_board_count).to eq(1)
+    end
+
+    # Dropping the pointer alone leaves a muted tile with nowhere to go.
+    it "leaves the dropped folder tile speaking, not silently broken" do
+      link = source_root.board_images.find_by(predictive_board_id: source_food.id)
+      link.update!(data: (link.data || {}).merge("mute_name" => true))
+
+      root_clone = described_class.new(source_root, owner: owner, template_root: false,
+                                                    max_boards: 1, out_of_set: :flatten).call
+      tile = root_clone.board_images.find_by(label: link.label)
+
+      expect(tile.door_tile?).to be(false)
+      expect(tile.data["mute_name"]).to be_nil
+    end
+
+    it "prefixes sub-clone names when asked, so the new rows are distinguishable" do
+      root_clone = described_class.new(source_root, owner: owner, name: "Home",
+                                                    template_root: false,
+                                                    prefix_sub_names: true).call
+      sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
+
+      expect(sub_clone.name).to eq("Home · Food")
+    end
+  end
+
+  # A tile aiming at the board it sits on is IN the set, so it maps to the root
+  # clone and keeps working. The old ownership-based flatten treated it as
+  # foreign and broke it on every cross-account copy.
+  it "rewires a self-link to the root clone rather than flattening it" do
+    self_link = link!(source_root, source_root, label: "Home")
+
+    root_clone = described_class.new(source_root, owner: owner, template_root: false,
+                                                  out_of_set: :flatten).call
+    tile = root_clone.board_images.find_by(label: self_link.label)
+
+    expect(tile.predictive_board_id).to eq(root_clone.id)
   end
 
   # Assignment is the path that produced a communicator dashboard of boards with
