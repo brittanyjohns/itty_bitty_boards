@@ -47,7 +47,7 @@ module ClinicianApplications
       end
 
       grant_clinician_credits!(user)
-      ClinicianMailer.approved_email(@application).deliver_later
+      notify_applicant(ClinicianMailer.approved_email(@application))
       Result.new(ok: true)
     rescue => e
       Rails.logger.error "[ClinicianApplications::Reviewer] approve failed for ##{@application&.id}: #{e.class} - #{e.message}"
@@ -64,7 +64,7 @@ module ClinicianApplications
         notes: @notes.presence,
       )
 
-      ClinicianMailer.denied_email(@application).deliver_later
+      notify_applicant(ClinicianMailer.denied_email(@application))
       Result.new(ok: true)
     rescue => e
       Rails.logger.error "[ClinicianApplications::Reviewer] deny failed for ##{@application&.id}: #{e.class} - #{e.message}"
@@ -72,6 +72,18 @@ module ClinicianApplications
     end
 
     private
+
+    # The applicant email is a notification, not part of the review. By the time
+    # it runs the plan flip, the status update and the credit grant have all
+    # committed, so a Redis/ActiveJob blip must never report the review as failed
+    # — a retry would only hit the `not_pending` guard and tell the admin it was
+    # already reviewed (repo invariant: external-service failures fail soft).
+    # Called after the transaction so the job can never name an uncommitted row.
+    def notify_applicant(mail)
+      mail.deliver_later
+    rescue => e
+      Rails.logger.error "[ClinicianApplications::Reviewer] applicant email failed for ##{@application&.id}: #{e.class} - #{e.message}"
+    end
 
     def grant_clinician_credits!(user)
       amount = CreditService.monthly_credits_for("clinician")
