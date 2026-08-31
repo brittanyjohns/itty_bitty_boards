@@ -690,6 +690,37 @@ RSpec.describe Board, type: :model do
         expect(board.board_images.where(status: "skipped").count).to eq(1)
       end
 
+      context "on a menu board" do
+        let(:board) { FactoryBot.create(:board, user: user, board_type: "menu") }
+
+        it "creates over-budget menu words as private menu images without categorizing" do
+          expect(AacWordCategorizer).not_to receive(:categorize)
+
+          board.find_or_create_images_from_word_list(words, max_generate: 1, menu_prompts: prompts)
+
+          overflow = board.images.find_by(label: "virginia")
+          expect(overflow.image_type).to eq("menu")
+          expect(overflow.is_private).to be(true)
+          expect(overflow.user_id).to eq(user.id)
+          expect(overflow.image_prompt).to eq(prompts["virginia"])
+        end
+
+        it "paints every tile white" do
+          board.find_or_create_images_from_word_list(words, max_generate: 1, menu_prompts: prompts)
+
+          expect(board.board_images.pluck(:bg_color).uniq).to eq(["#FFFFFF"])
+        end
+
+        it "still reuses library art for an over-budget word" do
+          existing = FactoryBot.create(:image, label: "virginia", user: admin_user)
+          FactoryBot.create(:doc, documentable: existing, user: admin_user, processed: "img")
+
+          board.find_or_create_images_from_word_list(words, max_generate: 1, menu_prompts: prompts)
+
+          expect(board.images.find_by(label: "virginia").id).to eq(existing.id)
+        end
+      end
+
       it "reuses library art without generating when max_generate is zero" do
         existing = FactoryBot.create(:image, label: "single", user: admin_user)
         FactoryBot.create(:doc, documentable: existing, user: admin_user, processed: "img")

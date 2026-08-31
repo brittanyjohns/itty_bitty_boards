@@ -1320,7 +1320,21 @@ class Board < ApplicationRecord
         image = user.images.by_label(word).first if user_id
 
         image = Image.public_img.by_label(word).find_by(user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-        new_image = Image.create(label: word) unless image
+        unless image
+          # On a menu board every new image is a menu item, whether or not it
+          # fit the generation budget: private and user-owned for the same
+          # reason as above, and image_type "menu" so ensure_defaults skips
+          # AacWordCategorizer entirely. That categorizer call is a synchronous
+          # OpenAI request per unmatched dish name, inside the user-facing
+          # generation path.
+          new_image =
+            if is_a_menu?
+              Image.create(label: word, user_id: user_id, is_private: true,
+                           image_type: "menu", image_prompt: menu_prompt)
+            else
+              Image.create(label: word)
+            end
+        end
         image ||= new_image
         display_doc = image.display_tile_url(user)
         if display_doc.blank?
@@ -2105,7 +2119,9 @@ class Board < ApplicationRecord
         # raw answer, so a tile's colour and its band cannot disagree.
         pos = item[:part_of_speech]
         bi.data["part_of_speech"] = pos if pos.present?
-        bi.data["bg_color"] = bi.background_color_for(pos) if pos.present?
+        # Resolved rather than derived straight from `pos`: a menu board stays
+        # white however its tiles are categorized.
+        bi.data["bg_color"] = bi.resolved_background_color(pos) if pos.present?
 
         bi.layout ||= {}
         SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|

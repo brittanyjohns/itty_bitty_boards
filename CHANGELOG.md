@@ -7,6 +7,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Menu board tiles are now white.** A menu board's tiles are dishes, not AAC
+  vocabulary, so the Modified Fitzgerald colours meant nothing on them: every
+  tile came out orange, and tiles that reused a library picture came out in
+  whatever colour that word's category happened to be, so one menu printed in
+  mixed colours. Menu tiles are now white on screen and in the PDF export, and
+  generating a menu board no longer looks up a part of speech at all — which
+  also removes a blocking AI call per menu item once a menu ran past its
+  picture budget. Existing menu boards keep their current colours until they
+  are regenerated.
+
 - **A communicator can now add a word to their own board.** `POST
   /api/boards/:id/add_image` accepted a user token only, so a nonspeaking user
   signed in as themselves got a 401 — which made the app's new Quick add button

@@ -140,7 +140,7 @@ class Image < ApplicationRecord
   end
 
   def do_not_categorize?
-    image_type == "menu" || image_type == "SampleVoice" || skip_categorize
+    menu? || image_type == "SampleVoice" || skip_categorize
   end
 
   # Every text-to-image prompt is composed by Images::PromptBuilder — see that
@@ -278,11 +278,20 @@ class Image < ApplicationRecord
     end
   end
 
+  # A menu image is a dish, not AAC vocabulary: the Modified Fitzgerald colour
+  # says nothing about it and the generated food photo carries the tile. Applied
+  # here as well as in ensure_defaults because update_all_background_colors
+  # sweeps rows coloured "white" and would otherwise repaint every one of them.
+  def resolved_background_color
+    return ColorHelper::PRESET_HEX["white"] if menu?
+    background_color_for(part_of_speech)
+  end
+
   # Called from an after_save, so it must not re-enter save! — that would run
   # ensure_defaults again and re-categorize over the value that just triggered
   # this refresh. update_columns writes the derived colors and stops there.
   def update_background_color
-    bg = background_color_for(part_of_speech)
+    bg = resolved_background_color
     txt = text_color_for(bg)
 
     if persisted?
@@ -294,8 +303,15 @@ class Image < ApplicationRecord
   end
 
   def ensure_defaults
-    if image_type == "menu"
-      self.part_of_speech = "noun"
+    if menu?
+      # No categorizer call and no Fitzgerald colour. bg_color is assigned
+      # unconditionally, in the same write as part_of_speech: the after_save
+      # :update_background_color guard skips only when the colour moved
+      # alongside the category, so leaving it blank here is what would let the
+      # callback repaint this tile.
+      self.part_of_speech = part_of_speech.presence || "default"
+      self.bg_color = resolved_background_color
+      self.text_color = text_color_for(bg_color)
     elsif part_of_speech == "phrase"
       # Whole-phrase gestalt tiles (Script Collector / GLP templates) keep their
       # explicit "phrase" part of speech instead of being re-categorized as a
@@ -358,12 +374,12 @@ class Image < ApplicationRecord
   end
 
   def should_generate_symbol?
-    return false if image_type == "menu"
+    return false if menu?
     label_changed? && open_symbol_status == "active"
   end
 
   def should_set_next_words?
-    return false if image_type == "menu"
+    return false if menu?
     return true if next_words.blank? && no_next == false
     words_to_check = next_words - [label]
     if words_to_check.blank?
@@ -560,8 +576,11 @@ class Image < ApplicationRecord
     end
   end
 
+  # Menu.set_image_types writes "Menu" with a capital M, so a case-sensitive
+  # test silently misses those rows and lets them be categorized like ordinary
+  # vocabulary. This is the single menu predicate — compare through it.
   def menu?
-    image_type == "menu"
+    image_type.to_s.casecmp?("menu")
   end
 
   def finished?

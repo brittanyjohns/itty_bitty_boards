@@ -65,4 +65,41 @@ RSpec.describe Image, "tile colors" do
       expect(image.reload.bg_color).to eq("#123456")
     end
   end
+
+  describe "menu images" do
+    # A menu item is a dish, not AAC vocabulary: no Fitzgerald colour, and no
+    # categorizer call (which is a synchronous OpenAI request).
+    it "is white with no category and never calls the categorizer" do
+      expect(AacWordCategorizer).not_to receive(:categorize)
+
+      menu_image = FactoryBot.create(:image, label: "virginia", image_type: "menu")
+
+      expect(menu_image.reload.bg_color).to eq("#FFFFFF")
+      expect(menu_image.text_color).to eq("#000000")
+      expect(menu_image.part_of_speech).to eq("default")
+    end
+
+    it "stays white across a later save" do
+      menu_image = FactoryBot.create(:image, label: "single", image_type: "menu")
+
+      menu_image.update!(label: "single burger")
+
+      expect(menu_image.reload.bg_color).to eq("#FFFFFF")
+    end
+
+    it "stays white when update_all_background_colors sweeps it" do
+      menu_image = FactoryBot.create(:image, label: "biscuit", image_type: "menu")
+
+      Image.update_all_background_colors
+
+      expect(menu_image.reload.bg_color).to eq("#FFFFFF")
+    end
+
+    it "recognizes the legacy capitalized image_type" do
+      menu_image = FactoryBot.create(:image, label: "ham", image_type: "Menu")
+
+      expect(menu_image.reload.bg_color).to eq("#FFFFFF")
+      expect(menu_image).to be_menu
+    end
+  end
 end

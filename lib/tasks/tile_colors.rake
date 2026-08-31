@@ -40,7 +40,10 @@ module TileColorRepair
     return nil if authored?(record)
 
     pos = record.is_a?(BoardImage) ? record.effective_part_of_speech : record.part_of_speech
-    expected = record.background_color_for(pos)
+    # resolved_background_color, not background_color_for: a menu tile is white
+    # by rule, and white is in PRESET_HEX — so `authored?` lets it through and
+    # repairing from the category would repaint every menu board gray.
+    expected = record.resolved_background_color
     return nil if expected.blank?
 
     current = record.bg_color.presence && ::ColorHelper.to_hex(record.bg_color, default: "").upcase
