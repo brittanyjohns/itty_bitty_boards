@@ -31,6 +31,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   and is rescued and logged — a mailer failure can never roll back the
   application the clinician just submitted.
 
+- **A user on a trial can upgrade again.** Anyone on a Basic or Pro trial
+  without a card on file got *"Something went wrong loading plan details"* every
+  time they opened the plan-change modal, with no way forward but closing it.
+  `preview_plan_change` was asking Stripe for an upcoming invoice, which Stripe
+  refuses outright for a no-card trial ("the subscription will cancel at the end
+  of the trial instead of generating an invoice") — and since Stripe does not
+  prorate during a trial, there was never anything to ask for. Trials are now
+  priced directly: $0 due today, the trial end date unchanged, the new price
+  billed when the trial ends. No card is requested mid-trial. If Stripe cannot
+  price a non-trial switch for any other reason, the modal now degrades to the
+  plan name, price and next billing date and still lets you confirm, rather than
+  failing. Plan-change errors also carry machine-readable codes, and Stripe
+  failures are logged with the detail needed to diagnose them and reported to
+  AppSignal instead of passing silently as an ordinary 400.
+
 - **A communicator can now add a word to their own board.** `POST
   /api/boards/:id/add_image` accepted a user token only, so a nonspeaking user
   signed in as themselves got a 401 — which made the app's new Quick add button

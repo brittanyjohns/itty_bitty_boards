@@ -14,7 +14,8 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
   end
 
   let(:new_price) do
-    OpenStruct.new(id: "price_pro", unit_amount: 999, metadata: { "plan_type" => "pro" },
+    OpenStruct.new(id: "price_pro", unit_amount: 999, currency: "usd",
+                   metadata: { "plan_type" => "pro" },
                    recurring: OpenStruct.new(interval: "month"))
   end
 
@@ -73,6 +74,8 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       expect(body["currency"]).to eq("usd")
       expect(body["discount"]).to be_nil
       expect(body["payment_method_required"]).to eq(false)
+      expect(body["trialing"]).to eq(false)
+      expect(body["preview_unavailable"]).to eq(false)
     end
 
     it "calls Invoice.upcoming with subscription_details params" do
@@ -119,7 +122,8 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
 
   context "yearly plan" do
     let(:yearly_price) do
-      OpenStruct.new(id: "price_pro_year", unit_amount: 9999, metadata: { "plan_type" => "pro" },
+      OpenStruct.new(id: "price_pro_year", unit_amount: 9999, currency: "usd",
+                     metadata: { "plan_type" => "pro" },
                      recurring: OpenStruct.new(interval: "year"))
     end
 
@@ -144,7 +148,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       do_post(plan_key: "basic")
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(JSON.parse(response.body)["error"]).to eq("Already on this plan")
+      expect(JSON.parse(response.body)["error"]).to eq("already_on_plan")
     end
   end
 
@@ -153,7 +157,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       do_post(plan_key: "nonsense")
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(JSON.parse(response.body)["error"]).to eq("Unknown or unsupported plan")
+      expect(JSON.parse(response.body)["error"]).to eq("unknown_plan")
     end
   end
 
@@ -172,7 +176,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       do_post
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(JSON.parse(response.body)["error"]).to eq("No active subscription to change")
+      expect(JSON.parse(response.body)["error"]).to eq("no_subscription")
     end
   end
 
@@ -192,19 +196,51 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
   context "trialing subscription" do
     let(:trialing_sub) do
       OpenStruct.new(id: "sub_trial", status: "trialing", current_period_end: 1760551812,
-                     items: OpenStruct.new(data: [sub_item]))
+                     trial_end: 1760551812, items: OpenStruct.new(data: [sub_item]))
     end
 
     before do
       stub_subscription_list([trialing_sub])
-      allow(Stripe::Invoice).to receive(:upcoming).and_return(upcoming_invoice)
       allow(Stripe::Price).to receive(:retrieve).with("price_pro").and_return(new_price)
+      # A no-card trial customer: the branch that used to break the whole flow.
+      allow(Stripe::Customer).to receive(:retrieve).and_return(customer_without_pm)
     end
 
-    it "is eligible for preview" do
+    it "prices the switch without asking Stripe for an upcoming invoice" do
+      expect(Stripe::Invoice).not_to receive(:upcoming)
+
       do_post
 
       expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["trialing"]).to eq(true)
+      expect(body["proration_amount_cents"]).to eq(0)
+      expect(body["new_recurring_amount_cents"]).to eq(999)
+      expect(body["currency"]).to eq("usd")
+      expect(body["preview_unavailable"]).to eq(false)
+      expect(body["trial_end"]).to eq(Time.at(1760551812).iso8601)
+      expect(body["next_billing_date"]).to eq(Time.at(1760551812).iso8601)
+    end
+
+    it "never demands a payment method mid-trial" do
+      do_post
+
+      expect(JSON.parse(response.body)["payment_method_required"]).to eq(false)
+    end
+
+    it "still succeeds when Invoice.upcoming would have been refused" do
+      # The real Stripe refusal for a no-card reverse trial. Reaching it at all
+      # would mean the trial branch regressed.
+      allow(Stripe::Invoice).to receive(:upcoming).and_raise(
+        Stripe::InvalidRequestError.new(
+          "The subscription will cancel at the end of the trial instead of generating an invoice", nil
+        ),
+      )
+
+      do_post
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["proration_amount_cents"]).to eq(0)
     end
   end
 
@@ -242,17 +278,90 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     end
   end
 
-  context "when Stripe raises" do
+  context "when Stripe cannot price the switch" do
+    before do
+      stub_subscription_list([active_sub])
+      allow(Stripe::Price).to receive(:retrieve).with("price_pro").and_return(new_price)
+    end
+
+    it "degrades to a confirmable preview instead of failing" do
+      allow(Stripe::Invoice).to receive(:upcoming)
+        .and_raise(Stripe::InvalidRequestError.new("no upcoming invoices", nil))
+
+      do_post
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["preview_unavailable"]).to eq(true)
+      expect(body["proration_amount_cents"]).to be_nil
+      expect(body["new_recurring_amount_cents"]).to eq(999)
+      expect(body["currency"]).to eq("usd")
+      # Nothing is known to be due, so we cannot claim a card is needed.
+      expect(body["payment_method_required"]).to eq(false)
+    end
+  end
+
+  context "when Stripe fails on a call the preview cannot do without" do
     before { stub_subscription_list([active_sub]) }
 
-    it "returns 400 with a generic message" do
-      allow(Stripe::Invoice).to receive(:upcoming)
-        .and_raise(Stripe::InvalidRequestError.new("bad params", nil))
+    it "returns 400 with a machine-readable code" do
+      allow(Stripe::Invoice).to receive(:upcoming).and_return(upcoming_invoice)
+      allow(Stripe::Price).to receive(:retrieve)
+        .and_raise(Stripe::APIError.new("stripe is down"))
 
       do_post
 
       expect(response).to have_http_status(:bad_request)
-      expect(JSON.parse(response.body)["error"]).to eq("Failed to preview plan change")
+      expect(JSON.parse(response.body)["error"]).to eq("preview_failed")
+    end
+  end
+
+  context "subscription carrying an extra-communicator add-on" do
+    let(:addon_price) do
+      OpenStruct.new(id: "price_extra_comm", metadata: {},
+                     recurring: OpenStruct.new(interval: "month"))
+    end
+    let(:addon_item) { OpenStruct.new(id: "si_addon", price: addon_price) }
+    let(:sub_with_addon) do
+      OpenStruct.new(id: "sub_active", status: "active", current_period_end: 1760551812,
+                     items: OpenStruct.new(data: [addon_item, sub_item]))
+    end
+
+    before do
+      stub_subscription_list([sub_with_addon])
+      allow(Billing::ExtraCommunicators).to receive(:extra_comm_item?) { |i| i.id == "si_addon" }
+      allow(Stripe::Price).to receive(:retrieve).with("price_pro").and_return(new_price)
+    end
+
+    it "reprices the plan item, not the add-on sitting first" do
+      expect(Stripe::Invoice).to receive(:upcoming) do |params|
+        expect(params[:subscription_details][:items]).to eq([{ id: "si_123", price: "price_pro" }])
+        upcoming_invoice
+      end
+
+      do_post
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  context "subscription with no period end" do
+    let(:undated_sub) do
+      OpenStruct.new(id: "sub_active", status: "active", current_period_end: nil,
+                     items: OpenStruct.new(data: [sub_item]))
+    end
+
+    before do
+      stub_subscription_list([undated_sub])
+      allow(Stripe::Invoice).to receive(:upcoming).and_return(upcoming_invoice)
+      allow(Stripe::Price).to receive(:retrieve).with("price_pro").and_return(new_price)
+    end
+
+    it "omits the date rather than raising a 500" do
+      do_post
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["next_billing_date"]).to be_nil
     end
   end
 end

@@ -114,69 +114,78 @@ class API::SubscriptionsController < API::ApplicationController
     price_id = API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS[plan_key]
 
     if price_id.blank?
-      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_content
+      render json: { error: "unknown_plan", message: "Unknown or unsupported plan" }, status: :unprocessable_content
       return
     end
 
     customer_id = current_user.stripe_customer_id
     if customer_id.blank?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_content
+      render json: { error: "no_subscription", message: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     subscription = active_subscription_for(customer_id)
-    if subscription.nil?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_content
+    item = subscription && plan_item_for(subscription)
+    if item.nil?
+      render json: { error: "no_subscription", message: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
-    current_price = subscription.items.data.first.price
-    if current_price.id == price_id
-      render json: { error: "Already on this plan" }, status: :unprocessable_content
+    if item.price.id == price_id
+      render json: { error: "already_on_plan", message: "You're already on this plan." }, status: :unprocessable_content
       return
     end
-
-    item = subscription.items.data.first
-    details = {
-      items: [{ id: item.id, price: price_id }],
-      proration_behavior: "create_prorations",
-    }
 
     promo = resolve_promotion_code(params[:promo_code])
-    if promo.present?
-      details[:discounts] = [{ promotion_code: promo.id }]
-    end
+    trialing = subscription.status == "trialing"
 
-    invoice_params = {
-      customer: customer_id,
-      subscription: subscription.id,
-      subscription_details: details,
-    }
+    # Stripe does not prorate during a trial -- the switch takes effect now and
+    # the new price is billed at trial end -- so nothing is due today and there
+    # is nothing to ask Stripe for. Asking anyway is worse than redundant: for a
+    # no-card reverse trial the upcoming-invoice preview is REFUSED outright
+    # ("The subscription will cancel at the end of the trial ...
+    # trial_settings[end_behavior][missing_payment_method] is set to `cancel`"),
+    # and that describes every trial we start (Billing::StartTrial). That
+    # refusal is why a trialist could not upgrade at all: it landed in the
+    # rescue below and the modal had nothing to show but an error.
+    upcoming = trialing ? nil : upcoming_invoice_for(customer_id, subscription, item, price_id, promo)
 
-    upcoming = Stripe::Invoice.upcoming(invoice_params)
     new_price = Stripe::Price.retrieve(price_id)
+    proration_cents = trialing ? 0 : upcoming&.amount_due
+    trial_end = subscription.trial_end if subscription.respond_to?(:trial_end)
 
     # Warn up-front when this switch bills the customer today but they have no
-    # payment method on file — so the modal prompts them to the billing portal
+    # payment method on file -- so the modal prompts them to the billing portal
     # before they hit a Confirm that would only fail. Credit-only downgrades
-    # (amount_due <= 0) don't need a card, so they aren't flagged.
+    # (amount_due <= 0) don't need a card, so they aren't flagged. Neither is a
+    # trialist: nothing is charged until the trial ends, and demanding a card
+    # mid-trial is the exact friction the no-card trial exists to avoid.
     payment_method_required =
-      upcoming.amount_due.to_i > 0 && !customer_has_payment_method?(customer_id, subscription)
+      !trialing &&
+      proration_cents.to_i > 0 &&
+      !customer_has_payment_method?(customer_id, subscription)
 
     render json: {
       current_plan: current_user.plan_type,
       new_plan: new_price.metadata["plan_type"] || plan_key.sub(/_yearly$/, ""),
-      proration_amount_cents: upcoming.amount_due,
+      proration_amount_cents: proration_cents,
       new_recurring_amount_cents: new_price.unit_amount,
       billing_interval: new_price.recurring&.interval == "year" ? "yearly" : "monthly",
-      next_billing_date: Time.at(subscription.current_period_end).iso8601,
+      next_billing_date: epoch_iso8601(trialing ? (trial_end || subscription.current_period_end) : subscription.current_period_end),
       discount: promo.present? ? { code: params[:promo_code].to_s.strip, percent_off: promo.coupon&.percent_off, amount_off: promo.coupon&.amount_off } : nil,
-      currency: upcoming.currency,
+      currency: upcoming&.currency || new_price.currency,
       payment_method_required: payment_method_required,
+      trialing: trialing,
+      trial_end: epoch_iso8601(trial_end),
+      # True when we could not price the switch. The frontend then drops its
+      # "Due today" line and still offers Confirm -- Stripe prices the change
+      # for real when it happens, and a modal that can only say no is worse
+      # than one that says "the exact amount will be on your receipt".
+      preview_unavailable: !trialing && upcoming.nil?,
     }, status: :ok
   rescue Stripe::StripeError => e
-    Rails.logger.error "preview_plan_change: #{e.class} - #{e.message} (user #{current_user.id})"
-    render json: { error: "Failed to preview plan change" }, status: :bad_request
+    report_stripe_error("preview_plan_change", e, plan_key: plan_key)
+    render json: { error: "preview_failed", message: "Failed to preview plan change" }, status: :bad_request
   end
 
   # In-app plan switch — updates the subscription directly via the Stripe
@@ -190,29 +199,28 @@ class API::SubscriptionsController < API::ApplicationController
     price_id = API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS[plan_key]
 
     if price_id.blank?
-      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_content
+      render json: { error: "unknown_plan", message: "Unknown or unsupported plan" }, status: :unprocessable_content
       return
     end
 
     customer_id = current_user.stripe_customer_id
     if customer_id.blank?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_content
+      render json: { error: "no_subscription", message: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     subscription = active_subscription_for(customer_id)
-    if subscription.nil?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_content
+    item = subscription && plan_item_for(subscription)
+    if item.nil?
+      render json: { error: "no_subscription", message: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
-    current_price = subscription.items.data.first.price
-    if current_price.id == price_id
-      render json: { error: "Already on this plan" }, status: :unprocessable_content
+    if item.price.id == price_id
+      render json: { error: "already_on_plan", message: "You're already on this plan." }, status: :unprocessable_content
       return
     end
 
-    item = subscription.items.data.first
     update_params = {
       items: [{ id: item.id, price: price_id }],
       proration_behavior: "create_prorations",
@@ -230,10 +238,10 @@ class API::SubscriptionsController < API::ApplicationController
       plan: new_price_obj.metadata["plan_type"] || plan_key.sub(/_yearly$/, ""),
       status: updated_sub.status,
       billing_interval: new_price_obj.recurring&.interval == "year" ? "yearly" : "monthly",
-      current_period_end: Time.at(updated_sub.current_period_end).iso8601,
+      current_period_end: epoch_iso8601(updated_sub.current_period_end),
     }, status: :ok
   rescue Stripe::CardError => e
-    Rails.logger.error "change_plan card error: #{e.class} - #{e.message} (user #{current_user.id})"
+    report_stripe_error("change_plan card error", e, plan_key: plan_key)
     render json: { error: "payment_failed", message: "Your payment method was declined. Please update it and try again." }, status: :payment_required
   rescue Stripe::InvalidRequestError => e
     # An upgrade (or interval switch) that bills immediately fails when the
@@ -244,12 +252,12 @@ class API::SubscriptionsController < API::ApplicationController
       Rails.logger.warn "change_plan no payment method: #{e.message} (user #{current_user.id})"
       render json: { error: "payment_method_required", message: "You don't have a payment method on file. Add one in the billing portal, then try changing your plan again." }, status: :payment_required
     else
-      Rails.logger.error "change_plan: #{e.class} - #{e.message} (user #{current_user.id})"
-      render json: { error: "Failed to change plan" }, status: :bad_request
+      report_stripe_error("change_plan", e, plan_key: plan_key)
+      render json: { error: "change_failed", message: "Failed to change plan" }, status: :bad_request
     end
   rescue Stripe::StripeError => e
-    Rails.logger.error "change_plan: #{e.class} - #{e.message} (user #{current_user.id})"
-    render json: { error: "Failed to change plan" }, status: :bad_request
+    report_stripe_error("change_plan", e, plan_key: plan_key)
+    render json: { error: "change_failed", message: "Failed to change plan" }, status: :bad_request
   end
 
   def create_customer_session
@@ -367,9 +375,67 @@ class API::SubscriptionsController < API::ApplicationController
 
   # "yearly" when the plan (non-add-on) item bills annually, else "monthly".
   def billing_interval_for_subscription(subscription)
-    plan_item = subscription.items.data.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
-    interval = plan_item&.price&.recurring&.interval
+    interval = plan_item_for(subscription)&.price&.recurring&.interval
     interval == "year" ? "yearly" : "monthly"
+  end
+
+  # The subscription item a plan change should reprice. NEVER items.data.first:
+  # a Pro subscriber carrying the extra-communicator add-on can have the add-on
+  # sitting first, and repricing that item swaps the add-on for the plan.
+  def plan_item_for(subscription)
+    subscription.items.data.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
+  end
+
+  # The upcoming-invoice preview for a plan switch, or nil when Stripe declines
+  # to produce one. Rescued locally rather than at the action level on purpose:
+  # this call is the only part of the payload that needs it, and the plan name,
+  # recurring price, interval and period end all come from elsewhere -- so a
+  # refusal degrades the confirm screen instead of dead-ending it.
+  def upcoming_invoice_for(customer_id, subscription, item, price_id, promo)
+    details = {
+      items: [{ id: item.id, price: price_id }],
+      proration_behavior: "create_prorations",
+    }
+    details[:discounts] = [{ promotion_code: promo.id }] if promo.present?
+
+    Stripe::Invoice.upcoming(
+      customer: customer_id,
+      subscription: subscription.id,
+      subscription_details: details,
+    )
+  rescue Stripe::StripeError => e
+    report_stripe_error("preview_plan_change upcoming invoice", e)
+    nil
+  end
+
+  # Stripe hands epoch seconds, and a nil one used to raise TypeError out of
+  # Time.at -- past the Stripe::StripeError rescues, so it 500'd with an HTML
+  # body that the client then failed to parse as JSON. Omit the date instead.
+  def epoch_iso8601(seconds)
+    return nil if seconds.nil?
+
+    Time.at(seconds).iso8601
+  rescue TypeError, RangeError
+    nil
+  end
+
+  # One structured line per Stripe failure, plus an APM error event. The message
+  # alone does not diagnose these: code/param/request_id are what name which
+  # call failed and why. And because these errors are rescued and rendered,
+  # AppSignal otherwise sees an ordinary 400 and never alerts -- which is how
+  # the trial preview stayed broken without surfacing anywhere.
+  def report_stripe_error(context, error, **extra)
+    details = {
+      class: error.class.name,
+      code: error.try(:code),
+      param: error.try(:param),
+      status: error.try(:http_status),
+      request_id: error.try(:request_id),
+      user: current_user&.id,
+    }.merge(extra).compact.map { |k, v| "#{k}=#{v}" }.join(" ")
+
+    Rails.logger.error "#{context}: #{error.message} (#{details})"
+    Appsignal.report_error(error) if defined?(Appsignal) && Appsignal.respond_to?(:report_error)
   end
 
   # The subscription a plan-change should act on: the customer's current
