@@ -84,7 +84,7 @@ RSpec.describe "API::ChildBoards non-destructive removal", type: :request do
   end
 
   describe "orphan sweep of deep-cloned sub-templates" do
-    # Shape Boards::AssignmentCloner leaves behind: a root template on the
+    # Shape Boards::SetCloner leaves behind: a root template on the
     # dashboard whose folder tile opens a sub-template marked with the root id.
     def build_assigned_set!(assigner)
       root = create(:board, user: assigner, name: "Assigned Home", is_template: true)
@@ -116,6 +116,27 @@ RSpec.describe "API::ChildBoards non-destructive removal", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(Board.exists?(root.id)).to be(false)
+      expect(Board.exists?(sub.id)).to be(true)
+    end
+
+    # A set the user OWNS (the MySpeak starter, "Use this board") clones with
+    # is_template: false throughout, so it cost real board slots and its pages
+    # are listed and editable. Both halves of the sweep are scoped to templates
+    # precisely so detaching such a set can never destroy them — the owner
+    # deletes those boards themselves.
+    it "never sweeps an owned, countable set — only the join row goes" do
+      root = create(:board, user: parent, name: "Owned Home")
+      sub  = create(:board, user: parent, name: "Owned Food",
+                            settings: { "assignment_root_id" => root.id })
+      tile = create(:board_image, board: root, image: create(:image, label: "Food"))
+      tile.update!(predictive_board_id: sub.id)
+      cb = create(:child_board, board: root, child_account: child_account)
+
+      delete "/api/child_boards/#{cb.id}", headers: auth_headers(parent)
+
+      expect(response).to have_http_status(:ok)
+      expect(ChildBoard.exists?(cb.id)).to be(false)
+      expect(Board.exists?(root.id)).to be(true)
       expect(Board.exists?(sub.id)).to be(true)
     end
   end

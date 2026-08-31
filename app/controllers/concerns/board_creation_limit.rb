@@ -45,8 +45,13 @@ module BoardCreationLimit
     required > board_limit_remaining(user)
   end
 
+  # Delegates to the model so a service and a controller can never disagree
+  # about the headroom. Admins read as unlimited there; clamped to the cap here
+  # because this value is rendered into the 422 payload, where Infinity is not
+  # a number a client can display.
   def board_limit_remaining(user)
-    [user.board_limit - user.countable_board_count, 0].max
+    remaining = user.board_limit_remaining
+    remaining.infinite? ? user.board_limit : remaining
   end
 
   def board_limit_error_payload(user, required: 1, error: nil, message: nil)

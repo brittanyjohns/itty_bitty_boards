@@ -197,11 +197,11 @@ RSpec.describe Boards::PublishCascade do
     end
   end
 
-  # Boards::AssignmentCloner deep-clones a starter's sub-boards and stamps each
+  # Boards::SetCloner deep-clones a starter's sub-boards and stamps each
   # with settings["assignment_root_id"]. It creates NO BoardGroup, so those
   # pages were invisible to the cascade — publishing such a root left every
   # folder tile 404ing.
-  describe "AssignmentCloner sub-clones" do
+  describe "SetCloner sub-clones" do
     let(:other_user) { create(:user) }
 
     def build_clone_set(root_published: false, children_published: false)

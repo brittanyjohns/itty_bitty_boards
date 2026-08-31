@@ -184,7 +184,7 @@ is a separate endpoint — `GET /api/public_boards?myspeak=true` →
 `attach_starter_board` takes one of three paths, and **the order matters**:
 
 1. **A public starter** (`Board.public_boards`) → deep-clone it for the user
-   (`Boards::AssignmentCloner`, so a starter with folder tiles brings its
+   (`Boards::SetCloner`, so a starter with folder tiles brings its
    sub-boards and rewires the links), then favorite the resulting `ChildBoard`.
    Checked FIRST because for `User::DEFAULT_ADMIN_ID` a public starter is also
    a board they own — an ownership-first branch would attach the shared master
@@ -207,7 +207,7 @@ could not see, while she edited a different copy of it (#795).
 
 Because it counts, it is gated like any other board create: `at_board_limit?`
 on a freshly-refetched `User` (the count is memoized), plus the per-communicator
-caps the other `AssignmentCloner` call sites apply. **At the limit the wizard
+caps the other `SetCloner` call sites apply. **At the limit the wizard
 does not clone and does not substitute a board of its own choosing** —
 favoriting PUBLISHES a board one-way (`ChildBoard#publish_for_myspeak`), so a
 guessed substitute would publish a board the parent never chose. It reports the
@@ -304,6 +304,6 @@ fetches from ui-avatars.com.
   `User::FREE_PLAN_LIMITS` and friends (`app/models/user.rb`)
 - Analytics: `Analytics::CommunicatorEvents`
   (`app/models/analytics/communicator_events.rb`)
-- Board clone: `Boards::AssignmentCloner` (`app/services/boards/assignment_cloner.rb`)
+- Board clone: `Boards::SetCloner` (`app/services/boards/assignment_cloner.rb`)
 - Board-limit gate: `User#at_board_limit?` / `#countable_board_count` (`app/models/user.rb`)
 - Stale-clone report: `lib/tasks/myspeak.rake` (`myspeak:stale_starter_clones`)

@@ -368,6 +368,13 @@ module API
             return skipped_board(:not_found)
           end
 
+          # Applies to BOTH branches. It caps how many boards this COMMUNICATOR
+          # may hold, which a board the user already owns consumes exactly as
+          # much as a fresh clone does — it used to sit inside the clone branch
+          # only, so the "use a board I already have" pick walked straight past
+          # the sandbox demo limit and at_assigned_board_limit?.
+          return skipped_board(:communicator_board_limit_reached) if communicator_board_limit_reached?(child)
+
           # Allowlist against the picker's own scope. clone_with_images
           # doesn't enforce ownership, so without this guard a client could
           # send any id and clone a stranger's private board.
@@ -412,31 +419,38 @@ module API
             return skipped_board(:board_limit_reached)
           end
 
-          # The per-communicator caps the other two AssignmentCloner call
-          # sites apply. Unreachable on a fresh communicator (it has no
-          # boards); reachable on the adoption path, where the page being set
-          # up may belong to a communicator already holding its boards.
-          return skipped_board(:communicator_board_limit_reached) if communicator_board_limit_reached?(child)
+          # Deep clone: a starter with folder tiles brings its linked pages
+          # along, ONE SLOT PER BOARD, so the parent can find and edit every
+          # page of what she picked. When the set is bigger than her remaining
+          # slots the planner budgets it down and the tiles whose targets were
+          # left behind become speaking tiles — the wizard copies what fits
+          # rather than refusing a starter outright.
+          plan = Boards::CloneSetPlanner.new(board, user: limit_user).call
 
-          # Deep clone: a starter board with folder tiles gets its linked
-          # sub-boards cloned + rewired too (usually a no-op — starters are
-          # flat today).
           begin
-            cloned = Boards::AssignmentCloner.new(board, owner: current_user,
-                                                         communicator: child,
-                                                         voice: child.voice,
-                                                         name: board.name,
-                                                         template_root: false).call
-          rescue Boards::AssignmentCloner::CloneError => e
+            cloner = Boards::SetCloner.new(board, owner: current_user,
+                                                  communicator: child,
+                                                  voice: child.voice,
+                                                  name: board.name,
+                                                  template_root: false,
+                                                  max_depth: Boards::CloneSetPlanner.depth_cap,
+                                                  max_boards: plan.boards_to_create,
+                                                  out_of_set: :flatten,
+                                                  prefix_sub_names: true)
+            cloned = cloner.call
+          rescue Boards::SetCloner::CloneError => e
             Rails.logger.warn "[Onboarding::Myspeak] clone failed for board #{board.id}: #{e.message}"
             return skipped_board(:clone_failed)
           end
 
-          favorite_starter!(child, cloned, source: "clone")
+          favorite_starter!(child, cloned, source: "clone",
+                                           boards_created: cloner.boards_created,
+                                           flattened_tiles: cloner.tiles_flattened)
         end
 
         # Put a board the user already owns on the communicator. No clone, so
-        # no limit applies — nothing is created but the join row.
+        # no BOARD is created and no board_limit applies — only the join row.
+        # (The per-communicator cap is checked by the caller, for both branches.)
         def attach_owned_board(child, board)
           child_board = child.child_boards.find_or_create_by!(board: board)
           favorite_starter!(child, board, child_board: child_board, source: "existing")
@@ -447,9 +461,19 @@ module API
         # one-way move. Report `published` back so the frontend can say so —
         # on the owned-board path this is a board that may have been private
         # until now.
-        def favorite_starter!(child, board, child_board: nil, source:)
+        def favorite_starter!(child, board, child_board: nil, source:,
+                              boards_created: 1, flattened_tiles: 0)
           child_board ||= ChildBoard.find_by(child_account: child, board: board)
           child_board&.update(favorite: true)
+
+          # ChildBoard's after_save only publishes on the favorite TRANSITION,
+          # so a row that was already favorited (the idempotent "existing" pick,
+          # re-running the wizard) saved nothing, never reached the publisher,
+          # and left an unpublished board on a public page — a card that 404s on
+          # tap, which is the exact failure MySpeakPublisher exists to prevent.
+          # Publishing is one-way and idempotent, so asking for it directly when
+          # the board still isn't published is safe to repeat.
+          publish_starter!(child_board, board)
 
           {
             attached: child_board.present?,
@@ -457,8 +481,23 @@ module API
             board_id: child_board.present? ? board.id : nil,
             child_board_id: child_board&.id,
             published: board.reload.published?,
+            # Additive. A starter set is N boards now, so "we set up her board"
+            # can say what it actually created; 1/0 is the old single-board case.
+            boards_created: child_board.present? ? boards_created : 0,
+            flattened_tiles: child_board.present? ? flattened_tiles : 0,
             reason: child_board.present? ? nil : "attach_failed",
           }
+        end
+
+        def publish_starter!(child_board, board)
+          return if child_board.blank?
+          return if board.reload.published?
+
+          Boards::MySpeakPublisher.new(child_board).call
+        rescue StandardError => e
+          # Never fail setup over the publish: the board is attached either way,
+          # and `published: false` in the report is how the frontend says so.
+          Rails.logger.warn "[Onboarding::Myspeak] publish failed for board #{board.id}: #{e.message}"
         end
 
         def communicator_board_limit_reached?(child)
@@ -483,6 +522,8 @@ module API
             board_id: nil,
             child_board_id: nil,
             published: false,
+            boards_created: 0,
+            flattened_tiles: 0,
             reason: reason.to_s,
           }
         end

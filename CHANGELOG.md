@@ -5,6 +5,51 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Copying a board now copies the pages its folder tiles open.** "Use this
+  board" was a shallow copy — one board, one board slot — so every folder tile
+  on the original arrived as a plain talking tile, and the notice explaining
+  that ("17 tiles on the original opened extra pages…") was shown to everyone
+  on every plan. It was never about the plan: any tile pointing at a board the
+  copier didn't own was flattened, so someone with 299 free board slots got the
+  same 17 flattened tiles as someone with none. Copying now takes the whole
+  linked set, one board slot per board, and the client is told what that will
+  cost before anything is created (`GET /api/boards/:id/clone_plan`). When the
+  set is bigger than the remaining slots, the copy is partial rather than
+  refused: the pages nearest the main board come across and only the tiles that
+  opened the rest become talking tiles. The clone response now carries
+  `boards_created`, `boards_in_set` and `limited_by` beside the existing
+  `flattened_tiles`, so the app can say what actually happened and offer the
+  upgrade path only when more slots would in fact have helped.
+- **A MySpeak starter board brings its pages with it, and they are boards the
+  parent can find.** The starter was already cloned into the parent's account,
+  but only its root counted or appeared in the board list — its linked pages
+  were minted as invisible templates, so a six-board starter cost exactly one
+  slot and five of its pages could be reached only by tapping a folder tile,
+  never opened from the board list to edit. Every page in a copied set is now a
+  real board the parent owns, lists, and can edit, and the wizard's
+  `starter_board` report says how many boards it created. Board assignment
+  (putting a board on a communicator from the dashboard) is unchanged and still
+  costs no board slots.
+
+- **A board can be copied on its own, without its linked pages.** `POST
+  /api/boards/:id/clone` takes `include_linked_boards: false`, which copies the
+  root board and turns its folder tiles into talking tiles. A set someone has
+  room for is still a set they may not want, and spending nine board slots to
+  get one board shouldn't be the only option. Nothing is withheld on that path,
+  so the response reports no `limited_by` and the app offers no upgrade for it.
+
+### Fixed
+
+- **A MySpeak page no longer shows a board that opens to nothing.** Adding a
+  board that was already favorited on that communicator saved nothing, so the
+  step that publishes it never ran — the card appeared on the public page and
+  404'd when a visitor tapped it.
+- **A board a parent already owns can no longer be added past a communicator's
+  board cap.** The per-communicator limit was checked only when the wizard
+  cloned a starter, so picking one of her own boards walked straight past it.
+
 ### Added
 
 - **Board Builder templates are visible and manageable from the admin

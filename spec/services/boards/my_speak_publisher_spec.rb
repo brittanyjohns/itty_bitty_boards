@@ -75,7 +75,7 @@ RSpec.describe Boards::MySpeakPublisher do
       expect(page.reload.published).to be true
     end
 
-    it "publishes AssignmentCloner sub-clones, which have no BoardGroup" do
+    it "publishes SetCloner sub-clones, which have no BoardGroup" do
       root = create(:board, user: owner, published: false)
       child = create(:board, user: owner, published: false,
                              settings: { "assignment_child" => true,

@@ -394,6 +394,7 @@ Rails.application.routes.draw do
         put "associate_image"
         put "associate_images"
         post "clone"
+        get "clone_plan"
         post "create_board_group"
         put "add_to_team"
         put "add_to_groups"

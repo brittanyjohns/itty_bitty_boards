@@ -298,6 +298,82 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         )
       end
 
+      # A starter with folder tiles brings its pages along — one slot per board
+      # — so the parent can find and edit every page of what she picked. They
+      # used to clone as invisible templates, which made a 6-board set cost
+      # exactly 1 slot and hid its 5 pages from her board list entirely.
+      context "when the starter has linked pages" do
+        # Explicit slug: nothing generates one on a plain Board.create!, the
+        # column defaults to "", and `validates :slug, uniqueness: true` does
+        # not skip blanks — so a second slug-less row collides with `starter`.
+        let!(:starter_page) do
+          Board.create!(name: "Drinks", slug: "drinks-starter-page",
+                        user_id: User::DEFAULT_ADMIN_ID, parent: admin,
+                        predefined: true, published: true, board_type: "board")
+        end
+
+        before do
+          FactoryBot.create(:board_image, board: starter,
+                                          image: FactoryBot.create(:image, label: "Drinks"),
+                                          predictive_board_id: starter_page.id,
+                                          data: { "mute_name" => true })
+        end
+
+        it "copies the whole set, all of it countable and listed" do
+          user.update!(settings: (user.settings || {}).merge("board_limit" => 10))
+
+          expect {
+            post "/api/v1/onboarding/myspeak",
+                 params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+          }.to change { Board.count }.by(2)
+
+          cb = user.communicator_accounts.last.child_boards.last
+          pointer = cb.board.board_images.map(&:predictive_board_id).compact.first
+          page_clone = Board.find(pointer)
+
+          expect(page_clone.user_id).to eq(user.id)
+          expect(page_clone.is_template).to eq(false)
+          expect(user.boards).to include(page_clone)
+          expect(User.find(user.id).countable_board_count).to eq(2)
+
+          expect(JSON.parse(response.body)["starter_board"]).to include(
+            "boards_created" => 2, "flattened_tiles" => 0,
+          )
+        end
+
+        # Publishing the root has to reach its pages, or every folder tile on a
+        # public MySpeak page opens a 404.
+        it "publishes the copied pages along with the root" do
+          user.update!(settings: (user.settings || {}).merge("board_limit" => 10))
+
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+
+          cb = user.communicator_accounts.last.child_boards.last
+          page_clone = Board.find(cb.board.board_images.map(&:predictive_board_id).compact.first)
+
+          expect(cb.board.reload.published).to be(true)
+          expect(page_clone.reload.published).to be(true)
+        end
+
+        # A Free user has one slot, so the set cannot fit. Copy what fits
+        # rather than refusing the starter outright.
+        it "copies what fits and flattens the rest for a user with one slot" do
+          expect {
+            post "/api/v1/onboarding/myspeak",
+                 params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+          }.to change { Board.count }.by(1)
+
+          cb = user.communicator_accounts.last.child_boards.last
+          expect(cb.board.board_images.map(&:predictive_board_id).compact).to be_empty
+          expect(cb.board.board_images.none?(&:door_tile?)).to be(true)
+
+          expect(JSON.parse(response.body)["starter_board"]).to include(
+            "attached" => true, "boards_created" => 1, "flattened_tiles" => 1,
+          )
+        end
+      end
+
       it "lists the cloned board in GET /api/boards" do
         starter
 
@@ -472,6 +548,28 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         body = JSON.parse(response.body)
         expect(body["adopted"]).to be(true)
         expect(body["starter_board"]).to include("attached" => true, "source" => "existing")
+      end
+
+      # ChildBoard's after_save only publishes on the favorite TRANSITION, so a
+      # row that was ALREADY favorited saved nothing, never reached the
+      # publisher, and left an unpublished board on a public page — a card that
+      # 404s on tap.
+      it "publishes a board whose ChildBoard row was already favorited" do
+        child = FactoryBot.create(:child_account, user: user, owner: user,
+                                                  name: "Existing Kid",
+                                                  username: "existing-kid",
+                                                  status: ChildAccount::SANDBOX)
+        Profile.create!(profileable: child, username: child.username,
+                        slug: child.username.parameterize)
+        child.child_boards.create!(board: owned, created_by_id: user.id, favorite: true)
+        owned.update_columns(published: false)
+
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(board_id: owned.id).to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        expect(owned.reload.published).to be(true)
+        expect(JSON.parse(response.body)["starter_board"]).to include("published" => true)
       end
     end
 

@@ -5,7 +5,7 @@ class API::BoardsController < API::ApplicationController
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
-  before_action :check_board_create_permissions, only: %i[ create clone create_from_template import_obf ]
+  before_action :check_board_create_permissions, only: %i[ create clone clone_plan create_from_template import_obf ]
   before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
   # Declared AFTER check_board_editable! so the plan gate still answers first —
   # a read-only board is 403 board_locked whether or not it's also for sale.
@@ -1295,10 +1295,10 @@ class API::BoardsController < API::ApplicationController
         begin
           # Deep clone: linked sub-boards are cloned + rewired too, so the
           # communicator's set is self-contained (not shared with the source).
-          Boards::AssignmentCloner.new(@board, owner: current_user,
+          Boards::SetCloner.new(@board, owner: current_user,
                                                communicator: communicator_account,
                                                voice: voice, name: @board.name).call
-        rescue Boards::AssignmentCloner::CloneError => e
+        rescue Boards::SetCloner::CloneError => e
           Rails.logger.error "[assign_accounts] #{e.message}"
           record_errors << "Could not assign board to #{communicator_account.name}"
         end
@@ -1410,19 +1410,72 @@ class API::BoardsController < API::ApplicationController
     render json: @team.show_api_view
   end
 
+  # Sizes the copy before anything is created, so the client can confirm with
+  # real numbers ("we'll copy 6 boards, 6 of your 12 slots") rather than
+  # spending slots the user never agreed to. Shares check_board_create_permissions
+  # with #clone, so a user with no room meets the same 422 here — one request
+  # earlier than they used to.
+  def clone_plan
+    set_board
+    return if @board.nil? # set_board already rendered 404
+
+    render json: Boards::CloneSetPlanner.new(@board, user: board_limit_user).call
+  end
+
   def clone
     set_board
-    # new_name = "Copy of " + @board.name
+    return if @board.nil? # set_board already rendered 404
+
     new_name = params[:name].presence || @board.name
-    # Shallow clone: one board, one board slot. Folder tiles whose target board
-    # isn't the cloner's are flattened into speaking tiles rather than left
-    # pointing into the source owner's account — `flattened_tiles` is how many,
-    # so the client can say so. Additive field; 0 when nothing was flattened.
-    @new_board = @board.clone_with_images(current_user.id, new_name, flatten_foreign_links: true)
-    @new_board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
-    @new_board.save!
-    render json: @new_board.api_view_with_images(current_user)
-                           .merge(flattened_tiles: @new_board.flattened_tile_count.to_i)
+
+    # A copy takes the board AND the pages its folder tiles open — one slot per
+    # board — because a copied set whose tiles opened the SOURCE owner's live
+    # boards was shared state, and flattening them all instead left the user
+    # rebuilding pages that already exist. When the set doesn't fit the user's
+    # remaining slots we copy what fits, breadth-first, and flatten only the
+    # tiles whose targets were left behind. `boards_created`, `boards_in_set`
+    # and `limited_by` are how the client says which of those happened;
+    # `flattened_tiles` predates them and keeps its meaning.
+    plan = Boards::CloneSetPlanner.new(@board, user: board_limit_user).call
+
+    # `include_linked_boards: false` is the user choosing the ROOT ONLY — a set
+    # they have room for is still a set they may not want, and spending nine
+    # slots to get one board is not a decision to make on their behalf. It caps
+    # the copy at one board and clears `limited_by`: nothing was withheld, so
+    # there is nothing to offer an upgrade for. Absent or true copies the set.
+    root_only = params[:include_linked_boards].to_s == "false"
+    boards_to_create = root_only ? 1 : plan.boards_to_create
+
+    cloner = Boards::SetCloner.new(
+      @board,
+      owner: current_user,
+      communicator: nil,
+      name: new_name,
+      template_root: false,
+      max_depth: Boards::CloneSetPlanner.depth_cap,
+      max_boards: boards_to_create,
+      out_of_set: :flatten,
+      prefix_sub_names: true,
+    )
+
+    begin
+      @new_board = cloner.call
+    rescue Boards::SetCloner::CloneError => e
+      Rails.logger.error "[BoardsController#clone] #{e.message}"
+      render json: { error: "Failed to copy board" }, status: :unprocessable_content
+      return
+    end
+
+    if current_user.vendor_id.present?
+      @new_board.update(vendor_id: current_user.vendor_id)
+    end
+
+    render json: @new_board.api_view_with_images(current_user).merge(
+      flattened_tiles: cloner.tiles_flattened,
+      boards_created: cloner.boards_created,
+      boards_in_set: plan.boards_in_set,
+      limited_by: root_only ? nil : plan.limited_by,
+    )
   end
 
   def create_board_group

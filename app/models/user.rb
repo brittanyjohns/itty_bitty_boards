@@ -2102,6 +2102,18 @@ class User < ApplicationRecord
     countable_board_count >= board_limit
   end
 
+  # How many more boards this user may create. Lives here rather than only in
+  # BoardCreationLimit so a SERVICE can budget a multi-board create without
+  # reaching into a controller concern — Boards::CloneSetPlanner sizes a copied
+  # board set against it. Admins are unlimited, and `Float::INFINITY` is
+  # deliberate: every caller compares or takes a `min` with it, and a sentinel
+  # integer would silently cap an admin at that number.
+  def board_limit_remaining
+    return Float::INFINITY if admin?
+
+    [board_limit - countable_board_count, 0].max
+  end
+
   def can_create_boards
     !at_board_limit?
   end
