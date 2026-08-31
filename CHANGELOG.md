@@ -7,6 +7,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **The current-user payload now says whether a clinician application is
+  pending.** `User#api_view` gained `clinician_application_status` — the status
+  of the user's most recent `ClinicianApplication`, or `nil` if they never
+  applied — so the app can show a "your application is under review" notice on
+  the dashboard instead of leaving applicants with no sign that anything
+  happened. Derived from the application record rather than a stored column:
+  approval already flips `plan_type`, so "pending" is the only state the
+  frontend couldn't otherwise see, and a denormalized copy would be one more
+  thing to keep in sync with the admin review queue. A re-applicant reports
+  their newest application, not the old denial.
+
 - **A submitted Clinician application now pings an admin.** Every other inbound
   signal in the app emails one — new signup, feedback, playground nomination —
   but a SpeakAnyWay for Clinicians application only mailed the applicant, who
