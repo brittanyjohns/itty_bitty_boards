@@ -2355,6 +2355,16 @@ class User < ApplicationRecord
     profile&.public_url
   end
 
+  # Status of this user's most recent clinician application ("pending",
+  # "approved", or "denied"), or nil if they've never applied. Derived from the
+  # application record rather than a denormalized column: approval already
+  # flips plan_type, so "pending" is the only state the frontend can't
+  # otherwise see, and a stored copy would just be one more thing to keep in
+  # sync with the admin review queue.
+  def clinician_application_status
+    clinician_applications.order(created_at: :desc).limit(1).pick(:status)
+  end
+
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
 
@@ -2459,6 +2469,9 @@ class User < ApplicationRecord
       vendor: vendor?,
       plan_type: plan_type,
       plan_status: plan_status,
+      # Drives the "your clinician application is under review" notice
+      # on the dashboard. nil for the vast majority of users.
+      clinician_application_status: clinician_application_status,
       plan_expires_at: plan_exp,
       free_trial: free_trial?,
       trial_expired: trial_expired?,

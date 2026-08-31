@@ -2,7 +2,7 @@
 
 <%
   credential_label = ->(c) do
-    { "slp" => "SLP", "ot" => "OT", "at_specialist" => "AT Specialist", "other" => "Other" }[c.to_s] || (c.presence || "—")
+    ClinicianApplication::CREDENTIAL_LABELS[c.to_s] || (c.presence || "—")
   end
   status_badge = ->(s) do
     case s

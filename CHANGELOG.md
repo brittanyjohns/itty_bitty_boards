@@ -16,6 +16,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   also removes a blocking AI call per menu item once a menu ran past its
   picture budget. Existing menu boards keep their current colours until they
   are regenerated.
+- **The current-user payload now says whether a clinician application is
+  pending.** `User#api_view` gained `clinician_application_status` — the status
+  of the user's most recent `ClinicianApplication`, or `nil` if they never
+  applied — so the app can show a "your application is under review" notice on
+  the dashboard instead of leaving applicants with no sign that anything
+  happened. Derived from the application record rather than a stored column:
+  approval already flips `plan_type`, so "pending" is the only state the
+  frontend couldn't otherwise see, and a denormalized copy would be one more
+  thing to keep in sync with the admin review queue. A re-applicant reports
+  their newest application, not the old denial.
+
+- **A submitted Clinician application now pings an admin.** Every other inbound
+  signal in the app emails one — new signup, feedback, playground nomination —
+  but a SpeakAnyWay for Clinicians application only mailed the applicant, who
+  was promised a review "within a few days", and then sat in
+  `/admin/clinician_applications` until somebody happened to look.
+  `AdminMailer.new_clinician_application_email` carries the applicant's name,
+  email, credential, license/cert number and workplace plus a link straight to
+  the pending queue, so the application can be triaged without opening the
+  dashboard. It fires from an `after_create` on `ClinicianApplication` (the
+  `FeedbackItem` pattern, so any future non-API creation path is covered too)
+  and is rescued and logged — a mailer failure can never roll back the
+  application the clinician just submitted.
 
 - **A communicator can now add a word to their own board.** `POST
   /api/boards/:id/add_image` accepted a user token only, so a nonspeaking user
