@@ -148,7 +148,7 @@ RSpec.describe "POST /api/subscriptions/change_plan", type: :request do
       do_post(plan_key: "basic")
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(JSON.parse(response.body)["error"]).to eq("Already on this plan")
+      expect(JSON.parse(response.body)["error"]).to eq("already_on_plan")
     end
   end
 
@@ -177,7 +177,7 @@ RSpec.describe "POST /api/subscriptions/change_plan", type: :request do
       do_post
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(JSON.parse(response.body)["error"]).to eq("No active subscription to change")
+      expect(JSON.parse(response.body)["error"]).to eq("no_subscription")
     end
   end
 
@@ -259,7 +259,7 @@ RSpec.describe "POST /api/subscriptions/change_plan", type: :request do
       do_post
 
       expect(response).to have_http_status(:bad_request)
-      expect(JSON.parse(response.body)["error"]).to eq("Failed to change plan")
+      expect(JSON.parse(response.body)["error"]).to eq("change_failed")
     end
   end
 end

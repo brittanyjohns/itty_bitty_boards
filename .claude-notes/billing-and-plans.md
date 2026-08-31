@@ -615,6 +615,57 @@ generic (not Google-specific column names) so Phase 2 (Apple) and Phase 3
   Credit-only downgrades (nothing due today) are never flagged. A no-payment-
   method user is steered to the billing portal (`billing_portal`).
 
+  Every refusal on both endpoints is a **machine-readable code in `error`, with
+  the human sentence in `message`** — `unknown_plan`, `no_subscription`,
+  `already_on_plan`, `preview_failed` / `change_failed`, plus `change_plan`'s
+  existing `payment_failed` / `payment_method_required`. The frontend branches
+  on the code and never on the prose; the two prose matches it used to carry are
+  kept only as a fallback for clients predating this.
+
+- **A trialing subscription is priced by us, never by `Invoice.upcoming`.**
+  Stripe does not prorate during a trial — the switch takes effect immediately
+  and the new price is billed at trial end — so nothing is due today and there
+  is no invoice to ask for. Asking anyway is actively refused for a **no-card
+  reverse trial**: `Stripe::Invoice.upcoming` raises
+  `Stripe::InvalidRequestError` — *"The subscription will cancel at the end of
+  the trial instead of generating an invoice because the customer has not
+  provided a payment method and `trial_settings[end_behavior][missing_payment_method]`
+  is set to `cancel`"* — which describes **every** trial `Billing::StartTrial`
+  creates. That refusal used to land in the action's catch-all rescue, so a
+  Basic/Pro trialist could not preview, and therefore could not perform, any
+  plan change at all. `preview_plan_change` now short-circuits the call when
+  `subscription.status == "trialing"` and reports `proration_amount_cents: 0`,
+  `trialing: true`, `trial_end`, and `next_billing_date` = the trial end.
+  Corollary: **`payment_method_required` is forced false while trialing.** The
+  trial-end invoice has `amount_due > 0`, so the old expression flagged every
+  no-card trialist — which hides the modal's Confirm button entirely and routes
+  them to the billing portal, the exact friction the no-card trial exists to
+  avoid.
+
+- **A failed preview degrades; it does not dead-end.** `Invoice.upcoming` has
+  its own local rescue (`upcoming_invoice_for`). On any Stripe failure the
+  action still renders 200 with `preview_unavailable: true` and a null
+  `proration_amount_cents` — plan name, recurring amount, interval, currency and
+  period end all come from `Stripe::Price` and the subscription, none of which
+  need the invoice. Only a failure of those *other* calls returns
+  `preview_failed`. `payment_method_required` is false in the degraded case,
+  since nothing is known to be due.
+
+- **A plan change reprices `plan_item_for(subscription)`, never
+  `items.data.first`.** A Pro subscriber carrying the extra-communicator add-on
+  can have the add-on sitting first, and repricing it swaps the add-on for the
+  plan. The helper is shared by `preview_plan_change`, `change_plan` and
+  `billing_interval_for_subscription`.
+
+- **Stripe failures are logged structured and reported to AppSignal**
+  (`report_stripe_error`): `code`, `param`, `http_status`, `request_id`,
+  `plan_key`, user id. The message alone does not identify which of the calls
+  failed, and a rescued-and-rendered error is otherwise invisible to APM — it
+  looks like an ordinary 400, which is why the trial breakage never alerted.
+  This is the app's only explicit `Appsignal.report_error` call; it is guarded
+  on the constant being defined, since the gem is not installed outside
+  production/staging.
+
 ### `paid_plan?` semantics
 
 `User#paid_plan?` is the single gate for paid-tier checks. It considers
