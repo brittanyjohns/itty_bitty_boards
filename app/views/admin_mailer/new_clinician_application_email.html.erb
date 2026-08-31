@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>New clinician application</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f7f7fb; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f7fb; padding:20px;">
+      <tr>
+        <td align="center">
+          <table width="640" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; padding:24px;">
+            <tr>
+              <td><%= render "layouts/email_logo" %></td>
+            </tr>
+            <tr>
+              <td style="color:#333333; font-size:15px; line-height:1.5;">
+                <h2 style="margin-top:0;">New clinician application</h2>
+                <p style="color:#666666; margin-top:0;">SpeakAnyWay for Clinicians — awaiting review</p>
+
+                <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666; width:150px;">Name</td>
+                    <td style="padding:6px;"><%= @application.full_name.presence || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Email</td>
+                    <td style="padding:6px;"><a href="mailto:<%= @applicant.email %>" style="color:#6a4cf0;"><%= @applicant.email %></a></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Credential</td>
+                    <td style="padding:6px;"><%= @application.credential_label %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">License / cert #</td>
+                    <td style="padding:6px;"><%= @application.license_id.presence || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Workplace</td>
+                    <td style="padding:6px;"><%= @application.workplace.presence || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Current plan</td>
+                    <td style="padding:6px;"><%= @applicant.plan_type.presence || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Submitted</td>
+                    <td style="padding:6px;"><%= @application.created_at&.strftime("%b %d, %Y at %l:%M %p %Z") %></td>
+                  </tr>
+                </table>
+
+                <p style="margin:24px 0 0;">
+                  <a href="<%= @review_url %>" style="background:#6a4cf0; color:#ffffff; text-decoration:none; padding:10px 18px; border-radius:6px; display:inline-block;">Review pending applications</a>
+                </p>
+
+                <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
+                <p style="color:#666666; font-size:13px;">
+                  Reply straight to <a href="mailto:<%= @applicant.email %>" style="color:#6a4cf0;"><%= @applicant.email %></a> to follow up.
+                  Application #<%= @application.id %>.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
