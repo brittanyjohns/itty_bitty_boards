@@ -146,6 +146,21 @@ module API
       @current_user
     end
 
+    # The user whose account a request acts ON, which is not always the caller.
+    #
+    # A ChildAccount owns no Images and no Boards of its own — everything a
+    # communicator creates belongs to the adult whose account they sit under.
+    # So a request carrying a COMMUNICATOR token (today: Quick add's
+    # boards#add_image, the one board write a communicator may make) resolves
+    # to `current_account.user`, and an ordinary user token is just
+    # `current_user`.
+    #
+    # Nil is possible: `ChildAccount belongs_to :user, optional: true`. Callers
+    # must treat that as "refuse", never as "no restrictions".
+    def acting_user
+      @acting_user ||= current_user || current_account&.user
+    end
+
     def token
       request.headers.fetch("Authorization", "").split(" ").last
     end

@@ -1,7 +1,16 @@
 class API::BoardsController < API::ApplicationController
   include BoardCreationLimit
 
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf free_download_boards ]
+  # add_image is the one board write a COMMUNICATOR may make: Quick add, where a
+  # nonspeaking user drops a word onto a board on their own dashboard. It is
+  # skipped from the user-only `authenticate_token!` and re-gated below by
+  # `authenticate_signed_in!`, which accepts either credential.
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf free_download_boards add_image ]
+
+  # Declared BEFORE check_board_editable! so an unauthenticated caller is 401'd
+  # and a communicator is scoped to their own boards before the plan gate runs.
+  before_action :authenticate_signed_in!, only: %i[ add_image ]
+  before_action :check_communicator_board_access!, only: %i[ add_image ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
@@ -1080,14 +1089,16 @@ class API::BoardsController < API::ApplicationController
   def add_image
     set_board
     # @board = Board.with_artifacts.find(params[:id])
-    @found_image = Image.by_label(image_params[:label]).find_by(user_id: current_user.id, private: true)
+    # acting_user throughout: on a communicator token current_user is nil, and
+    # everything created here belongs to the adult who owns the account.
+    @found_image = Image.by_label(image_params[:label]).find_by(user_id: acting_user.id, private: true)
     @found_image ||= Image.by_label(image_params[:label]).first
     if @found_image
       @image = @found_image
       img_saved = true
     else
       @image = Image.new
-      @image.user = current_user
+      @image.user = acting_user
       @image.label = image_params[:label]
       # part_of_speech: "phrase" distinguishes gestalt whole-phrase tiles
       # (Script Collector) from single-word tiles. Optional; falls back to the
@@ -1098,14 +1109,14 @@ class API::BoardsController < API::ApplicationController
 
     new_doc = nil
     if (image_params[:docs].present?)
-      owns_image = @image.user_id == current_user.id
+      owns_image = @image.user_id == acting_user.id
       # Only mutate the image's "current" doc flags if the current user owns
       # the image. Otherwise we'd be flipping global display state on someone
       # else's image (or a shared/admin image) just because this user uploaded
       # their own variant.
       @image.docs.where(current: true).update_all(current: false) if owns_image
       new_doc = @image.docs.new(image_params[:docs])
-      new_doc.user = current_user
+      new_doc.user = acting_user
       new_doc.processed = true
       new_doc.source_type = Doc::SOURCE_TYPE_USER
       new_doc.current = true if owns_image
@@ -1155,7 +1166,7 @@ class API::BoardsController < API::ApplicationController
           # brought no art of its own. A blank string is the deliberate
           # "no picture" marker, so this must never assign "".
           if board_image.display_image_url.blank? &&
-             @image.display_image_url(current_user).blank? &&
+             @image.display_image_url(acting_user).blank? &&
              target.display_image_url.present?
             board_image.display_image_url = target.display_image_url
           end
@@ -1166,7 +1177,7 @@ class API::BoardsController < API::ApplicationController
       screen_size = params[:screen_size] || "lg"
       # @board.calculate_grid_layout_for_screen_size(screen_size)
       @board.reload
-      @board_with_images = @board.api_view_with_images(current_user)
+      @board_with_images = @board.api_view_with_images(acting_user)
       broadcast_board_update!
 
       render json: @board_with_images
@@ -1812,13 +1823,53 @@ class API::BoardsController < API::ApplicationController
     set_board if @board.nil?
     return if @board.nil? # set_board already rendered 404
 
-    return if current_user&.board_editable?(@board)
+    # `acting_user`, not `current_user`: #add_image reaches here on a
+    # communicator token, where current_user is nil. The plan limit belongs to
+    # the adult who owns the account either way, and reading `current_user`
+    # here raised NoMethodError building the body below.
+    user = acting_user
+    return if user&.board_editable?(@board)
+
+    # No resolvable user means there is no plan to measure against — refuse
+    # rather than fall through to a body full of nils.
+    unless user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
 
     render json: {
       error: "board_locked",
       message: "This board is read-only on your current plan. Upgrade, or make it your editable board, to make changes.",
-      board_limit: current_user.board_limit,
-      editable_board_id: current_user.effective_editable_board_id,
+      board_limit: user.board_limit,
+      editable_board_id: user.effective_editable_board_id,
+    }, status: :forbidden
+  end
+
+  # A communicator may only add a tile to a board that is actually on their own
+  # dashboard.
+  #
+  # This is NOT redundant with check_board_editable!: `User#board_editable?`
+  # returns true for a board you do not own (`board.user_id != id` short-
+  # circuits it), so it is a PLAN lock, not an ownership check. Without this a
+  # communicator token could write a tile onto any board id in the system.
+  # Ordinary user tokens are untouched — they keep exactly the gates they had.
+  def check_communicator_board_access!
+    return if current_user # a user token answers to the existing gates
+
+    # authenticate_signed_in! guarantees one of the two credentials exists, so
+    # reaching here means a communicator token.
+    unless acting_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    set_board if @board.nil?
+    return if @board.nil? # set_board already rendered 404
+    return if current_account.boards.exists?(id: @board.id)
+
+    render json: {
+      error: "board_not_available",
+      message: "This board isn't on your dashboard.",
     }, status: :forbidden
   end
 
@@ -1974,9 +2025,12 @@ class API::BoardsController < API::ApplicationController
   # the tile is still created, just unlinked — rather than 404ing a request
   # whose main job (add a tile) succeeded.
   def linkable_board(id)
-    return Board.find_by(id: id) if current_user.admin?
+    # acting_user: only reached from #add_image, which a communicator token can
+    # now make. A communicator links against their owning user's boards.
+    return nil unless acting_user
+    return Board.find_by(id: id) if acting_user.admin?
 
-    current_user.boards.find_by(id: id) || Board.public_boards.find_by(id: id)
+    acting_user.boards.find_by(id: id) || Board.public_boards.find_by(id: id)
   end
 
   # Optional communicator-profile fields passed by the frontend's

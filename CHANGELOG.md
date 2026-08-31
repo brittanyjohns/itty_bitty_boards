@@ -7,6 +7,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **A communicator can now add a word to their own board.** `POST
+  /api/boards/:id/add_image` accepted a user token only, so a nonspeaking user
+  signed in as themselves got a 401 — which made the app's new Quick add button
+  impossible on the one surface it matters most, the communicator's own
+  dashboard. The endpoint now accepts either credential; everything it creates
+  (the image, any uploaded picture) is attributed to the adult who owns the
+  account, since a communicator owns no images of their own. A communicator may
+  only add to a board that is actually on their dashboard — note this is a
+  separate check from the plan lock, because `User#board_editable?` returns true
+  for a board you do not own and so can never answer an ownership question.
+  Every other board write stays user-only, and the user-token path is unchanged.
+
 - **Copying a board now copies the pages its folder tiles open.** "Use this
   board" was a shallow copy — one board, one board slot — so every folder tile
   on the original arrived as a plain talking tile, and the notice explaining
