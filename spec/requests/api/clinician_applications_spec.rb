@@ -28,6 +28,28 @@ RSpec.describe "API::ClinicianApplications", type: :request do
       expect(body["application"]["credential_type"]).to eq("slp")
     end
 
+    it "notifies an admin alongside the applicant confirmation" do
+      allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true))
+      expect(AdminMailer).to receive(:new_clinician_application_email).and_return(double(deliver_later: true))
+
+      post "/api/clinician_applications", params: valid_params, headers: auth_headers(user)
+
+      expect(response).to have_http_status(:created)
+    end
+
+    # The applicant has already filled in the form; a mailer blowing up must
+    # not take the application down with it.
+    it "still creates the application when the admin notification raises" do
+      allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true))
+      allow(AdminMailer).to receive(:new_clinician_application_email).and_raise(StandardError, "smtp down")
+
+      expect {
+        post "/api/clinician_applications", params: valid_params, headers: auth_headers(user)
+      }.to change { user.clinician_applications.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+    end
+
     it "allows only one pending application at a time" do
       allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true))
       post "/api/clinician_applications", params: valid_params, headers: auth_headers(user)

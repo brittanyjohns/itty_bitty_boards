@@ -33,6 +33,20 @@ class AdminMailer < BaseMailer
     mail(to: admin_recipient, subject: subject, from: "noreply@speakanyway.com")
   end
 
+  # SpeakAnyWay for Clinicians application alert, fired by
+  # ClinicianApplication#notify_admin_of_application. Carries every field an
+  # admin needs to triage without opening the dashboard — the applications are
+  # reviewed by hand and the applicant has already been promised a reply.
+  def new_clinician_application_email(application)
+    @application = application
+    @applicant = application.user
+    @review_url = admin_dashboard_clinician_applications_url(status: ClinicianApplication::PENDING)
+    subject = admin_subject(
+      "Clinician application: #{application.full_name} (#{application.credential_label})",
+    )
+    mail(to: admin_recipient, subject: subject, from: "noreply@speakanyway.com")
+  end
+
   # Partner-pilot review digest, sent by PartnerPilotEndingJob when there are
   # partners ending soon and/or newly past their 3-month window. Gives Brittany
   # a single actionable list — nobody is auto-downgraded, so this is the signal

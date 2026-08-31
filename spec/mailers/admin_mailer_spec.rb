@@ -19,6 +19,56 @@ RSpec.describe AdminMailer, type: :mailer do
     end
   end
 
+  describe "#new_clinician_application_email" do
+    let(:applicant) { FactoryBot.create(:user, email: "at.coord@district.org") }
+
+    def application(attrs = {})
+      ClinicianApplication.create!(
+        {
+          user: applicant,
+          status: ClinicianApplication::PENDING,
+          full_name: "Alex Rivera",
+          credential_type: "at_specialist",
+          license_id: "AT-98765",
+          workplace: "Riverside School District",
+        }.merge(attrs),
+      )
+    end
+
+    it "addresses the admin and names the applicant and credential in the subject" do
+      mail = described_class.new_clinician_application_email(application).deliver_now
+
+      expect(mail.to).to eq([ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"])
+      expect(mail.subject).to eq("Clinician application: Alex Rivera (AT Specialist)")
+    end
+
+    it "carries every field needed to triage without opening the dashboard" do
+      mail = described_class.new_clinician_application_email(application).deliver_now
+      body = (mail.html_part || mail).body.decoded
+
+      expect(body).to include("Alex Rivera")
+      expect(body).to include("at.coord@district.org")
+      expect(body).to include("AT Specialist")
+      expect(body).to include("AT-98765")
+      expect(body).to include("Riverside School District")
+    end
+
+    it "links straight to the pending applications queue" do
+      mail = described_class.new_clinician_application_email(application).deliver_now
+      body = (mail.html_part || mail).body.decoded
+
+      expect(body).to include("/admin/clinician_applications?status=pending")
+    end
+
+    it "renders an em dash for the optional fields the applicant left blank" do
+      mail = described_class.new_clinician_application_email(
+        application(license_id: nil, workplace: nil),
+      ).deliver_now
+
+      expect((mail.html_part || mail).body.decoded).to include("—")
+    end
+  end
+
   describe "#new_nomination_email" do
     # There is no admin UI for nominations yet, so this email is the only place
     # the details show up — every field has to survive into the body.
