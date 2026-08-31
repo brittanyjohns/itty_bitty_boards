@@ -143,9 +143,26 @@ class BoardImage < ApplicationRecord
     image&.part_of_speech.presence || "default"
   end
 
+  # True when this tile lives on a menu board. Board#is_a_menu? covers both a
+  # board_type of "menu" and a Menu parent.
+  def menu_tile?
+    board&.is_a_menu?
+  end
+
+  # A menu tile is a dish, not AAC vocabulary: the Modified Fitzgerald colour
+  # says nothing about it, and the generated food photo carries the tile. White
+  # regardless of the shared Image's category — `images` are shared library
+  # rows, so a menu board must never repaint one for its own sake.
+  # `pos` lets a caller colour from a part of speech it has just corrected
+  # (the AI layout pass) rather than the stored one; it defaults to this
+  # tile's own.
+  def resolved_background_color(pos = nil)
+    return ColorHelper::PRESET_HEX["white"] if menu_tile?
+    background_color_for(pos.presence || effective_part_of_speech)
+  end
+
   def set_background_color!
-    img_color = background_color_for(effective_part_of_speech)
-    set_background_color(img_color)
+    set_background_color(resolved_background_color)
     self.save!
   end
 
@@ -164,8 +181,7 @@ class BoardImage < ApplicationRecord
   # NO save
   def set_colors
     set_text_color("black") unless text_color == "#000000"
-    img_color = background_color_for(effective_part_of_speech)
-    set_background_color(img_color)
+    set_background_color(resolved_background_color)
   end
 
   def set_labels
@@ -917,8 +933,14 @@ class BoardImage < ApplicationRecord
 
     # audio_file = image.find_audio_for_voice(voice, language)
     # end
-    img_color = image.bg_color || "white"
-    set_background_color(img_color) if bg_color.blank?
+    # A menu tile is white unconditionally, never inheriting the shared Image's
+    # colour: a reused library row ("chicken") carries its Fitzgerald orange
+    # otherwise, and a menu prints in mixed colours.
+    if menu_tile?
+      set_background_color(resolved_background_color)
+    elsif bg_color.blank?
+      set_background_color(image.bg_color || "white")
+    end
     self.font_size = image.font_size
     self.label = image.label
     # self.display_image_url = image.display_tile_url(user)

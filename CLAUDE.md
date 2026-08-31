@@ -349,6 +349,28 @@ an explicit decision, not a drive-by edit.
   the model guessed belongs to the TILE (`board_images.data`), never written
   back to the shared `images` row: same cross-account contamination rule the
   tile-art fan-out follows, one column over.
+- **A menu board is not an AAC board: its tiles are WHITE and it looks up no
+  part of speech.** A tile on a menu board is a dish, so the Modified
+  Fitzgerald colour says nothing and the generated food photo carries the
+  tile. The rule belongs to the BOARD, not the shared `Image` — `images` are
+  library rows, so `BoardImage#resolved_background_color` (keyed on
+  `Board#is_a_menu?`) resolves white without repainting the library, and a
+  reused library row keeps its own colour everywhere else. Every colour
+  writer goes through it (`set_colors`, `set_background_color!`,
+  `set_defaults`, the AI format pass) — including `tile_colors:repair`, which
+  would otherwise repaint a menu board from its category, since white is in
+  `PRESET_HEX` and so passes the `authored?` test. On the Image side,
+  `image_type: "menu"` rows resolve white and take no category:
+  `ensure_defaults` assigns `bg_color` in the SAME write as `part_of_speech`,
+  because the `after_save :update_background_color` guard skips only when the
+  colour moved alongside the category. And every image a menu board creates
+  is a menu image — the over-budget words too, which used to fall to
+  `Image.create(label: word)` and fire a synchronous `AacWordCategorizer`
+  OpenAI call per unmatched dish name inside the user-facing generation path,
+  while dropping restaurant names into the shared public library. `Image#menu?`
+  is the single predicate and is case-insensitive: `Menu.set_image_types`
+  writes `"Menu"`.
+
 - **`images.label` is a lowercase matching key; `display_label` is the text.**
   `Image#set_label` downcases and strips `label` on every write and captures
   the authored casing into `display_label`. Never look an image up with
