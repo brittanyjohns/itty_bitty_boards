@@ -1438,6 +1438,14 @@ class API::BoardsController < API::ApplicationController
     # `flattened_tiles` predates them and keeps its meaning.
     plan = Boards::CloneSetPlanner.new(@board, user: board_limit_user).call
 
+    # `include_linked_boards: false` is the user choosing the ROOT ONLY — a set
+    # they have room for is still a set they may not want, and spending nine
+    # slots to get one board is not a decision to make on their behalf. It caps
+    # the copy at one board and clears `limited_by`: nothing was withheld, so
+    # there is nothing to offer an upgrade for. Absent or true copies the set.
+    root_only = params[:include_linked_boards].to_s == "false"
+    boards_to_create = root_only ? 1 : plan.boards_to_create
+
     cloner = Boards::SetCloner.new(
       @board,
       owner: current_user,
@@ -1445,7 +1453,7 @@ class API::BoardsController < API::ApplicationController
       name: new_name,
       template_root: false,
       max_depth: Boards::CloneSetPlanner.depth_cap,
-      max_boards: plan.boards_to_create,
+      max_boards: boards_to_create,
       out_of_set: :flatten,
       prefix_sub_names: true,
     )
@@ -1466,7 +1474,7 @@ class API::BoardsController < API::ApplicationController
       flattened_tiles: cloner.tiles_flattened,
       boards_created: cloner.boards_created,
       boards_in_set: plan.boards_in_set,
-      limited_by: plan.limited_by,
+      limited_by: root_only ? nil : plan.limited_by,
     )
   end
 

@@ -69,6 +69,42 @@ RSpec.describe "API::Boards clone", type: :request do
       expect(clone.board_images.none?(&:door_tile?)).to be(true)
     end
 
+    # A set the user has room for is still a set they may not want — spending
+    # nine slots to get one board is not a decision to make for them.
+    it "copies the root only when the caller asks for it, even with room to spare" do
+      with_limit(cloner, 10)
+      source = create(:board, user: owner, name: "Snack Time", published: true)
+      link!(source, create(:board, user: owner, name: "Drinks"), label: "Drinks")
+
+      expect {
+        post "/api/boards/#{source.id}/clone",
+             params: { include_linked_boards: false },
+             headers: auth_headers(cloner)
+      }.to change { Board.count }.by(1)
+
+      body = JSON.parse(response.body)
+      expect(body["boards_created"]).to eq(1)
+      expect(body["boards_in_set"]).to eq(2)
+      expect(body["flattened_tiles"]).to eq(1)
+      # Nothing was withheld — they chose this — so there is no upgrade to offer.
+      expect(body["limited_by"]).to be_nil
+
+      clone = Board.find(body["id"])
+      expect(clone.board_images.none?(&:door_tile?)).to be(true)
+    end
+
+    it "copies the whole set when the param is absent or true" do
+      with_limit(cloner, 10)
+      source = create(:board, user: owner, published: true)
+      link!(source, create(:board, user: owner, name: "Drinks"), label: "Drinks")
+
+      expect {
+        post "/api/boards/#{source.id}/clone",
+             params: { include_linked_boards: true },
+             headers: auth_headers(cloner)
+      }.to change { Board.count }.by(2)
+    end
+
     it "copies one board and flattens nothing when there are no folder tiles" do
       source = create(:board, user: owner, name: "Snack Time", published: true)
       create(:board_image, board: source)

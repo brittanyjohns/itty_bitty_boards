@@ -474,9 +474,13 @@ an explicit decision, not a drive-by edit.
   breadth-first and PARTIAL: the pages nearest the root survive and the tiles
   that opened the rest are flattened, reported as `boards_created` /
   `boards_in_set` / `flattened_tiles` / `limited_by`. Only
-  `limited_by: "board_limit"` earns an upgrade prompt — `"set_size"` is the
+  `limited_by: "board_limit"` earns an upgrade prompt; `"set_size"` names the
   per-copy ceiling (`BOARD_CLONE_SET_MAX_BOARDS`, a request-timeout guard, since
-  a Pro user has 300 slots) and paying more would not lift it. Two markers stay
+  a Pro user has 300 slots) and paying more would not lift it.
+  `include_linked_boards: false` is the user asking for the ROOT ONLY — a set
+  they have room for is still a set they may not want — which caps the copy at
+  one board and clears `limited_by` entirely, because nothing was withheld and
+  there is nothing to offer an upgrade against. Two markers stay
   split: `assignment_root_id` is stamped on EVERY sub-clone because
   `Boards::PublishCascade` walks it with no `is_template` filter — without it a
   published MySpeak starter leaves every folder tile 404ing — while

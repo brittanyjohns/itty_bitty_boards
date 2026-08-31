@@ -33,6 +33,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   (putting a board on a communicator from the dashboard) is unchanged and still
   costs no board slots.
 
+- **A board can be copied on its own, without its linked pages.** `POST
+  /api/boards/:id/clone` takes `include_linked_boards: false`, which copies the
+  root board and turns its folder tiles into talking tiles. A set someone has
+  room for is still a set they may not want, and spending nine board slots to
+  get one board shouldn't be the only option. Nothing is withheld on that path,
+  so the response reports no `limited_by` and the app offers no upgrade for it.
+
 ### Fixed
 
 - **A MySpeak page no longer shows a board that opens to nothing.** Adding a
