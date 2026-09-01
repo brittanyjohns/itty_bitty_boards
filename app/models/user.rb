@@ -1673,6 +1673,17 @@ class User < ApplicationRecord
     plan_type == "clinician"
   end
 
+  # Lending / hand-off gate. Deliberately its own predicate rather than a
+  # widened `pro?`: the Clinician plan advertises "2 loaner slots" and the whole
+  # clinician workflow is lend -> family claims -> slot recycles, but folding
+  # clinician into `pro?` would also hand it Pro's 5 slots and every other
+  # Pro-only tool. The slot MATH is unchanged — a clinician still lends within
+  # CLINICIAN_PLAN_LIMITS' 2 slots; this only says the feature exists for them.
+  # See API::ChildAccountsController#require_pro_for_lending!.
+  def can_lend?
+    pro? || clinician?
+  end
+
   def pro_vendor?
     plan_type.include?("pro") && role == "vendor"
   end
@@ -2459,6 +2470,12 @@ class User < ApplicationRecord
       # Plan flags
       free: free?,
       pro: pro?,
+      # Clinician is not Pro (see clinician?), so the frontend can't infer
+      # either of these from `pro`. can_lend is the server-owned answer to
+      # "show the Lend & hand-off controls" — the gate and the UI must agree or
+      # the button 403s.
+      clinician: clinician?,
+      can_lend: can_lend?,
       basic: basic?,
       plus: plus?,
       premium: premium?,

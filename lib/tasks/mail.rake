@@ -28,6 +28,20 @@ namespace :mail do
     unless am.perform_deliveries
       puts "  WARNING: perform_deliveries is false — the app sends no mail in this environment."
     end
+
+    # The unauthenticated IP relay is the prime suspect whenever intra-domain
+    # mail arrives and external mail vanishes with no error (#820): Google
+    # Workspace's SMTP relay service applies its own per-recipient rules, and a
+    # message it accepts and then drops leaves nothing behind in this app.
+    # Authenticated submission via smtp.gmail.com does not depend on the
+    # instance's outbound IP, which Hatchbox changes without warning.
+    if am.delivery_method == :smtp && settings[:user_name].blank?
+      puts "  WARNING: no SMTP_USERNAME/SMTP_PASSWORD — sending over the"
+      puts "           unauthenticated #{settings[:address]} IP relay. External"
+      puts "           recipients can be silently dropped by the relay's own"
+      puts "           rules while intra-domain mail still arrives. Prefer"
+      puts "           authenticated submission (set SMTP_USERNAME/SMTP_PASSWORD)."
+    end
     puts "-" * 64
     puts "Sending connectivity test to #{recipient} ..."
 
@@ -41,8 +55,10 @@ namespace :mail do
       message.delivery_method(am.delivery_method, settings)
       message.deliver!
       puts "OK — handed off to the '#{am.delivery_method}' transport with no error."
-      puts "If the message still doesn't arrive, check the spam folder and the" \
-           " provider's outbound logs/dashboard."
+      puts "Message-ID: #{message.message_id.inspect}"
+      puts "If the message still doesn't arrive, check the spam folder, then"
+      puts "look the Message-ID up in Google Admin > Reporting > Email Log"
+      puts "Search — an accepted-then-dropped message is only visible there."
     rescue => e
       puts "FAILED — #{e.class}: #{e.message}"
       puts (e.backtrace || []).first(5).map { |line| "    #{line}" }.join("\n")

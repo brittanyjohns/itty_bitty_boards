@@ -7,6 +7,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **Approved clinicians can lend a communicator to a family again.** The
+  Clinician plan advertises 2 loaner slots, but the server-side gate on
+  "Lend & hand off" checked for Pro — and Clinician is deliberately not Pro, so
+  every lend was refused. Setting up a trial communicator, handing it to a
+  family, and getting the slot back when they claim it now works end to end on
+  a Clinician account. Nothing changed for Free or Basic, and the slot count is
+  unchanged: a clinician still lends within their 2 slots.
+- **Hitting the communicator cap now says which cap and how many.** The 422 was
+  a bare "Maximum number of communicator accounts reached." with no number and
+  no next step. It now also carries a machine-readable code and the plan's
+  limit and current count, so the app can show "2 of 2" and offer a way
+  forward. The existing message text is unchanged.
+- **Transactional emails are now traceable.** Every message the app hands to
+  the mail server is logged with its recipient and Message-ID, and a delivery
+  failure is logged with a distinct tag instead of a generic background-job
+  error. This does not change whether mail is delivered — it makes a missing
+  email diagnosable, which it previously was not from inside the app.
+- **Emails no longer all say "Welcome to SpeakAnyWay!" in the title.** The
+  shared mail layout hardcoded that title on every message, including admin
+  alerts, so some mail clients showed an admin notification about a new
+  clinician application under a welcome header.
+
 - **Menu board tiles are now white.** A menu board's tiles are dishes, not AAC
   vocabulary, so the Modified Fitzgerald colours meant nothing on them: every
   tile came out orange, and tiles that reused a library picture came out in

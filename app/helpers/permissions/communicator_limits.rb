@@ -2,6 +2,19 @@ module Permissions
   module CommunicatorLimits
     extend self
 
+    # Stable error codes for a refusal. The prose strings these ride alongside
+    # are what the frontend renders today, and they name no limit and offer no
+    # path — a clinician at 2/2 saw "Maximum number of communicator accounts
+    # reached." mid-form with nothing to act on (#820). The code plus the
+    # limit/count from `usage_for` are what let the frontend say something
+    # useful without any copy moving into the backend.
+    UNAUTHORIZED = "unauthorized"
+    UNKNOWN_STATUS = "unknown_communicator_status"
+    SLOTS_NOT_INCLUDED = "communicator_slots_not_included"
+    SLOT_LIMIT_REACHED = "communicator_limit_reached"
+    SANDBOX_NOT_INCLUDED = "sandbox_communicators_not_included"
+    SANDBOX_LIMIT_REACHED = "sandbox_limit_reached"
+
     # Slot math:
     #
     #   Free  — 1 full (login) communicator, CLAIM/HAND-OFF ONLY. A Free user
@@ -14,9 +27,15 @@ module Permissions
     # A `loaner` counts against the owner's (SLP's) slot. On claim the
     # ownership transfers and the slot frees on the SLP's side (see B4).
     #
-    # Returns: [allowed(Boolean), http_status(Symbol), error_message(String|nil)]
+    # Returns: [allowed(Boolean), http_status(Symbol), error_message(String|nil),
+    #           error_code(String|nil)]
+    #
+    # The 4th element is a stable, machine-readable code (the constants above). It
+    # is appended rather than replacing the prose string because the frontend
+    # renders `error` verbatim today — every message here stays byte-identical.
+    # Existing three-target destructuring keeps working unchanged.
     def can_create?(user:, is_demo: nil, status: nil)
-      return [false, :unauthorized, "Unauthorized"] unless user
+      return [false, :unauthorized, "Unauthorized", UNAUTHORIZED] unless user
 
       status ||= is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE
       settings = user.settings || {}
@@ -27,7 +46,7 @@ module Permissions
       when ChildAccount::LOANER, ChildAccount::ACTIVE
         check_slot_self_create(user, settings)
       else
-        [false, :unprocessable_content, "Unknown communicator status: #{status}"]
+        [false, :unprocessable_content, "Unknown communicator status: #{status}", UNKNOWN_STATUS]
       end
     end
 
@@ -35,16 +54,16 @@ module Permissions
     # self-create, Free users may host 1 claimed slot — that's the whole
     # point of the hand-off — so this skips the self-create paywall.
     def can_claim?(user:)
-      return [false, :unauthorized, "Unauthorized"] unless user
+      return [false, :unauthorized, "Unauthorized", UNAUTHORIZED] unless user
 
       settings = user.settings || {}
       slot_limit = slot_limit_for(settings)
       owned_count = owned_slot_count(user)
 
-      return [false, :forbidden, "Your plan does not include communicator accounts."] if slot_limit <= 0
-      return [false, :unprocessable_content, "Maximum number of communicator accounts reached."] if owned_count >= slot_limit
+      return [false, :forbidden, "Your plan does not include communicator accounts.", SLOTS_NOT_INCLUDED] if slot_limit <= 0
+      return [false, :unprocessable_content, "Maximum number of communicator accounts reached.", SLOT_LIMIT_REACHED] if owned_count >= slot_limit
 
-      [true, :ok, nil]
+      [true, :ok, nil, nil]
     end
 
     # The status a *self-created* communicator must take for this user. A Free
@@ -114,20 +133,20 @@ module Permissions
       limit = sandbox_limit_for(settings)
       count = user.communicator_accounts.where(status: ChildAccount::SANDBOX).count
 
-      return [false, :forbidden, "Your plan does not include sandbox communicators."] if limit <= 0
-      return [false, :unprocessable_content, "Sandbox communicator limit reached."] if count >= limit
+      return [false, :forbidden, "Your plan does not include sandbox communicators.", SANDBOX_NOT_INCLUDED] if limit <= 0
+      return [false, :unprocessable_content, "Sandbox communicator limit reached.", SANDBOX_LIMIT_REACHED] if count >= limit
 
-      [true, :ok, nil]
+      [true, :ok, nil, nil]
     end
 
     def check_slot_self_create(user, settings)
       limit = slot_limit_for(settings)
       count = owned_slot_count(user)
 
-      return [false, :forbidden, "Your plan does not include communicator accounts."] if limit <= 0
-      return [false, :unprocessable_content, "Maximum number of communicator accounts reached."] if count >= limit
+      return [false, :forbidden, "Your plan does not include communicator accounts.", SLOTS_NOT_INCLUDED] if limit <= 0
+      return [false, :unprocessable_content, "Maximum number of communicator accounts reached.", SLOT_LIMIT_REACHED] if count >= limit
 
-      [true, :ok, nil]
+      [true, :ok, nil, nil]
     end
   end
 end

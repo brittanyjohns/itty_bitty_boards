@@ -71,8 +71,15 @@ module API
               status: status,
               source: Analytics::CommunicatorEvents::MYSPEAK_ONBOARDING,
             )
-            render json: { error: "communicator_slot_unavailable", message: slot_error },
-                   status: http_status
+            usage = Permissions::CommunicatorLimits.usage_for(user: current_user, status: status)
+            render json: {
+              error: "communicator_slot_unavailable",
+              message: slot_error,
+              # The numbers the refusal was decided against, so the wall can say
+              # "2 of 2" instead of a bare sentence (#820).
+              limit: usage[:limit],
+              count: usage[:count],
+            }, status: http_status
             return
           end
 

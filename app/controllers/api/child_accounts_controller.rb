@@ -93,13 +93,15 @@ class API::ChildAccountsController < API::ApplicationController
       return
     end
 
-    allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+    allowed, http_status, error, error_code = Permissions::CommunicatorLimits.can_create?(
       user: @child_account.owner,
       status: ChildAccount::LOANER,
     )
 
     unless allowed
-      render json: account_error_payload(error), status: http_status
+      render json: account_error_payload(error).merge(
+        slot_limit_details(@child_account.owner, ChildAccount::LOANER, error_code),
+      ), status: http_status
       return
     end
 
@@ -141,7 +143,7 @@ class API::ChildAccountsController < API::ApplicationController
     # the slot pool (sandbox). Loaners already count; active → loaner
     # is a net-zero change to the slot count.
     if @child_account.sandbox?
-      allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+      allowed, http_status, error, error_code = Permissions::CommunicatorLimits.can_create?(
         user: @child_account.owner,
         status: ChildAccount::LOANER,
       )
@@ -153,7 +155,9 @@ class API::ChildAccountsController < API::ApplicationController
           "owned_slots=#{@child_account.owner ? Permissions::CommunicatorLimits.owned_slot_count(@child_account.owner) : "?"} " \
           "reason=#{error}"
         )
-        render json: account_error_payload(error), status: http_status
+        render json: account_error_payload(error).merge(
+          slot_limit_details(@child_account.owner, ChildAccount::LOANER, error_code),
+        ), status: http_status
         return
       end
     end
@@ -352,7 +356,7 @@ class API::ChildAccountsController < API::ApplicationController
       requested: requested_status,
     )
 
-    allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+    allowed, http_status, error, error_code = Permissions::CommunicatorLimits.can_create?(
       user: current_user,
       status: requested_status,
     )
@@ -363,7 +367,9 @@ class API::ChildAccountsController < API::ApplicationController
         status: requested_status,
         source: Analytics::CommunicatorEvents::CHILD_ACCOUNTS,
       )
-      render json: { error: error }, status: http_status
+      render json: { error: error }.merge(
+        slot_limit_details(current_user, requested_status, error_code),
+      ), status: http_status
       return
     end
     username = params[:username]
@@ -479,13 +485,15 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.status = requested_status
 
       if requested_status != ChildAccount::SANDBOX
-        allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+        allowed, http_status, error, error_code = Permissions::CommunicatorLimits.can_create?(
           user: current_user,
           status: requested_status,
         )
 
         unless allowed
-          render json: { error: error }, status: http_status
+          render json: { error: error }.merge(
+            slot_limit_details(current_user, requested_status, error_code),
+          ), status: http_status
           return
         end
       end
@@ -695,25 +703,48 @@ class API::ChildAccountsController < API::ApplicationController
     }, status: :forbidden
   end
 
-  # Lending / hand-off is a Pro-only feature. The frontend already hides
-  # the LoanerControls for non-Pro users, but the gate must also hold on
-  # the server: without it a Basic user (or any direct API caller) could
+  # Lending / hand-off is a paid, plan-gated feature. The frontend already
+  # hides the LoanerControls for plans without it, but the gate must also hold
+  # on the server: without it a Basic user (or any direct API caller) could
   # promote a sandbox to a loaner, or lend a self-created active — the
   # active→loaner path in `lend` skips the slot check, so nothing else
   # would stop them. System admins bypass for support.
+  #
+  # The plan question is `User#can_lend?`, NOT `pro?`: the Clinician plan
+  # advertises loaner slots and its entire workflow is lend → family claims →
+  # slot recycles, but it is deliberately not Pro (its smaller slot cap is the
+  # product). The error code stays `pro_required` — it is the contract the
+  # frontend already renders, and free/basic still see exactly what they saw —
+  # the refusal copy stays Pro-worded because Pro is genuinely where the
+  # remaining refused plans (free / basic / vendor) upgrade to.
+  # Slot math is unaffected: a clinician lends within their own 2 slots.
   #
   # Called *after* the per-action ownership check so a non-owner still
   # gets the generic Unauthorized response and we don't leak the gate.
   # Returns true when allowed; otherwise renders 403 and returns false so
   # the caller can `return unless require_pro_for_lending!`.
   def require_pro_for_lending!
-    return true if current_user.admin? || current_user.pro?
+    return true if current_user.admin? || current_user.can_lend?
 
     render json: account_error_payload("pro_required").merge(
       message: "Lending a communicator to a family is a Pro feature.",
       upgrade_url: "/account/billing/upgrade",
     ), status: :forbidden
     false
+  end
+
+  # The machine-readable half of a slot/quota refusal (#820). The prose in
+  # `error` names no limit and offers no path — a clinician at 2/2 saw
+  # "Maximum number of communicator accounts reached." mid-form with nothing to
+  # act on — so every refusal also carries a stable `error_code` plus the
+  # numbers it was decided against. The prose string is left byte-identical;
+  # the frontend renders it verbatim today and owns the replacement copy.
+  # `usage_for` costs a count query, so this is the REFUSAL path only.
+  def slot_limit_details(user, status, error_code)
+    return {} if error_code.blank?
+
+    usage = Permissions::CommunicatorLimits.usage_for(user: user, status: status)
+    { error_code: error_code, limit: usage[:limit], count: usage[:count] }
   end
 
   # Mutation endpoints (lend, end_loan, etc.) return the current account

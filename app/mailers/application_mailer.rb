@@ -2,6 +2,25 @@ class ApplicationMailer < ActionMailer::Base
   default from: "noreply@speakanyway.com"
   layout "mailer"
 
+  # The failure half of mail visibility (the success half is
+  # MailDeliveryObserver). `deliver_now` — which is what MailDeliveryJob calls
+  # for every `deliver_later` — wraps rendering AND transport in
+  # `handle_exceptions`, so this catches an SMTP rejection, an auth failure and
+  # a stalled connection alike, and tags them with one greppable prefix
+  # (`bin/prod-logs worker | grep "\[mail\]"`). Without it a hard bounce was
+  # only ever a generic Sidekiq retry line naming no recipient (#820).
+  #
+  # It re-raises: Sidekiq's retry/dead-set behaviour is the actual handling and
+  # must not change. This adds a signal, it does not swallow a failure.
+  rescue_from StandardError do |error|
+    Rails.logger.error(
+      "[mail] delivery_failed mailer=#{self.class.name}##{action_name} " \
+      "to=#{Array(message&.to).join(",")} " \
+      "error=#{error.class}: #{error.message}"
+    )
+    raise error
+  end
+
   # File under public/ holding the small logo used in email headers.
   EMAIL_LOGO_FILENAME = "email-logo.png"
 

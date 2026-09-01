@@ -990,6 +990,19 @@ stay Pro-only. The ladder: free Clinician (100/2/400) → Partner Pro $10/mo
   Pro-level features must not break) but deliberately **not** into `pro?` — the
   2-slot cap is the product, and widening `pro?` would hand clinicians Pro's 5
   slots. `professional?` stays false too.
+- **Lending is gated on `User#can_lend?` (`pro? || clinician?`), never on
+  `pro?`.** Not Pro is a statement about *limits*, not about *features*: the
+  plan advertises 2 loaner slots and the whole clinician workflow is lend →
+  family claims → slot recycles, so `API::ChildAccountsController#require_pro_for_lending!`
+  reading `pro?` made `POST /lend` and `/promote_to_loaner` 403 `pro_required`
+  for every approved clinician — the plan's core job, impossible end to end
+  (#820). `can_lend?` is the whole widening; the slot MATH is untouched, so a
+  clinician still lends within their own 2 slots and a third lend is refused
+  by `Permissions::CommunicatorLimits`. The 403's error code stays
+  `pro_required` (the frontend contract) because the plans it still refuses —
+  free / basic / vendor — genuinely upgrade to Pro. `can_lend` and `clinician`
+  ride on `User#api_view` so the frontend gates on the same answer; a UI that
+  derives the gate from `pro` shows a button the API refuses.
 - **Board-limited despite being paid.** Clinician is the one paid plan the
   read-only board lock applies to (`User#board_limit_locks?`): a clinician over
   their 100-board limit (e.g. a partner who landed here with 300 boards) keeps

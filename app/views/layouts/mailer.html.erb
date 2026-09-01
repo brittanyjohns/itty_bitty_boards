@@ -2,7 +2,11 @@
 <html>
   <head>
       <meta charset="UTF-8">
-      <title>Welcome to SpeakAnyWay!</title>
+      <%# Every email shared one hardcoded "Welcome to SpeakAnyWay!" title, which
+          some clients show above the body — so an admin alert about a new
+          clinician application opened by welcoming the admin (#820). Neutral by
+          default; a mailer sets @email_title when it has something better. %>
+      <title><%= @email_title.presence || "SpeakAnyWay" %></title>
       <style>
           body {
               background-color: #f0f0f0;
