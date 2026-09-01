@@ -41,6 +41,7 @@ class AdminMailer < BaseMailer
     @application = application
     @applicant = application.user
     @review_url = admin_dashboard_clinician_applications_url(status: ClinicianApplication::PENDING)
+    @email_title = "New clinician application"
     subject = admin_subject(
       "Clinician application: #{application.full_name} (#{application.credential_label})",
     )

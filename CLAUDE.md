@@ -86,7 +86,13 @@ one-off handoff/scratch files stay untracked and local.
   suffixes) to let specific recipients through when testing a template;
   non-matching addresses are stripped from to/cc/bcc. `E2eMailInterceptor` is
   separate and pattern-scoped — it drops `e2e+*@speakanyway.com` in every
-  environment.
+  environment. **A send leaves two possible signals and no more:**
+  `MailDeliveryObserver` logs `[mail] delivered` (with the Message-ID) once
+  the transport accepts a message, and `ApplicationMailer`'s `rescue_from`
+  logs `[mail] delivery_failed` and re-raises. Neither can see an
+  accepted-then-dropped message — that is only visible in Google Admin >
+  Reporting > Email Log Search, keyed on the Message-ID, which is why the
+  observer logs it.
 - **TTS/Audio:** AWS Polly. Per-tile **custom audio** (a parent's recording)
   follows the same shape as tile video: `upload_audio` validates type/size
   against `BoardImage.accepted_audio_content_types`, attaches, and hands off to
@@ -219,6 +225,14 @@ an explicit decision, not a drive-by edit.
 - **`User#paid_plan?` is the single paid-tier gate.** It checks both
   `plan_type` and `plan_status`; `basic_trial` and Stripe `trialing` count as
   paid while active. Never read `plan_type` directly for a paid-feature check.
+  And `pro?` is a statement about LIMITS, not about which features exist: the
+  Clinician plan is deliberately outside it (its 2-slot cap is the product),
+  so a *feature* gate written as `pro?` silently refuses a clinician the thing
+  their plan advertises — lending 403'd `pro_required` for every approved
+  clinician, making the lend → claim → recycle workflow impossible end to end.
+  A feature gets its own predicate (`User#can_lend?`), published on the
+  api_view so the frontend gates on the same answer instead of re-deriving it
+  from `pro`; the slot math stays exactly where it was.
 - **A board's `parent` is PROVENANCE, not ownership — never reassign it on a
   save.** `user_id` says who owns a board; `parent` says where it came from
   (the `Menu` a menu board was extracted from, the `Image` behind a
