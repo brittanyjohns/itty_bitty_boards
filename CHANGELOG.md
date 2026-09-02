@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **A scan tag: the QR code and one line, nothing else.** The device tag is a
+  full card built for the back of a tablet; the scan tag is a square with just
+  the code, a line of text, and a small SpeakAnyWay mark — for a backpack, a
+  chair, or a lanyard. The line defaults to "If I'm lost, please scan the QR
+  code.", can be replaced with your own, or switched off entirely for a tag
+  that is only the code. It's built automatically like the device tag and
+  appears beside it under Print & share, and its code keeps working after you
+  get a new public link.
 ### Fixed
 
 - **A copied or assigned board looks like the board it came from.** Tiles whose

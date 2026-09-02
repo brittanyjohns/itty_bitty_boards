@@ -21,6 +21,10 @@ RSpec.describe "API::Internal::Profiles", type: :request do
     allow(ENV).to receive(:[]).with("INTERNAL_API_KEY").and_return(internal_key)
     allow(Communicators::GenerateSafetyIdCard).to receive(:call)
     allow(Communicators::GenerateDeviceTag).to receive(:call)
+    # Stubbed for the same reason as its siblings: #generate_attachments! builds
+    # this one too, and an unstubbed call goes to real headless Chrome, which CI
+    # has no puppeteer for.
+    allow(Communicators::GenerateScanTag).to receive(:call)
   end
 
   describe "GET /api/internal/profiles/:id" do
@@ -82,6 +86,7 @@ RSpec.describe "API::Internal::Profiles", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
+      expect(Communicators::GenerateScanTag).to have_received(:call).with(profile)
     end
 
     # The default path goes through Profile#generate_attachments!, which no
@@ -109,6 +114,10 @@ RSpec.describe "API::Internal::Profiles", type: :request do
         .to have_received(:call).with(profile, regenerate: true, qr_target_url: kit_url)
       expect(Communicators::GenerateDeviceTag)
         .to have_received(:call).with(profile, regenerate: true, qr_target_url: kit_url)
+      # The kit branch names the two documents its sample tags use. The scan tag
+      # is a per-communicator printable and is deliberately not one of them —
+      # building it here would render a document nobody asked for.
+      expect(Communicators::GenerateScanTag).not_to have_received(:call)
     end
 
     it "accepts an empty profile patch and regenerates the device tag" do
@@ -130,6 +139,7 @@ RSpec.describe "API::Internal::Profiles", type: :request do
       expect(response).to have_http_status(:ok)
       expect(Communicators::GenerateSafetyIdCard).not_to have_received(:call)
       expect(Communicators::GenerateDeviceTag).not_to have_received(:call)
+      expect(Communicators::GenerateScanTag).not_to have_received(:call)
     end
 
     it "supports lookup by slug" do

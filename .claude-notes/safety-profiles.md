@@ -578,6 +578,58 @@ dashboard).
   flowing `sheet` size the thumbnail is page one.
 
 
+## The scan tag
+
+`Communicators::GenerateScanTag` is the simplest of the printed documents: an
+800×800 square carrying the QR code, one optional line of text, and a small
+SpeakAnyWay mark. The device tag is a dense card built for the back of a tablet;
+this one is for a backpack, a wheelchair frame, or a lanyard, where the only job
+is "scan this". It renders `communicators/assets/scan_tag` through the shared
+`asset_export` layout and attaches `scan_tag_png` / `scan_tag_pdf`, exactly as
+the device tag does.
+
+**Its QR points at `permanent_url`, never `public_url`** — the same rule the
+device tag follows, and for the same reason: the tag is printed and clipped to
+something, so it has to keep resolving after the owner rotates or revokes their
+public link. It goes through `effective_qr_url`, so the Classroom Kit's
+`qr_target_url` override works here without any extra wiring.
+
+### The printed line is TWO settings keys, not one
+
+`scan_tag_note` holds the text; `scan_tag_note_enabled` says whether to print a
+line at all. Both live in `profile.settings`, edited together with the
+device-tag note in the frontend's `DeviceInfoSection`.
+
+Two keys because one cannot answer the question. `.presence` collapses `nil` and
+`""`, so a bare string cannot distinguish **never set** — which wants the
+default line — from **deliberately cleared**, which wants no line at all and is
+a tag someone specifically asked to be QR-only. The flag defaults to `true` via
+`settings.fetch("scan_tag_note_enabled", true)`, so every profile predating the
+field keeps printing a line with no backfill.
+
+`Profile::SCAN_TAG_DEFAULT_NOTE` is the single default. It is resolved in the
+service and never in the ERB: the device tag carries two defaults that disagree
+(one in `GenerateDeviceTag#template_locals`, a different one inline in its
+template), which is a trap worth not repeating. The frontend renders it as a
+**placeholder** and never prefills the field — prefilling would make "left it
+alone" indistinguishable from "typed exactly that", and would pin the printed
+line to whatever string that bundle happened to carry.
+
+### It costs two more renders on every profile save
+
+`Profile#generate_attachments!` builds it, so the Print & share thumbnail is
+always there — the same trade the device tag makes, and the reason the care plan
+(built on demand) needs a drawn empty state and this does not.
+
+That takes the method back to **four** headless-Chrome renders per
+safety-profile save, undoing the halving the Safety ID retirement bought below.
+It is a deliberate choice, not an oversight: the alternative is a Print & share
+card that shows a placeholder until someone clicks. If save latency becomes a
+problem, the fix is to move the whole method to a background job rather than to
+drop one document from it — the renders are already paid for by an avatar upload
+or a theme tweak, and the profile save does not need their output.
+
+
 ## The retired Safety ID card
 
 `Communicators::GenerateSafetyIdCard` printed exactly
@@ -607,7 +659,7 @@ clip-on kit tag, with no per-child data.
 ## Generating the printables is owner-only
 
 `API::Profiles::AssetsController` (`POST /api/profiles/:id/safety_id`,
-`/device_tag`) gates on `ChildAccount#editable_by?` — owner or admin, the same
+`/device_tag`, `/scan_tag`) gates on `ChildAccount#editable_by?` — owner or admin, the same
 rule as `API::ProfilesController#update`. Deliberately **not** team-wide: an
 SLP supervisor can be on the team and still not mint these.
 

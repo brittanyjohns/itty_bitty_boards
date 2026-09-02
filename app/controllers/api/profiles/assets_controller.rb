@@ -36,6 +36,20 @@ class API::Profiles::AssetsController < API::ApplicationController
     end
   end
 
+  def scan_tag
+    Rails.logger.info "Generating scan tag for Profile ID: #{@profile.id}, Regenerate: #{params[:regenerate]}"
+    Communicators::GenerateScanTag.call(@profile, regenerate: truthy?(params[:regenerate]))
+
+    attachment =
+      params[:format_type] == "pdf" ? @profile.scan_tag_pdf : @profile.scan_tag_png
+
+    if attachment.attached?
+      render json: { url: @profile.url_for_attachment(attachment) }
+    else
+      render json: { error: "Unable to generate scan tag." }, status: :unprocessable_content
+    end
+  end
+
   # The care plan documents. Unlike the tags these are generated on demand
   # rather than on every profile save, so this action is the only thing that
   # builds them.
