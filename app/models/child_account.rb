@@ -617,15 +617,51 @@ class ChildAccount < ApplicationRecord
       Rails.logger.error "Profile not found for audio update"
     end
     #  update boards audio as well
-    board_ids = child_boards.pluck(:board_id).uniq
+    board_ids = rewritable_voice_board_ids
     if board_ids.empty?
-      Rails.logger.info "UPDATE AUDIO  - No boards found for user_id #{user_id}"
+      Rails.logger.info "UPDATE AUDIO  - No exclusively-owned boards found for user_id #{user_id}"
       return
     end
     Rails.logger.info "UPDATE AUDIO  - Updating audio for boards: #{board_ids.count} boards found for user_id #{user_id}"
     board_ids.each_slice(5) do |batch|
       UpdateBoardsVoiceJob.perform_async(batch, updated_voice, language)
     end
+  end
+
+  # Which of this communicator's boards may have `boards.voice` and every
+  # `board_images.voice` REWRITTEN in place.
+  #
+  # Assignment attaches a board instead of copying it, so a dashboard board can
+  # be shared — with another communicator, or with the wider library. Rewriting
+  # one is not a preference change, it is destroying somebody else's audio:
+  # UpdateBoardsVoiceJob does `boards.update_all(voice:)` and then `set_voice`
+  # over every tile. Two exclusions, and both are necessary:
+  #
+  #   * a board this account's owner does not own — an admin library board or a
+  #     teammate's shared board is not ours to rewrite at all;
+  #   * a board that is on more than one dashboard — the other communicator
+  #     picked their own voice and would silently inherit this one.
+  #
+  # Excluded boards are not left silent. The communicator read paths pass
+  # `child_account.voice` into the serializer, which resolves per-voice audio
+  # through `BoardImage#audio_url_for_voice` and enqueues a render when that
+  # voice has not been spoken yet.
+  def rewritable_voice_board_ids
+    owner_user_id = user_id
+    return [] if owner_user_id.nil?
+
+    candidate_ids = child_boards.pluck(:board_id).uniq
+    return [] if candidate_ids.empty?
+
+    owned_ids = Board.where(id: candidate_ids, user_id: owner_user_id).pluck(:id)
+    return [] if owned_ids.empty?
+
+    shared_ids = ChildBoard.where(board_id: owned_ids)
+                           .where.not(child_account_id: id)
+                           .distinct
+                           .pluck(:board_id)
+
+    owned_ids - shared_ids
   end
 
   def reset_authentication_token!

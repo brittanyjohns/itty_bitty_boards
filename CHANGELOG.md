@@ -5,6 +5,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Adding a board to a communicator now puts *that* board on their dashboard,
+  instead of quietly making a copy of it.** Before, every board you added to a
+  communicator became a separate hidden copy — you couldn't find it in your
+  board list, and editing the board you *could* see never changed the one your
+  communicator was using. Now there's just one board. Add it to Ava and Ben,
+  edit it once, and both of them get the change immediately. Adding a board
+  costs no board slots, so this works on every plan, and boards from the public
+  library and from your team can be added the same way. If you want a
+  communicator to have their own separate version, use **Copy** on the board
+  first and add the copy — same as before, but now it's a choice you make rather
+  than something that happens behind your back.
+- **Each communicator keeps their own voice on a shared board.** Ava can hear
+  one voice and Ben another on the very same board, and changing one
+  communicator's voice no longer rewrites boards anyone else is using.
+- **Removing a board from a dashboard never deletes it.** It stays in your
+  board list.
+
 ### Added
 
 - **A scan tag: the QR code and one line, nothing else.** The device tag is a

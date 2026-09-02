@@ -564,7 +564,13 @@ class API::ChildAccountsController < API::ApplicationController
     # a bare string id (e.g. "123".size == 3 would corrupt the cap check).
     board_ids = Array(board_ids).map(&:to_i)
 
-    total_boards = @child_account.child_boards.count + board_ids.size
+    # Only ids not already on the dashboard cost anything — re-assigning an
+    # attached board is a no-op, so counting it against a cap would refuse a
+    # request that was going to change nothing.
+    attached_ids = @child_account.child_boards.pluck(:board_id)
+    new_ids = board_ids - attached_ids
+
+    total_boards = @child_account.child_boards.count + new_ids.size
     if @child_account.sandbox?
       demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
       if total_boards > demo_limit
@@ -573,10 +579,10 @@ class API::ChildAccountsController < API::ApplicationController
       end
     end
 
-    # Assigned clones don't count toward the owner's board limit, so this
-    # per-communicator cap is what keeps assignment from minting unlimited
-    # board rows.
-    if @child_account.at_assigned_board_limit?(board_ids.size)
+    # Assignment attaches a board rather than copying it, so it spends no board
+    # slot at all. This per-communicator cap is what bounds how big a single
+    # dashboard can get.
+    if @child_account.at_assigned_board_limit?(new_ids.size)
       render json: { error: "assigned_board_limit",
                      message: "This communicator can hold up to #{ChildAccount.max_assigned_boards} boards.",
                      limit: ChildAccount.max_assigned_boards,
@@ -585,18 +591,42 @@ class API::ChildAccountsController < API::ApplicationController
       return
     end
 
+    source = Boards::AssignableSource.new(@child_account, actor: current_user)
+    refused = []
+
     board_ids.each do |board_id|
-      board = Board.find(board_id)
-      voice = @child_account.voice || "polly:kevin"
-      # Deep clone: linked sub-boards are cloned + rewired too, so the
-      # communicator's set is self-contained (not shared with the source).
-      Boards::SetCloner.new(board, owner: current_user,
-                                          communicator: @child_account,
-                                          voice: voice, name: board.name).call
-    rescue Boards::SetCloner::CloneError => e
-      Rails.logger.error "[assign_boards] #{e.message}"
+      resolved = source.resolve(board_id)
+      if resolved.nil?
+        refused << board_id
+        next
+      end
+
+      board, = resolved
+      # ATTACH, don't copy. One board row on N dashboards: editing it reaches
+      # every communicator using it, which is the whole point — there is no
+      # per-communicator copy left to fall out of sync. `find_or_create_by!`
+      # rides the unique index on (board_id, child_account_id), so a repeat
+      # assign is idempotent instead of minting a second copy.
+      @child_account.child_boards.find_or_create_by!(board: board) do |cb|
+        cb.created_by_id = current_user.id
+      end
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+      Rails.logger.error "[assign_boards] board #{board_id}: #{e.message}"
+      refused << board_id
     end
-    render json: @child_account.api_view(current_user), status: :ok
+
+    if refused.any? && refused.size == board_ids.size
+      # Generic on purpose: naming which id was refused would say whether a
+      # board the caller cannot see exists.
+      render json: { error: "boards_not_assignable",
+                     message: "Those boards can't be added to this communicator." },
+             status: :unprocessable_content
+      return
+    end
+
+    payload = @child_account.api_view(current_user)
+    payload = payload.merge(boards_not_assignable: refused) if refused.any?
+    render json: payload, status: :ok
   end
 
   # DELETE /child_accounts/1

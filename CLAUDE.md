@@ -560,14 +560,37 @@ an explicit decision, not a drive-by edit.
   as the pointer: `door_tile?` is true on `mute_name`/`nav_tile` ALONE, so
   dropping the pointer while leaving a flag behind strands a silent tile with
   nowhere to go, worse than the broken link.
-- **`template_root:` decides what a copied set COSTS, and it governs the
-  sub-boards as well as the root.** An assignment
-  (`assign_boards` / `assign_accounts`) is scaffolding: `template_root: true`,
-  every board `is_template`, invisible in the owner's list, uncountable, capped
-  per communicator and swept when the last dashboard detaches it. A board the
-  user OWNS — the MySpeak starter, `POST /boards/:id/clone` — is
-  `template_root: false` throughout, so the whole set is listed, editable, and
-  costs ONE BOARD SLOT PER BOARD. The sub-clones used to be forced to templates
+- **Assigning a board ATTACHES it to a dashboard; it never copies it.** A board
+  on N communicators is ONE board — edit it once and every one of them sees it —
+  which is the whole reason the copy is gone. Assignment used to run
+  `Boards::SetCloner` with `template_root: true`, minting a per-communicator
+  clone that was excluded from `user.boards`, and so invisible in its owner's
+  board list, uncountable, and unreachable by any edit made to the source: the
+  board you edited and the board the child used were different rows, with no
+  sync and nothing in the codebase that could have provided one. Attachment
+  costs no board slot and consults no board limit, so a Free user's one board
+  still goes on their one communicator. `Boards::AssignableSource` is the single
+  allowlist — the actor's own boards, the communicator OWNER's own boards (a
+  supervisor curates on the owner's behalf), `Board.public_boards`, and the
+  communicator's team boards — and a refusal is generic, because naming the id
+  would say whether a board the caller cannot see exists. `assign_boards` had no
+  check at all, which was survivable only while the result was an invisible
+  copy. Two consequences to hold onto. **Per-communicator VOICE now resolves at
+  READ time** — see the next bullet — because `boards.voice` is one column on a
+  shared row. And a detach is pure detach: the `is_template` gate inside
+  `Boards::AssignmentTemplateSweep` is what keeps the hard-delete path for
+  LEGACY clones only. Those legacy rows are migrated by
+  `rake board_assignments:consolidate` (dry run by default), which re-points the
+  tile at its source and deletes the clone tree — but only when the clone is
+  provably unedited, since `boards` has no soft delete and every check has to
+  fail closed. `is_template` survives on the column for those rows and for
+  `Boards::GlpTemplates`; nothing mints new ones, and `template_root:` /
+  `force_template:` are gone. Do not reintroduce a mode that hides a board from
+  the person who owns it.
+- **A copied set costs ONE BOARD SLOT PER BOARD, and the budget is
+  `Boards::CloneSetPlanner`.** `Boards::SetCloner`'s two remaining callers — the
+  MySpeak starter and `POST /boards/:id/clone` — produce real, listed, editable
+  boards throughout. The sub-clones used to be forced to templates
   regardless, which made a six-board set cost exactly one slot and hid its five
   pages from the board list entirely: reachable by tapping a folder tile, and
   impossible to find in order to edit. `Boards::CloneSetPlanner` budgets the
@@ -584,14 +607,26 @@ an explicit decision, not a drive-by edit.
   `include_linked_boards: false` is the user asking for the ROOT ONLY — a set
   they have room for is still a set they may not want — which caps the copy at
   one board and clears `limited_by` entirely, because nothing was withheld and
-  there is nothing to offer an upgrade against. Two markers stay
-  split: `assignment_root_id` is stamped on EVERY sub-clone because
-  `Boards::PublishCascade` walks it with no `is_template` filter — without it a
-  published MySpeak starter leaves every folder tile 404ing — while
-  `assignment_child` marks a throwaway page and belongs only on templates. Both
-  halves of the orphan sweep in `API::ChildBoardsController` are scoped
-  `is_template: true`, which is what stops detaching an owned set destroying
-  boards its owner paid slots for.
+  there is nothing to offer an upgrade against. `assignment_root_id` is stamped
+  on EVERY sub-clone because `Boards::PublishCascade` walks it with no
+  `is_template` filter — without it a published MySpeak starter leaves every
+  folder tile 404ing. (Its old companion `assignment_child` marked a throwaway
+  per-communicator page; nothing writes it since assignment stopped cloning, and
+  legacy rows still carry it for `lib/tasks/myspeak.rake`.)
+- **A communicator's VOICE is a read-time argument, not a column on the board.**
+  A board can be on several dashboards, so `boards.voice` and
+  `board_images.voice` — single-valued columns on a shared row — cannot answer
+  "what does this communicator hear". Every communicator read path passes
+  `child_account.voice` into `Board#api_view_with_images` /
+  `#api_view_with_predictive_images`, which resolves per-voice audio through
+  `BoardImage#audio_url_for_voice` and enqueues a render when that voice has not
+  been spoken yet; the voice must also be in the `stale?` ETag, or two
+  communicators sharing a board serve each other 304s. The write side is the
+  other half: `ChildAccount#update_audio` fans out `UpdateBoardsVoiceJob`, which
+  does `boards.update_all(voice:)` and then rewrites EVERY tile, so
+  `#rewritable_voice_board_ids` excludes any board the account's owner does not
+  own and any board on more than one dashboard. Rewriting one of those is not a
+  preference change, it is destroying somebody else's audio.
 - **A slug is derived from the name once, at creation, and a rename never
   changes it.** `slug` is the `/pb/<slug>` key that a shared link, a MySpeak
   tile and a printed QR code all resolve through; the name is just a label.
@@ -817,13 +852,12 @@ an explicit decision, not a drive-by edit.
   time the set is still empty. `child_boards.published` is a dead column that
   nothing writes; read `board.published?`.
 - **The MySpeak wizard's starter board is the PARENT'S OWN board, and it is
-  gated like any other board create.** The two ASSIGNMENT `Boards::SetCloner`
-  call sites mint a per-communicator template — invisible in the owner's board
-  list, uncountable against `board_limit`, capped per communicator instead. The
-  wizard is not an assignment: the board it attaches is the one the child's
-  PUBLIC page links to, so an owner who cannot see it edits a different copy and
-  the two diverge permanently, with the world reading the one she can't reach.
-  It clones `template_root: false` and is refused by `at_board_limit?` — which
+  gated like any other board create.** Assignment attaches an EXISTING board and
+  spends no slot; the wizard CREATES one, so it is a board create and pays for
+  itself. The board it attaches is the one the child's PUBLIC page links to, so
+  an owner who cannot see it edits a different copy and the two diverge
+  permanently, with the world reading the one she can't reach. It is refused by
+  `at_board_limit?` — which
   it must read off a freshly-refetched `User`, since `countable_board_count` is
   memoized. At the limit the wizard **skips the board and reports the reason**
   rather than substituting a board of its own choosing: favoriting PUBLISHES,

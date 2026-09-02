@@ -112,7 +112,9 @@ class API::Account::BoardsController < API::Account::ApplicationController
     voice = params[:voice].presence
     Rails.logger.info("Voice parameter received: #{voice.inspect}")
     voice = "openai:alloy" if voice == "alloy"
-    effective_voice = voice || @board.voice
+    # The communicator's own voice before the board's — see
+    # API::Account::ChildBoardsController.
+    effective_voice = voice || current_account&.voice || @board.voice
 
     if stale?(
       etag: [@board, current_account&.id, effective_voice],
@@ -138,10 +140,13 @@ class API::Account::BoardsController < API::Account::ApplicationController
       can_edit: (@board.user == current_account || current_account.admin?),
       can_delete: (@board.user == current_account || current_account.admin?),
     }
-    if stale?(etag: @board, last_modified: @board.updated_at)
+    # The voice is part of what this response contains, so it has to be part of
+    # the cache key or two communicators sharing a board serve each other 304s.
+    effective_voice = current_account&.voice
+    if stale?(etag: [@board, current_account&.id, effective_voice], last_modified: @board.updated_at)
       RailsPerformance.measure("Show Board") do
         # @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @board.api_view_with_predictive_images(current_account)
+        @board_with_images = @board.api_view_with_predictive_images(current_account, false, effective_voice)
       end
       render json: @board_with_images.merge(user_permissions)
     end

@@ -6,7 +6,10 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
   # GET /boards/1 or /boards/1.json
   def show
     set_child_board
-    @board_with_images = @board.api_view_with_images
+    # This communicator's voice, not the board's. A board can be on several
+    # dashboards now, so the stored audio on the shared row belongs to whoever
+    # happened to write it last.
+    @board_with_images = @board.api_view_with_images(nil, current_account&.voice)
     child_permissions = {
       can_edit: false,
       can_delete: false,
@@ -32,10 +35,11 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
       Rails.logger.info "#{Board.predictive_default_id} -- No account dynamic default board found - setting default board : #{@board.id}"
     end
 
-    # normalize voice
+    # normalize voice — the communicator's own voice comes before the board's,
+    # which is a shared row and may carry someone else's.
     voice = params[:voice].presence
     voice = "openai:alloy" if voice == "alloy"
-    effective_voice = voice || @board.voice
+    effective_voice = voice || current_account&.voice || @board.voice
 
     last_modified = board_predictive_last_modified(@board)
 

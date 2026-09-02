@@ -114,7 +114,9 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
     end
     # Multi-digit id so a `.size`-on-string regression (2) differs from the
     # real count (1) and would trip the cap incorrectly.
-    let!(:public_board) { Board.create!(id: 90_001, user: slp, name: "Public Board", number_of_columns: 3, predefined: true) }
+    # Owned by the parent, who is the one assigning — the fixture is about the
+    # cap arithmetic, and assignment only accepts a board the caller may share.
+    let!(:public_board) { Board.create!(id: 90_001, user: parent, name: "Public Board", number_of_columns: 3, predefined: true) }
 
     it "counts a single (scalar) board id as one board against the cap" do
       expect {
