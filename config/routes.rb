@@ -194,6 +194,7 @@ Rails.application.routes.draw do
     namespace :profiles do
       post ":id/safety_id", to: "assets#safety_id"
       post ":id/device_tag", to: "assets#device_tag"
+      post ":id/scan_tag", to: "assets#scan_tag"
       # One route, `variant` as a param (full | care_only). Two routes would
       # fork the ownership gate and the empty-state handling for no gain.
       post ":id/care_plan", to: "assets#care_plan"

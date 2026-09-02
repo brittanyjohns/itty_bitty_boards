@@ -81,8 +81,10 @@ RSpec.describe "API::Profiles owner protection", type: :request do
     before do
       allow(Communicators::GenerateSafetyIdCard).to receive(:call).and_return(true)
       allow(Communicators::GenerateDeviceTag).to receive(:call).and_return(true)
+      allow(Communicators::GenerateScanTag).to receive(:call).and_return(true)
       allow_any_instance_of(Profile).to receive(:safety_id_png).and_return(fake_attachment)
       allow_any_instance_of(Profile).to receive(:device_tag_png).and_return(fake_attachment)
+      allow_any_instance_of(Profile).to receive(:scan_tag_png).and_return(fake_attachment)
       allow_any_instance_of(Profile).to receive(:url_for_attachment)
         .and_return("https://cdn.example.test/asset.png")
     end
@@ -138,6 +140,55 @@ RSpec.describe "API::Profiles owner protection", type: :request do
 
         expect(response).to have_http_status(:forbidden)
         expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      end
+    end
+
+    # The scan tag prints only a QR and a line of text, but that QR resolves to
+    # the same MySpeak page as the other two — so it is gated identically.
+    describe "POST /api/profiles/:id/scan_tag" do
+      it "allows the parent owner" do
+        post "/api/profiles/#{child_profile.id}/scan_tag", headers: auth_headers(parent)
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)["url"]).to be_present
+      end
+
+      it "blocks the SLP supervisor with 403 not_owner" do
+        post "/api/profiles/#{child_profile.id}/scan_tag", headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:forbidden)
+        expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      end
+
+      it "does not generate anything for a non-owner" do
+        post "/api/profiles/#{child_profile.id}/scan_tag",
+             params: { regenerate: true },
+             headers: auth_headers(slp)
+
+        expect(Communicators::GenerateScanTag).not_to have_received(:call)
+      end
+
+      it "never leaks the asset URL to a non-owner" do
+        post "/api/profiles/#{child_profile.id}/scan_tag", headers: auth_headers(slp)
+
+        expect(response.body).not_to include("cdn.example.test")
+      end
+
+      it "allows a system admin" do
+        post "/api/profiles/#{child_profile.id}/scan_tag", headers: auth_headers(admin)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "serves the PDF when format_type=pdf" do
+        allow_any_instance_of(Profile).to receive(:scan_tag_pdf).and_return(fake_attachment)
+
+        post "/api/profiles/#{child_profile.id}/scan_tag",
+             params: { format_type: "pdf" },
+             headers: auth_headers(parent)
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)["url"]).to be_present
       end
     end
 

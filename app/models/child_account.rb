@@ -1165,6 +1165,7 @@ class ChildAccount < ApplicationRecord
       claimed_at: claimed_at,
       loan_expires_at: loan_expires_at,
       device_tag_url: device_tag_url,
+      scan_tag_url: scan_tag_url,
       safety_id_url: safety_id_url,
       care_plan_url: care_plan_url,
       care_emergency_plan_url: care_emergency_plan_url,
@@ -1363,6 +1364,7 @@ class ChildAccount < ApplicationRecord
       # doesn't resolve for randomized safety slugs.
       public_url: public_url,
       device_tag_url: device_tag_url,
+      scan_tag_url: scan_tag_url,
       safety_id_url: safety_id_url,
       is_demo: is_demo?,
       voice: voice,
@@ -1379,6 +1381,11 @@ class ChildAccount < ApplicationRecord
   def device_tag_url
     return nil unless profile&.device_tag_png&.attached?
     profile.url_for_attachment(profile.device_tag_png)
+  end
+
+  def scan_tag_url
+    return nil unless profile&.scan_tag_png&.attached?
+    profile.url_for_attachment(profile.scan_tag_png)
   end
 
   # Care plan documents, and the preview thumbnail the Print & share tab shows

@@ -75,6 +75,8 @@ class API::Internal::ProfilesController < API::Internal::ApplicationController
       safety_id_pdf_url: url_for_attached(@profile.safety_id_pdf),
       device_tag_png_url: url_for_attached(@profile.device_tag_png),
       device_tag_pdf_url: url_for_attached(@profile.device_tag_pdf),
+      scan_tag_png_url: url_for_attached(@profile.scan_tag_png),
+      scan_tag_pdf_url: url_for_attached(@profile.scan_tag_pdf),
     }.compact
   end
 
