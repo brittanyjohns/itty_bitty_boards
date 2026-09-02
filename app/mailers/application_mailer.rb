@@ -12,11 +12,22 @@ class ApplicationMailer < ActionMailer::Base
   #
   # It re-raises: Sidekiq's retry/dead-set behaviour is the actual handling and
   # must not change. This adds a signal, it does not swallow a failure.
+  #
+  # The same failure is also written to `mail_deliveries` (#824) so it is
+  # visible on the admin dashboard rather than only to whoever greps the box —
+  # "we'll email you as soon as it's approved" is a promise an admin has to be
+  # able to check.
   rescue_from StandardError do |error|
     Rails.logger.error(
       "[mail] delivery_failed mailer=#{self.class.name}##{action_name} " \
       "to=#{Array(message&.to).join(",")} " \
       "error=#{error.class}: #{error.message}"
+    )
+    MailDelivery.record(
+      status: MailDelivery::FAILED,
+      message: message,
+      mailer: "#{self.class.name}##{action_name}",
+      error: error,
     )
     raise error
   end

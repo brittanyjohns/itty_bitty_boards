@@ -30,6 +30,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **The communicator slot count and the "you're out of slots" refusal now agree.**
+  Two different numbers were being reported for one thing: with a communicator
+  out on loan, one part of the app said slots were free while another said the
+  cap was reached — and creating a communicator was refused, after the user had
+  already typed a student's name and a password twice. There is now one answer
+  (limit, used, available, on loan, cap reached) computed from the same rule the
+  refusal uses, so the count on screen always matches what actually happens. A
+  loaned communicator still counts against the plan's slots; the slot comes back
+  when the family claims it, exactly as the plan describes.
+
+### Added
+
+- **A "Mail" page in the admin dashboard.** Every outgoing email now leaves a
+  record — sent, failed, or blocked (staging blocks all mail) — with the
+  Message-ID needed to trace a message at the mail provider. Failures in the
+  last week are badged in the admin navigation, so a bounced welcome or
+  approval email is visible instead of silent. Records are kept 90 days.
+- **A board now reports whether its symbols are ready, separately from whether
+  it's generated.** A freshly generated board was announced as "ready" the
+  moment its words and layout existed — which is before any tile pictures have
+  arrived, so the first thing you saw could be a wall of text. The board data
+  now says how many tiles are still waiting on a picture, so the app can hold
+  the "ready" screen or show placeholders instead.
+
 - **A failed payment now says why it failed.** The past-due notice could only
   say "payment failed", which is the wrong advice for half of the cases — a
   bank that declines an otherwise-valid card can't be fixed by re-saving that

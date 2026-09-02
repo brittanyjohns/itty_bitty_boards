@@ -15,6 +15,10 @@ module Permissions
     SANDBOX_NOT_INCLUDED = "sandbox_communicators_not_included"
     SANDBOX_LIMIT_REACHED = "sandbox_limit_reached"
 
+    # The statuses that occupy a slot. A `loaner` counts against the lender
+    # until a family claims it, which is when the slot comes back.
+    SLOT_STATUSES = [ChildAccount::LOANER, ChildAccount::ACTIVE].freeze
+
     # Slot math:
     #
     #   Free  — 1 full (login) communicator, CLAIM/HAND-OFF ONLY. A Free user
@@ -44,7 +48,7 @@ module Permissions
       when ChildAccount::SANDBOX
         check_sandbox_quota(user, settings)
       when ChildAccount::LOANER, ChildAccount::ACTIVE
-        check_slot_self_create(user, settings)
+        check_slot_self_create(user)
       else
         [false, :unprocessable_content, "Unknown communicator status: #{status}", UNKNOWN_STATUS]
       end
@@ -56,14 +60,7 @@ module Permissions
     def can_claim?(user:)
       return [false, :unauthorized, "Unauthorized", UNAUTHORIZED] unless user
 
-      settings = user.settings || {}
-      slot_limit = slot_limit_for(settings)
-      owned_count = owned_slot_count(user)
-
-      return [false, :forbidden, "Your plan does not include communicator accounts.", SLOTS_NOT_INCLUDED] if slot_limit <= 0
-      return [false, :unprocessable_content, "Maximum number of communicator accounts reached.", SLOT_LIMIT_REACHED] if owned_count >= slot_limit
-
-      [true, :ok, nil, nil]
+      refuse_when_out_of_slots(slots_for(user: user))
     end
 
     # The status a *self-created* communicator must take for this user. A Free
@@ -102,7 +99,43 @@ module Permissions
     # The total non-sandbox slots a user occupies right now. Used by the
     # claim flow and by frontends rendering "X of Y communicators."
     def owned_slot_count(user)
-      user.communicator_accounts.where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]).count
+      user.communicator_accounts.where(status: SLOT_STATUSES).count
+    end
+
+    # THE answer to "how many communicator slots does this user have left",
+    # derived from the exact limit and count `can_create?` refuses on, so a
+    # payload field can no longer disagree with the 422 it predicts.
+    #
+    # It exists because two flags used to answer this and they were opposites
+    # at the same instant (#824): `comm_account_limit_reached` summed the paid
+    # AND sandbox limits against EVERY communicator — matching no gate anywhere
+    # — so a clinician at 2/2 with one communicator out on loan read `false`
+    # there and `true` in `paid_comm_account_limit_reached`, while the create
+    # 422'd. One panel rendered "2 of 2 slots in use" directly above "No slots
+    # available" because two components had picked different fields.
+    #
+    # `status_counts` lets a caller that already grouped by status (User#api_view)
+    # pass its counts in rather than firing the query twice.
+    def slots_for(user:, status_counts: nil)
+      return { limit: 0, used: 0, available: 0, on_loan: 0, active: 0, limit_reached: true } unless user
+
+      counts = status_counts || user.communicator_accounts.group(:status).count
+      on_loan = counts.fetch(ChildAccount::LOANER, 0)
+      active = counts.fetch(ChildAccount::ACTIVE, 0)
+      limit = slot_limit_for(user.settings || {})
+      used = on_loan + active
+
+      {
+        limit: limit,
+        used: used,
+        available: [0, limit - used].max,
+        on_loan: on_loan,
+        active: active,
+        # `>=`, not `>`: a plan with no slots at all is "reached" too, since
+        # `check_slot_self_create` refuses that case as well (403
+        # SLOTS_NOT_INCLUDED rather than 422, but refuses either way).
+        limit_reached: used >= limit,
+      }
     end
 
     def slot_limit_for(settings)
@@ -139,12 +172,16 @@ module Permissions
       [true, :ok, nil, nil]
     end
 
-    def check_slot_self_create(user, settings)
-      limit = slot_limit_for(settings)
-      count = owned_slot_count(user)
+    def check_slot_self_create(user)
+      refuse_when_out_of_slots(slots_for(user: user))
+    end
 
-      return [false, :forbidden, "Your plan does not include communicator accounts.", SLOTS_NOT_INCLUDED] if limit <= 0
-      return [false, :unprocessable_content, "Maximum number of communicator accounts reached.", SLOT_LIMIT_REACHED] if count >= limit
+    # The one place a slot refusal is decided, so `slots_for(...)[:limit_reached]`
+    # — which the payload publishes — cannot disagree with the answer this gate
+    # gives. Both messages stay byte-identical: the frontend renders them verbatim.
+    def refuse_when_out_of_slots(slots)
+      return [false, :forbidden, "Your plan does not include communicator accounts.", SLOTS_NOT_INCLUDED] if slots[:limit] <= 0
+      return [false, :unprocessable_content, "Maximum number of communicator accounts reached.", SLOT_LIMIT_REACHED] if slots[:limit_reached]
 
       [true, :ok, nil, nil]
     end

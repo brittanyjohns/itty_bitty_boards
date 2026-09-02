@@ -340,6 +340,27 @@ class BoardImage < ApplicationRecord
     !display_image_url.nil? && display_image_url.empty?
   end
 
+  # Is this tile still waiting on a picture it will eventually get? The half of
+  # "board ready" that has nothing to do with words or layout (#824).
+  #
+  # A BLANK display_image_url is READY, not waiting: `picture_hidden?` above is
+  # the deliberate "this tile has no picture" state, and the client draws the
+  # label on the tile's colour. Only `nil` falls through to the shared Image's
+  # art, so only `nil` can be waiting on anything.
+  #
+  # The library-art check is `image.src_url`, not the full
+  # `image.display_image_url(user)` chain: a user's own UserDoc pick only
+  # exists where the Image has docs, and resolving it per tile would put a
+  # query per tile into a hot serializer. The failure direction is the safe
+  # one — it can report a tile as not-yet-ready that is, so a client waits a
+  # beat longer rather than painting a wall of text.
+  def awaiting_art?
+    return true if Board::TILE_ART_IN_PROGRESS_STATUSES.include?(status)
+    return false unless display_image_url.nil?
+
+    image&.src_url.blank?
+  end
+
   # Put the picture back on a tile whose picture was switched off. nil is the
   # exact inverse of the blank marker: it lets the `||` chain fall through to
   # the shared Image's art, which is the normal state for most tiles and works

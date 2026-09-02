@@ -71,6 +71,9 @@ Rails.application.routes.draw do
         post :send_partner_welcome_email
       end
     end
+    # Outbound mail log — delivered / failed / suppressed, with the Message-ID
+    # an Email Log Search takes. Read-only.
+    resources :mail_deliveries, only: [:index], as: :dashboard_mail_deliveries
     resources :clinician_applications, only: [:index], as: :dashboard_clinician_applications do
       member do
         post :approve

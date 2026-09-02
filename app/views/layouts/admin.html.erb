@@ -159,6 +159,16 @@
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/feedback") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Word Events", admin_dashboard_word_events_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/word_events") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+          <%# Badged so a failed send is SEEN rather than looked for — the whole
+              point of #824's finding 2. %>
+          <% mail_failures = MailDelivery.failures.where(created_at: 7.days.ago..).count rescue 0 %>
+          <%= link_to admin_dashboard_mail_deliveries_path,
+                class: "text-xs px-3 py-1.5 rounded inline-flex items-center gap-1.5 #{request.path.start_with?("/admin/mail_deliveries") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" do %>
+            Mail
+            <% if mail_failures.positive? %>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold" style="background: var(--danger-bg, #7f1d1d); color: #fff;"><%= mail_failures %></span>
+            <% end %>
+          <% end %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq", target: "_blank", rel: "noopener",

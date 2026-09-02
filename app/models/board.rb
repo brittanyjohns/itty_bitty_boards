@@ -930,12 +930,40 @@ class Board < ApplicationRecord
     end
   end
 
+  # Statuses that mean a tile's picture is actively being produced.
+  #
+  # `pending` is deliberately NOT one of them: it is the board_images column
+  # DEFAULT, held by the overwhelming majority of tiles that never go through
+  # art generation at all, so treating it as "queued" would report nearly every
+  # board as permanently un-ready. (`pending_images` below reads that way and is
+  # kept only for the callers that already depend on it.)
+  TILE_ART_IN_PROGRESS_STATUSES = %w[generating processing].freeze
+
   def has_generating_images?
     board_images.any? { |bi| bi.status == "generating" }
   end
 
   def pending_images
     board_images.where(status: ["pending", "generating"])
+  end
+
+  # "Generated" and "renderable" are different questions, and the completion
+  # screen answers the first one while saying the second (#824). GenerateBoardJob
+  # flips a board to `complete` immediately after enqueuing per-tile art, so a
+  # client told "board ready" can open a board whose 22 tiles are still text.
+  #
+  # This is the second question, and the field a "ready" screen should gate on.
+  # `has_generating_images?` is the narrower legacy signal — it keys on one
+  # status and scans hidden tiles too; this counts only what a viewer will
+  # actually see, and counts a tile that has no art at all, not just one whose
+  # job is still running. See BoardImage#awaiting_art? for why a BLANK picture
+  # is ready rather than waiting.
+  def tiles_awaiting_art_count
+    visible_board_images.includes(:image).count(&:awaiting_art?)
+  end
+
+  def images_ready?
+    tiles_awaiting_art_count.zero?
   end
 
   def set_board_type
@@ -2417,6 +2445,11 @@ class Board < ApplicationRecord
       settings: settings,
       published: published,
       has_generating_images: has_generating_images?,
+      # Gate a "board ready" screen on images_ready, not on status == complete:
+      # a board is complete the moment its words and layout exist, which is
+      # before any tile art has landed (#824).
+      images_ready: images_ready?,
+      tiles_awaiting_art: tiles_awaiting_art_count,
       number_of_columns: number_of_columns,
       small_screen_columns: small_screen_columns,
       medium_screen_columns: medium_screen_columns,
@@ -2655,6 +2688,11 @@ class Board < ApplicationRecord
       margin_settings: margin_settings,
       settings: settings,
       has_generating_images: has_generating_images?,
+      # Gate a "board ready" screen on images_ready, not on status == complete:
+      # a board is complete the moment its words and layout exist, which is
+      # before any tile art has landed (#824).
+      images_ready: images_ready?,
+      tiles_awaiting_art: tiles_awaiting_art_count,
       current_user_teams: [],
       current_colors: current_colors,
       images: @board_images.map do |board_image|
@@ -2950,6 +2988,10 @@ class Board < ApplicationRecord
       slug: slug,
       name: name,
       word_list: current_word_list,
+      # Same pair as the grid/predictive views. Deliberately NOT on `api_view`:
+      # that one serializes board LISTS, and this costs a query per board.
+      images_ready: images_ready?,
+      tiles_awaiting_art: tiles_awaiting_art_count,
       can_edit: can_edit_for(viewing_user),
       locked: locked_for?(viewing_user),
       lock_reason: lock_reason_for(viewing_user),

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_27_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_02_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -674,6 +674,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_27_120000) do
     t.index ["board_printable_id"], name: "index_kit_pages_on_board_printable_id"
     t.index ["etsy_override_by_id"], name: "index_kit_pages_on_etsy_override_by_id"
     t.index ["slug"], name: "index_kit_pages_on_slug", unique: true
+  end
+
+  create_table "mail_deliveries", force: :cascade do |t|
+    t.string "status", null: false
+    t.string "recipients"
+    t.string "from_address"
+    t.string "subject"
+    t.string "message_id"
+    t.string "mailer"
+    t.string "transport"
+    t.string "reason"
+    t.string "error_class"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_mail_deliveries_on_created_at"
+    t.index ["message_id"], name: "index_mail_deliveries_on_message_id"
+    t.index ["recipients"], name: "index_mail_deliveries_on_recipients"
+    t.index ["status", "created_at"], name: "index_mail_deliveries_on_status_and_created_at"
   end
 
   create_table "marketing_assets", force: :cascade do |t|

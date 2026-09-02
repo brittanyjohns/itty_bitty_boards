@@ -17,13 +17,24 @@
 # Recipients are logged because an admin diagnosing a missing email needs to
 # know which address the app actually used; no body or subject-line PII beyond
 # what a mail log already carries is emitted.
+#
+# The same two facts are also written to `mail_deliveries` (#824), because a log
+# line only answers the question for whoever can reach the box — and the person
+# who has to trust "we'll email you as soon as it's approved" is looking at the
+# admin dashboard.
 class MailDeliveryObserver
   def self.delivered_email(message)
     # Mail informs observers even when delivery was suppressed — an interceptor
     # (StagingMailInterceptor / E2eMailInterceptor) clears `perform_deliveries`
     # rather than raising, and those interceptors log their own drop. Logging
     # "delivered" there would be a lie in exactly the place this line is read.
-    return unless message.perform_deliveries && ActionMailer::Base.perform_deliveries
+    unless message.perform_deliveries && ActionMailer::Base.perform_deliveries
+      # Recorded rather than skipped: on staging EVERY message lands here, and
+      # "suppressed" is the one state the logs left indistinguishable from
+      # "never attempted" — which is exactly the ambiguity #820 was about.
+      MailDelivery.record(status: MailDelivery::SUPPRESSED, message: message, reason: suppression_reason(message))
+      return
+    end
 
     Rails.logger.info(
       "[mail] delivered to=#{Array(message.to).join(",")} " \
@@ -32,9 +43,24 @@ class MailDeliveryObserver
       "message_id=#{message.message_id.inspect} " \
       "transport=#{ActionMailer::Base.delivery_method}"
     )
+    MailDelivery.record(status: MailDelivery::DELIVERED, message: message)
   rescue StandardError => e
     # Observability must never break a send that already succeeded.
     Rails.logger.warn("[mail] observer failed: #{e.class}: #{e.message}")
+  end
+
+  # Best-effort attribution for a drop. The interceptors clear
+  # `perform_deliveries` without saying why, so this re-derives it from the
+  # same conditions they used rather than having them report it — an
+  # interceptor that stops setting a reason would otherwise silently blank it.
+  def self.suppression_reason(message)
+    return "e2e_recipient" if Array(message.to).any? { |a| a.to_s.match?(E2eMailInterceptor::E2E_RECIPIENT) }
+    return "staging" if AppEnv.staging?
+    return "perform_deliveries_disabled" unless ActionMailer::Base.perform_deliveries
+
+    "unknown"
+  rescue StandardError
+    "unknown"
   end
 end
 

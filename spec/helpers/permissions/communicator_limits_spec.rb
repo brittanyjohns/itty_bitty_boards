@@ -166,4 +166,59 @@ RSpec.describe Permissions::CommunicatorLimits do
       expect(error).to match(/maximum/i)
     end
   end
+  describe ".slots_for" do
+    let(:user) do
+      u = create(:user, plan_type: "clinician", created_at: 2.months.ago)
+      u.setup_clinician_limits
+      u.save!
+      u
+    end
+
+    it "counts a loaner and an active against the same slot budget" do
+      create(:child_account, user: user, owner: user, status: ChildAccount::ACTIVE)
+      create(:child_account, user: user, owner: user, status: ChildAccount::LOANER)
+      # Sandboxes have their own quota and never occupy a slot.
+      create(:child_account, user: user, owner: user, status: ChildAccount::SANDBOX)
+
+      expect(described_class.slots_for(user: user)).to eq(
+        limit: 2, used: 2, available: 0, on_loan: 1, active: 1, limit_reached: true,
+      )
+    end
+
+    it "agrees with can_create?, which is the point of it existing" do
+      2.times { create(:child_account, user: user, owner: user, status: ChildAccount::ACTIVE) }
+
+      allowed, _status, _error, code = described_class.can_create?(user: user, status: ChildAccount::ACTIVE)
+      expect(described_class.slots_for(user: user)[:limit_reached]).to eq(!allowed)
+      expect(code).to eq(described_class::SLOT_LIMIT_REACHED)
+    end
+
+    it "reads the communicator_slot_limit override the gate enforces" do
+      user.update!(settings: user.settings.merge("communicator_slot_limit" => 5))
+
+      expect(described_class.slots_for(user: user)[:limit]).to eq(5)
+    end
+
+    it "adds Pro add-on slots on top of the base limit" do
+      user.update!(settings: user.settings.merge("extra_communicator_slots" => 3))
+
+      expect(described_class.slots_for(user: user)).to include(limit: 5, available: 5)
+    end
+
+    it "treats a plan with no slots at all as reached" do
+      user.update!(settings: user.settings.merge("paid_communicator_limit" => 0))
+
+      expect(described_class.slots_for(user: user)).to include(
+        limit: 0, used: 0, available: 0, limit_reached: true,
+      )
+    end
+
+    it "uses caller-supplied status counts rather than re-querying" do
+      counts = { ChildAccount::LOANER => 2, ChildAccount::SANDBOX => 9 }
+
+      expect(described_class.slots_for(user: user, status_counts: counts)).to include(
+        used: 2, on_loan: 2, active: 0, available: 0, limit_reached: true,
+      )
+    end
+  end
 end
