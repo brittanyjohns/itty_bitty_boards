@@ -770,12 +770,59 @@ class API::WebhooksController < API::ApplicationController
     user.update!(plan_status: "past_due")
     Rails.logger.info "[StripeWebhook][invoice_failed] marked user=#{user.id} plan_status=past_due sub=#{sub_id}"
 
+    persist_payment_failure_reason(user, invoice)
+
     unless already_past_due
       UserMailer.payment_failed_email(user).deliver_later
       Rails.logger.info "[StripeWebhook][invoice_failed] queued payment_failed_email user=#{user.id}"
     end
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_invoice_payment_failed error: #{e.class} - #{e.message}"
+  end
+
+  # Record WHY the charge failed, so the past-due banner can name the next
+  # action — an expired card is fixed by updating the card, an issuer decline
+  # is not, and generic "update your payment method" copy sends that second
+  # user round in a loop.
+  #
+  # The detail lives on the invoice's PaymentIntent; this endpoint is on API
+  # version 2023-10-16, so `invoice.payment_intent` is the correct path. The
+  # whole thing degrades to "generic" rather than raising: the plan_status
+  # update above matters more than the reason string, and it has already run.
+  # Only the MAPPED reason is stored — Stripe's raw `message` is not brand
+  # voice, can carry integration jargon, and never reaches the client.
+  def persist_payment_failure_reason(user, invoice)
+    reason = Billing::DeclineReason.for(**decline_error_codes(invoice))
+
+    user.settings ||= {}
+    user.settings[User::PAYMENT_FAILURE_KEY] = {
+      "reason" => reason,
+      "at" => Time.current.utc.iso8601,
+    }
+    user.save!
+    Rails.logger.info "[StripeWebhook][invoice_failed] payment_failure reason=#{reason} user=#{user.id}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook][invoice_failed] payment_failure capture failed user=#{user.id}: #{e.class} - #{e.message}"
+  end
+
+  # Returns the Stripe error codes for the invoice's PaymentIntent, or empty
+  # (which maps to "generic") when there is no intent or the lookup fails.
+  def decline_error_codes(invoice)
+    raw = invoice.respond_to?(:payment_intent) ? invoice.payment_intent : nil
+    # May be a bare id string or, if the caller expanded it, a PaymentIntent.
+    pi_id = raw.respond_to?(:id) ? raw.id : raw
+    return {} if pi_id.blank?
+
+    error = Stripe::PaymentIntent.retrieve(pi_id)&.last_payment_error
+    return {} if error.nil?
+
+    {
+      code: error.respond_to?(:code) ? error.code : nil,
+      decline_code: error.respond_to?(:decline_code) ? error.decline_code : nil,
+    }
+  rescue => e
+    Rails.logger.warn "[StripeWebhook][invoice_failed] payment_intent lookup failed: #{e.class} - #{e.message}"
+    {}
   end
 
   # Read the subscription id off an invoice. The newer Stripe API

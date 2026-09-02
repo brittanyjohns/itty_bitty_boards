@@ -30,14 +30,21 @@ RSpec.describe "POST /api/webhooks (payment failed email)", type: :request do
 
   # invoice.payment_failed carries only the subscription id here; the handler
   # then retrieves the subscription and resolves the user from its customer.
-  def build_invoice(subscription_id: "sub_pf")
-    OpenStruct.new(subscription: subscription_id)
+  def build_invoice(subscription_id: "sub_pf", payment_intent: nil)
+    OpenStruct.new(subscription: subscription_id, payment_intent: payment_intent)
   end
 
-  def stub_payment_failed(subscription: build_subscription, event_id: "evt_pf")
+  def stub_payment_failed(subscription: build_subscription, event_id: "evt_pf", payment_intent: nil)
     allow(Stripe::Subscription).to receive(:retrieve).with(subscription.id).and_return(subscription)
-    stub_event(build_invoice(subscription_id: subscription.id),
+    stub_event(build_invoice(subscription_id: subscription.id, payment_intent: payment_intent),
       type: "invoice.payment_failed", event_id: event_id)
+  end
+
+  # The failure detail lives on the invoice's PaymentIntent.
+  def stub_payment_intent(id, code: nil, decline_code: nil, error: :build)
+    error = OpenStruct.new(code: code, decline_code: decline_code, message: "Your card was declined.") if error == :build
+    allow(Stripe::PaymentIntent).to receive(:retrieve).with(id)
+      .and_return(OpenStruct.new(id: id, last_payment_error: error))
   end
 
   describe "active -> past_due transition" do
@@ -94,6 +101,67 @@ RSpec.describe "POST /api/webhooks (payment failed email)", type: :request do
 
       expect(user.reload.plan_status).to eq("active")
       expect(UserMailer).not_to have_received(:payment_failed_email)
+    end
+  end
+
+  describe "capturing the decline reason (#826)" do
+    before do
+      allow(UserMailer).to receive(:payment_failed_email).and_return(double(deliver_later: true))
+    end
+
+    it "persists the mapped reason from the PaymentIntent's last_payment_error" do
+      stub_payment_intent("pi_pf", code: "card_declined", decline_code: "insufficient_funds")
+      stub_payment_failed(payment_intent: "pi_pf")
+      post_webhook("{}", header_with_signature)
+
+      failure = user.reload.settings[User::PAYMENT_FAILURE_KEY]
+      expect(failure["reason"]).to eq("insufficient_funds")
+      expect(Time.zone.parse(failure["at"])).to be_within(1.minute).of(Time.current)
+    end
+
+    it "never stores Stripe's raw message" do
+      stub_payment_intent("pi_pf", code: "card_declined", decline_code: "insufficient_funds")
+      stub_payment_failed(payment_intent: "pi_pf")
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.settings[User::PAYMENT_FAILURE_KEY].values.join(" "))
+        .not_to include("Your card was declined")
+    end
+
+    it "does not surface a fraud decline" do
+      stub_payment_intent("pi_pf", code: "card_declined", decline_code: "stolen_card")
+      stub_payment_failed(payment_intent: "pi_pf")
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.settings[User::PAYMENT_FAILURE_KEY]["reason"]).to eq("generic")
+    end
+
+    it "still marks the user past_due when the PaymentIntent lookup blows up" do
+      allow(Stripe::PaymentIntent).to receive(:retrieve).and_raise(StandardError, "stripe down")
+      stub_payment_failed(payment_intent: "pi_pf")
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.plan_status).to eq("past_due")
+      expect(user.settings[User::PAYMENT_FAILURE_KEY]["reason"]).to eq("generic")
+    end
+
+    it "records generic when the invoice carries no PaymentIntent" do
+      stub_payment_failed
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.settings[User::PAYMENT_FAILURE_KEY]["reason"]).to eq("generic")
+    end
+
+    it "refreshes the reason on a later dunning retry" do
+      stub_payment_intent("pi_1", code: "card_declined", decline_code: "insufficient_funds")
+      stub_payment_failed(payment_intent: "pi_1", event_id: "evt_pf_1")
+      post_webhook("{}", header_with_signature)
+
+      stub_payment_intent("pi_2", code: "expired_card")
+      stub_payment_failed(payment_intent: "pi_2", event_id: "evt_pf_2")
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.settings[User::PAYMENT_FAILURE_KEY]["reason"]).to eq("expired_card")
     end
   end
 end
