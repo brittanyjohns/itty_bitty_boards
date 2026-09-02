@@ -23,6 +23,12 @@ module Boards
       Boards::SetCloner.depth_cap
     end
 
+    # Root plus the sub-boards its folder tiles open, in the same BFS order the
+    # clone was produced in — so pages correspond position for position.
+    def self.tree(root)
+      Boards::PredictiveLinkSet.collect(root, max_depth: depth_cap)
+    end
+
     def initialize(child_board, dry_run: true)
       @child_board = child_board
       @dry_run = dry_run
@@ -37,8 +43,8 @@ module Boards
       return skip(:source_is_clone) if source.id == clone_root.id
       return skip(:source_not_visible) unless source_visible?(source)
 
-      clone_tree = tree(clone_root)
-      source_tree = tree(source)
+      clone_tree = self.class.tree(clone_root)
+      source_tree = self.class.tree(source)
       return skip(:marketplace_protected) if marketplace_protected?(clone_tree)
       return skip(:edited) unless trees_match?(clone_tree, source_tree)
 
@@ -96,9 +102,6 @@ module Boards
       !Boards::AssignableSource.new(@child_board.child_account, actor: owner).resolve(source.id).nil?
     end
 
-    def tree(root)
-      Boards::PredictiveLinkSet.collect(root, max_depth: self.class.depth_cap)
-    end
 
     def marketplace_protected?(boards)
       Boards::MarketplaceProtection.protected_board_ids(boards.map(&:id)).any?
@@ -122,23 +125,38 @@ module Boards
     # `audio_url` (the per-communicator voice, which now resolves at read time),
     # `image_id` (re-resolved to the cloning user's own library row by label),
     # and the VALUE of `predictive_board_id` (rewired to the sub-clones — only
-    # whether the tile is a folder is comparable). `doc_id` is stripped from a
-    # cloned tile's data by design.
+    # whether the tile is a folder is comparable).
     def fingerprint(board)
-      board.board_images.map do |bi|
-        [
-          bi.label,
-          bi.display_label,
-          bi.display_image_url,
-          bi.bg_color,
-          bi.font_size,
-          bi.hidden,
-          bi.layout,
-          bi.position,
-          bi.predictive_board_id.present?,
-          (bi.data || {}).except("doc_id"),
-        ]
-      end.sort_by(&:to_s)
+      board.board_images.map { |bi| self.class.tile_fields(bi).values }.sort_by(&:to_s)
+    end
+
+    # Comparable fields for one tile, keyed so a diagnostic can say WHICH one
+    # diverged (see rake board_assignments:diff_report).
+    #
+    # Three of these are compared RESOLVED rather than literally, because
+    # `BoardImage#set_defaults` fills them in on the clone when the source left
+    # them blank — so a literal compare reports a divergence the user never
+    # made. Comparing "what the source would seed" against "what the clone
+    # holds" is the honest question. `display_image_url` keeps its three-state
+    # rule: nil falls through to the library art, `""` is the "no picture"
+    # marker and must not.
+    def self.tile_fields(bi)
+      {
+        label: bi.label,
+        display_label: bi.display_label.presence || bi.image&.display_label,
+        display_image_url: bi.display_image_url.nil? ? bi.image&.src_url : bi.display_image_url,
+        bg_color: bi.bg_color,
+        font_size: bi.font_size || bi.image&.font_size,
+        hidden: bi.hidden,
+        layout: bi.layout,
+        position: bi.position,
+        folder: bi.predictive_board_id.present?,
+        # Mirrors what the clone path actually wrote, rather than
+        # reimplementing it: `doc_id` is nested under `text_image`, and
+        # stripping a top-level key of that name (which never exists) made every
+        # text tile read as edited.
+        data: bi.cloned_tile_data,
+      }
     end
   end
 end

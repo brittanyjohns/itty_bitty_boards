@@ -99,6 +99,54 @@ RSpec.describe Boards::AssignmentConsolidator do
     end
   end
 
+  # `BoardImage#set_defaults` fills these in on the clone when the source left
+  # them blank, so a LITERAL compare reported a divergence the user never made.
+  # A first dry run over real data skipped 84% of clones as "edited" on the
+  # strength of these four alone.
+  describe "values a clone legitimately fills in are not edits" do
+    it "does not read a defaulted picture as an edit when the source pinned none" do
+      source.board_images.first.update_column(:display_image_url, nil)
+      child_board, = legacy_assignment!(source.reload)
+
+      expect(described_class.new(child_board, dry_run: true).call.status).to eq(:consolidated)
+    end
+
+    it "does not read a defaulted font_size as an edit" do
+      source.board_images.first.update_column(:font_size, nil)
+      child_board, = legacy_assignment!(source.reload)
+
+      expect(described_class.new(child_board, dry_run: true).call.status).to eq(:consolidated)
+    end
+
+    it "does not read a defaulted display_label as an edit" do
+      source.board_images.first.update_column(:display_label, nil)
+      child_board, = legacy_assignment!(source.reload)
+
+      expect(described_class.new(child_board, dry_run: true).call.status).to eq(:consolidated)
+    end
+
+    # `doc_id` lives NESTED under data["text_image"], so excepting a top-level
+    # key of that name (which never exists) left every text tile diverging.
+    it "does not read a stripped text-tile doc_id as an edit" do
+      tile = source.board_images.first
+      tile.update_column(:data, { "text_image" => { "doc_id" => 4242, "style" => "plain" } })
+      child_board, clone = legacy_assignment!(source.reload)
+
+      expect(clone.board_images.first.data.dig("text_image", "doc_id")).to be_nil
+      expect(described_class.new(child_board, dry_run: true).call.status).to eq(:consolidated)
+    end
+
+    # The relaxation must not swallow the marker: "" means "this tile has no
+    # picture" and never falls through to the library's art.
+    it "still reads a blanked picture as an edit against a pinned source" do
+      source.board_images.first.update_column(:display_image_url, "https://cdn.test/apple.png")
+      child_board, clone = legacy_assignment!(source.reload)
+      clone.board_images.first.update_column(:display_image_url, "")
+
+      expect(described_class.new(child_board, dry_run: true).call.reason).to eq(:edited)
+    end
+  end
+
   describe "skips" do
     it "skips a clone whose tiles diverge from the source" do
       child_board, clone = legacy_assignment!(source)

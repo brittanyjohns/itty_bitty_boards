@@ -117,10 +117,19 @@ and nothing in the codebase that could have provided one.
   re-points the tile at its source and sweeps the clone tree, and every check
   fails CLOSED because `boards` has no soft delete: it skips unless the source
   still exists and is still assignable to that owner, and unless the clone tree
-  is byte-identical to the source's on label / display_label /
-  display_image_url / bg_color / font_size / hidden / layout / position /
-  folder-ness / data (voice, audio_url and image_id are excluded — a clone is
-  SUPPOSED to differ there). A favorited tile publishes its source through
+  matches the source's on label / display_label / display_image_url / bg_color /
+  font_size / hidden / layout / position / folder-ness / data. `voice`,
+  `audio_url` and `image_id` are excluded — a clone is SUPPOSED to differ there.
+  **`display_label`, `display_image_url` and `font_size` are compared RESOLVED,
+  not literally**, because `BoardImage#set_defaults` fills them in on the clone
+  when the source left them blank; a literal compare reported an edit the user
+  never made, and skipped 84% of real rows on that alone. `data` goes through
+  `BoardImage#cloned_tile_data` rather than a reimplementation, since `doc_id`
+  is nested under `text_image` and stripping a top-level key of that name
+  matched nothing. `""` still never falls through to the library art — it is the
+  "no picture" marker. `rake board_assignments:diff_report` is the read-only
+  companion that says WHICH field diverges, so a skip rate can be diagnosed
+  instead of guessed at. A favorited tile publishes its source through
   `Boards::MySpeakPublisher`, since the public page gates each card on the
   board being published. A consolidated tile serves the source board, so the
   clone's own `/pb/<slug>` stops resolving — accepted, as no assignment clone
