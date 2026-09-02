@@ -1,5 +1,12 @@
 class API::ImagesController < API::ApplicationController
+  include BoardCreationLimit
+
   skip_before_action :authenticate_token!, only: %i[generate_audio public_audio]
+  # Turning a tile into a folder mints a real, countable Board. It was the
+  # loudest of the three ungated creation paths (issue #804): the boards it made
+  # carried a NULL board_type, so they counted against the cap while staying
+  # invisible on /boards.
+  before_action :check_board_create_permissions, only: %i[create_predictive_board]
 
   ALLOWED_SORT_FIELDS = %w[label created_at updated_at id].freeze
   ALLOWED_SORT_ORDERS = %w[asc desc].freeze
@@ -458,10 +465,17 @@ class API::ImagesController < API::ApplicationController
     column_data[:small_screen_columns] = params[:small_screen_columns] if params[:small_screen_columns].present?
     predictive_board = @image.create_predictive_board(user_id, word_list, new_board_name, board_settings, column_data)
 
+    # `create_predictive_board` returns nil on a blank word list; the next line
+    # used to call `.display_image_url=` on it and 500.
+    if predictive_board.nil?
+      render json: { status: "error", message: "Could not create predictive board." }, status: :unprocessable_content
+      return
+    end
+
     predictive_board.display_image_url = @board_image.display_image_url if @board_image
     predictive_board.save!
 
-    unless @board_image && predictive_board
+    unless @board_image
       render json: { status: "error", message: "Could not create predictive board." }
       return
     end

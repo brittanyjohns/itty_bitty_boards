@@ -34,6 +34,73 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
       post "/api/child_accounts/#{loaner.id}/claim_link", headers: auth_headers(other)
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # This action used to call generate_claim_token! unconditionally, so an SLP
+    # who emailed a claim link and then reopened the Lend panel silently killed
+    # the link the family was holding.
+    it "reuses an existing token instead of rotating it" do
+      loaner.generate_claim_token!
+      original = loaner.claim_token
+
+      post "/api/child_accounts/#{loaner.id}/claim_link", headers: auth_headers(slp)
+
+      expect(JSON.parse(response.body)["claim_token"]).to eq(original)
+      expect(loaner.reload.claim_token).to eq(original)
+    end
+
+    it "rotates on an explicit rotate=true" do
+      loaner.generate_claim_token!
+      original = loaner.claim_token
+
+      post "/api/child_accounts/#{loaner.id}/claim_link",
+           params: { rotate: true }, headers: auth_headers(slp)
+
+      expect(JSON.parse(response.body)["claim_token"]).not_to eq(original)
+    end
+  end
+
+  # An email cannot be rewritten client-side the way the app UI rebuilds a
+  # localhost claim_url, so a misconfigured FRONT_END_URL must refuse to send
+  # rather than deliver a dead link to a family.
+  describe "claim link host resolution" do
+    # The guard only bites in production — in dev and test, localhost IS the
+    # front end and sending is correct.
+    it "refuses to email a claim link when the base URL is localhost in production" do
+      allow(Rails.env).to receive(:production?).and_return(true)
+      allow(ChildAccount).to receive(:front_end_base_url_sendable?).and_return(false)
+
+      expect {
+        post "/api/child_accounts/#{loaner.id}/send_claim_link",
+             params: { email: "parent@example.com" }, headers: auth_headers(slp)
+      }.not_to change { ActionMailer::Base.deliveries.size }
+
+      expect(response).to have_http_status(:service_unavailable)
+    end
+
+    it "still sends outside production, where localhost is the real front end" do
+      allow(ChildAccount).to receive(:front_end_base_url_sendable?).and_return(false)
+
+      post "/api/child_accounts/#{loaner.id}/send_claim_link",
+           params: { email: "parent@example.com" }, headers: auth_headers(slp)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "falls back to the production host when FRONT_END_URL is unset in production" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("FRONT_END_URL").and_return(nil)
+      allow(Rails.env).to receive(:production?).and_return(true)
+
+      expect(ChildAccount.front_end_base_url).to eq(ChildAccount::PRODUCTION_FRONT_END_URL)
+      expect(ChildAccount.front_end_base_url_sendable?).to be(true)
+    end
+
+    it "treats a localhost base as unsendable" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("FRONT_END_URL").and_return("http://localhost:8100")
+
+      expect(ChildAccount.front_end_base_url_sendable?).to be(false)
+    end
   end
 
   describe "GET /api/communicator_claims/:token (public preview)" do

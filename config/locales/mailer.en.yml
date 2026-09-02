@@ -544,14 +544,21 @@ en:
     claim_link_email:
       subject: "%{owner_name} sent you a SpeakAnyWay communicator"
       default_owner_name: "Your therapist"
-      default_child_name: "your child"
-      default_child_in_heading: "this"
+      # Not "your child" — communicators are not all children, and the adult
+      # receiving this is not always a parent.
+      default_child_name: "this communicator"
       title: "Claim your communicator"
-      heading: "Make %{child_name} communicator yours"
+      # Two headings, not one with a placeholder default: the single-key version
+      # rendered "Make Ellie communicator yours" whenever a name was present,
+      # and neither language has one phrasing that works for both cases.
+      heading_named: "Make %{child_name}'s communicator yours"
+      heading_default: "Make this communicator yours"
       intro: "%{owner_name} set up a SpeakAnyWay communicator for %{child_name} and is ready to hand it over."
-      pitch: "Take ownership in a couple of taps. Your boards, your sign-in, your communicator — kept exactly as it is today."
+      pitch: "Take ownership in a couple of taps. The sign-in, the settings, and every board already on the communicator stay exactly as they are today."
       cta: "Claim the communicator"
+      where_boards: "You'll find those boards on the communicator itself, not on your own Boards page — they stay credited to %{owner_name}, and they don't use up any of your plan's board slots."
       free_hosting: "Free hosting for this one Communicator — no card needed. %{owner_name} stays linked as a supervisor; you can change that anytime."
+      expiry: "This link works for %{days} days. If it stops working, ask %{owner_name} to send a fresh one."
       fallback_link: "If the button doesn't work, paste this link into your browser:"
       signoff: "Happy Communicating,"
       signature: "The SpeakAnyWay Team"

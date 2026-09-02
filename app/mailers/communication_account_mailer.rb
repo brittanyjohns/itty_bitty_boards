@@ -42,6 +42,9 @@ class CommunicationAccountMailer < BaseMailer
     @claim_url = account.claim_link_url
     @owner_name = sending_user&.display_name || account.owner&.display_name
     @child_name = account.display_name
+    # The window claim_preview enforces: a token older than this reads as
+    # expired, and LoanerReclaimJob takes the loaner back.
+    @claim_link_days = LoanerReclaimJob::RECLAIM_AFTER.in_days.round
     with_user_locale(account.owner) do
       mail(
         to: recipient_email,

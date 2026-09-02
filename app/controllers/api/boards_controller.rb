@@ -93,7 +93,10 @@ class API::BoardsController < API::ApplicationController
     # 2. SEARCH MODE
     # ---------------------------
     if query.present?
-      search_scope = Board.for_user(current_user).searchable
+      # Same set the default listing shows, so searching can't surface a board
+      # the listing hides (or vice versa). Admins keep the wider `for_user`
+      # view — DEFAULT_ADMIN_ID owns the predefined public library.
+      search_scope = (current_user.admin? ? Board.for_user(current_user) : current_user.countable_boards).searchable
       search_scope = apply_filter(search_scope, filter)
       search_scope = search_scope.with_any_tags(selected_tags) if selected_tags.present?
       search_scope = search_scope.search_by_name(query)
@@ -103,7 +106,7 @@ class API::BoardsController < API::ApplicationController
       last_updated_at = search_scope.maximum(:updated_at)&.to_i
 
       cache_key = [
-        "boards-search-v3",
+        "boards-search-v4",
         current_user.id,
         query,
         filter || "no-filter",
@@ -150,7 +153,13 @@ class API::BoardsController < API::ApplicationController
     # (Boards::ImportedSetClassifier), so the default "Main Boards" filter
     # already collapses each imported set to its root — no obf-specific rule
     # needed on any of these listings.
-    base_scope = current_user.boards
+    #
+    # The listing IS the countable set, so an empty /boards next to a "1/1
+    # boards" refusal can never happen again (issue #804). Admins are cap-exempt
+    # and DEFAULT_ADMIN_ID owns the predefined public library, so they keep the
+    # unfiltered view; for every other user the two scopes are identical apart
+    # from published menus, which are free and flagged as such in api_view.
+    base_scope = current_user.admin? ? current_user.boards : current_user.countable_boards
     filtered_scope = apply_filter(base_scope, filter)
     filtered_scope = filtered_scope.with_any_tags(selected_tags) if selected_tags.present?
 
@@ -169,8 +178,17 @@ class API::BoardsController < API::ApplicationController
 
     return unless stale?(etag: etag, last_modified: last_modified)
 
-    user_boards_scope = filtered_scope
-      .reorder(order_clause)
+    # Sub-pages sort after main boards on the unfiltered listing so the boards a
+    # user actually made stay at the top now that folder pages are visible. The
+    # named filters keep their own ordering.
+    ordered_scope =
+      if filter.blank? || filter == "countable" || filter == "all"
+        filtered_scope.reorder(:sub_board).order(order_clause)
+      else
+        filtered_scope.reorder(order_clause)
+      end
+
+    user_boards_scope = ordered_scope
       .page(page)
       .per(per_page)
 
@@ -186,6 +204,7 @@ class API::BoardsController < API::ApplicationController
              newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
              boards: @user_boards.map { |board| board.api_view(current_user) },
              public_tags: public_tags,
+             counts: boards_index_counts(current_user, base_scope),
              pagination: {
                page: user_boards_scope.current_page,
                per_page: user_boards_scope.limit_value,
@@ -1750,9 +1769,23 @@ class API::BoardsController < API::ApplicationController
     base_scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
 
+  # Usage numbers for the boards page, off the UNPAGINATED base scope, so the
+  # header can read "N of LIMIT" against the same set it is listing.
+  def boards_index_counts(user, base_scope)
+    countable = base_scope.count
+    main = base_scope.main_boards.count
+    {
+      countable: countable,
+      main: main,
+      pages: countable - main,
+      limit: user.board_limit,
+      remaining: [user.board_limit - countable, 0].max,
+    }
+  end
+
   def boards_index_etag(user, per_page, base_scope, last_modified, filter:, sort_field:, sort_order:, page:, tags: [])
     [
-      "user-boards-index-v2",
+      "user-boards-index-v3",
       user.id,
       filter || "no-filter",
       sort_field,

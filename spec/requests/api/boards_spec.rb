@@ -1173,4 +1173,112 @@ RSpec.describe "API::Boards", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
+
+  # The listing and the cap read the same scope now. Before this, /boards ran
+  # `main_boards` while the cap counted every non-template, non-predefined
+  # board — so a Free user could be refused "1/1 boards" with an empty page
+  # (issue #804).
+  describe "GET /api/boards listing matches what counts" do
+    let(:user) { create(:user).tap { |u| u.update!(settings: (u.settings || {}).merge("board_limit" => 50)) } }
+
+    def board_names(filter: nil)
+      params = { filter: filter }.compact
+      get "/api/boards", params: params, headers: auth_headers(user)
+      expect(response).to have_http_status(:ok)
+      JSON.parse(response.body)["boards"].map { |b| b["name"] }
+    end
+
+    # The factory sets no board_type, so a bare create(:board) IS the case that
+    # used to vanish: `NULL != 'menu'` is NULL in SQL, not TRUE.
+    it "lists a board with a NULL board_type under the main_boards filter" do
+      create(:board, user: user, name: "Null Type", board_type: nil)
+
+      expect(board_names(filter: "main_boards")).to include("Null Type")
+    end
+
+    it "lists sub-pages alongside main boards on the default listing" do
+      create(:board, user: user, name: "Home", board_type: "static")
+      page = create(:board, user: user, name: "Food", board_type: "static")
+      page.update_column(:sub_board, true)
+
+      expect(board_names(filter: "countable")).to include("Home", "Food")
+    end
+
+    it "still excludes sub-pages from the main_boards filter" do
+      page = create(:board, user: user, name: "Food", board_type: "static")
+      page.update_column(:sub_board, true)
+
+      expect(board_names(filter: "main_boards")).not_to include("Food")
+    end
+
+    it "returns only the pages under the sub_pages filter" do
+      create(:board, user: user, name: "Home", board_type: "static")
+      page = create(:board, user: user, name: "Food", board_type: "static")
+      page.update_column(:sub_board, true)
+
+      names = board_names(filter: "sub_pages")
+      expect(names).to include("Food")
+      expect(names).not_to include("Home")
+    end
+
+    it "keeps menu boards out of main_boards" do
+      create(:board, user: user, name: "Diner", board_type: "menu")
+
+      expect(board_names(filter: "main_boards")).not_to include("Diner")
+    end
+
+    it "omits a published (public) menu from the listing, since it does not count" do
+      create(:board, user: user, name: "Public Diner", board_type: "menu", published: true)
+
+      expect(board_names(filter: "countable")).not_to include("Public Diner")
+    end
+
+    it "reports counts that agree with countable_board_count" do
+      create(:board, user: user, name: "Home", board_type: "static")
+      page = create(:board, user: user, name: "Food", board_type: "static")
+      page.update_column(:sub_board, true)
+      create(:board, user: user, name: "Curated", predefined: true)
+
+      get "/api/boards", params: { filter: "countable" }, headers: auth_headers(user)
+      counts = JSON.parse(response.body)["counts"]
+
+      expect(counts["countable"]).to eq(User.find(user.id).countable_board_count)
+      expect(counts["main"]).to eq(1)
+      expect(counts["pages"]).to eq(1)
+      expect(counts["limit"]).to eq(50)
+    end
+
+    it "still shows an admin their predefined boards" do
+      admin = create(:user, role: "admin")
+      create(:board, user: admin, name: "Curated", predefined: true, board_type: "static")
+
+      get "/api/boards", params: { filter: "main_boards" }, headers: auth_headers(admin)
+
+      expect(JSON.parse(response.body)["boards"].map { |b| b["name"] }).to include("Curated")
+    end
+
+    describe "api_view fields the boards page needs" do
+      let!(:board) { create(:board, user: user, name: "Home", board_type: "static") }
+
+      it "carries sub_board, counts_toward_limit and an owner-true can_delete" do
+        get "/api/boards", params: { filter: "countable" }, headers: auth_headers(user)
+        payload = JSON.parse(response.body)["boards"].find { |b| b["name"] == "Home" }
+
+        expect(payload["sub_board"]).to be(false)
+        expect(payload["counts_toward_limit"]).to be(true)
+        expect(payload["can_delete"]).to be(true)
+      end
+
+      it "reports can_delete false for a non-owner" do
+        stranger = create(:user)
+
+        get "/api/boards/#{board.id}", headers: auth_headers(stranger)
+
+        if response.status == 200
+          expect(JSON.parse(response.body)["can_delete"]).to be(false)
+        end
+      end
+    end
+  end
+
 end

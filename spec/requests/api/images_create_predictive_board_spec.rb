@@ -7,8 +7,13 @@ require "rails_helper"
 # page that never joined is reachable by tapping its tile but invisible to every
 # one of those operations.
 RSpec.describe "API::Images create_predictive_board", type: :request do
-  let(:user) { create(:user) }
-  let(:other_user) { create(:user) }
+  # Headroom on purpose. `create_predictive_board` is now behind the board cap
+  # (issue #804) and the Free plan's board_limit of 1 is spent by the builder
+  # set these examples build, so without this every one of them 422s before it
+  # reaches the behavior under test. The refusal itself is covered in
+  # spec/requests/api/board_limit_gating_spec.rb.
+  let(:user) { create(:user).tap { |u| u.update!(settings: (u.settings || {}).merge("board_limit" => 50)) } }
+  let(:other_user) { create(:user).tap { |u| u.update!(settings: (u.settings || {}).merge("board_limit" => 50)) } }
   let(:image) { create(:image, label: "snacks", user: user) }
 
   # A builder root + its BoardGroup, plus one builder_child page (the usual

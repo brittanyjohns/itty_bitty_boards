@@ -404,10 +404,34 @@ class ChildAccount < ApplicationRecord
     claim_token
   end
 
+  # Production fallback for a missing/misconfigured FRONT_END_URL. The app UI
+  # can paper over a localhost claim_url by rebuilding it against
+  # window.location.origin — an EMAIL cannot. A family that receives
+  # "http://localhost:8100/claim/..." has a dead link and no way to recover it.
+  PRODUCTION_FRONT_END_URL = "https://app.speakanyway.com".freeze
+
+  def self.front_end_base_url
+    configured = ENV["FRONT_END_URL"].presence
+    return configured if configured
+
+    if Rails.env.production?
+      Rails.logger.error "[claim_link] FRONT_END_URL is unset in production; falling back to #{PRODUCTION_FRONT_END_URL}"
+      PRODUCTION_FRONT_END_URL
+    else
+      "http://localhost:8100"
+    end
+  end
+
+  # True when the resolved base would produce a link nobody outside this machine
+  # can open. Callers that SEND the link (rather than show it in the app) must
+  # refuse rather than deliver a dead URL.
+  def self.front_end_base_url_sendable?
+    !front_end_base_url.match?(%r{\Ahttps?://(localhost|127\.0\.0\.1)(:|/|\z)}i)
+  end
+
   def claim_link_url
     return nil if claim_token.blank?
-    base = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    "#{base}/claim/#{claim_token}"
+    "#{self.class.front_end_base_url}/claim/#{claim_token}"
   end
 
   # Execute the SLP→parent hand-off (B4). Transfers ownership, swaps the
