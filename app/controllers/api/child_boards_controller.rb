@@ -10,7 +10,10 @@ class API::ChildBoardsController < API::ApplicationController
   # GET /boards/1 or /boards/1.json
   def show
     set_child_board
-    @board_with_images = @child_board.api_view_with_images(current_account.user)
+    # This communicator's voice, not the board's. A board can be on several
+    # dashboards, so the stored audio on the shared row belongs to whoever
+    # happened to write it last. Mirrors API::Account::ChildBoardsController#show.
+    @board_with_images = @board.api_view_with_images(nil, current_account&.voice)
     child_permissions = {
       can_edit: false,
       can_delete: false,
@@ -101,8 +104,8 @@ class API::ChildBoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_board
-    @child_board = ChildBoard.includes(child_board: { board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }).find(params[:id])
-    @child_board = @child_board.child_board
+    @child_board = ChildBoard.includes(board: { board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }).find(params[:id])
+    @board = @child_board.board
   end
 
   def boards_for_child
