@@ -1646,4 +1646,93 @@ RSpec.describe Board, type: :model do
       expect(SaveAudioJob.jobs).to be_empty
     end
   end
+
+  # The scopes that decide what a user is CHARGED for and what /boards LISTS.
+  # They were different sets, which is how "1/1 boards" could sit next to an
+  # empty boards page (issue #804).
+  describe "countable / listing scopes" do
+    let(:user) { create(:user) }
+
+    describe ".non_menus and .searchable" do
+      # board_type has no column default and set_board_type is not in the
+      # callback chain, so NULL is the normal state for any board made outside
+      # boards#create. `where.not(board_type: "menu")` dropped every one of them,
+      # because in SQL `NULL != 'menu'` is NULL, not TRUE.
+      it "includes a board with a NULL board_type" do
+        board = create(:board, user: user, board_type: nil)
+
+        expect(Board.non_menus).to include(board)
+        expect(Board.searchable).to include(board)
+        expect(Board.main_boards).to include(board)
+      end
+
+      it "still excludes a board_type: menu board" do
+        menu_board = create(:board, user: user, board_type: "menu")
+
+        expect(Board.non_menus).not_to include(menu_board)
+        expect(Board.searchable).not_to include(menu_board)
+      end
+
+      it "still excludes a parent_type: Menu board" do
+        menu = Menu.create!(user: user, name: "Diner")
+        menu_board = create(:board, user: user, board_type: "static", parent: menu)
+
+        expect(Board.non_menus).not_to include(menu_board)
+      end
+    end
+
+    describe ".countable" do
+      it "excludes templates and predefined boards" do
+        template = create(:board, user: user, is_template: true)
+        predefined = create(:board, user: user, predefined: true)
+        plain = create(:board, user: user)
+
+        expect(Board.countable).to include(plain)
+        expect(Board.countable).not_to include(template, predefined)
+      end
+
+      # The one exemption: sharing a menu publicly makes it free.
+      it "excludes a PUBLISHED menu board but counts a private one" do
+        private_menu = create(:board, user: user, board_type: "menu", published: false)
+        public_menu = create(:board, user: user, board_type: "menu", published: true)
+
+        expect(Board.countable).to include(private_menu)
+        expect(Board.countable).not_to include(public_menu)
+      end
+
+      it "treats a NULL published menu as private" do
+        menu_board = create(:board, user: user, board_type: "menu")
+        menu_board.update_column(:published, nil)
+
+        expect(Board.countable).to include(menu_board)
+      end
+
+      it "exempts a published parent_type: Menu board too" do
+        menu = Menu.create!(user: user, name: "Diner")
+        menu_board = create(:board, user: user, board_type: "static", parent: menu, published: true)
+
+        expect(Board.countable).not_to include(menu_board)
+      end
+
+      it "counts a sub-page, which main_boards hides" do
+        page = create(:board, user: user, board_type: "static")
+        page.update_column(:sub_board, true)
+
+        expect(Board.countable).to include(page)
+        expect(Board.main_boards).not_to include(page)
+        expect(Board.sub_pages).to include(page)
+      end
+    end
+
+    describe "#counts_toward_board_limit?" do
+      it "mirrors the countable scope" do
+        expect(create(:board, user: user).counts_toward_board_limit?).to be(true)
+        expect(create(:board, user: user, is_template: true).counts_toward_board_limit?).to be(false)
+        expect(create(:board, user: user, predefined: true).counts_toward_board_limit?).to be(false)
+        expect(create(:board, user: user, board_type: "menu", published: true).counts_toward_board_limit?).to be(false)
+        expect(create(:board, user: user, board_type: "menu", published: false).counts_toward_board_limit?).to be(true)
+      end
+    end
+  end
+
 end

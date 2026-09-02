@@ -270,6 +270,29 @@ an explicit decision, not a drive-by edit.
   default). Every limit 422 carries a stable
   `error_code: "board_limit_reached"`; the existing `error` strings are left
   byte-identical, since some are sentences the frontend renders verbatim.
+- **The countable set is also the /boards LISTING, and `Board.countable` is the
+  one definition of it.** `User#countable_boards` and `BoardsController#index`
+  both read that scope, so an empty boards page can never sit next to a "1/1
+  boards" refusal again (issue #804). Before this they were different scopes:
+  the listing ran `main_boards`, which drops menus, sub-pages, and — because
+  `NULL != 'menu'` is NULL in SQL, not TRUE — every board with a NULL
+  `board_type`. `board_type` has no column default and `set_board_type` is
+  commented out of the callback chain, so NULL is the NORMAL state for anything
+  minted outside `boards#create`; those boards counted while being unreachable
+  and undeletable. Fixed with `MENU_BOARD_TYPE_SQL` (`IS DISTINCT FROM`) rather
+  than a backfill — normalizing `board_type` would run `tmp_board_type`, whose
+  `parent_type: "Image"` -> `"predictive"` mapping changes how folder tiles
+  render. Admins keep the unfiltered listing (`current_user.admin?` carve-out):
+  they are cap-exempt and DEFAULT_ADMIN_ID owns the predefined library.
+- **One exemption from the cap: a PUBLISHED menu board is free**
+  (`Board.published_menus`, mirrored per-row by `Board#counts_toward_board_limit?`
+  and shipped as `counts_toward_limit` in `api_view`). Publishing is what makes a
+  board public (`Board#viewable_by?`), so a shared menu is public infrastructure
+  and stops being charged. `menus#create` and `#rerun` therefore gate themselves
+  INLINE rather than via a blanket `before_action` — the publish intent has to be
+  known first, or the one board a capped user is allowed to add would be the one
+  board they could never create. Unpublishing re-charges it and may put the user
+  over the cap; that is the ordinary over-limit state, not an error.
 - **There is ONE communicator-slot answer and it is
   `Permissions::CommunicatorLimits.slots_for`.** A `loaner` occupies the
   lender's slot until a family CLAIMS it, and the slot returns on claim — that

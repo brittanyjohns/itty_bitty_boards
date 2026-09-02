@@ -1,5 +1,10 @@
 class API::ScenariosController < API::ApplicationController
+  include BoardCreationLimit
+
   before_action :set_scenario, only: %i[ show edit update destroy finalize answer ]
+  # #finalize mints one countable Board — one of the three creation paths that
+  # went through no cap at all (issue #804).
+  before_action :check_board_create_permissions, only: %i[ finalize ]
   GPT_4_MODEL = "gpt-4o"
   # GET /scenarios or /scenarios.json
   def index

@@ -1,4 +1,6 @@
 class API::BoardImagesController < API::ApplicationController
+  include BoardCreationLimit
+
   respond_to :json
   before_action :set_board_image, only: %i[ show ]
   before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit create_text_image set_current_audio attach_youtube_video upload_video clear_video ]
@@ -130,8 +132,25 @@ class API::BoardImagesController < API::ApplicationController
     label_case = payload[:label_case].to_s if payload[:label_case].present?
 
     if create_new_board
+      # Gated here rather than in a before_action: the board is only created on
+      # this branch (issue #804). It sits ABOVE the board_images loop below, so a
+      # refusal never half-applies the bulk edit.
+      limit_user = board_limit_user
+      if board_limit_exceeded?(limit_user)
+        notify_mailchimp_hit_limit(limit_user)
+        render json: board_limit_error_payload(limit_user), status: :unprocessable_content
+        return
+      end
+
       new_board_name ||= "New Board"
-      new_board = Board.create(name: new_board_name, user: current_user, parent_id: @board.id, parent_type: "Board")
+      # `create!`, not `create`: a non-bang create returns an unsaved-but-truthy
+      # instance on validation failure, so `if create_new_board && new_board`
+      # read an invalid record as success and then wrote images against it.
+      # board_type was NULL here, which is what kept these boards off /boards
+      # while they still counted.
+      new_board = Board.create!(name: new_board_name, user: current_user,
+                                parent_id: @board.id, parent_type: "Board",
+                                board_type: "static")
     end
     results = []
     first_board_image = board_images.first

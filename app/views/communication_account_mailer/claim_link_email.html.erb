@@ -18,14 +18,15 @@
     <%
       owner = @owner_name.presence || t("communication_account_mailer.claim_link_email.default_owner_name")
       child = @child_name.presence || t("communication_account_mailer.claim_link_email.default_child_name")
-      child_in_heading = @child_name.presence || t("communication_account_mailer.claim_link_email.default_child_in_heading")
     %>
-    <div class="header"><%= t("communication_account_mailer.claim_link_email.heading", child_name: child_in_heading) %></div>
+    <div class="header"><%= @child_name.presence ? t("communication_account_mailer.claim_link_email.heading_named", child_name: @child_name) : t("communication_account_mailer.claim_link_email.heading_default") %></div>
     <div class="content">
       <p><%= t("communication_account_mailer.claim_link_email.intro", owner_name: owner, child_name: child) %></p>
       <p><%= t("communication_account_mailer.claim_link_email.pitch") %></p>
       <p style="text-align:center;"><a href="<%= @claim_url %>" class="button"><%= t("communication_account_mailer.claim_link_email.cta") %></a></p>
+      <p class="muted"><%= t("communication_account_mailer.claim_link_email.where_boards", owner_name: owner) %></p>
       <p class="muted"><%= t("communication_account_mailer.claim_link_email.free_hosting", owner_name: owner) %></p>
+      <p class="muted"><%= t("communication_account_mailer.claim_link_email.expiry", days: @claim_link_days, owner_name: owner) %></p>
       <p class="muted"><%= t("communication_account_mailer.claim_link_email.fallback_link") %><br><%= @claim_url %></p>
       <p><%= t("communication_account_mailer.claim_link_email.signoff") %><br><%= t("communication_account_mailer.claim_link_email.signature") %></p>
     </div>

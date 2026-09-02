@@ -1,0 +1,21 @@
+<%
+  owner = @owner_name.presence || t("communication_account_mailer.claim_link_email.default_owner_name")
+  child = @child_name.presence || t("communication_account_mailer.claim_link_email.default_child_name")
+-%>
+<%= @child_name.presence ? t("communication_account_mailer.claim_link_email.heading_named", child_name: @child_name) : t("communication_account_mailer.claim_link_email.heading_default") %>
+
+<%= t("communication_account_mailer.claim_link_email.intro", owner_name: owner, child_name: child) %>
+
+<%= t("communication_account_mailer.claim_link_email.pitch") %>
+
+<%= t("communication_account_mailer.claim_link_email.cta") %>:
+<%= @claim_url %>
+
+<%= t("communication_account_mailer.claim_link_email.where_boards", owner_name: owner) %>
+
+<%= t("communication_account_mailer.claim_link_email.free_hosting", owner_name: owner) %>
+
+<%= t("communication_account_mailer.claim_link_email.expiry", days: @claim_link_days, owner_name: owner) %>
+
+<%= t("communication_account_mailer.claim_link_email.signoff") %>
+<%= t("communication_account_mailer.claim_link_email.signature") %>

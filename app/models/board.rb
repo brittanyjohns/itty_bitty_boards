@@ -161,9 +161,24 @@ class Board < ApplicationRecord
   # import links the tiles with `update_columns`, so `check_is_sub_board` never
   # sees the finished graph on its own.
   scope :without_imported_pages, -> { where("boards.obf_id IS NULL OR NOT COALESCE(boards.sub_board, false)") }
-  scope :searchable, -> { where.not(board_type: "menu").without_imported_pages }
+  # `where.not(board_type: "menu")` is NOT this predicate: in SQL `NULL != 'menu'`
+  # is NULL, not TRUE, so every board with a NULL board_type was silently
+  # excluded from `searchable` / `non_menus` — and therefore from `main_boards`
+  # and the /boards listing. board_type has no column default and
+  # `set_board_type` is commented out of the callback chain (see the
+  # `before_save` block below), so NULL is the NORMAL state for any board minted
+  # outside boards#create: Image#create_predictive_board, the bulk
+  # "create new board" path, and every legacy row. Those boards still COUNT
+  # against board_limit, which is how a user reached "1/1 boards" with an empty
+  # boards page (issue #804).
+  #
+  # `parent_type` is NOT NULL in the schema, so `where.not(parent_type:)` needs
+  # no such treatment.
+  MENU_BOARD_TYPE_SQL = "boards.board_type IS DISTINCT FROM 'menu'".freeze
+
+  scope :searchable, -> { where(MENU_BOARD_TYPE_SQL).without_imported_pages }
   scope :menus, -> { where(board_type: "menu").or(where(parent_type: "Menu")) }
-  scope :non_menus, -> { where.not(board_type: "menu").where.not(parent_type: "Menu") }
+  scope :non_menus, -> { where(MENU_BOARD_TYPE_SQL).where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
   scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"], predefined: false) }
@@ -225,6 +240,27 @@ class Board < ApplicationRecord
   scope :non_templates, -> { where(is_template: false) }
   scope :sub_boards, -> { where(sub_board: true) }
   scope :main_boards, -> { non_menus.where(sub_board: [false, nil]) }
+  # The exact complement of `main_boards`. Written as a predicate rather than
+  # `where.not(id: main_boards.select(:id))` so it stays a plain filter instead
+  # of a NOT IN over the whole boards table. `sub_board` is NOT NULL, so
+  # main_boards' `sub_board: [false, nil]` is just `= false` and this is its
+  # negation. Exposed as a filter so every board that counts is reachable from
+  # the boards page.
+  scope :sub_pages, -> { where("boards.board_type = 'menu' OR boards.parent_type = 'Menu' OR boards.sub_board") }
+
+  # A menu board the user has published is public — `Board#viewable_by?` lets
+  # anyone open it — so it stops being charged against the plan the moment it is
+  # shared. This is the ONE exemption from the board cap. COALESCE because
+  # `published` is nullable.
+  PUBLISHED_MENU_SQL = "COALESCE(boards.published, FALSE) AND (boards.board_type = 'menu' OR boards.parent_type = 'Menu')".freeze
+
+  scope :published_menus, -> { where(PUBLISHED_MENU_SQL) }
+
+  # Every board that counts against the plan's board limit. The one definition:
+  # User#countable_boards, User#countable_board_count and the /boards default
+  # listing all read it, so "your boards" and "N of LIMIT" cannot disagree.
+  # A direct predicate, not a subquery — this runs on every board-creation gate.
+  scope :countable, -> { non_templates.where(predefined: false).where("NOT (#{PUBLISHED_MENU_SQL})") }
   scope :newly_created, -> { main_boards.created_this_week.order(created_at: :desc) }
   scope :recent, -> { main_boards.where("updated_at > ?", 1.week.ago).order(updated_at: :desc) }
 
@@ -260,7 +296,7 @@ class Board < ApplicationRecord
     Board.public_boards.with_all_tags(["myspeak"])
   end
 
-  SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use menus].freeze
+  SAFE_FILTERS = %w[all countable predefined user_made ai_generated predictive public_boards in_use published sub_boards sub_pages main_boards recent newly_created not_in_use menus].freeze
 
   include ImageHelper
 
@@ -655,6 +691,21 @@ class Board < ApplicationRecord
 
   def public_board?
     user_id == User::DEFAULT_ADMIN_ID && predefined && published
+  end
+
+  # Row-level mirror of the `countable` scope, so the API can tell a client WHY
+  # a board isn't in the count without the client re-deriving the rule. Keep the
+  # two in step.
+  def counts_toward_board_limit?
+    return false if is_template?
+    return false if predefined?
+    return false if published? && menu_board?
+
+    true
+  end
+
+  def menu_board?
+    board_type == "menu" || parent_type == "Menu"
   end
 
   # Whether `user` (may be nil for a logged-out visitor) is allowed to view this
@@ -3103,8 +3154,15 @@ class Board < ApplicationRecord
       in_use_by: in_use_by,
       communicator_account_data: in_use ? communicator_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
       can_edit: can_edit,
+      # `destroy` is gated on owner-or-admin, NOT on the lock, so a user at
+      # their board limit can still delete their way back under it. The boards
+      # page needs this to render the trash icon (it used to fall back to
+      # `added_by_id`, which this payload never carried).
+      can_delete: viewing_user.present? && (user_id == viewing_user.id || viewing_user.admin?),
       locked: locked,
       lock_reason: lock_reason_for(viewing_user),
+      sub_board: sub_board,
+      counts_toward_limit: counts_toward_board_limit?,
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,

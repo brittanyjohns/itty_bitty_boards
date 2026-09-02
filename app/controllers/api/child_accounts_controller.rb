@@ -164,6 +164,10 @@ class API::ChildAccountsController < API::ApplicationController
 
     begin
       @child_account.promote_to_loaner!(passcode: params[:passcode]) unless @child_account.loaner?
+      # Deliberately rotates every time. "Lend" is the explicit action, and
+      # re-lending is how an SLP revokes a link that went to the wrong person.
+      # #claim_link — a read action the panel calls just to show the URL — is
+      # the one that must NOT rotate.
       @child_account.generate_claim_token!
       render json: @child_account.api_view(current_user), status: :ok
     rescue ActiveRecord::RecordInvalid => e
@@ -186,7 +190,13 @@ class API::ChildAccountsController < API::ApplicationController
       return
     end
 
-    @child_account.generate_claim_token!
+    # Reuse an existing token by default. This action used to rotate on every
+    # call, so an SLP who emailed a claim link and then reopened the Lend panel
+    # silently killed the link the family was holding. `rotate=true` is the
+    # deliberate regenerate.
+    rotate = ActiveModel::Type::Boolean.new.cast(params[:rotate]) == true
+    @child_account.generate_claim_token! if rotate || @child_account.claim_token.blank?
+
     render json: {
       claim_token: @child_account.claim_token,
       claim_url: @child_account.claim_link_url,
@@ -211,6 +221,17 @@ class API::ChildAccountsController < API::ApplicationController
     email = params[:email].to_s.strip
     if email.blank? || !email.include?("@")
       render json: account_error_payload("A valid email is required"), status: :unprocessable_content
+      return
+    end
+
+    # Refuse rather than email a link nobody can open. The app UI can rebuild a
+    # localhost claim_url against window.location.origin; an email cannot, and a
+    # dead claim link is worse than a retry prompt.
+    # Only enforced where a localhost link is actually wrong. In development and
+    # test, localhost IS the front end.
+    if Rails.env.production? && !ChildAccount.front_end_base_url_sendable?
+      Rails.logger.error "[send_claim_link] refusing to email a localhost claim link for child_account=#{@child_account.id} — set FRONT_END_URL"
+      render json: account_error_payload("Couldn't send the email. Please try again."), status: :service_unavailable
       return
     end
 

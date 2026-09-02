@@ -5,6 +5,40 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **"You've reached your board limit" with an empty Boards page.** Your boards
+  page and your plan's board count were two different lists. The page hid folder
+  pages, menus, and — because of a SQL quirk — any board created outside the
+  main "New board" flow, while every one of those still counted against your
+  limit. A Free account could therefore be told "1 of 1 boards" while its Boards
+  page showed nothing, with no way to find or delete the board responsible. Now
+  the boards page lists exactly what you're charged for: folder pages and menus
+  appear alongside your other boards, badged so you can tell them apart, and the
+  header shows "N of LIMIT used". Every board in that list can be deleted, so
+  you can always get back under the cap. This also fixes the delete button
+  going missing on boards you own once you're over your limit.
+- **Turning a tile into a folder, bulk-creating a board, and finishing a
+  scenario now respect your board limit** instead of quietly creating boards
+  past it.
+- **Claim links no longer break when the therapist reopens the Lend panel.**
+  Viewing a claim link used to mint a new one and silently kill the link the
+  family was already holding. Re-lending the communicator still issues a fresh
+  link on purpose — that's how you revoke one.
+- **The hand-off invite email.** It addressed a named communicator as "Make
+  Ellie communicator yours", called every communicator someone's child, never
+  said how long the link lasts, and had no plain-text version. It also now says
+  where the inherited boards actually live, which is the thing families ask
+  about right after claiming. In production the email now refuses to send rather
+  than deliver a `localhost` link if the front-end URL is misconfigured.
+
+### Added
+
+- **Share a menu publicly and it stops using a board slot.** Menu boards are
+  charged like any other board while private, but publishing one makes it free
+  for as long as it stays public — so you can add a public menu even when you're
+  at your limit. Unpublishing charges it again.
+
 ### Changed
 
 - **Adding a board to a communicator now puts *that* board on their dashboard,

@@ -2135,15 +2135,24 @@ class User < ApplicationRecord
   end
 
   # Single source of truth for "how many boards count against the limit."
-  # Excludes predefined (admin-curated) boards; EVERY board the user owns
-  # otherwise counts, Board Builder sets included. There is exactly one creation
-  # cap — boards — because a Board Set cannot exist without them, and two caps
-  # for one resource is what let a user at their board limit run the builder,
-  # receive a whole tree, and still be told "1 of 1 boards" (issue #796). Board
-  # Sets themselves are uncapped. Memoized because board list serialization
-  # calls board_editable? once per board.
+  # The boards that count against this user's board limit, as a RELATION. The
+  # /boards listing reads the same scope, so "your boards" and "N of LIMIT" can
+  # never disagree — an empty boards page next to a "1/1 boards" refusal was
+  # exactly the bug this closed (issue #804). Not memoized: callers re-order it.
+  def countable_boards
+    boards.countable
+  end
+
+  # Excludes predefined (admin-curated) boards and published (public) menus;
+  # EVERY board the user owns otherwise counts, Board Builder sets included.
+  # There is exactly one creation cap — boards — because a Board Set cannot
+  # exist without them, and two caps for one resource is what let a user at
+  # their board limit run the builder, receive a whole tree, and still be told
+  # "1 of 1 boards" (issue #796). Board Sets themselves are uncapped. A menu the
+  # user has PUBLISHED is public and free — see Board.published_menus. Memoized
+  # because board list serialization calls board_editable? once per board.
   def countable_board_count
-    @countable_board_count ||= boards.where(predefined: false).count
+    @countable_board_count ||= countable_boards.count
   end
 
   # The one gate every board-creation path checks. Admins are never limited.
@@ -2188,10 +2197,10 @@ class User < ApplicationRecord
       if editable_board_id && total_boards.exists?(id: editable_board_id)
         editable_board_id
       else
-        boards.where(predefined: false)
-              .order(favorite: :desc, updated_at: :desc)
-              .limit(1)
-              .pick(:id)
+        countable_boards
+          .order(favorite: :desc, updated_at: :desc)
+          .limit(1)
+          .pick(:id)
       end
   end
 
@@ -2396,10 +2405,10 @@ class User < ApplicationRecord
   # slot from the least-recently-updated board rather than adding one.
   def top_editable_board_ids
     @top_editable_board_ids ||=
-      boards.where(predefined: false)
-            .order(favorite: :desc, updated_at: :desc)
-            .limit(editable_slot_count)
-            .pluck(:id)
+      countable_boards
+        .order(favorite: :desc, updated_at: :desc)
+        .limit(editable_slot_count)
+        .pluck(:id)
   end
 
   def public_page_url

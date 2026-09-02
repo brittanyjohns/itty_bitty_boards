@@ -29,7 +29,7 @@ namespace :beta do
     #            catalogue and skips preview renders — just not the board cap.)
     #   communicators — Permissions::CommunicatorLimits.owned_slot_count
     #            (owned loaner + active)
-    board_counts = Board.where(is_template: false, predefined: false)
+    board_counts = Board.countable
       .group(:user_id).count
     slot_counts = ChildAccount
       .where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE])

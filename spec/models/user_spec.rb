@@ -964,4 +964,63 @@ RSpec.describe User, type: :model do
       expect(BoardExport.exists?(board_export.id)).to be(false)
     end
   end
+
+  # countable_boards is the ONE definition of "boards that count", shared with
+  # the /boards listing so the number and the list can never disagree (#804).
+  describe "#countable_boards" do
+    let(:user) { create(:user) }
+
+    it "is the relation countable_board_count counts" do
+      create(:board, user: user)
+      create(:board, user: user, predefined: true)
+
+      expect(user.countable_boards.count).to eq(user.countable_board_count)
+    end
+
+    it "excludes predefined boards that the raw boards association includes" do
+      predefined = create(:board, user: user, predefined: true)
+
+      expect(user.boards).to include(predefined)
+      expect(user.countable_boards).not_to include(predefined)
+    end
+
+    it "counts a sub-page even though the boards page's main_boards filter hides it" do
+      page = create(:board, user: user, board_type: "static")
+      page.update_column(:sub_board, true)
+
+      expect(user.countable_boards).to include(page)
+      expect(user.reload.countable_board_count).to eq(1)
+    end
+
+    it "counts a board with a NULL board_type" do
+      create(:board, user: user, board_type: nil)
+
+      expect(user.countable_board_count).to eq(1)
+    end
+
+    it "does not count a published (public) menu, but does count a private one" do
+      create(:board, user: user, board_type: "menu", published: true)
+      expect(user.countable_board_count).to eq(0)
+
+      create(:board, user: user, board_type: "menu", published: false)
+      expect(User.find(user.id).countable_board_count).to eq(1)
+    end
+
+    it "re-charges a menu when it is unpublished" do
+      menu_board = create(:board, user: user, board_type: "menu", published: true)
+      expect(user.countable_board_count).to eq(0)
+
+      menu_board.update!(published: false)
+
+      expect(User.find(user.id).countable_board_count).to eq(1)
+    end
+
+    it "keeps top_editable_board_ids within the countable set" do
+      create(:board, user: user)
+      create(:board, user: user, predefined: true)
+
+      expect(user.top_editable_board_ids).to all(be_in(user.countable_boards.ids))
+    end
+  end
+
 end

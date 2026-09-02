@@ -2,7 +2,10 @@ class API::MenusController < API::ApplicationController
   include BoardCreationLimit
 
   before_action :set_menu, only: %i[ show edit update destroy ]
-  before_action :check_board_create_permissions, only: %i[ create ]
+  # NOT a blanket before_action: a menu the user PUBLISHES is public and free
+  # (Board.published_menus), so gating every create would make the one board a
+  # capped user is allowed to add the one board they can never create. #create
+  # and #rerun gate themselves once the publish intent is known.
 
   # Default image budget when the client sends no/garbage token_limit.
   IMAGE_BUDGET_DEFAULT = 10
@@ -73,7 +76,13 @@ class API::MenusController < API::ApplicationController
 
     @menu.update(token_limit: image_budget) if @menu.token_limit != image_budget
     @board = @menu.boards.last
-    @board = @menu.boards.new(user: current_user, name: @menu.name, predefined: false, display_image_url: @menu.docs.last.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu) if @board.nil?
+    if @board.nil?
+      # A rerun with no surviving board creates one, so it needs the same cap as
+      # #create. Reusing an existing board changes no count and is never gated.
+      return if refuse_over_board_limit?(publishing: menu_publish_requested?)
+
+      @board = @menu.boards.new(user: current_user, name: @menu.name, predefined: false, published: menu_publish_requested?, display_image_url: @menu.docs.last.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu)
+    end
     @board.token_limit = image_budget
     stash_menu_credit_reservation(@board, image_budget)
     @board.generate_unique_slug
@@ -94,6 +103,10 @@ class API::MenusController < API::ApplicationController
 
   # POST /menus or /menus.json
   def create
+    # Gated here, not in a before_action, so the publish intent is known first:
+    # a menu shared publicly costs no board slot.
+    return if refuse_over_board_limit?(publishing: menu_publish_requested?)
+
     image_budget = sanitize_image_budget(menu_params[:token_limit])
     return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Creation",
                                  amount: menu_build_cost(image_budget),
@@ -115,7 +128,7 @@ class API::MenusController < API::ApplicationController
     doc = @menu.docs.new(menu_params[:docs])
     doc.user = @current_user
     if doc.save
-      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu, voice: "polly:kevin", language: "en")
+      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, published: menu_publish_requested?, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu, voice: "polly:kevin", language: "en")
       stash_menu_credit_reservation(@board, image_budget)
       @board.generate_unique_slug
       @board.status = "pending"
@@ -231,12 +244,37 @@ class API::MenusController < API::ApplicationController
   end
 
   # Only allow a list of trusted parameters through.
+  # Whether the caller asked for this menu to be public. Unlike `:predefined`
+  # (the admin-curated pool, stripped for non-admins below) any user may publish
+  # their own board, and doing so is what makes it viewable by anyone
+  # (Board#viewable_by?).
+  # #rerun sends no `menu` key at all, so read the nested value defensively and
+  # fall back to a top-level `published` param.
+  def menu_publish_requested?
+    raw = params.dig(:menu, :published)
+    raw = params[:published] if raw.nil?
+    ActiveModel::Type::Boolean.new.cast(raw) == true
+  end
+
+  # A published menu is exempt from the board cap, so only a PRIVATE menu is
+  # gated. Returns true when the request was refused and the caller must stop.
+  def refuse_over_board_limit?(publishing:)
+    return false if publishing
+
+    user = board_limit_user
+    return false unless board_limit_exceeded?(user)
+
+    notify_mailchimp_hit_limit(user)
+    render json: board_limit_error_payload(user), status: :unprocessable_content
+    true
+  end
+
   def menu_params
     # :user_id is intentionally NOT permitted (top-level or on the nested docs)
     # — ownership is assigned server-side (@menu.user / doc.user = current_user
     # in #create), so a client can't set or reassign ownership via create/update
     # mass-assignment (#27).
-    permitted = params.require(:menu).permit(:name, :description, :token_limit, :predefined,
+    permitted = params.require(:menu).permit(:name, :description, :token_limit, :predefined, :published,
                                              docs: [:id, :raw, :image, :_destroy, :source_type])
     # `predefined` promotes a menu into the curated/admin pool — admin-only.
     # Strip it for everyone else so a regular user can't self-promote (#27).
