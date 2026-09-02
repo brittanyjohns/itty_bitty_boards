@@ -135,9 +135,27 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     end
   end
 
+  # The tile that OPENS the page called `name` — never that page's way home.
+  #
+  # Two tiles in a built set carry a page's own name and a predictive link: the
+  # folder that opens it (in the nav region, or in the "More" drawer), and the
+  # anchor on the page ITSELF, which Boards::NavRowSync labels with the page's
+  # name and points back at the ROOT (#ensure_home_tile! for a drawer-tucked
+  # page, the nav region's self tile otherwise). Only the first identifies the
+  # page. Nothing here is ordered — neither `set_boards` nor `board_images` has
+  # a default sort — so which one an unqualified `.find` hit came down to row
+  # order, and picking the anchor made `board_named_in_set` return the ROOT:
+  # every assertion below it then silently described the core home board (name
+  # "Core 84", 84/84 cells, `disable_scroll`) instead of the page under test.
+  # Aiming at the root is the thing that makes a tile navigation rather than a
+  # way in, so that is what this filters on.
   def folder_tile_in_set(root, name)
-    set_boards(root).flat_map { |b| b.board_images.to_a }
-      .find { |bi| bi.display_label.to_s == name && bi.predictive_board_id.present? }
+    set_boards(root).order(:id).flat_map { |b| b.board_images.sort_by(&:id) }
+      .find do |bi|
+        bi.display_label.to_s == name &&
+          bi.predictive_board_id.present? &&
+          bi.predictive_board_id != root.id
+      end
   end
 
   def board_named_in_set(root, name)
