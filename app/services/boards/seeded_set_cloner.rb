@@ -256,6 +256,8 @@ module Boards
         new_board_image = board_image.dup
         new_board_image.board_id = target.id
         new_board_image.image_id = image.id
+        # Drop only the text-tile Doc pointer — see BoardImage#cloned_tile_data.
+        new_board_image.data = board_image.cloned_tile_data
         new_board_image.set_labels
         # Fold, don't copy — a seed board's casing is defaulted text, and copying
         # it verbatim is what propagated the seeds' Title Case into every built

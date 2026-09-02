@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A copied or assigned board looks like the board it came from.** Tiles whose
+  picture was set per-tile — a text image (the tile's word rendered as the
+  picture), a picture picked from the tile's gallery, a custom upload — came
+  back showing the shared library symbol instead, so copying a board or
+  assigning it to a communicator quietly undid that work. Those pictures now
+  travel with the copy, as does a tile's font size. Tiles with "Hide pictures"
+  on were already handled and still are. Boards copied before this fix are
+  unchanged; re-apply the text image on those tiles to fix them.
+- **Importing an OBF/OBZ board no longer gives a picture-less button the
+  previous button's picture.**
+
 ### Changed
 
 - **A failed payment now says why it failed.** The past-due notice could only

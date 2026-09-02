@@ -123,6 +123,20 @@ RSpec.describe Boards::SeededSetCloner do
       expect(Boards::ImageResolver.art?(apple_tile.image)).to be(true)
     end
 
+    # The blank->art upgrade above only ever moves a tile from NO picture to a
+    # picture. A tile that already carries one keeps it: the copy has to look
+    # like the board it was copied from.
+    it "keeps a source tile's authored picture instead of re-seeding from the image" do
+      @source[:root].board_images.find_by(label: "want")
+                    .update_column(:display_image_url, "https://cdn.example.com/want-text.png")
+      @source[:root].board_images.reset
+
+      root = described_class.new(@source[:root], communicator: communicator).call
+
+      expect(root.board_images.find_by(label: "want").display_image_url)
+        .to eq("https://cdn.example.com/want-text.png")
+    end
+
     it "adds a brand-new food interest to the cloned Food page" do
       root = described_class.new(
         @source[:root], communicator: communicator, interests: ["pizza"]
