@@ -1546,6 +1546,8 @@ class Board < ApplicationRecord
       new_board_image = board_image.dup
       new_board_image.board_id = @cloned_board.id
       new_board_image.image_id = image.id
+      # Drop only the text-tile Doc pointer — see BoardImage#cloned_tile_data.
+      new_board_image.data = board_image.cloned_tile_data
       new_board_image.set_labels
       if new_board_image
         # Fold, don't copy: the source board's casing is defaulted text, not
@@ -3435,7 +3437,13 @@ class Board < ApplicationRecord
     end
 
     dynamic_data = {}
-    temp_display_image = nil
+    # The BOARD's cover: the first button that carried its own picture. It is
+    # deliberately sticky across the loop for that purpose — which is why it must
+    # never be handed to a tile. A button with no image data of its own gets nil
+    # and lets BoardImage#set_defaults seed from its Image's src_url; passing the
+    # running value gave it the PREVIOUS button's picture. That was masked while
+    # set_defaults overwrote display_image_url unconditionally.
+    board_cover_image = nil
     reset_layouts_after_import = obj["reset_layouts_after_import"] || false
     apply_button_attributes = import_options[:apply_button_attributes] ? true : false
 
@@ -3454,12 +3462,13 @@ class Board < ApplicationRecord
       next unless image
 
       doc_data = images_by_obf_id[item["image_id"].to_s]
-      temp_display_image = attach_image_doc(image, doc_data, current_user, import_options: import_options) || temp_display_image
+      button_display_image = attach_image_doc(image, doc_data, current_user, import_options: import_options)
+      board_cover_image ||= button_display_image
 
       coords = coords_by_button_id[item["id"].to_s]
       reset_layouts_after_import ||= coords.nil?
 
-      board_image = upsert_board_image(board, image, item, coords, temp_display_image,
+      board_image = upsert_board_image(board, image, item, coords, button_display_image,
                                        apply_button_attributes: apply_button_attributes,
                                        board_image_cache: board_image_cache,
                                        columns: columns)
@@ -3482,7 +3491,7 @@ class Board < ApplicationRecord
       }
     end
 
-    board.update!(display_image_url: temp_display_image) if temp_display_image
+    board.update!(display_image_url: board_cover_image) if board_cover_image
     board.reset_layouts if reset_layouts_after_import
 
     [board, dynamic_data]

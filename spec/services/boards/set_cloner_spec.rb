@@ -33,6 +33,26 @@ RSpec.describe Boards::SetCloner do
     expect(communicator.child_boards.where(board_id: root_clone.id, original_board_id: source_root.id)).to exist
   end
 
+  # Assigning a board is the same copy as cloning one, and it has to look like
+  # the board the SLP built: a tile whose picture was authored per-tile (a
+  # text-tile render, a pinned doc) keeps that picture, on the root and on the
+  # sub-boards alike.
+  it "keeps authored tile pictures on every board in the set" do
+    source_root.board_images.find_by(label: "want")
+               .update_column(:display_image_url, "https://cdn.example.com/want-text.png")
+    source_food.board_images.find_by(label: "apple")
+               .update_column(:display_image_url, "https://cdn.example.com/apple-text.png")
+
+    root_clone = call!
+    expect(root_clone.board_images.find_by(label: "want").display_image_url)
+      .to eq("https://cdn.example.com/want-text.png")
+
+    folder = root_clone.board_images.where.not(predictive_board_id: nil).first
+    sub_clone = Board.find(folder.predictive_board_id)
+    expect(sub_clone.board_images.find_by(label: "apple").display_image_url)
+      .to eq("https://cdn.example.com/apple-text.png")
+  end
+
   it "deep-clones linked sub-boards and rewires the folder tiles to the clones" do
     root_clone = call!
     folder = root_clone.board_images.where.not(predictive_board_id: nil).first

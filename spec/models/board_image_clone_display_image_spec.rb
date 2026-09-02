@@ -60,5 +60,26 @@ RSpec.describe "Cloning a board preserves the hidden-picture marker" do
 
       expect(cloned.board_images.first.display_image_url).to be_present
     end
+
+    # A non-nil display_image_url IS the pin: a picture the TILE chose (a
+    # text-tile render, docs#mark_as_current, a custom upload). set_defaults used
+    # to replace it with the library symbol on every clone, so a copied board
+    # didn't look like the board it was copied from.
+    it "keeps a tile's authored picture on the clone" do
+      tile.update_column(:display_image_url, "https://cdn.example.com/authored-text-tile.png")
+
+      cloned = board.clone_with_images(owner.id, "Snacks copy 3")
+
+      expect(cloned.board_images.first.display_image_url)
+        .to eq("https://cdn.example.com/authored-text-tile.png")
+    end
+
+    it "keeps a tile's authored font_size on the clone" do
+      tile.update_column(:font_size, 42)
+
+      cloned = board.clone_with_images(owner.id, "Snacks copy 4")
+
+      expect(cloned.board_images.first.font_size).to eq(42)
+    end
   end
 end
