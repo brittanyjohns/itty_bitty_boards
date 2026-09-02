@@ -2025,8 +2025,24 @@ class User < ApplicationRecord
     view
   end
 
+  # The one derived answer to "how many communicator slots does this user have
+  # left" — limit, used, available, on_loan, active, limit_reached — computed
+  # from the same math Permissions::CommunicatorLimits enforces on a create.
+  # Every slot field in every payload reads through this; see the helper for
+  # why two flags answering it separately was a bug (#824).
+  def communicator_slots(status_counts: nil)
+    Permissions::CommunicatorLimits.slots_for(user: self, status_counts: status_counts)
+  end
+
+  # Kept in the payload because the frontend reads it today, but it is now the
+  # SAME answer as `communicator_slots[:limit_reached]` rather than a second,
+  # contradictory one. It used to sum the paid AND sandbox limits and compare
+  # them against EVERY communicator, which matched no gate anywhere: a clinician
+  # at 2/2 with one out on loan read `false` here while the create 422'd, and
+  # that is the flag the pre-form limit card gated on. Prefer
+  # `communicator_slots` in anything new.
   def comm_account_limit_reached
-    settings["paid_communicator_limit"].to_i + extra_communicator_slots + settings["demo_communicator_limit"].to_i <= communicator_accounts.count
+    communicator_slots[:limit_reached]
   end
 
   def admin_api_view
@@ -2404,7 +2420,6 @@ class User < ApplicationRecord
     plan_exp = plan_expires_at&.strftime("%x")
 
     # ---- Limits from Stripe/user settings ----
-    comm_limit = (settings["paid_communicator_limit"] || 0).to_i + extra_communicator_slots # REAL communicators included (base + Pro add-on slots)
     demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
     board_limit = self.board_limit
 
@@ -2420,25 +2435,31 @@ class User < ApplicationRecord
     # gate two lines below).
     board_count = countable_board_count
 
-    paid_comm_count = paid_communicator_accounts.length
-    demo_comm_count = demo_communicator_accounts.length
-
     # ---- Status-aware counts (loaner-lifecycle, issue #156) ----
     # Single query, grouped by status, so we don't fire one query per
-    # association. Used by the dashboard slot counter + LoanerControls.
+    # association. Used by the dashboard slot counter + LoanerControls, and
+    # handed to communicator_slots so the slot object costs no extra query.
     status_counts = communicator_accounts.group(:status).count
     sandbox_count = status_counts.fetch(ChildAccount::SANDBOX, 0)
     loaner_count  = status_counts.fetch(ChildAccount::LOANER, 0)
     active_count  = status_counts.fetch(ChildAccount::ACTIVE, 0)
 
+    # ---- Slots ----
+    # One derived object; every slot field below reads out of it rather than
+    # recomputing, so no two fields in this payload can disagree (#824).
+    slots = communicator_slots(status_counts: status_counts)
+
+    paid_comm_count = slots[:used]
+    demo_comm_count = sandbox_count
+
     # ---- Derived limits ----
-    paid_comm_limit_total = comm_limit
+    paid_comm_limit_total = slots[:limit]
 
     # ---- Limit reached flags ----
-    paid_comm_account_limit_reached = paid_comm_limit_total <= paid_comm_count
+    paid_comm_account_limit_reached = slots[:limit_reached]
     demo_comm_account_limit_reached = demo_limit <= demo_comm_count
 
-    remaining_paid_accounts = [0, paid_comm_limit_total - paid_comm_count].max
+    remaining_paid_accounts = slots[:available]
     remaining_demo_accounts = [0, demo_limit - demo_comm_count].max
     {
       id: id,
@@ -2521,17 +2542,29 @@ class User < ApplicationRecord
       # nil unless the account is past_due. Names WHY the charge failed so the
       # banner can give the right next action; see Billing::DeclineReason.
       payment_issue: payment_issue_api_view,
-      comm_account_limit_reached: comm_account_limit_reached,
+      # Both of these are `communicator_slots[:limit_reached]` now — they used
+      # to be opposites at the same instant, and a component picking either one
+      # could contradict the POST /child_accounts refusal (#824). Read
+      # `communicator_slots` in anything new; these two are the compatibility
+      # surface for what already ships.
+      comm_account_limit_reached: slots[:limit_reached],
 
       # Communicators (REAL)
-      accounts_included: comm_limit,
+      # THE slot answer: { limit, used, available, on_loan, active,
+      # limit_reached }. Derived from the same math the create gate enforces,
+      # so `limit_reached` and a 422 always agree.
+      communicator_slots: slots,
+      # Both are slots[:limit] — the number the create gate uses, which honours
+      # the `communicator_slot_limit` admin override that reading
+      # `paid_communicator_limit` straight out of settings did not.
+      accounts_included: paid_comm_limit_total,
       comm_account_limit: paid_comm_limit_total,
       paid_communicator_count: paid_comm_count,
       paid_comm_account_limit_reached: paid_comm_account_limit_reached,
 
       # Owner's pinned "keep signable" set + the plan slot limit, so the
       # over-limit picker (issue #439) can pre-check the right toggles.
-      communicator_slot_limit: Permissions::CommunicatorLimits.slot_limit_for(settings || {}),
+      communicator_slot_limit: slots[:limit],
       kept_communicator_ids: kept_communicator_ids,
 
       # Communicators (DEMO)
