@@ -52,21 +52,18 @@ class API::ChildBoardsController < API::ApplicationController
     @board = @child_board.board
     @child_board.destroy
 
-    # Removal is non-destructive by default: detach the board from this
-    # dashboard but keep the board record. We only delete the underlying
-    # board when it's a throwaway per-communicator template that nothing
-    # else references — never one that's a team board or still on another
-    # communicator. This lets a hand-off owner clear inherited boards
-    # without destroying content the team (or the original SLP) relies on,
-    # while preserving the old cleanup for a self-created template clone.
-    if @board && @board.is_template && orphan_template?(@board)
-      Rails.logger.info "Deleting orphaned template board ID: #{@board.id}"
-      # Deep-cloned sub-boards (Boards::SetCloner) are marked with the
-      # root clone's id; collect them before the root goes so they can be
-      # swept once the root's folder tiles no longer reference them.
-      sweepable = assignment_sub_templates(@board)
-      @board.destroy
-      sweep_orphaned_sub_templates!(sweepable)
+    # Removal is non-destructive: detach the board from this dashboard and keep
+    # the board.
+    #
+    # The one exception is a LEGACY per-communicator template clone — a board
+    # minted by the old assign-by-cloning path, invisible in its owner's board
+    # list and reachable only through the tile just removed, so detaching it
+    # would strand it forever. Assignment no longer creates these; a board
+    # attached by the current path is an ordinary board and is always preserved,
+    # which the `is_template` gate inside the sweep is what guarantees.
+    swept = Boards::AssignmentTemplateSweep.new(@board, actor_id: current_user&.id).call
+    if swept.positive?
+      Rails.logger.info "Swept #{swept} orphaned legacy assignment template board(s) rooted at #{@board&.id}"
     else
       Rails.logger.info "Detached child_board #{params[:id]}; preserved board ID: #{@board&.id}"
     end
@@ -75,46 +72,6 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   private
-
-  # A per-communicator template clone is safe to hard-delete only when
-  # nothing else references it: it's not shared as a team board, it's not on
-  # any other communicator's dashboard (the just-removed ChildBoard is
-  # already destroyed by the time we check), and the remover owns it. In any
-  # other case we detach only, so removing a board from one dashboard can
-  # never destroy content another surface still depends on.
-  def orphan_template?(board)
-    return false if board.team_boards.exists?
-    return false if board.child_boards.exists?
-    # A folder tile on another board still opens this one — deleting it would
-    # nullify that tile into a dead button. Detach only.
-    return false if BoardImage.where(predictive_board_id: board.id).where.not(board_id: board.id).exists?
-    board.user_id == current_user&.id
-  end
-
-  # Sub-board clones minted by Boards::SetCloner for this root clone.
-  def assignment_sub_templates(root_board)
-    Board.where(user_id: current_user&.id, is_template: true)
-         .where("settings->>'assignment_root_id' = ?", root_board.id.to_s)
-         .to_a
-  end
-
-  # Destroy the set's sub-templates that are now orphans, applying the same
-  # never-delete-something-referenced guards. Nested folders reference each
-  # other, so destroying a parent frees its children — iterate until a pass
-  # deletes nothing. (A reference cycle between two sub-boards leaves both in
-  # place; acceptable, they're invisible template rows.)
-  def sweep_orphaned_sub_templates!(sweepable)
-    until sweepable.empty?
-      deletable = sweepable.select { |b| orphan_template?(b) }
-      break if deletable.empty?
-
-      deletable.each do |board|
-        Rails.logger.info "Sweeping orphaned assignment sub-template board ID: #{board.id}"
-        board.destroy
-      end
-      sweepable -= deletable
-    end
-  end
 
   def load_child_board
     @child_board = ChildBoard.find(params[:id])

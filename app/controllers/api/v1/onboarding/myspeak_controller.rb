@@ -404,8 +404,8 @@ module API
 
         # Clone a public starter for this user.
         #
-        # The clone is a REAL board: `template_root: false`, so it lands in
-        # `GET /api/boards`, counts toward `board_limit`, and can be opened,
+        # The clone is a REAL board — every SetCloner clone is now — so it lands
+        # in `GET /api/boards`, counts toward `board_limit`, and can be opened,
         # renamed and deleted by the parent. It used to be an invisible
         # per-communicator template — which meant the board on the child's
         # public page was one its owner could not reach, while she edited a
@@ -439,7 +439,6 @@ module API
                                                   communicator: child,
                                                   voice: child.voice,
                                                   name: board.name,
-                                                  template_root: false,
                                                   max_depth: Boards::CloneSetPlanner.depth_cap,
                                                   max_boards: plan.boards_to_create,
                                                   out_of_set: :flatten,

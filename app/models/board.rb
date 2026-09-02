@@ -1468,12 +1468,13 @@ class Board < ApplicationRecord
     new_board_image
   end
 
-  # force_template: mark the clone is_template even without a communicator —
-  # used by Boards::SetCloner for the sub-boards of an ASSIGNED set, which get
-  # no ChildBoard of their own but must stay out of the owner's normal board
-  # scopes (and the board-limit count) like the root clone does. A set the user
-  # OWNS clones with force_template: false throughout, so its pages are listed
-  # and countable.
+  # A clone is never a template. `is_template` used to be derived here from a
+  # `communicator_account` argument (and forced by a `force_template:` kwarg)
+  # because assigning a board CLONED it into an invisible per-communicator copy.
+  # Assignment now attaches the board itself, so nothing mints those any more
+  # and both knobs are gone along with the ChildBoard this method used to
+  # create. `is_template` survives on the column for legacy rows and for
+  # Boards::GlpTemplates.
   #
   # Every tile's `predictive_board_id` is copied VERBATIM, and this method never
   # decides otherwise. Whether a copied folder tile keeps its link is a question
@@ -1482,7 +1483,7 @@ class Board < ApplicationRecord
   # Boards::PredictiveLinkSet.rewire!, which every clone path runs through
   # Boards::SetCloner. Nulling a pointer here would cut the link before that
   # rewire could translate it.
-  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil, force_template: false)
+  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil)
     if new_name.blank?
       new_name = name
     end
@@ -1546,7 +1547,7 @@ class Board < ApplicationRecord
     @cloned_board.board_images_count = 0
     @cloned_board.generate_unique_slug
     @cloned_board.voice = updated_voice || voice
-    @cloned_board.is_template = communicator_account.present? || force_template
+    @cloned_board.is_template = false
     @cloned_board.save
 
     unless @cloned_board.persisted?
@@ -1608,13 +1609,6 @@ class Board < ApplicationRecord
     # loaded-empty association cache on the object we hand back to callers.
     @cloned_board.reload
     @cloned_board.run_generate_preview_job if @cloned_board.board_images.any? && @cloned_board.valid?
-
-    unless communicator_account.nil? || communicator_account.child_boards.where(board_id: @cloned_board.id).exists?
-      comm_board = communicator_account.child_boards.new(board: @cloned_board, created_by_id: cloned_user_id, original_board: @source)
-      unless comm_board.save
-        Rails.logger.error "Error creating ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}: #{comm_board.errors.full_messages.join(", ")}"
-      end
-    end
 
     if @cloned_board.valid?
       if @source.user_id != cloned_user_id
@@ -2404,16 +2398,23 @@ class Board < ApplicationRecord
     predefined && favorite
   end
 
+  # The ONE dashboard this board sits on, when there is exactly one.
+  #
+  # Both readers used to be gated on `is_template`, because an assignment clone
+  # was by construction on a single dashboard and nothing else ever was. Now
+  # that assignment attaches the board itself, any board can be on a dashboard —
+  # and on several at once, where a singular answer would be an arbitrary pick.
+  # Callers wanting the full picture read `in_use_by` /
+  # `communicator_account_data`, which have always covered both join shapes.
   def communicator_board
-    if is_template
-      @communicator_board ||= ChildBoard.includes(:child_account).find_by(board_id: id)
-    end
+    return @communicator_board if defined?(@communicator_board)
+
+    rows = ChildBoard.includes(:child_account).where(board_id: id).limit(2).to_a
+    @communicator_board = rows.size == 1 ? rows.first : nil
   end
 
   def communicator_account
-    if is_template
-      communicator_board&.child_account
-    end
+    communicator_board&.child_account
   end
 
   def schedule_translations_for(language)
@@ -2799,8 +2800,14 @@ class Board < ApplicationRecord
     }
   end
 
-  def api_view_with_images(viewing_user = nil)
-    api_view_with_predictive_images(viewing_user)
+  # `voice_to_play` is how a communicator hears their OWN voice on a board that
+  # is on several dashboards. Assignment attaches a board rather than copying
+  # it, so `boards.voice` / `board_images.voice` can no longer be the answer —
+  # they are single-valued and shared. Pass `child_account.voice` from any
+  # communicator read path; nil keeps the board's stored audio, which is what
+  # every owner-facing and print path wants.
+  def api_view_with_images(viewing_user = nil, voice_to_play = nil)
+    api_view_with_predictive_images(viewing_user, false, voice_to_play)
   end
 
   def personable_explanation

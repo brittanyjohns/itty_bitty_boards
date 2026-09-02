@@ -199,22 +199,26 @@ is a separate endpoint — `GET /api/public_boards?myspeak=true` →
 
 ### The clone is the parent's own board, and it is gated
 
-`template_root: false`, so the root clone is `is_template: false`: it appears
-in `GET /api/boards`, counts toward `User#board_limit`, and can be opened,
-renamed and deleted. It used to be a per-communicator template like an SLP
-assignment — which meant the board on the child's public page was one its owner
-could not see, while she edited a different copy of it (#795).
+The clone is `is_template: false` — every `SetCloner` clone is now — so it
+appears in `GET /api/boards`, counts toward `User#board_limit`, and can be
+opened, renamed and deleted. It used to be a per-communicator template like an
+SLP assignment — which meant the board on the child's public page was one its
+owner could not see, while she edited a different copy of it (#795).
 
 Because it counts, it is gated like any other board create: `at_board_limit?`
 on a freshly-refetched `User` (the count is memoized), plus the per-communicator
-caps the other `SetCloner` call sites apply. **At the limit the wizard
+dashboard cap. Note the contrast with assignment, which ATTACHES an existing
+board and so spends no slot: the wizard is gated because it CREATES a board.
+**At the limit the wizard
 does not clone and does not substitute a board of its own choosing** —
 favoriting PUBLISHES a board one-way (`ChildBoard#publish_for_myspeak`), so a
 guessed substitute would publish a board the parent never chose. It reports the
 reason and lets the frontend offer her own boards.
 
-Linked sub-board clones stay `is_template: true` with `settings["assignment_child"]`,
-exactly as for an assignment.
+Linked sub-board clones are real boards too — `is_template: false`, one slot
+each, listed and editable. They carry `settings["assignment_root_id"]`, which is
+what `Boards::PublishCascade` walks to publish the starter's pages along with
+its root.
 
 ### `starter_board` in the response
 
@@ -240,6 +244,8 @@ bin/rails myspeak:stale_starter_clones
 Read-only. Lists favorited `is_template` boards on MySpeak safety pages whose
 owner and attacher are both the page owner — the shape the pre-#795 wizard
 minted. It reports, it never repoints: a live public page is a decision.
+(`rake board_assignments:consolidate` is the separate, guarded migration for
+legacy ASSIGNMENT clones — a different population, and it does repoint.)
 
 ## Footguns you'll hit
 

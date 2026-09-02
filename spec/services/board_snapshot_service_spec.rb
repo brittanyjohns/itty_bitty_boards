@@ -67,4 +67,56 @@ RSpec.describe BoardSnapshotService, type: :service do
       expect { slp_team_user.destroy! }.to change { team.boards.where(user_id: parent.id).count }.from(0).to(1)
     end
   end
+
+  # A communicator's dashboard tile points at the board ROW, and assignment
+  # attaches rather than copies — so a family dashboard can be holding the
+  # departing SLP's board directly. Nothing else re-points it, and
+  # `User has_many :boards, dependent: :destroy` means the tile dies the day the
+  # SLP deletes their account.
+  describe "re-pointing communicator dashboards" do
+    let!(:dashboard_tile) do
+      child.child_boards.create!(board: slp_board, created_by_id: slp.id)
+    end
+
+    it "moves the family's dashboard tile onto the family-owned snapshot" do
+      described_class.snapshot_for_removed_member(team: team, removed_user: slp)
+
+      snapshot = team.boards.where(user_id: parent.id).first
+      expect(dashboard_tile.reload.board_id).to eq(snapshot.id)
+      expect(dashboard_tile.original_board_id).to eq(slp_board.id)
+    end
+
+    # The failure this prevents: `User has_many :boards, dependent: :destroy`
+    # and `Board has_many :child_boards, dependent: :destroy`, so the SLP's
+    # board going away used to take the family's dashboard tile with it.
+    it "keeps the tile working after the SLP's board is destroyed" do
+      described_class.snapshot_for_removed_member(team: team, removed_user: slp)
+      slp_board.destroy
+
+      expect(ChildBoard.exists?(dashboard_tile.id)).to be true
+      expect(Board.exists?(dashboard_tile.reload.board_id)).to be true
+    end
+
+    it "leaves another family's dashboard alone" do
+      stranger = create(:user, created_at: 2.months.ago)
+      other = create(:child_account, user: stranger, owner: stranger,
+                                     status: "active", passcode: "p2",
+                                     username: "other-#{SecureRandom.hex(3)}")
+      other_tile = other.child_boards.create!(board: slp_board, created_by_id: slp.id)
+
+      described_class.snapshot_for_removed_member(team: team, removed_user: slp)
+
+      expect(other_tile.reload.board_id).to eq(slp_board.id)
+    end
+
+    it "drops the redundant tile when the family already holds the snapshot" do
+      described_class.snapshot_for_removed_member(team: team, removed_user: slp)
+      snapshot = team.boards.where(user_id: parent.id).first
+
+      # A second run must not collide with the row the first one produced.
+      expect { described_class.snapshot_for_removed_member(team: team, removed_user: slp) }
+        .not_to raise_error
+      expect(child.child_boards.where(board_id: snapshot.id).count).to eq(1)
+    end
+  end
 end

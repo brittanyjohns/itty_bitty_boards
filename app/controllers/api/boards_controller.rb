@@ -1286,41 +1286,65 @@ class API::BoardsController < API::ApplicationController
       if communicator_account_ids.is_a?(String) || communicator_account_ids.is_a?(Integer)
         communicator_account_ids = [communicator_account_ids.to_i]
       end
+      assigned = []
       communicator_account_ids.each do |communicator_account_id|
         communicator_account = ChildAccount.find(communicator_account_id)
+
+        # Already on this dashboard: nothing to do, and nothing to charge
+        # against either cap.
+        if communicator_account.child_boards.exists?(board_id: @board.id)
+          assigned << communicator_account.id
+          next
+        end
+
         if communicator_account.sandbox?
-          board_count = communicator_account.child_boards.all.count
           demo_limit = (communicator_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
-          if board_count >= demo_limit
+          # Same semantics as assign_boards: count what the dashboard WOULD
+          # hold. The two endpoints used to disagree (`>` here, `>=` there) on
+          # one cap.
+          if communicator_account.child_boards.count + 1 > demo_limit
             record_errors << "Board limit reached for demo account #{communicator_account.name} - limit: #{demo_limit}"
             next
           end
         end
-        # Per-communicator cap — assigned clones are uncounted toward the
-        # owner's board limit, so this is the bound on assignment minting.
+        # Assignment attaches rather than copying, so it spends no board slot.
+        # This per-communicator cap bounds how big one dashboard can get.
         if communicator_account.at_assigned_board_limit?
           record_errors << "Board limit reached for #{communicator_account.name} - limit: #{ChildAccount.max_assigned_boards}"
           next
         end
-        voice = communicator_account.voice
+
+        # Same allowlist as assign_boards, from the other direction: the board
+        # is fixed and the communicators vary, but the caller still has to be
+        # allowed to put THIS board on a dashboard.
+        if Boards::AssignableSource.new(communicator_account, actor: current_user).resolve(@board.id).nil?
+          record_errors << "Could not assign board to #{communicator_account.name}"
+          next
+        end
+
         begin
-          # Deep clone: linked sub-boards are cloned + rewired too, so the
-          # communicator's set is self-contained (not shared with the source).
-          Boards::SetCloner.new(@board, owner: current_user,
-                                               communicator: communicator_account,
-                                               voice: voice, name: @board.name).call
-        rescue Boards::SetCloner::CloneError => e
+          # ATTACH, don't copy — see assign_boards.
+          communicator_account.child_boards.find_or_create_by!(board: @board) do |cb|
+            cb.created_by_id = current_user.id
+          end
+          assigned << communicator_account.id
+        rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
           Rails.logger.error "[assign_accounts] #{e.message}"
           record_errors << "Could not assign board to #{communicator_account.name}"
         end
       end
+
+      # `in_use` is maintained by ChildBoard's create/destroy callbacks
+      # (recalculate_boards_in_use); setting it here as well made detaching the
+      # last dashboard unable to clear it.
+      @board.reload
       if record_errors.empty?
-        @board.in_use = true
-        @board.save!
-        @board.reload
         render json: @board.api_view_with_predictive_images(current_user, true), status: :ok
       else
-        render json: { error: { message: record_errors } }, status: :unprocessable_content
+        # A partial success used to report only the failures, so the caller
+        # could not tell which communicators actually got the board.
+        render json: { error: { message: record_errors }, assigned_account_ids: assigned },
+               status: :unprocessable_content
       end
     else
       render json: { error: { message: "No board_ids provided" } }, status: :unprocessable_content
@@ -1462,7 +1486,6 @@ class API::BoardsController < API::ApplicationController
       owner: current_user,
       communicator: nil,
       name: new_name,
-      template_root: false,
       max_depth: Boards::CloneSetPlanner.depth_cap,
       max_boards: boards_to_create,
       out_of_set: :flatten,

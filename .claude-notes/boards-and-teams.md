@@ -74,12 +74,68 @@ known backend-enforcement gaps — lives in
 `marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
 section in sync when the rules change.
 
+### Assignment ATTACHES; it does not copy
+
+`POST /api/child_accounts/:id/assign_boards` and
+`POST /api/boards/:id/assign_accounts` create a `ChildBoard` pointing at the
+board itself. **One board, N dashboards.** Editing it reaches every
+communicator using it — which is the point: assignment used to deep-clone the
+board into an `is_template: true` copy excluded from `user.boards`, so the board
+the owner edited and the board the child used were different rows, with no sync
+and nothing in the codebase that could have provided one.
+
+- **No slot cost, no board-limit check.** A Free user's one board still goes on
+  their one communicator. `countable_board_count` does not move.
+- **`Boards::AssignableSource` is the allowlist**, shared by both endpoints:
+  the actor's own boards, the communicator OWNER's own boards (a supervisor
+  curates on the owner's behalf, and `authorize_communicator_curate!` has
+  already settled whether they may), `Board.public_boards`, and the
+  communicator's team boards. Everything else is a generic **422
+  `boards_not_assignable`** — naming the id would say whether a board the caller
+  cannot see exists. `assign_boards` previously did a bare `Board.find` with no
+  check at all, survivable only while the result was an invisible copy.
+  `is_template: false` in the own-board scope is what stops a legacy clone being
+  re-attached to a second dashboard.
+- **Idempotent.** `find_or_create_by!` rides the unique index on
+  `(board_id, child_account_id)`; an already-attached board is a no-op and is
+  not charged against either cap. A mixed batch attaches what it can and
+  reports the rest in `boards_not_assignable`; `assign_accounts` reports
+  `assigned_account_ids` alongside its `record_errors` array.
+- **`in_use` is maintained by `ChildBoard`'s create/destroy callbacks.** The
+  endpoints must not set it by hand — doing so left it stuck true after the
+  last dashboard detached. `Board#in_use_by` and `communicator_account_data`
+  already covered both join shapes and are what the UI reads.
+- **Voice moved to read time.** `boards.voice` is one column on a shared row,
+  so the communicator read paths pass `child_account.voice` and
+  `ChildAccount#rewritable_voice_board_ids` stops `UpdateBoardsVoiceJob` from
+  rewriting a board the owner does not own or that another dashboard uses. See
+  the hub's voice invariant.
+- **Detach is pure detach.** The hard-delete path survives for LEGACY clones
+  only, gated on `is_template` inside `Boards::AssignmentTemplateSweep`.
+- **Legacy clones migrate with `rake board_assignments:consolidate`** (dry run
+  by default; `DRY_RUN=false` applies). `Boards::AssignmentConsolidator`
+  re-points the tile at its source and sweeps the clone tree, and every check
+  fails CLOSED because `boards` has no soft delete: it skips unless the source
+  still exists and is still assignable to that owner, and unless the clone tree
+  is byte-identical to the source's on label / display_label /
+  display_image_url / bg_color / font_size / hidden / layout / position /
+  folder-ness / data (voice, audio_url and image_id are excluded — a clone is
+  SUPPOSED to differ there). A favorited tile publishes its source through
+  `Boards::MySpeakPublisher`, since the public page gates each card on the
+  board being published. A consolidated tile serves the source board, so the
+  clone's own `/pb/<slug>` stops resolving — accepted, as no assignment clone
+  slug was ever printed.
+- **`is_template` survives** for those legacy rows and for
+  `Boards::GlpTemplates`. Nothing mints new ones; `template_root:` and
+  `force_template:` are gone, along with the `communicator_account` argument
+  `clone_with_images` used to take.
+
 ### Every clone is a SET clone (`Boards::SetCloner`)
 
-Copying a board — an assignment (`assign_boards`, `assign_accounts`), the
-MySpeak starter attach, or `POST /api/boards/:id/clone` — goes through
-**`Boards::SetCloner`** (was `AssignmentCloner`, renamed once it stopped being
-only about assignments), not a bare `clone_with_images`. A shallow copy left
+Copying a board — the MySpeak starter, or `POST /api/boards/:id/clone` — goes
+through **`Boards::SetCloner`** (was `AssignmentCloner`, renamed once it stopped
+being only about assignments; assignment no longer copies at all), not a bare
+`clone_with_images`. A shallow copy left
 `predictive_board_id` verbatim, so the copy's folder tiles kept opening the
 **source owner's live sub-boards** — shared state that changed or broke when
 that owner edited or deleted them.
@@ -89,17 +145,13 @@ that owner edited or deleted them.
   and rewires the folder tiles to the clones. `collect` takes `max_depth:`
   **and `max_boards:`** — depth alone does not bound a WIDE graph (one board
   with 200 folder tiles is depth 1) and every caller hydrates the result.
-- `rewire!`'s `out_of_set:` is the whole link decision: `:keep` for assignments
-  (arbitrary user boards — nulling would break deep sets), `:null` for builder
-  sets, **`:flatten`** for anything the user owns, which calls
+- `rewire!`'s `out_of_set:` is the whole link decision: `:null` for builder
+  sets, **`:flatten`** (the default) for anything the user owns, which calls
   `BoardImage#flatten_navigation!` so the tile stops being a `door_tile?`
   rather than becoming a silent button. It returns how many pointers it acted
   on — that count is the response's `flattened_tiles`.
-- **`template_root:` governs the sub-boards too, and it is what a copy COSTS.**
-  `true` (assignments): every board `is_template`, uncountable, invisible in
-  the owner's list, capped per communicator. `false` (MySpeak starter, public
-  clone): the whole set is the user's own — listed, editable, **one board slot
-  per board**. Sub-clones used to be forced to templates regardless, so a
+- **A copied set is the user's own throughout** — listed, editable, **one board
+  slot per board**. Sub-clones used to be forced to templates regardless, so a
   six-board set cost one slot and hid its five pages from the board list.
 - **`Boards::CloneSetPlanner` is the single budget.** It sizes the set against
   `User#board_limit_remaining` and is shared by `GET /boards/:id/clone_plan`
@@ -110,37 +162,32 @@ that owner edited or deleted them.
   `limited_by: "board_limit"` is the only value that earns an upgrade prompt;
   `"set_size"` is the per-copy ceiling (`BOARD_CLONE_SET_MAX_BOARDS`, default
   50, a request-timeout guard — a Pro user has 300 slots) which no upgrade
-  lifts. Depth is `BOARD_CLONE_SET_DEPTH` (default 6) for owned copies,
-  `BOARD_ASSIGN_CLONE_DEPTH` (default 3) for assignments.
-- Root clone contract unchanged for assignments: `is_template: true` +
-  ChildBoard on the communicator. Sub-clones get **no ChildBoard rows** and
-  carry `settings["assignment_root_id"]`, which `Boards::PublishCascade` walks
-  with **no `is_template` filter** — that is what publishes a MySpeak
-  starter's pages with its root instead of leaving every folder tile 404ing,
-  so it is stamped on countable sub-clones too. `settings["assignment_child"]`
-  is stamped **only on templates**: it marks a throwaway per-communicator page,
-  and a board the user owns and paid a slot for is not throwaway.
-- **The orphan sweep can only ever delete templates.** Both halves in
-  `ChildBoardsController#destroy` — `orphan_template?` and
-  `assignment_sub_templates` — are scoped `is_template: true`, so detaching an
-  OWNED set leaves every board in place (the owner deletes those themselves),
-  while a throwaway assignment set still unwinds (same `orphan_template?`
-  guards per sub-board; iterates until a pass deletes nothing so nested folders
-  unwind).
-- **Per-communicator assigned-board cap** (`ChildAccount.max_assigned_boards`,
+  lifts. Depth is `BOARD_CLONE_SET_DEPTH` (default 6) for owned copies;
+  `SetCloner`'s own `BOARD_ASSIGN_CLONE_DEPTH` (default 3) remains its fallback
+  and is what `Boards::AssignmentConsolidator` walks a legacy clone tree with.
+- Sub-clones get **no ChildBoard rows** and carry
+  `settings["assignment_root_id"]`, which `Boards::PublishCascade` walks with
+  **no `is_template` filter** — that is what publishes a MySpeak starter's pages
+  with its root instead of leaving every folder tile 404ing. Its old companion
+  `settings["assignment_child"]` marked a throwaway per-communicator page;
+  nothing writes it any more, and legacy rows still carry it for
+  `lib/tasks/myspeak.rake`.
+- **The sweep can only ever delete legacy templates.**
+  `Boards::AssignmentTemplateSweep` (shared by `ChildBoardsController#destroy`
+  and the consolidation task) is gated on `is_template` and re-checks per
+  sub-board: not a team board, not on another dashboard, not opened by another
+  board's folder tile, owned by the actor. It iterates until a pass deletes
+  nothing, so nested folders unwind; a reference cycle between two sub-boards
+  leaves both in place, which is acceptable for invisible rows.
+- **Per-communicator dashboard cap** (`ChildAccount.max_assigned_boards`,
   ENV `MAX_ASSIGNED_BOARDS_PER_COMMUNICATOR`, default 80 — matches the
-  favorites cap): assigned clones are deliberately uncounted toward the
-  owner's board limit (the original already counted), so this cap is what
-  stops assignment minting unlimited board rows. It applies to the MySpeak
-  wizard's **owned-board** branch as well — attaching a board she already owns
-  fills a dashboard exactly as much as a fresh clone does. `assign_boards` returns
-  **422 `assigned_board_limit`** `{ error, message, limit, count }`;
-  `assign_accounts` appends a per-communicator message to its existing
-  `record_errors` 422 array.
-- Legacy shallow clones (no `assignment_root_id` marker) behave as before —
-  nothing migrates them; the delete-safety 409 now correctly warns source
-  owners that their sub-boards are still referenced.
-- **An assigned clone renders its own cover, and inherits none of the
+  favorites cap). Assignment spends no board slot, so this is what bounds how
+  big one dashboard gets. It applies to the MySpeak wizard's **owned-board**
+  branch as well. `assign_boards` returns **422 `assigned_board_limit`**
+  `{ error, message, limit, count }`; `assign_accounts` appends a
+  per-communicator message to its `record_errors` 422 array. An already-attached
+  board is not charged against it.
+- **A cloned board renders its own cover, and inherits none of the
   source's.** The cloner has no enqueue of its own — it relies on the one
   inside `clone_with_images`, which was guarded on a stale counter cache and
   so never fired, leaving every communicator dashboard (and the public MySpeak
@@ -153,10 +200,12 @@ that owner edited or deleted them.
 
 ### Board removal after hand-off (non-destructive)
 
-Boards put on a communicator via `assign_boards` are **cloned** (a new
-`Board` marked `is_template: true`, owned by the user who added them — the
-SLP), referenced by a `ChildBoard` join. After a hand-off the new owner
-should be able to clear/curate the dashboard **without losing boards**.
+Boards put on a communicator via `assign_boards` are **attached** — the
+`ChildBoard` join points at the board itself. (Before the attach redesign they
+were cloned into an `is_template: true` copy owned by whoever added them, and
+those legacy rows still exist until `rake board_assignments:consolidate` has
+run.) After a hand-off the new owner should be able to clear/curate the
+dashboard **without losing boards**.
 
 - **On claim, `claim_by!` registers the communicator's current dashboard
   boards as team boards** (`register_dashboard_boards_on_team!`) on its own
@@ -165,13 +214,18 @@ should be able to clear/curate the dashboard **without losing boards**.
   re-addable. The `repair_handoff_teams` rake task backfills this for
   already-claimed communicators.
 - **Removal is non-destructive.** `DELETE /api/child_boards/:id`
-  (`ChildBoardsController#destroy`) always detaches the `ChildBoard`, and
-  only hard-deletes the underlying `Board` when it's an **orphan template**
-  (`is_template` AND no `team_boards` AND not on another communicator AND
-  owned by the remover — `orphan_template?`). So a hand-off owner removing
-  an inherited board (a team board / SLP-owned clone) detaches it but keeps
-  it; the old "delete the board whenever `is_template`" behavior only still
-  applies to a true throwaway clone on your own communicator.
+  (`ChildBoardsController#destroy`) always detaches the `ChildBoard`, and only
+  hard-deletes the underlying `Board` when `Boards::AssignmentTemplateSweep`
+  says it is an orphan LEGACY template (`is_template` AND no `team_boards` AND
+  not on another communicator AND not opened by another board's folder tile AND
+  owned by the remover). An attached board — everything assignment produces now
+  — is always preserved, so detaching can never destroy the owner's board.
+- **`BoardSnapshotService` re-points dashboards.** When an SLP leaves a team,
+  their shared boards are snapshot-copied into the family's ownership, and any
+  `ChildBoard` on a communicator owned by the family owner is moved onto the
+  snapshot (publishing it if the tile is favorited). Under attachment the tile
+  points at the SLP's own board row, which `dependent: :destroy` takes with it
+  when that account goes.
 - **Detach stays owner-gated; the api_view exposes `can_remove`.** Detach
   authorization is communicator-ownership (`editable_by?`), not board
   ownership, so the new owner is allowed. The dashboard board entries now

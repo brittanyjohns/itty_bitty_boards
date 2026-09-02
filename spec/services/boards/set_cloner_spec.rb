@@ -26,11 +26,19 @@ RSpec.describe Boards::SetCloner do
                                      voice: "echo", name: source_root.name, **opts).call
   end
 
-  it "clones the root with the default contract: is_template + ChildBoard on the communicator" do
+  # Every clone is a REAL board now. The `template_root: true` mode that minted
+  # an invisible per-communicator copy is gone along with its only caller —
+  # assignment attaches a board instead of copying it.
+  it "clones the root as a real, listed board and puts it on the communicator" do
     root_clone = call!
     expect(root_clone.user_id).to eq(owner.id)
-    expect(root_clone.is_template).to be true
+    expect(root_clone.is_template).to be false
+    expect(owner.boards).to include(root_clone)
     expect(communicator.child_boards.where(board_id: root_clone.id, original_board_id: source_root.id)).to exist
+  end
+
+  it "no longer accepts template_root:" do
+    expect { call!(template_root: true) }.to raise_error(ArgumentError, /template_root/)
   end
 
   # Assigning a board is the same copy as cloning one, and it has to look like
@@ -64,87 +72,57 @@ RSpec.describe Boards::SetCloner do
     expect(sub_clone.board_images.map(&:label)).to include("apple")
   end
 
-  it "marks sub-clones as templates with assignment markers and NO ChildBoard rows" do
+  it "stamps assignment_root_id on sub-clones, and gives them NO ChildBoard rows" do
     root_clone = call!
     sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
 
-    expect(sub_clone.is_template).to be true
-    expect(sub_clone.settings["assignment_child"]).to be true
+    expect(sub_clone.is_template).to be false
     expect(sub_clone.settings["assignment_root_id"]).to eq(root_clone.id)
+    # `assignment_child` marked a throwaway per-communicator page. Nothing mints
+    # those any more.
+    expect(sub_clone.settings["assignment_child"]).to be_nil
+    # Sub-boards surface through folder navigation, never as their own card.
     expect(ChildBoard.where(board_id: sub_clone.id)).not_to exist
   end
 
-  it "leaves a pointer past the depth cap on the source board (out_of_set: :keep)" do
+  it "keeps a pointer past the depth cap when asked to (out_of_set: :keep)" do
     snacks = create(:board, user: slp, name: "Snacks")
     deep   = create(:board, user: slp, name: "Too Deep")
     link!(source_food, snacks, label: "Snacks")
     link!(snacks, deep, label: "Deep")
     allow(described_class).to receive(:depth_cap).and_return(1)
 
-    root_clone = call!
+    root_clone = call!(out_of_set: :keep)
     food_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
     snacks_tile = food_clone.board_images.where.not(predictive_board_id: nil).first
     # Food is at the cap, so its Snacks tile keeps pointing at the SOURCE board.
     expect(snacks_tile.predictive_board_id).to eq(snacks.id)
   end
 
-  it "does not change the owner's countable board count (clones are templates)" do
-    expect { call! }.not_to change { User.find(owner.id).countable_board_count }
-  end
-
   # The MySpeak wizard's starter is the parent's OWN board, not a
   # per-communicator template — it has to show up in her board list and count
   # against her limit, because it is the board her child's public page links
   # to (#795).
-  context "template_root: false" do
-    it "clones a real, countable board and still puts it on the communicator" do
-      root_clone = call!(template_root: false)
-
-      expect(root_clone.is_template).to be false
-      expect(owner.boards).to include(root_clone)
-      expect(
-        communicator.child_boards.where(board_id: root_clone.id,
-                                        original_board_id: source_root.id,
-                                        created_by_id: owner.id),
-      ).to exist
-    end
-
+  context "a copied set" do
     # ONE SLOT PER BOARD. The sub-clones used to be forced to templates
     # regardless, so a 6-board set cost exactly 1 slot and its 5 pages were
     # invisible in the owner's board list — reachable only by tapping a folder
     # tile, and impossible to find in order to edit.
     it "counts every board in the set toward the owner's board limit" do
-      expect { call!(template_root: false) }
+      expect { call! }
         .to change { User.find(owner.id).countable_board_count }.by(2)
     end
 
-    it "clones sub-boards as real, listed boards — still with no ChildBoard rows" do
-      root_clone = call!(template_root: false)
+    it "lists every sub-board in the owner's board list" do
+      root_clone = call!
       sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
 
-      expect(sub_clone.is_template).to be false
       expect(owner.boards).to include(sub_clone)
-      # Sub-boards surface through folder navigation, never as their own
-      # dashboard card.
-      expect(ChildBoard.where(board_id: sub_clone.id)).not_to exist
-    end
-
-    # assignment_root_id is what Boards::PublishCascade walks to publish a
-    # starter's pages with its root (it does NOT filter on is_template), so it
-    # is stamped either way. assignment_child means "throwaway per-communicator
-    # page" and its one reader is lib/tasks/myspeak.rake — a board the user owns
-    # and paid a slot for is not throwaway.
-    it "stamps assignment_root_id but not assignment_child" do
-      root_clone = call!(template_root: false)
-      sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
-
-      expect(sub_clone.settings["assignment_root_id"]).to eq(root_clone.id)
-      expect(sub_clone.settings["assignment_child"]).to be_nil
     end
 
     it "reports how many boards it created" do
       cloner = described_class.new(source_root, owner: owner, communicator: communicator,
-                                                template_root: false)
+                                                )
       cloner.call
 
       expect(cloner.boards_created).to eq(2)
@@ -155,7 +133,7 @@ RSpec.describe Boards::SetCloner do
   describe "max_boards: (the slot budget)" do
     it "clones only what fits and flattens the tiles whose targets were dropped" do
       cloner = described_class.new(source_root, owner: owner, communicator: communicator,
-                                                template_root: false, max_boards: 1,
+                                                max_boards: 1,
                                                 out_of_set: :flatten)
       root_clone = cloner.call
 
@@ -170,7 +148,7 @@ RSpec.describe Boards::SetCloner do
       link = source_root.board_images.find_by(predictive_board_id: source_food.id)
       link.update!(data: (link.data || {}).merge("mute_name" => true))
 
-      root_clone = described_class.new(source_root, owner: owner, template_root: false,
+      root_clone = described_class.new(source_root, owner: owner,
                                                     max_boards: 1, out_of_set: :flatten).call
       tile = root_clone.board_images.find_by(label: link.label)
 
@@ -180,7 +158,6 @@ RSpec.describe Boards::SetCloner do
 
     it "prefixes sub-clone names when asked, so the new rows are distinguishable" do
       root_clone = described_class.new(source_root, owner: owner, name: "Home",
-                                                    template_root: false,
                                                     prefix_sub_names: true).call
       sub_clone = Board.find(root_clone.board_images.where.not(predictive_board_id: nil).first.predictive_board_id)
 
@@ -194,7 +171,7 @@ RSpec.describe Boards::SetCloner do
   it "rewires a self-link to the root clone rather than flattening it" do
     self_link = link!(source_root, source_root, label: "Home")
 
-    root_clone = described_class.new(source_root, owner: owner, template_root: false,
+    root_clone = described_class.new(source_root, owner: owner,
                                                   out_of_set: :flatten).call
     tile = root_clone.board_images.find_by(label: self_link.label)
 
