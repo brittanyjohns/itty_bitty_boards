@@ -1,0 +1,75 @@
+<% content_for :page_title, "Mail" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Outbound mail</h1>
+    <p class="text-sm text-t3 mt-0.5">
+      Most recent <%= Admin::MailDeliveriesController::PER_PAGE %>. A row means the transport
+      <em>accepted</em> the message — whether the mailbox received it is answered by running the
+      Message-ID through the provider's Email Log Search. Kept <%= @retention_days %> days.
+    </p>
+  </div>
+</div>
+
+<div class="flex flex-wrap items-center gap-2 mb-4">
+  <%= link_to "All", admin_dashboard_mail_deliveries_path(q: @query),
+        class: "text-xs px-3 py-1.5 rounded border #{@status.nil? ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+  <% MailDelivery::STATUSES.each do |status| %>
+    <%= link_to admin_dashboard_mail_deliveries_path(status: status, q: @query),
+          class: "text-xs px-3 py-1.5 rounded border inline-flex items-center gap-1.5 #{@status == status ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" do %>
+      <%= status.titleize %>
+      <span class="text-t3">(<%= @counts.fetch(status, 0) %>)</span>
+    <% end %>
+  <% end %>
+  <span class="text-[11px] text-t3">last 7 days</span>
+
+  <%= form_with url: admin_dashboard_mail_deliveries_path, method: :get, local: true, class: "ml-auto flex items-center gap-2" do %>
+    <%= hidden_field_tag :status, @status if @status %>
+    <%= text_field_tag :q, @query, placeholder: "recipient, subject or Message-ID",
+          class: "text-xs px-3 py-1.5 rounded border bg-transparent text-t1 w-72" %>
+    <%= submit_tag "Search", class: "text-xs px-3 py-1.5 rounded border text-t2 hover:text-t1 cursor-pointer" %>
+  <% end %>
+</div>
+
+<div class="admin-card border rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Status", "To", "Subject", "Mailer", "Message-ID", "When"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @deliveries.empty? %>
+        <tr>
+          <td colspan="6" class="px-5 py-8 text-center text-xs text-t3">
+            Nothing recorded<%= " matching \"#{@query}\"" if @query.present? %>.
+          </td>
+        </tr>
+      <% end %>
+      <% @deliveries.each do |delivery| %>
+        <tr class="admin-hover-row transition-colors" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3 text-xs whitespace-nowrap">
+            <span class="font-medium <%= delivery.failed? ? "text-red-400" : (delivery.suppressed? ? "text-t3" : "text-t1") %>">
+              <%= delivery.status.titleize %>
+            </span>
+            <% if delivery.reason.present? %>
+              <div class="text-[10px] text-t3"><%= delivery.reason %></div>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t2"><%= delivery.recipients.presence || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t2">
+            <%= delivery.subject.presence || "—" %>
+            <% if delivery.failed? && delivery.error_class.present? %>
+              <div class="text-[10px] text-red-400"><%= delivery.error_class %>: <%= truncate(delivery.error_message.to_s, length: 120) %></div>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t3"><%= delivery.mailer.presence || "—" %></td>
+          <td class="px-5 py-3 text-[10px] text-t3 font-mono break-all"><%= delivery.message_id.presence || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap"><%= delivery.created_at.strftime("%b %-d, %Y %H:%M") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
