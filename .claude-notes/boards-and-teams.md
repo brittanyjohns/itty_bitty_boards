@@ -129,7 +129,18 @@ and nothing in the codebase that could have provided one.
   matched nothing. `""` still never falls through to the library art — it is the
   "no picture" marker. `rake board_assignments:diff_report` is the read-only
   companion that says WHICH field diverges, so a skip rate can be diagnosed
-  instead of guessed at. A favorited tile publishes its source through
+  instead of guessed at. It buckets each clone **structural / content_edit /
+  art_only** — `art_only` means the clone differs solely in which picture each
+  tile froze, which is nobody's edit but still CHANGES THE PICTURES on a
+  communicator's board, so those are reported and never auto-migrated (the app's
+  rule is pull-not-push: `update_to_default_docs`). Its attribution pairs tiles
+  by **unique label, never by position** — positional pairing compares tile A to
+  tile B the moment a board is reordered and then reports every field as
+  diverging at once, which is what made 25 unfindable boards look relabelled. A
+  tile whose label actually moved cannot pair at all, so leftovers on both sides
+  of an equal-sized board are recorded as a `label` change rather than dropped:
+  the attribution must fail toward "do not consolidate". (The consolidator's own
+  verdict was never affected — it sorts before comparing.) A favorited tile publishes its source through
   `Boards::MySpeakPublisher`, since the public page gates each card on the
   board being published. A consolidated tile serves the source board, so the
   clone's own `/pb/<slug>` stops resolving — accepted, as no assignment clone
