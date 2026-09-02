@@ -18,6 +18,24 @@
 # accepted-then-dropped message is visible.
 #
 # Every writer is fail-soft. Recording a send must never be able to break one.
+# == Schema Information
+#
+# Table name: mail_deliveries
+#
+#  id            :bigint           not null, primary key
+#  status        :string           not null
+#  recipients    :string
+#  from_address  :string
+#  subject       :string
+#  message_id    :string
+#  mailer        :string
+#  transport     :string
+#  reason        :string
+#  error_class   :string
+#  error_message :text
+#  created_at    :datetime         not null
+#  updated_at    :datetime         not null
+#
 class MailDelivery < ApplicationRecord
   DELIVERED = "delivered"
   FAILED = "failed"
