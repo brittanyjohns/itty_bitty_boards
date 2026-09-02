@@ -1753,6 +1753,13 @@ class User < ApplicationRecord
   # which backfills rows that went past_due before the stamp existed).
   PAST_DUE_SINCE_KEY = "past_due_since".freeze
 
+  # Settings key holding the mapped reason the last renewal charge failed,
+  # as { "reason" => <Billing::DeclineReason value>, "at" => iso8601 }. Written
+  # by the invoice.payment_failed webhook and cleared alongside
+  # PAST_DUE_SINCE_KEY when the account leaves past_due, so a recovered payer
+  # never carries a stale reason.
+  PAYMENT_FAILURE_KEY = "payment_failure".freeze
+
   def past_due?
     plan_status.to_s == "past_due"
   end
@@ -1785,7 +1792,24 @@ class User < ApplicationRecord
       settings[PAST_DUE_SINCE_KEY] ||= Time.current.utc.iso8601
     else
       settings.delete(PAST_DUE_SINCE_KEY)
+      settings.delete(PAYMENT_FAILURE_KEY)
     end
+  end
+
+  # The past-due banner's whole payload: nil unless the account is actually
+  # past_due, so the frontend checks one field instead of re-deriving the rule.
+  # `reason` falls back to "generic" for a row that went past_due before the
+  # reason was captured (or whose capture failed).
+  def payment_issue_api_view
+    return nil unless past_due?
+
+    settings_hash = settings.is_a?(Hash) ? settings : {}
+    failure = settings_hash[PAYMENT_FAILURE_KEY]
+    failure = {} unless failure.is_a?(Hash)
+    {
+      reason: failure["reason"].presence || Billing::DeclineReason::GENERIC,
+      since: settings_hash[PAST_DUE_SINCE_KEY],
+    }
   end
 
   def professional?
@@ -2494,6 +2518,9 @@ class User < ApplicationRecord
       trial_expired: trial_expired?,
       trial_days_left: trial_days_left,
       trial: trial_api_view,
+      # nil unless the account is past_due. Names WHY the charge failed so the
+      # banner can give the right next action; see Billing::DeclineReason.
+      payment_issue: payment_issue_api_view,
       comm_account_limit_reached: comm_account_limit_reached,
 
       # Communicators (REAL)

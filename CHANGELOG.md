@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- **A failed payment now says why it failed.** The past-due notice could only
+  say "payment failed", which is the wrong advice for half of the cases — a
+  bank that declines an otherwise-valid card can't be fixed by re-saving that
+  card in the billing portal. The app now records the reason behind a failed
+  renewal (out of funds, expired card, wrong card details, or the bank
+  declining it) so the notice can point at the action that actually helps.
+  Fraud-flagged declines are deliberately reported as a plain failure rather
+  than by name.
+
 - **Approved clinicians can lend a communicator to a family again.** The
   Clinician plan advertises 2 loaner slots, but the server-side gate on
   "Lend & hand off" checked for Pro — and Clinician is deliberately not Pro, so
