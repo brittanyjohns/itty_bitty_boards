@@ -1700,6 +1700,24 @@ RSpec.describe Board, type: :model do
         expect(Board.countable).not_to include(public_menu)
       end
 
+      # The negation trap, in the other direction: `NOT (TRUE AND NULL)` is NULL,
+      # so an unguarded `board_type = 'menu'` term made every PUBLISHED board
+      # with a NULL board_type read as exempt and drop out of the count — a user
+      # could quietly exceed their limit by publishing an ordinary board.
+      it "counts a PUBLISHED board with a NULL board_type" do
+        board = create(:board, user: user, board_type: nil, published: true)
+
+        expect(Board.countable).to include(board)
+        expect(Board.published_menus).not_to include(board)
+        expect(board.counts_toward_board_limit?).to be(true)
+      end
+
+      it "counts a published board whose parent_type is not Menu" do
+        board = create(:board, user: user, board_type: "static", published: true)
+
+        expect(Board.countable).to include(board)
+      end
+
       it "treats a NULL published menu as private" do
         menu_board = create(:board, user: user, board_type: "menu")
         menu_board.update_column(:published, nil)

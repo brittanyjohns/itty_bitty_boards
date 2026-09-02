@@ -246,13 +246,18 @@ class Board < ApplicationRecord
   # main_boards' `sub_board: [false, nil]` is just `= false` and this is its
   # negation. Exposed as a filter so every board that counts is reachable from
   # the boards page.
-  scope :sub_pages, -> { where("boards.board_type = 'menu' OR boards.parent_type = 'Menu' OR boards.sub_board") }
+  scope :sub_pages, -> { where("COALESCE(boards.board_type, '') = 'menu' OR boards.parent_type = 'Menu' OR boards.sub_board") }
 
   # A menu board the user has published is public — `Board#viewable_by?` lets
   # anyone open it — so it stops being charged against the plan the moment it is
   # shared. This is the ONE exemption from the board cap. COALESCE because
   # `published` is nullable.
-  PUBLISHED_MENU_SQL = "COALESCE(boards.published, FALSE) AND (boards.board_type = 'menu' OR boards.parent_type = 'Menu')".freeze
+  # Every term is NULL-safe on purpose. `countable` negates this, and in SQL
+  # `NOT NULL` is NULL, not TRUE — so an unguarded `board_type = 'menu'` made
+  # every PUBLISHED board with a NULL board_type read as exempt and vanish from
+  # the count, letting a user quietly exceed their limit. That is the same
+  # NULL trap as MENU_BOARD_TYPE_SQL above. `parent_type` is NOT NULL.
+  PUBLISHED_MENU_SQL = "COALESCE(boards.published, FALSE) AND (COALESCE(boards.board_type, '') = 'menu' OR boards.parent_type = 'Menu')".freeze
 
   scope :published_menus, -> { where(PUBLISHED_MENU_SQL) }
 

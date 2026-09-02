@@ -1006,6 +1006,12 @@ RSpec.describe User, type: :model do
       expect(User.find(user.id).countable_board_count).to eq(1)
     end
 
+    it "counts a published board that is not a menu" do
+      create(:board, user: user, board_type: nil, published: true)
+
+      expect(user.countable_board_count).to eq(1)
+    end
+
     it "re-charges a menu when it is unpublished" do
       menu_board = create(:board, user: user, board_type: "menu", published: true)
       expect(user.countable_board_count).to eq(0)
