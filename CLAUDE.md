@@ -270,6 +270,57 @@ an explicit decision, not a drive-by edit.
   default). Every limit 422 carries a stable
   `error_code: "board_limit_reached"`; the existing `error` strings are left
   byte-identical, since some are sentences the frontend renders verbatim.
+- **There is ONE communicator-slot answer and it is
+  `Permissions::CommunicatorLimits.slots_for`.** A `loaner` occupies the
+  lender's slot until a family CLAIMS it, and the slot returns on claim — that
+  is what the Clinician plan sells. Two payload fields used to answer "am I out
+  of slots" and they were opposites at the same instant:
+  `comm_account_limit_reached` summed the paid AND sandbox limits against EVERY
+  communicator (matching no gate anywhere) while `paid_comm_account_limit_reached`
+  tracked loaner+active, so a clinician at 2/2 with one out on loan read `false`
+  in the field the pre-form cap card gated on and 422'd on the create. One
+  backend ambiguity, two frontend bugs — one panel printed "2 of 2 slots in use"
+  directly above "No slots available". `slots_for` returns
+  `{ limit, used, available, on_loan, active, limit_reached }`, is published as
+  `communicator_slots`, and **both enforcement gates decide through it**
+  (`can_create?`'s self-create branch and `can_claim?`, via
+  `refuse_when_out_of_slots`) — agreement between the number shown and the
+  answer given is structural, not two copies of the same arithmetic. Both raw
+  flags now read out of it and stay in the payload only for the frontend that
+  ships today; gate anything new on `communicator_slots`. The limit is
+  `slot_limit_for` (`communicator_slot_limit` override ?? `paid_communicator_limit`,
+  plus Pro add-on slots) — never `settings["paid_communicator_limit"]` read
+  directly, which is how `accounts_included` showed an overridden account one
+  number while the gate refused it on another. Sandbox communicators have their
+  own quota and never occupy a slot.
+- **Every outbound message leaves a row in `mail_deliveries`, and a SUPPRESSED
+  send is not a missing one.** `MailDeliveryObserver` records `delivered` (with
+  the Message-ID a Google Workspace Email Log Search takes) and `suppressed`;
+  `ApplicationMailer`'s `rescue_from` records `failed` and re-raises.
+  `/admin/mail_deliveries` is the surface, badged in the admin nav, because a
+  failure only an SSH session can see does not answer the person who has to
+  trust "we'll email you as soon as it's approved". The third state is the one
+  the log lines could not express: staging blocks EVERY message, so
+  "suppressed" and "never attempted" were indistinguishable. **Every writer is
+  fail-soft** — a raise in the observer fires AFTER a successful hand-off, so it
+  would turn a delivered message into a Sidekiq retry and send it twice.
+  Envelope only, never a body. `MAIL_DELIVERY_LOG=false` disables recording;
+  `PruneMailDeliveriesJob` enforces `MAIL_DELIVERY_RETENTION_DAYS` (90) so the
+  table stays a log rather than an archive.
+- **A board is `complete` when its WORDS exist; `images_ready?` is when it can
+  be DRAWN.** `GenerateBoardJob` sets `status: "complete"` immediately after
+  enqueuing per-tile art, so a client gating a "board ready" screen on status
+  opens a board whose tiles are still text. `Board#images_ready?` /
+  `#tiles_awaiting_art_count` are the second question and the one a ready screen
+  should gate on. Three things it gets right that `has_generating_images?` does
+  not: **`pending` is the board_images column DEFAULT**, held by nearly every
+  tile that never went through art generation, so it is NOT an in-progress
+  status (`TILE_ART_IN_PROGRESS_STATUSES` is `generating`/`processing`); a
+  **BLANK** `display_image_url` is READY, not waiting, because it is the "this
+  tile has no picture" marker the client already draws; and only VISIBLE tiles
+  count, since a viewer never waits on a tile they can't see. It is deliberately
+  absent from `Board#api_view`, which serializes board LISTS and would pay a
+  query per board.
 - **Webhooks are the sole credit-grant authority** (Stripe + RevenueCat).
   Client-called endpoints may reflect plan state but never grant credits. All
   credit movement goes through `CreditService` and the immutable
