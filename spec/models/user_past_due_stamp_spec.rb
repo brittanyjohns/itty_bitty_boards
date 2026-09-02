@@ -29,6 +29,21 @@ RSpec.describe User, "past_due stamping" do
       .to change { user.reload.past_due_since }.to(nil)
   end
 
+  # A recovered payer must not carry a stale decline reason — the banner is
+  # gone, but the reason would still be sitting in settings for the next
+  # failure to be read as. Cleared in the same branch as the stamp (#826).
+  it "clears the captured payment failure reason when the account leaves past_due" do
+    user.update!(plan_status: "past_due")
+    user.update!(settings: user.settings.merge(
+      User::PAYMENT_FAILURE_KEY => { "reason" => "expired_card", "at" => Time.current.utc.iso8601 },
+    ))
+
+    user.update!(plan_status: "active")
+
+    expect(user.reload.settings).not_to have_key(User::PAYMENT_FAILURE_KEY)
+    expect(user.payment_issue_api_view).to be_nil
+  end
+
   it "clears the stamp when the account is downgraded to free" do
     user.update!(plan_status: "past_due")
 

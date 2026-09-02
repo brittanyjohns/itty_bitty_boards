@@ -242,6 +242,20 @@ class BoardImage < ApplicationRecord
     normalized_default_label(text)
   end
 
+  # `data` for a copy of this tile: everything verbatim except the text-tile Doc
+  # pointer, which names a Doc hanging off the SOURCE tile's Image. The rendered
+  # URL and the render options travel — the clone has to LOOK identical — but
+  # the pointer does not, so the next re-render builds this tile's own Doc on
+  # its own Image instead of adopting a stranger's. #unchanged_render? only asks
+  # whether that Doc still exists, never whose it is, so a kept pointer would
+  # skip re-renders forever on evidence from another account.
+  def cloned_tile_data
+    copy = (data || {}).deep_dup
+    text_image = copy["text_image"]
+    copy["text_image"] = text_image.except("doc_id") if text_image.is_a?(Hash)
+    copy
+  end
+
   # True when this tile's text isn't a word the communicator speaks, so word
   # casing rules don't apply to it and it must survive a clone verbatim:
   #
@@ -941,7 +955,7 @@ class BoardImage < ApplicationRecord
     elsif bg_color.blank?
       set_background_color(image.bg_color || "white")
     end
-    self.font_size = image.font_size
+    self.font_size = image.font_size if font_size.nil?
     self.label = image.label
     # self.display_image_url = image.display_tile_url(user)
     #
@@ -950,13 +964,23 @@ class BoardImage < ApplicationRecord
     # into improved library art per board via
     # PUT /api/boards/:id/update_to_default_docs — pull, not push.
     #
-    # The one thing that survives is "" — the "this tile has no picture" marker
-    # (#picture_hidden?), which is an authored choice about the TILE. Both clone
-    # paths (Board#clone_with_images, Boards::SeededSetCloner#copy_tiles!) dup a
+    # SEED an empty value, never overwrite one: a non-nil display_image_url IS
+    # the pin. Three authored states share the column — "" is the "this tile has
+    # no picture" marker (#picture_hidden?), a URL is a picture the tile chose (a
+    # text-tile render, docs#mark_as_current, a custom upload), and nil is "no
+    # opinion, use the library's". A before_create cannot tell an authored URL
+    # from a defaulted one, so it must not touch either. Both clone paths
+    # (Board#clone_with_images, Boards::SeededSetCloner#copy_tiles!) dup a
     # BoardImage and then re-point image_id at an Image resolved for the new
-    # owner, so re-seeding the URL is right — but an unconditional assignment
-    # also silently un-hid a hidden tile on every clone.
-    self.display_image_url = image.src_url unless picture_hidden?
+    # owner — an unconditional assignment there silently un-hid every hidden
+    # tile and replaced every text-tile render with the library symbol, while
+    # data["text_image"] still claimed a render. A caller that WANTS the library
+    # default re-seeded writes nil first (#unhide_picture!,
+    # Boards::AdminBuilder::Build's tile release).
+    #
+    # .nil?, not .blank?: "" is the marker, same reason as the backfill in
+    # Board#clone_with_images.
+    self.display_image_url = image.src_url if display_image_url.nil?
     self.next_words = image.next_words || []
     # Respect a part_of_speech that was explicitly set before create (e.g. a
     # clone via Board#clone_with_images dup'ing a seeded tile, #279) — only

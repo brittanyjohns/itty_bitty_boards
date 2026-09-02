@@ -188,6 +188,41 @@ webhook), a lapsed payer keeps paid limits indefinitely.
   later — `updated_at` moves on every sign-in, so there is no honest historical
   date to downgrade off of.
 
+#### Why the charge failed — `Billing::DeclineReason`
+
+The banner's next action differs per reason: an expired card is fixed by
+updating the card, an issuer decline is not — re-saving the same card fails
+identically, so generic "update your payment method" copy sends that user round
+in a loop. `handle_invoice_payment_failed` therefore reads the invoice's
+PaymentIntent (`invoice.payment_intent`; this endpoint is on API version
+2023-10-16) and stores `settings["payment_failure"]`
+(`User::PAYMENT_FAILURE_KEY`) as `{reason, at}`. `api_view` exposes
+`payment_issue` — `{reason, since}` while past_due, **nil otherwise**, so the
+frontend checks one field and re-derives nothing. `track_past_due_transition`
+deletes the key in the same `else` branch as the stamp, so a recovered payer
+carries no stale reason.
+
+Three rails on the mapping (`Billing::DeclineReason`, a pure function):
+
+- **The fraud bucket is never surfaced.** `lost_card`, `stolen_card`,
+  `pickup_card`, `fraudulent`, `merchant_blacklist`, `restricted_card`,
+  `security_violation`, `stop_payment_order` → `"generic"`. It tips off a real
+  fraudster, and — far more likely for us — these fire as false positives, and
+  telling a parent her card was reported stolen when it wasn't is a terrible
+  experience. Mapping decline codes 1:1 is the easy mistake.
+- **Stripe's raw `message` never crosses the boundary.** It isn't brand voice
+  and can carry integration jargon; the mapped reason is the only thing the
+  client is given.
+- **It fails closed**, and so does the capture: an unrecognized code, a missing
+  PaymentIntent, or a Stripe lookup error all read as `"generic"` rather than
+  raising — the `plan_status` update matters more than the reason string.
+
+`authentication_required` is deliberately folded into `"generic"` for now: its
+CTA is a 3DS confirmation at `invoice.hosted_invoice_url`, a field we don't
+store and the billing portal won't resolve, so naming it would point the user
+somewhere that can't fix it. Give it a row in `MAPPING` once that URL is
+persisted.
+
 Trial→paid is measured via `AnalyticsEvent`: `trial_started` (checkout),
 `trial_will_end` (Stripe pre-end webhook), `subscription_started` (fired on
 the non-active→active transition in the upsert; guarded so renewals don't

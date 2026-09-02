@@ -295,6 +295,23 @@ an explicit decision, not a drive-by edit.
   "Hide pictures" works in PDF exports, board covers, and printables without
   any of them knowing the feature exists — which is exactly why it must not
   become a second `data[...]` flag.
+- **`BoardImage#set_defaults` SEEDS a picture, it never overwrites one — a
+  non-nil `display_image_url` is the pin, and a copy has to look like its
+  source.** The `before_create` cannot tell an authored URL from a defaulted
+  snapshot, and every clone/assign path is `board_image.dup` → re-point
+  `image_id` → `save`, so an unconditional assignment there silently replaced
+  every text-tile render with the shared Image's library symbol while
+  `data["text_image"]` still claimed a render (it had already been carved out
+  for `""`, one authored state of three). `if display_image_url.nil?`, and the
+  same rule one column over for `font_size`. A caller that WANTS the library
+  default back writes `nil` first (`#unhide_picture!`). Two corollaries: the
+  text-tile `doc_id` does NOT travel with a clone (`BoardImage#cloned_tile_data`
+  strips it — the Doc hangs off the SOURCE tile's `Image`, and
+  `unchanged_render?` only asks whether that Doc exists, never whose it is); and
+  a create path that pre-sets `display_image_url` is now believed, which is why
+  `Board.from_obf` must hand each tile its OWN button's picture — its
+  first-picture-wins variable is the BOARD's cover and was being passed to every
+  tile, giving a picture-less button the previous button's art.
 - **A tile's picture belongs to the board's OWNER, and `Images::TileArtFanout`
   is the only thing allowed to write it from a shared `Image`.** `images` and
   `docs` are shared library rows — one "apple" `Image` is on thousands of boards

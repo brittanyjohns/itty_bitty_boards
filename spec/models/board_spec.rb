@@ -232,14 +232,30 @@ RSpec.describe Board, type: :model do
         expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/original.webp")
       end
 
-      it "picks up the source image's src_url via set_defaults" do
+      it "seeds a tile that carries no picture of its own from the resolved image" do
+        # nil is "no opinion": the factory image had no src_url when the tile was
+        # created, so the tile never pinned anything and the clone is free to
+        # seed from whatever the resolved image points at now.
         image.update_column(:src_url, "https://cdn.example.com/source.webp")
+        expect(board.board_images.first.display_image_url).to be_nil
 
         cloned = board.clone_with_images(other_user.id)
         cloned_tile = cloned.reload.board_images.first
 
-        # Cross-user clone reuses the original image; set_defaults copies its src_url
         expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/source.webp")
+      end
+
+      it "keeps a tile's own picture even when the image's art has moved on" do
+        # A non-nil display_image_url IS the pin. The SOURCE board renders that
+        # snapshot, and a clone is meant to look like an exact copy of the source
+        # — not like a fresh tile built from today's library.
+        board.board_images.first.update_column(:display_image_url, "https://cdn.example.com/pinned.webp")
+        image.update_column(:src_url, "https://cdn.example.com/newer.webp")
+
+        cloned = board.clone_with_images(other_user.id)
+        cloned_tile = cloned.reload.board_images.first
+
+        expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/pinned.webp")
       end
     end
 
