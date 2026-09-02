@@ -1271,12 +1271,19 @@ RSpec.describe Profile, type: :model do
     before do
       allow(Communicators::GenerateSafetyIdCard).to receive(:call)
       allow(Communicators::GenerateDeviceTag).to receive(:call)
+      allow(Communicators::GenerateScanTag).to receive(:call)
     end
 
     it "builds the device tag" do
       profile.generate_attachments!
 
       expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
+    end
+
+    it "builds the scan tag" do
+      profile.generate_attachments!
+
+      expect(Communicators::GenerateScanTag).to have_received(:call).with(profile)
     end
 
     it "does not build the retired Safety ID card" do
