@@ -21,6 +21,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A MySpeak page with no starred boards now offers a short starting point
+  instead of the whole library.** Before anyone had starred a board, a
+  communicator's public page — the one handed to a teacher on the first day of
+  school — listed roughly 75 public boards in no order, with duplicates and
+  with boards that made no sense in that context. It now shows a curated,
+  ordered, de-duplicated handful, led by the MySpeak starter boards. Nothing is
+  hidden from anyone who had starred boards of their own; that list is
+  unchanged.
 - **Your own communicators no longer come back marked as if you can't edit
   them.** The communicator list and the single-communicator view disagreed: the
   list decided edit rights from whether the *owner* was a SpeakAnyWay admin, so

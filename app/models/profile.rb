@@ -507,7 +507,7 @@ class Profile < ApplicationRecord
 
       # Boards shown publicly should be safe/public
       public_boards: public_boards.map(&:public_card_view),
-      general_public_boards: Board.public_board_cards,
+      general_public_boards: Board.public_starter_cards,
 
       # If you need this for the UI, keep it minimal
       profileable_type: profileable_type,
@@ -552,7 +552,7 @@ class Profile < ApplicationRecord
       # If you want this on creator pages, keep it public-only
       public_boards: public_boards.map(&:public_card_view),
       user_boards: user_boards.map(&:public_page_card_view),
-      general_public_boards: Board.public_board_cards,
+      general_public_boards: Board.public_starter_cards,
       # NOTE: email intentionally omitted — use settings["show_email"]
       # on the frontend if the user opted in to displaying contact info.
       public_about_html: safe_html(public_about&.body&.to_s),
@@ -598,7 +598,7 @@ class Profile < ApplicationRecord
       claim_token: claim_token,
       claim_url: claim_url,
       sku: sku,
-      general_public_boards: Board.public_board_cards,
+      general_public_boards: Board.public_starter_cards,
     }
   end
 

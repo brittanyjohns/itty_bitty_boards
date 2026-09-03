@@ -3017,29 +3017,106 @@ class Board < ApplicationRecord
     )
   end
 
-  # The curated admin board library, rendered as public cards. Identical for
-  # every visitor, so it is computed once rather than per request — this used
-  # to be `Board.public_boards.map(&:api_view)` inlined into every public
-  # profile payload, which serialized the whole library on each page load.
+  # The order the seeded MySpeak starters are offered in — a first-time
+  # visitor's reading order, not alphabetical. Any other `myspeak`-tagged board
+  # follows these alphabetically, so the library can be curated from the admin
+  # by tagging a board rather than by a deploy.
+  MYSPEAK_STARTER_ORDER = %w[
+    myspeak-basics
+    myspeak-feelings
+    myspeak-social
+    myspeak-food
+    myspeak-school
+  ].freeze
+
+  # How many boards a public page offers when it has none of its own.
+  # ENV-tunable so the number can be retuned from Hatchbox without a deploy;
+  # read at call time for the same reason (see EDITABLE_BOARD_FLOOR).
+  DEFAULT_PUBLIC_STARTER_LIMIT = 6
+
+  def self.public_starter_limit
+    ENV.fetch("PUBLIC_STARTER_BOARD_LIMIT", DEFAULT_PUBLIC_STARTER_LIMIT).to_i
+  end
+
+  # The fallback a public page offers a visitor when the page owner has starred
+  # no boards of their own — a short, ORDERED, de-duplicated starting point, not
+  # the library.
+  #
+  # It used to be every board in `Board.public_boards`, unordered and uncapped:
+  # roughly 75 cards on the page a parent hands to a kindergarten teacher,
+  # including four spellings of Letters/Numbers/Colors and several boards with
+  # no plausible fit for the context. A wall of choices is not a starting point.
+  #
+  # Three passes, in priority order, so the list degrades rather than empties if
+  # an environment has never run db/seeds/myspeak_starter_boards.rb:
+  #   1. `myspeak`-tagged boards, MYSPEAK_STARTER_ORDER first;
+  #   2. the `welcome` category;
+  #   3. whatever else is public, alphabetically.
+  # De-duplicated on a normalized name (this is what collapses `numbers` x2 and
+  # `Lunch and Snack` x2 — near-duplicates that merely SPELL the same idea
+  # differently are handled by the cap, and permanently by
+  # `rake public_boards:dedupe`), then capped.
+  #
+  # Identical for every visitor, so it is computed once rather than per request.
   # Rails.cache is Redis in production and :null_store in test, so this must
   # stay correct when the block runs every time.
-  def self.public_board_cards
-    Rails.cache.fetch(public_board_cards_cache_key, expires_in: 15.minutes) do
-      public_boards
-        .includes(preview_image_attachment: :blob, preset_display_image_attachment: :blob)
-        .map(&:public_card_view)
+  def self.public_starter_cards
+    Rails.cache.fetch(public_starter_cards_cache_key, expires_in: 15.minutes) do
+      public_starter_boards.map(&:public_card_view)
     end
   end
 
   # Also folded into the public profile ETag so a library change can invalidate
-  # a cached page (the library rides along in that payload).
-  def self.public_board_cards_cache_key
+  # a cached page (the list rides along in that payload). Keyed on the whole
+  # public library, not just the boards that made the cut: tagging a board
+  # `myspeak` changes what is offered, and it touches `updated_at`.
+  def self.public_starter_cards_cache_key
     scope = public_boards
     [
-      "public_board_cards/v1",
+      "public_starter_cards/v2",
+      public_starter_limit,
       scope.count,
       scope.maximum(:updated_at)&.utc&.to_fs(:nsec),
     ].join("/")
+  end
+
+  CARD_PRELOADS = { preview_image_attachment: :blob, preset_display_image_attachment: :blob }.freeze
+
+  def self.public_starter_boards
+    limit = public_starter_limit
+    return [] unless limit.positive?
+
+    tagged = myspeak_public_boards.includes(CARD_PRELOADS).to_a.sort_by do |board|
+      [MYSPEAK_STARTER_ORDER.index(board.slug) || MYSPEAK_STARTER_ORDER.size, board.name.to_s.downcase]
+    end
+
+    kept = take_distinct_by_name(tagged, limit)
+    return kept if kept.size >= limit
+
+    # Only reached when the `myspeak` tag doesn't fill the list — an environment
+    # that has never run the starter seed, or a deliberately larger limit.
+    filler = public_boards.where.not(id: tagged.map(&:id)).includes(CARD_PRELOADS).alphabetical.to_a
+    welcome, rest = filler.partition { |board| board.category == "welcome" }
+    kept + take_distinct_by_name(welcome + rest, limit - kept.size, seen: kept.map { |b| normalized_board_name(b.name) })
+  end
+
+  def self.take_distinct_by_name(boards, limit, seen: [])
+    seen_names = Set.new(seen)
+    boards.each_with_object([]) do |board, kept|
+      next if kept.size >= limit
+      next unless seen_names.add?(normalized_board_name(board.name))
+
+      kept << board
+    end
+  end
+
+  # The de-duplication key: case, punctuation and spacing folded away, so
+  # "Lunch and Snack" and "lunch & snack" are one board. Deliberately does NOT
+  # reorder or stem words — `Letters, Colors, Numbers` and
+  # `Letters-Numbers-Colors` really are different boards as far as this can
+  # tell, and guessing there would silently hide a board someone curated.
+  def self.normalized_board_name(name)
+    name.to_s.downcase.gsub("&", " and ").gsub(/[^a-z0-9]+/, " ").strip
   end
 
   def list_api_view(viewing_user = nil)

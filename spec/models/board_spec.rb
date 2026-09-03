@@ -1505,7 +1505,7 @@ RSpec.describe Board, type: :model do
     end
   end
 
-  describe "#public_card_view / .public_board_cards" do
+  describe "#public_card_view / .public_starter_cards" do
     let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
     let!(:public_board) do
       FactoryBot.create(:board, user: admin_user, predefined: true, published: true, parent_type: "User")
@@ -1536,18 +1536,18 @@ RSpec.describe Board, type: :model do
       expect(view).not_to have_key(:settings)
     end
 
-    it "returns one card per public board" do
-      cards = described_class.public_board_cards
+    it "renders the curated starter list as cards" do
+      cards = described_class.public_starter_cards
 
       expect(cards.map { |c| c[:id] }).to include(public_board.id)
-      expect(cards.size).to eq(described_class.public_boards.count)
+      expect(cards.size).to eq(described_class.public_starter_boards.size)
     end
 
     it "changes its cache key when a public board is touched" do
-      before_key = described_class.public_board_cards_cache_key
+      before_key = described_class.public_starter_cards_cache_key
       public_board.touch
 
-      expect(described_class.public_board_cards_cache_key).not_to eq(before_key)
+      expect(described_class.public_starter_cards_cache_key).not_to eq(before_key)
     end
   end
 
