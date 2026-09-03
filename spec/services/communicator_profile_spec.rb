@@ -70,6 +70,8 @@ RSpec.describe CommunicatorProfile do
 
   describe "normalization" do
     it "derives an age band from a raw age" do
+      expect(described_class.new(age: 2).age_band).to eq("under-4")
+      expect(described_class.new(age: 3).age_band).to eq("under-4")
       expect(described_class.new(age: 4).age_band).to eq("4-6")
       expect(described_class.new(age: 9).age_band).to eq("7-10")
       expect(described_class.new(age: 13).age_band).to eq("11-14")
@@ -131,6 +133,31 @@ RSpec.describe CommunicatorProfile do
     it "includes vocab_type guidance when provided" do
       expect(described_class.new(age: 16, vocab_type: "core").prompt_guidance)
         .to match(/favor core vocabulary/i)
+    end
+  end
+
+  # The band a 2- or 3-year-old actually belongs to. `band_for_age` used to open
+  # at `when 0..6 then "4-6"`, so every toddler was reported as 4-6.
+  describe "the under-4 age band" do
+    it "is an accepted band" do
+      expect(described_class.new(age_band: "under-4").age_band).to eq("under-4")
+      expect(described_class.new(age_band: "UNDER-4").age_band).to eq("under-4")
+    end
+
+    it "counts as young — a 3-year-old is at least as young as a 5-year-old" do
+      expect(described_class.new(age_band: "under-4")).to be_young
+      expect(described_class.new(age_band: "under-4")).to be_emerging
+    end
+
+    it "gets core-vocabulary-heavy guidance with no explicit aac_level" do
+      guidance = described_class.new(age_band: "under-4").prompt_guidance
+      expect(guidance).to match(/core vocabulary/i)
+      expect(guidance).to include("age band under-4")
+    end
+
+    it "leaves the older bands where they were" do
+      expect(described_class.new(age_band: "11-14")).not_to be_young
+      expect(described_class.new(age: 5)).to be_young
     end
   end
 

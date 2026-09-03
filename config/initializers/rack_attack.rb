@@ -67,6 +67,7 @@ class Rack::Attack
   # Public profile lookups (per IP) — existing anti-enumeration limits.
   PROFILE_PUBLIC_LIMIT  = env_int("RACK_ATTACK_PROFILE_PUBLIC_LIMIT", 30)
   PROFILE_SLUG_LIMIT    = env_int("RACK_ATTACK_PROFILE_SLUG_LIMIT", 10)
+  USERNAME_CHECK_LIMIT  = env_int("RACK_ATTACK_USERNAME_CHECK_LIMIT", 20)
   PROFILE_PERIOD        = env_int("RACK_ATTACK_PROFILE_PERIOD", 60)
 
   # --- Path matchers --------------------------------------------------------
@@ -233,6 +234,16 @@ class Rack::Attack
   throttle("check_slug/ip", limit: PROFILE_SLUG_LIMIT, period: PROFILE_PERIOD) do |req|
     if req.path.match?(%r{\A/api/profiles/check_slug(/|\z)}) && req.get?
       req.ip
+    end
+  end
+
+  # Communicator username availability. Signed-in only, so throttle the CALLER
+  # rather than the IP — a school or clinic puts many legitimate parents behind
+  # one address. Typing a name into the wizard fires a handful of checks; a
+  # dictionary sweep of the whole username space fires thousands.
+  throttle("username_available/user", limit: USERNAME_CHECK_LIMIT, period: PROFILE_PERIOD) do |req|
+    if req.get? && req.path.match?(%r{\A/api/child_accounts/username_available(/|\z)})
+      user_discriminator(req)
     end
   end
 

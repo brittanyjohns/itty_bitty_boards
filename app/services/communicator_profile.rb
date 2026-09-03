@@ -9,7 +9,12 @@
 class CommunicatorProfile
   AAC_LEVELS = %w[emerging developing proficient].freeze
   VOCAB_TYPES = %w[core fringe balanced].freeze
-  AGE_BANDS = %w[4-6 7-10 11-14 15-18 adult].freeze
+  # `under-4` is first because early intervention routinely starts AAC at 2:
+  # a parent of a 2- or 3-year-old is the most common brand-new-AAC-parent
+  # profile, and with no correct option they either left the field blank or
+  # picked `4-6` and polluted the data. The value string is shared with the
+  # frontend's own band labels — never rename it without them.
+  AGE_BANDS = %w[under-4 4-6 7-10 11-14 15-18 adult].freeze
   # Natural Language Acquisition (NLA) stages for gestalt language processors,
   # 1–6. Optional metadata stored as an INTEGER (unlike the string enums above)
   # — see ChildAccount#normalize_aac_profile_fields for the int handling.
@@ -77,7 +82,7 @@ class CommunicatorProfile
   def young?
     return age <= 10 if age.present?
 
-    %w[4-6 7-10].include?(age_band)
+    %w[under-4 4-6 7-10].include?(age_band)
   end
 
   def emerging?
@@ -149,7 +154,8 @@ class CommunicatorProfile
     return nil if age.blank?
 
     case age
-    when 0..6   then "4-6"
+    when 0..3   then "under-4"
+    when 4..6   then "4-6"
     when 7..10  then "7-10"
     when 11..14 then "11-14"
     when 15..18 then "15-18"

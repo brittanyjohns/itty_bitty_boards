@@ -488,6 +488,12 @@ Rails.application.routes.draw do
         # #439: owner picks which communicators stay signable when over the
         # plan's slot limit (the rest fall back to the public MySpeak page).
         post "keep_signable"
+        # Username availability, asked BEFORE the create so a parent naming
+        # their child "Leo" learns `leo` is taken while they can still choose,
+        # instead of eating a 422 at the end of the wizard. Signed-in only —
+        # it reveals whether a username exists — and throttled per caller in
+        # config/initializers/rack_attack.rb.
+        get "username_available"
       end
       member do
         post "assign_boards"

@@ -5,8 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **You can check a communicator username before you commit to it.** Communicator
+  usernames are shared across the whole app, so the obvious one for your child's
+  name is usually already somebody's — and you only found that out from an error
+  at the very end of setup. The form can now ask up front and offer alternatives
+  that are actually free. Nothing is renamed behind your back: you see the
+  options and choose.
+- **An "under 4" age band for communicators.** Early intervention routinely
+  starts AAC at 2, and the youngest option was 4–6 — so a parent of a toddler
+  either left the field blank or picked a band that wasn't true. The new band
+  gets the same child voice and the same core-vocabulary-first AI guidance as
+  the other young bands.
+
 ### Fixed
 
+- **Setup errors now land on the field that caused them.** When creating or
+  editing a communicator failed, the app returned one flattened sentence with no
+  indication of which input was wrong. The response now also carries the message
+  keyed by field, so a taken username shows on the username box.
 - **A communicator's default voice now follows their age.** The communicator
   form asks how old the communicator is and stores the answer, but nothing read
   it — so every communicator, a 17-year-old included, was handed Kevin, a voice

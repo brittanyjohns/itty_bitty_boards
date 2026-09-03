@@ -60,6 +60,40 @@ class API::ChildAccountsController < API::ApplicationController
     }
   end
 
+  # GET /api/child_accounts/username_available?username=leo
+  #
+  # Communicator usernames are globally unique (`validates :username,
+  # uniqueness: true` + a plain unique index), so every common first name is
+  # already someone's. A parent naming their child "Leo" used to learn that
+  # only from a 422 at the end of the create — at the exact moment of
+  # activation, on the least technical user we have. This lets the form ask
+  # first.
+  #
+  # The answer is about the NORMALIZED name, which is what the client should
+  # submit: `username` echoes back what was actually checked, and the create
+  # path derives the same shape via `name.parameterize` when no username is
+  # sent.
+  #
+  # Enumeration: this does reveal whether an arbitrary username exists.
+  # Requiring a signed-in caller is the mitigation, backed by a per-caller
+  # Rack::Attack throttle; nothing about the OWNER of a taken name is
+  # returned, only that it is taken.
+  def username_available
+    raw = normalized_username(params[:username])
+
+    if raw.blank?
+      render json: { username: "", available: false, suggestions: [] }
+      return
+    end
+
+    taken = ChildAccount.exists?(username: raw)
+    render json: {
+      username: raw,
+      available: !taken,
+      suggestions: taken ? username_suggestions(raw) : [],
+    }
+  end
+
   # GET /child_accounts/1
   # GET /child_accounts/1.json
   def show
@@ -109,7 +143,7 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.promote_to_loaner!(passcode: params[:passcode])
       render json: @child_account.api_view(current_user), status: :ok
     rescue ActiveRecord::RecordInvalid => e
-      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_content
+      render json: account_error_payload(e.record.errors.full_messages.join(", "), record: e.record), status: :unprocessable_content
     end
   end
 
@@ -172,7 +206,7 @@ class API::ChildAccountsController < API::ApplicationController
       render json: @child_account.api_view(current_user), status: :ok
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.warn "[lend] validation failed for child_account=#{@child_account.id}: #{e.record.errors.full_messages.join(", ")}"
-      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_content
+      render json: account_error_payload(e.record.errors.full_messages.join(", "), record: e.record), status: :unprocessable_content
     end
   end
 
@@ -480,7 +514,15 @@ class API::ChildAccountsController < API::ApplicationController
     else
       Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.inspect}"
       message = @child_account.errors.full_messages.join(", ")
-      render json: { error: message, errors: message }, status: :unprocessable_content
+      # `field_errors` is ADDITIVE — `error` and `errors` keep the flat string
+      # the current frontend reads, so the two repos ship in either order. It
+      # is what lets a taken username be shown on the username input rather
+      # than as one sentence at the bottom of the form.
+      render json: {
+        error: message,
+        errors: message,
+        field_errors: field_errors_for(@child_account),
+      }, status: :unprocessable_content
     end
   end
 
@@ -571,7 +613,7 @@ class API::ChildAccountsController < API::ApplicationController
       render json: @child_account.api_view(current_user), status: :ok
     else
       message = @child_account.errors.full_messages.join(", ")
-      render json: account_error_payload(message), status: :unprocessable_content
+      render json: account_error_payload(message, record: @child_account), status: :unprocessable_content
     end
   end
 
@@ -823,8 +865,65 @@ class API::ChildAccountsController < API::ApplicationController
   # `setState(response)` doesn't lose the status / is_demo fields and
   # flip into the wrong UI state. The error message is included as a
   # sibling field so callers that DO check can still surface it.
-  def account_error_payload(error)
+  #
+  # It RELOADS the record to serialize it, which discards
+  # the unsaved attributes and the errors that came with them — so `field_errors`
+  # has to be read off the record BEFORE that happens. Callers pass the record
+  # explicitly (`record:`) rather than relying on `@child_account` for the same
+  # reason: the flat `error` string is often a hand-written sentence with no
+  # validation behind it at all, and those must not grow a `field_errors` key.
+  #
+  # Additive: `error` and `errors` keep their exact existing shape (one flat
+  # string under both keys), so a client that reads either is untouched.
+  def account_error_payload(error, record: nil)
+    fields = field_errors_for(record)
     view = @child_account ? @child_account.reload.api_view(current_user) : {}
-    view.merge(error: error.to_s, errors: error.to_s)
+    view = view.merge(error: error.to_s, errors: error.to_s)
+    fields.present? ? view.merge(field_errors: fields) : view
+  end
+
+  # `{ "username" => ["Username has already been taken"] }` — full sentences
+  # keyed by field, so the frontend can attach the message to the input that
+  # caused it instead of printing one flattened string. `to_hash(true)` is the
+  # full-message form; the plain `to_hash` would give bare fragments
+  # ("has already been taken") that read badly on their own.
+  def field_errors_for(record)
+    return {} if record.nil? || record.errors.empty?
+
+    record.errors.to_hash(true).transform_keys(&:to_s)
+  end
+
+  # The shape a username is actually stored in. `parameterize` matches
+  # ChildAccount#set_username_if_missing, which is what the create path uses
+  # when the client sends a name and no username — so the availability answer
+  # and the create both key on the same string.
+  def normalized_username(value)
+    value.to_s.strip.downcase.parameterize
+  end
+
+  # Up to 3 alternatives that are CONFIRMED free, resolved in one query rather
+  # than an `exists?` per candidate. Deliberately no auto-suffixing on the
+  # create path: the parent should see and choose the name, not discover later
+  # that the app silently renamed their child's account to "leo2".
+  def username_suggestions(base)
+    initial = current_user.name.to_s.strip.split(/\s+/).last.to_s[0, 1].downcase.gsub(/[^a-z0-9]/, "")
+    year = Time.zone.today.year
+
+    # Readable options first — a parent has to be willing to say this name out
+    # loud. The random tail is last: it is the one candidate that is very
+    # unlikely to collide, so it keeps the list non-empty when a popular name
+    # has already taken every tidy variant.
+    candidates = [
+      "#{base}2",
+      ("#{base}-#{initial}" if initial.present?),
+      "#{base}-#{year}",
+      "#{base}3",
+      "#{base}-1",
+      "#{base}#{rand(10..99)}",
+      "#{base}#{SecureRandom.hex(2)}",
+    ].compact.map { |c| normalized_username(c) }.uniq - [base]
+
+    taken = ChildAccount.where(username: candidates).pluck(:username).to_set
+    candidates.reject { |c| taken.include?(c) }.first(3)
   end
 end
