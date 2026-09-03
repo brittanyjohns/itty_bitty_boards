@@ -87,6 +87,13 @@ left unthrottled.
     `/api/internal/*` is excluded (server-to-server, `INTERNAL_API_KEY`-gated).
   - **Public profile enumeration** (pre-existing) — `public_profile/ip` and
     `check_slug/ip`, now ENV-tunable via `RACK_ATTACK_PROFILE_*`.
+  - **Communicator username availability** — `GET
+    /api/child_accounts/username_available`, per **user**
+    (`RACK_ATTACK_USERNAME_CHECK_LIMIT`, 20 per `RACK_ATTACK_PROFILE_PERIOD`,
+    60s). The endpoint reveals whether a username exists, so requiring a
+    signed-in caller is the primary mitigation and this bounds a sweep behind
+    one account. Per **user**, not per IP: a school or clinic puts many
+    legitimate parents behind one address.
 - **Per-user discriminator** = SHA256 of the `Authorization` header token
   (the stable `authentication_token` the API auths on — see
   `API::ApplicationController#token`), hashed so no secret hits a Redis key/log;

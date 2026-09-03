@@ -113,11 +113,17 @@ class VoiceService
   # is; this is the one place that answer reaches the voice.
   #
   # Kevin is tagged "kid" and described as such, so it is the default only for
-  # the two youngest bands. Every other band — including an age_band we do not
+  # the youngest bands. Every other band — including an age_band we do not
   # recognize, which is still evidence that someone answered the question —
   # falls to Joanna, an adult-tagged "recommended" neural voice. A voice a user
   # has actually chosen is never touched by this; it only fills an absence.
+  #
+  # Every band in CommunicatorProfile::AGE_BANDS needs a row here. An unmapped
+  # band takes the ADULT fallback below, so adding a band and forgetting this
+  # map hands a 3-year-old an adult voice — the exact failure the map exists
+  # to prevent.
   DEFAULT_VOICE_BY_AGE_BAND = {
+    "under-4" => "polly:kevin",
     "4-6" => "polly:kevin",
     "7-10" => "polly:kevin",
     "11-14" => "polly:joanna",

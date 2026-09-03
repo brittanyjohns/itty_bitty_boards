@@ -702,7 +702,32 @@ an explicit decision, not a drive-by edit.
   can only fill an ABSENCE: a picker that seeds itself with a hardcoded voice
   submits that value and is indistinguishable from a deliberate pick, which is
   why `GET /api/voices?age_band=` serves `default_voice` for the picker to seed
-  from.
+  from. **Corollary: every band in `CommunicatorProfile::AGE_BANDS` needs a row
+  in `DEFAULT_VOICE_BY_AGE_BAND`.** An unmapped band is not "no answer" — it
+  takes `DEFAULT_VOICE_FOR_UNKNOWN_BAND`, the ADULT voice — so adding a band and
+  forgetting the map hands the exact communicator the band was added for the
+  wrong voice. `under-4` exists because early intervention routinely starts AAC
+  at 2 and `4-6` was the floor; it is `young?` (so core-vocabulary-first
+  guidance) and takes the kid voice, and `band_for_age` splits `0..3` off the
+  `0..6` case that used to report every toddler as `4-6`.
+- **A communicator username is globally unique, so the create form has to be
+  able to ASK before it commits.** `GET /api/child_accounts/username_available`
+  is that question: signed-in only (it reveals whether a username exists),
+  throttled per caller, and it answers about the PARAMETERIZED name — the same
+  shape `ChildAccount#set_username_if_missing` derives — echoing back what it
+  actually checked so the client submits that. It suggests alternatives it has
+  confirmed free in ONE query, and nothing auto-suffixes on the create path: a
+  parent should see and choose, never discover later that the app quietly
+  renamed their child's account to `leo2`.
+- **`field_errors` is ADDITIVE and `error`/`errors` keep their exact shape.**
+  Both still carry the same flat `full_messages.join(", ")` string, because
+  that is what the frontend that ships today reads; `field_errors`
+  (`errors.to_hash(true)`, full sentences keyed by field) is what lets a taken
+  username be shown ON the username input. It is added only where a RECORD
+  failed validation — `account_error_payload` takes the record explicitly,
+  since most of its callers pass a hand-written sentence with no validation
+  behind it, and since it `reload`s `@child_account`, which discards the errors
+  the key is built from.
 - **A slug is derived from the name once, at creation, and a rename never
   changes it.** `slug` is the `/pb/<slug>` key that a shared link, a MySpeak
   tile and a printed QR code all resolve through; the name is just a label.

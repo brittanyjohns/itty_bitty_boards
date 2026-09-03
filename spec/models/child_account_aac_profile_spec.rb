@@ -112,4 +112,44 @@ RSpec.describe ChildAccount, type: :model do
       expect(account.details["glp_stage"]).to eq(4)
     end
   end
+
+  # Early intervention routinely starts AAC at 2, so a parent of a 2- or
+  # 3-year-old needs a band that fits — without one they left the field blank or
+  # picked "4-6" and polluted the data.
+  describe "the under-4 age band" do
+    it "is valid" do
+      account.age_band = "under-4"
+      expect(account).to be_valid
+      expect(account.age_band).to eq("under-4")
+    end
+
+    it "normalizes case and whitespace like every other band" do
+      account.age_band = " Under-4 "
+      expect(account).to be_valid
+      expect(account.age_band).to eq("under-4")
+    end
+
+    it "survives a wholesale details assignment" do
+      account.details = { "age_band" => "under-4" }
+      expect(account).to be_valid
+      expect(account.details["age_band"]).to eq("under-4")
+    end
+
+    it "does not loosen the inclusion check" do
+      account.age_band = "under-3"
+      expect(account).not_to be_valid
+      expect(account.errors[:age_band]).to be_present
+    end
+
+    # An unmapped band takes VoiceService's ADULT fallback, so a new band that
+    # skips the voice map hands a 3-year-old an adult voice.
+    it "resolves the kid voice, not the unknown-band adult fallback" do
+      expect(VoiceService.default_for_age_band("under-4")).to eq("polly:kevin")
+    end
+
+    it "is mapped for every band the profile accepts" do
+      expect(VoiceService::DEFAULT_VOICE_BY_AGE_BAND.keys)
+        .to match_array(CommunicatorProfile::AGE_BANDS)
+    end
+  end
 end
