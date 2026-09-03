@@ -346,6 +346,29 @@ an explicit decision, not a drive-by edit.
   directly, which is how `accounts_included` showed an overridden account one
   number while the gate refused it on another. Sandbox communicators have their
   own quota and never occupy a slot.
+- **`ChildAccount#is_demo` says SANDBOX, not "test data"; the test/internal
+  predicate is `User#demo_user?`.** `is_demo` is a legacy alias for `sandbox?`,
+  and `Permissions::CommunicatorLimits.self_create_status` forces every Free
+  user's self-create to sandbox (their one full slot is claim/hand-off only) —
+  so a genuine Free parent's communicator reads `is_demo: true`, correctly. An
+  analytics or marketing filter keyed there would drop exactly the cohort those
+  exclusions exist to protect. The real one lives on the USER (`demo_user?` /
+  `User.demo_accounts` — email pattern + the `internal_account` flag), and is
+  already what the Mailchimp `DEMO_USER` merge field, the journey gate, and
+  Mission Control's `without_demo` read; keep the scope and the predicate in
+  agreement. Pinned by `spec/models/child_account_demo_flag_spec.rb`.
+- **`can_edit` on a communicator payload is one question — "can this VIEWER
+  curate boards here" — and `ChildAccount#curatable_by?` is the only answer.**
+  It was answered twice and differently: `index_api_view` asked whether the
+  *owner* was an admin, so `GET /api/child_accounts` reported `can_edit: false`
+  on a parent's own communicator while `GET /api/child_accounts/:id` reported
+  `true`, and `ViewChildAccountScreen` gates most of its affordances on that
+  field. `User#can_add_boards_to_account?` (the controller's curate
+  `before_action`) delegates to the same predicate, so the gate and the flag are
+  one piece of code rather than two copies. `index_api_view` therefore takes a
+  `viewing_user` — pass it; with none, `can_edit` is false rather than a guess
+  about somebody else's rights. Distinct from `can_edit_communicator`
+  (`editable_by?` — the communicator object itself), which is narrower.
 - **Every outbound message leaves a row in `mail_deliveries`, and a SUPPRESSED
   send is not a missing one.** `MailDeliveryObserver` records `delivered` (with
   the Message-ID a Google Workspace Email Log Search takes) and `suppressed`;

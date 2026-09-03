@@ -1265,9 +1265,10 @@ class User < ApplicationRecord
 
     account = ChildAccount.includes(teams: :team_users).find_by(id: account_id)
     return false unless account
-    return true if account.user_id == id
-    return true if admin?
-    account.team_users.where(user_id: id, role: CURATE_ROLES).exists?
+    # One definition, on the record: `ChildAccount#curatable_by?` is also what
+    # every communicator payload's `can_edit` reads, so the gate and the flag
+    # can't drift apart.
+    account.curatable_by?(self)
   end
 
   def can_favorite?(model)
@@ -2631,7 +2632,7 @@ class User < ApplicationRecord
 
       # If these are AR objects, you may already have a serializer.
       # If not, consider mapping them to api_view here for consistency.
-      communicator_accounts: memoized_communicators.map(&:index_api_view),
+      communicator_accounts: memoized_communicators.map { |a| a.index_api_view(self) },
       # paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
       # demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
       remaining_demo_accounts: remaining_demo_accounts,
