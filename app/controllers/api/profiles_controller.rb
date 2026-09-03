@@ -532,10 +532,11 @@ class API::ProfilesController < API::ApplicationController
       boards_scope.count,
       boards_scope.maximum(:id),
       boards_scope.maximum(:updated_at)&.utc&.to_fs(:nsec),
-      # The admin board library rides along in the body as
+      # The curated starter list rides along in the body as
       # `general_public_boards`, so a change to it has to be able to bust a
-      # cached page — without this a client can be served a stale 304.
-      Board.public_board_cards_cache_key,
+      # cached page — without this a client can be served a stale 304. Keyed on
+      # the whole public library, so tagging a board `myspeak` invalidates it.
+      Board.public_starter_cards_cache_key,
     ]
   end
 

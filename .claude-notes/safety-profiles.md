@@ -77,13 +77,27 @@ info** — medical details + emergency contacts + emergency notes
   and a board owned by someone other than the page owner is deliberately never
   auto-published. `public_page_board_ids` (the ETag/freshness helper) derives
   from `communication_boards`, so it follows the filter for free.
-- **`general_public_boards` is the whole admin library, so it is cached, not
-  per-request.** `Board.public_board_cards` memoizes into `Rails.cache` (Redis
-  in prod) keyed on `Board.public_board_cards_cache_key` (count + max
-  `updated_at`). That key is also folded into `profile_public_etag`, because
-  the library rides along in the body and would otherwise be unable to
-  invalidate a 304. Serializing it inline with `api_view` is what made this
-  endpoint take 11.5s in production (of which ~10.3s was Ruby, not SQL).
+- **`general_public_boards` is a CURATED starting point, not the library — and
+  it is cached, not per-request.** It is the fallback the page offers when the
+  owner has starred nothing of their own, and it used to be every board in
+  `Board.public_boards`: ~75 unordered cards, duplicates included, on the page
+  a parent hands to a teacher. `Board.public_starter_boards` orders and caps
+  it — `myspeak`-tagged boards first (`MYSPEAK_STARTER_ORDER`, then the rest
+  alphabetically), then `category: "welcome"`, then whatever else is public;
+  de-duplicated on a normalized name and capped at
+  `PUBLIC_STARTER_BOARD_LIMIT` (6). The three-pass fallback is what keeps an
+  environment that never ran `db/seeds/myspeak_starter_boards.rb` from serving
+  an empty list, so **curation is by TAG** — an admin adds or drops a board
+  with `myspeak` and needs no deploy. `Board.public_starter_cards` memoizes
+  into `Rails.cache` (Redis in prod) keyed on
+  `Board.public_starter_cards_cache_key` (limit + count + max `updated_at`
+  over the whole public library, so a tag change invalidates it). That key is
+  also folded into `profile_public_etag`, because the list rides along in the
+  body and would otherwise be unable to invalidate a 304. Serializing it
+  inline with `api_view` is what made this endpoint take 11.5s in production
+  (of which ~10.3s was Ruby, not SQL). Real duplicates in the library are
+  retired for good by `rake public_boards:dedupe` (dry run by default), which
+  clears `predefined` — never `published`, never a destroy.
 - **The gated reveal records + alerts.** `POST /api/profiles/public/:slug/safety_view`
   (`API::ProfilesController#safety_view`, unauthenticated) is the deliberate
   "open emergency info" action. It (a) returns the sensitive payload

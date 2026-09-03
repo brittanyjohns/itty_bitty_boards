@@ -999,6 +999,25 @@ an explicit decision, not a drive-by edit.
   is polymorphic in RETURN TYPE (ChildAccount → ChildBoard rows, User → Boards),
   which is why one grid can drift from the other unnoticed. Details:
   `.claude-notes/safety-profiles.md`.
+- **`general_public_boards` is a curated STARTING POINT, not the library.** It
+  is what a public page offers when its owner has starred no boards of their
+  own — the page a parent hands to a kindergarten teacher — and it used to be
+  every row in `Board.public_boards`: ~75 unordered cards, duplicates and all.
+  `Board.public_starter_boards` orders and caps it in three passes so it
+  degrades rather than empties where the starter seed never ran:
+  `myspeak`-tagged boards (`MYSPEAK_STARTER_ORDER`, then alphabetically), then
+  `category: "welcome"`, then the rest — de-duplicated on a normalized name and
+  capped at `PUBLIC_STARTER_BOARD_LIMIT` (6, ENV-tunable, read at call time).
+  **Curation is by TAG**, so the list changes from the admin without a deploy;
+  the cache key spans the whole public library for exactly that reason, and it
+  is folded into `profile_public_etag` or a client is served a stale 304. The
+  name normalizer folds case and punctuation only — it never reorders or stems
+  words, since `Letters, Colors, Numbers` and `Letters-Numbers-Colors` really
+  are two boards and guessing would hide one somebody curated. Retiring a true
+  duplicate from the library is `rake public_boards:dedupe` (dry run by
+  default), and it clears `predefined` — **never `published`**, which is the
+  marketplace-protection raise path and the `/pb/<slug>` a printed QR resolves
+  through, and never a destroy, since `boards` has no soft delete.
 - **`print_grid_layout_for_screen_size` must build a DENSE list.** It once
   assigned into a plain Array at `layout_to_set[bi.id]` — the global
   `board_images` primary key — then compacted the holes away, so serializing a
