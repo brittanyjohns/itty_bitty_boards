@@ -21,6 +21,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Your own communicators no longer come back marked as if you can't edit
+  them.** The communicator list and the single-communicator view disagreed: the
+  list decided edit rights from whether the *owner* was a SpeakAnyWay admin, so
+  every ordinary account's own communicators were flagged read-only there while
+  the detail view correctly said otherwise. Both now answer the same question —
+  can the person looking at this curate its boards — so owners, supervisors and
+  admins get the same answer wherever it's asked.
 - **Setup errors now land on the field that caused them.** When creating or
   editing a communicator failed, the app returned one flattened sentence with no
   indication of which input was wrong. The response now also carries the message

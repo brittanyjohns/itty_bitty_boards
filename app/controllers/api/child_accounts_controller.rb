@@ -40,7 +40,7 @@ class API::ChildAccountsController < API::ApplicationController
       scope = scope.archived if ActiveModel::Type::Boolean.new.cast(params[:archived])
     end
     @child_accounts = scope.order(name: :asc)
-    render json: @child_accounts.map(&:index_api_view)
+    render json: @child_accounts.map { |a| a.index_api_view(current_user) }
   end
 
   # POST /child_accounts/keep_signable
@@ -56,7 +56,7 @@ class API::ChildAccountsController < API::ApplicationController
     render json: {
       kept_communicator_ids: kept,
       communicator_slot_limit: Permissions::CommunicatorLimits.slot_limit_for(current_user.settings || {}),
-      communicators: accounts.map(&:index_api_view),
+      communicators: accounts.map { |a| a.index_api_view(current_user) },
     }
   end
 

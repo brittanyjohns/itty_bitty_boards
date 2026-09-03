@@ -273,6 +273,28 @@ class ChildAccount < ApplicationRecord
     user.present? && (user.id == owner_id || user.admin?)
   end
 
+  # Can `viewing_user` curate boards on this communicator's dashboard? THE one
+  # answer behind every `can_edit` a communicator payload publishes, so the
+  # list and the detail views cannot disagree about the same record.
+  #
+  # They did: `index_api_view` answered `user.admin?` — the OWNER's role, not
+  # the viewer's — so `GET /api/child_accounts` reported `can_edit: false` on
+  # every non-admin owner's own communicator while `GET /api/child_accounts/:id`
+  # reported `true`, and `ViewChildAccountScreen` gates most of its affordances
+  # on that field. `User#can_add_boards_to_account?` (the curate gate the
+  # controller's before_action uses) now delegates here, so the gate and the
+  # flag are the same code rather than two copies of it.
+  #
+  # Keyed on `user_id`, matching the gate it replaces. Costs no extra query for
+  # the common case — an owner returns before the team lookup.
+  def curatable_by?(viewing_user)
+    return false unless viewing_user
+    return true if user_id == viewing_user.id
+    return true if viewing_user.admin?
+
+    team_users.where(user_id: viewing_user.id, role: User::CURATE_ROLES).exists?
+  end
+
   # Most-recent Board Builder root still attached to this communicator, if any.
   # Detector for the re-run duplicate guard (issue #269): the wizard marks each
   # root board settings["builder_root"] = true. Deletion-safe — if the user
@@ -293,6 +315,18 @@ class ChildAccount < ApplicationRecord
   # `is_demo` is derived from status now. The DB column is retained until the
   # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
   # into `status` for backwards compatibility.
+  #
+  # It says NOTHING about whether this is test/internal data, and it must never
+  # be used to filter one out. `sandbox` is a plan-driven LIFECYCLE status: a
+  # Free user's self-created communicator is forced to it by
+  # `Permissions::CommunicatorLimits.self_create_status`, because Free's one
+  # full slot is reserved for a claim/hand-off. So every genuine Free user's
+  # communicator reads `is_demo: true` — a filter keyed here drops exactly the
+  # cohort growth work is about. The test/internal predicate is `User#demo_user?`
+  # (email pattern + the `internal_account` flag), which is what the Mailchimp
+  # DEMO_USER merge field, the journey gate, and `User.demo_accounts` /
+  # Mission Control's `without_demo` already read. Pinned by
+  # spec/models/child_account_demo_flag_spec.rb.
   def is_demo
     sandbox?
   end
@@ -760,7 +794,7 @@ class ChildAccount < ApplicationRecord
       last_sign_in_at: last_sign_in_at,
       sign_in_count: sign_in_count,
       board_week_chart: board_week_chart,
-      can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      can_edit: curatable_by?(viewing_user),
       can_edit_communicator: editable_by?(viewing_user),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
@@ -1245,7 +1279,7 @@ class ChildAccount < ApplicationRecord
       last_sign_in_at: last_sign_in_at,
       created_at: created_at,
       sign_in_count: sign_in_count,
-      can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      can_edit: curatable_by?(viewing_user),
       can_edit_communicator: editable_by?(viewing_user),
       is_owner: viewing_user&.id == user_id || viewing_user&.admin?,
       is_vendor: is_vendor,
@@ -1417,7 +1451,11 @@ class ChildAccount < ApplicationRecord
     }
   end
 
-  def index_api_view
+  # `viewing_user` is who the payload is being rendered FOR. It is optional
+  # only because a handful of specs render the view bare; every controller and
+  # `User#api_view` pass it, and without it `can_edit` is false rather than a
+  # guess about somebody else's rights.
+  def index_api_view(viewing_user = nil)
     @boards = boards.all.alphabetical
     @child_boards = child_boards.includes(:board)
     current_board_list = @child_boards.map(&:name)
@@ -1441,7 +1479,7 @@ class ChildAccount < ApplicationRecord
       last_sign_in_at_str: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
       last_sign_in_at: last_sign_in_at,
       sign_in_count: sign_in_count,
-      can_edit: user.admin?,
+      can_edit: curatable_by?(viewing_user),
       pro: user.pro?,
       free_trial: user.free_trial?,
       admin: user.admin?,
