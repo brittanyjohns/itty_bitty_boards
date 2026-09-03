@@ -13,6 +13,7 @@ RSpec.describe ClinicianMailer, type: :mailer do
         full_name: "Samantha Lee, MS CCC-SLP",
         credential_type: "slp",
         license_id: "SLP-12345",
+        license_id: "SLP-12345",
         workplace: "Riverside Clinic",
       }.merge(attrs),
     )

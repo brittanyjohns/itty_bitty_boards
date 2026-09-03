@@ -1403,6 +1403,25 @@ class User < ApplicationRecord
     save
   end
 
+  # The provenance values `settings["signup_method"]` may hold. An account that
+  # arrived through /clinicians/apply used to be indistinguishable from any
+  # other web signup — it carried "standard" — so the one question that
+  # measures that page ("how many accounts came from it, and how many ever lent
+  # a communicator?") had no way to be asked.
+  #
+  # Allowlisted rather than free-text because the value is written from a
+  # client-supplied param and is read by analytics and Mailchimp segments: an
+  # unbounded string there is a segment nobody can enumerate.
+  SIGNUP_METHODS = %w[standard clinician_apply email_only google myspeak].freeze
+
+  # Anything not on the list resolves to `default` — an older client that sends
+  # nothing, and a newer one that sends something we do not recognize, both land
+  # on the caller's own default rather than stamping a value no report knows.
+  def self.sanitize_signup_method(value, default: "standard")
+    method = value.to_s.strip.downcase
+    SIGNUP_METHODS.include?(method) ? method : default
+  end
+
   SIGNUP_REF_MAX_LENGTH = 64
 
   # Attribution refs come straight off a public query param, so they are
@@ -2508,6 +2527,16 @@ class User < ApplicationRecord
 
       # AI
       can_use_ai: can_use_ai?,
+      # The AI credit ledger — balance and the allowance it is measured
+      # against. Served here because `tokens` below is a DIFFERENT number and
+      # was the only credit-shaped field on this payload: a client rendering an
+      # "AI credits" meter from the user object had nothing else to read, so a
+      # brand-new Free account reported 10 against copy promising 25 and both
+      # were right about their own quantity. `plan_allowance` rather than
+      # CreditService::PLAN_MONTHLY_CREDITS so a Stripe Price override is
+      # reflected; it is the same pair GET /api/me/credits already serves.
+      ai_credits: CreditService.balance(self),
+      ai_credit_allowance: CreditService.plan_allowance(self),
 
       # Identity
       email: email,
@@ -2620,6 +2649,9 @@ class User < ApplicationRecord
       current_sign_in_ip: current_sign_in_ip,
       sign_in_count: sign_in_count,
 
+      # LEGACY per-image token counter (User::WELCOME_TOKENS at signup, spent by
+      # API::ImagesController#find_or_create). NOT AI credits — read
+      # `ai_credits` / `ai_credit_allowance` above for those.
       tokens: tokens,
       settings: settings,
       stripe_customer_id: stripe_customer_id,

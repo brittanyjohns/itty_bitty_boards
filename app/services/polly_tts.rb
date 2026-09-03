@@ -7,7 +7,14 @@ class PollyTts
       label: "Kevin",
       provider: "polly",
       icon: "child",
-      description: "Natural child voice (great for kids using AAC)",
+      # `description` is the string the picker prints next to the name, so it is
+      # read by the communicator's family — and on Free this is the only option
+      # in the list. "Natural child voice (great for kids using AAC)" told a
+      # 17-year-old the one voice they may have is for children. The "kid" TAG
+      # is what VoiceService::DEFAULT_VOICE_BY_AGE_BAND and any future filter
+      # read; keep the machine-readable half, drop the label that only a young
+      # child can hear without being told something about themselves.
+      description: "Bright, higher-pitched voice",
       tags: ["kid", "recommended"],
       engine: "neural",
       language: "en-US",

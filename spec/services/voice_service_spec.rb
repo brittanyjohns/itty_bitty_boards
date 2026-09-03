@@ -140,4 +140,47 @@ RSpec.describe VoiceService, type: :service do
       }.to raise_error(ArgumentError, /Unsupported provider/)
     end
   end
+  # The communicator form asks how old the communicator is and stores the
+  # answer; before this, nothing downstream read it, so a 17-year-old was handed
+  # a voice whose own description said it was for kids.
+  describe ".default_for_age_band" do
+    it "keeps the kid voice for the two youngest bands" do
+      expect(described_class.default_for_age_band("4-6")).to eq("polly:kevin")
+      expect(described_class.default_for_age_band("7-10")).to eq("polly:kevin")
+    end
+
+    it "does not default an 11+ communicator to a voice tagged kid" do
+      %w[11-14 15-18 adult].each do |band|
+        value = described_class.default_for_age_band(band)
+        voice = described_class.get_voice(value)
+        expect(voice[:tags]).not_to include("kid"), "#{band} resolved to #{value}, which is tagged kid"
+      end
+    end
+
+    it "resolves every band CommunicatorProfile accepts" do
+      CommunicatorProfile::AGE_BANDS.each do |band|
+        expect(described_class.get_voice(described_class.default_for_age_band(band))).to be_present
+      end
+    end
+
+    it "is case- and whitespace-insensitive" do
+      expect(described_class.default_for_age_band("  15-18  ")).to eq(described_class.default_for_age_band("15-18"))
+      expect(described_class.default_for_age_band("ADULT")).to eq(described_class.default_for_age_band("adult"))
+    end
+
+    # A blank band means "never asked" — unchanged behavior for every caller
+    # with no profile to consult.
+    it "falls back to the app default when no band is given" do
+      expect(described_class.default_for_age_band(nil)).to eq(described_class::DEFAULT_VOICE)
+      expect(described_class.default_for_age_band("")).to eq(described_class::DEFAULT_VOICE)
+    end
+
+    # An UNRECOGNIZED band is evidence the question was answered, just not in a
+    # form our table knows — defaulting that to a child voice is the exact
+    # failure this map exists to prevent.
+    it "does not fall back to the kid voice for a band it doesn't recognize" do
+      value = described_class.default_for_age_band("19-24")
+      expect(described_class.get_voice(value)[:tags]).not_to include("kid")
+    end
+  end
 end

@@ -69,6 +69,10 @@ class API::Admin::ClinicianApplicationsController < API::ApplicationController
       full_name: application.full_name,
       credential_type: application.credential_type,
       license_id: application.license_id,
+      license_required: application.license_required?,
+      # The applicant's alternative to a license number. `notes` further down is
+      # the ADMIN's review note — two different people write these.
+      verification_note: application.verification_note,
       workplace: application.workplace,
       reviewed_by_id: application.reviewed_by_id,
       reviewed_at: application.reviewed_at&.iso8601,

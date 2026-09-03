@@ -109,10 +109,20 @@ module API
       render json: { preset_colors: @colors }
     end
 
+    # GET /api/voices[?age_band=15-18]
+    #
+    # `default_voice` is the server's answer to "which voice should this picker
+    # start on", and it is served rather than left to the client because the
+    # client cannot know the rule. A form that seeds itself with a hardcoded
+    # "polly:kevin" submits that value, at which point the backend can no longer
+    # tell a default from a deliberate pick — so the default has to be resolved
+    # BEFORE the picker renders. Always present; without `age_band` it is the
+    # app-wide default, exactly what a caller got before this param existed.
     def voice_options
       render json: {
                voices: VoiceService.get_voice_options,
                labels: VoiceService.get_voice_labels, # optional legacy
+               default_voice: VoiceService.default_for_age_band(params[:age_band]),
              }
     end
 

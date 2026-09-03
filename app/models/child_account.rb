@@ -1121,17 +1121,51 @@ class ChildAccount < ApplicationRecord
     settings["go_to_words"] || Board.common_words
   end
 
+  # Defaults for the voice blob when nothing has been stored. STRING keys: the
+  # column is jsonb, so a stored blob always reads back with string keys, and
+  # every reader (`voice`, `voice_speed`, LocaleResolution) plus the `voice=`
+  # writer indexes it that way. Seeding a symbol-keyed hash meant an unsaved
+  # record answered `voice_settings["name"]` with nil and only the `|| default`
+  # fallback in `voice` hid it.
+  DEFAULT_VOICE_SETTINGS = {
+    "speed" => 1, "pitch" => 1, "volume" => 1, "rate" => 1, "language" => "en-US"
+  }.freeze
+
   # `settings` has no DB default, so it can be nil on any row — every writer in
   # this model guards for that, and these readers must too or an ordinary
   # update 500s before it reaches the controller's save.
+  #
+  # READ-ONLY. It used to assign the default blob into `settings`, which made
+  # merely asking what voice a communicator has a pending WRITE — the next save
+  # from any cause persisted it, and after that the stored value was a choice
+  # that `default_voice` could no longer improve on. Nothing mutates the hash
+  # this returns; the writers are `voice=` and the settings param.
   def voice_settings
     self.settings ||= {}
-    settings["voice"] = { name: "polly:kevin", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
-    settings["voice"]
+    stored = settings["voice"]
+    return stored if stored.is_a?(Hash) && stored["name"].present?
+
+    DEFAULT_VOICE_SETTINGS.merge("name" => default_voice).merge(stored.is_a?(Hash) ? stored.compact : {})
   end
 
   def voice
-    voice_settings["name"] || "polly:kevin"
+    voice_settings["name"].presence || default_voice
+  end
+
+  # The voice this communicator gets when NOBODY has picked one. Resolved from
+  # `age_band` (the field the communicator form already collects and stores in
+  # `details`) rather than from a constant: the product asked how old the
+  # communicator is, recorded the answer, and then handed every one of them a
+  # voice whose own description said it was for kids.
+  #
+  # This only ever fills an absence — `voice=` and the settings blob win the
+  # moment either holds a value, so a deliberate pick of Kevin for a 17-year-old
+  # is honoured. A client that seeds its picker with a hardcoded voice is
+  # therefore still making an "explicit" choice as far as this can tell; the
+  # server-side answer for that is `GET /api/voices?age_band=…`'s
+  # `default_voice`, which is what a picker should seed from.
+  def default_voice
+    VoiceService.default_for_age_band(age_band)
   end
 
   def voice_speed

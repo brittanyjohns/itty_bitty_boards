@@ -101,6 +101,45 @@ class VoiceService
 
   VOICES = (PollyTts::VOICES + OPENAI_VOICES).freeze
 
+  # The app-wide fallback when nothing else resolves a voice. Referenced rather
+  # than restated: it used to be a bare "polly:kevin" literal in four places
+  # (here, User#voice_settings, ChildAccount#voice_settings, normalize_voice),
+  # which is what made "the default is a child voice" a four-file change.
+  DEFAULT_VOICE = "polly:kevin".freeze
+
+  # Which voice a communicator gets when nobody has picked one, keyed on the
+  # `age_band` the communicator form already collects
+  # (CommunicatorProfile::AGE_BANDS). The product asks how old the communicator
+  # is; this is the one place that answer reaches the voice.
+  #
+  # Kevin is tagged "kid" and described as such, so it is the default only for
+  # the two youngest bands. Every other band — including an age_band we do not
+  # recognize, which is still evidence that someone answered the question —
+  # falls to Joanna, an adult-tagged "recommended" neural voice. A voice a user
+  # has actually chosen is never touched by this; it only fills an absence.
+  DEFAULT_VOICE_BY_AGE_BAND = {
+    "4-6" => "polly:kevin",
+    "7-10" => "polly:kevin",
+    "11-14" => "polly:joanna",
+    "15-18" => "polly:joanna",
+    "adult" => "polly:joanna",
+  }.freeze
+
+  # Fallback for a band that is present but unrecognized. Deliberately the
+  # adult voice: a blank band means "we were never told", but an unknown one
+  # means the answer exists and simply is not in our table — defaulting that to
+  # a child voice is the failure this map exists to prevent.
+  DEFAULT_VOICE_FOR_UNKNOWN_BAND = "polly:joanna".freeze
+
+  # nil/blank band => DEFAULT_VOICE (unchanged behavior for every caller that
+  # has no profile to consult).
+  def self.default_for_age_band(age_band)
+    band = age_band.to_s.strip.downcase
+    return DEFAULT_VOICE if band.blank?
+
+    DEFAULT_VOICE_BY_AGE_BAND[band] || DEFAULT_VOICE_FOR_UNKNOWN_BAND
+  end
+
   # --- API-friendly list ---
   def self.get_voice_options
     VOICES.map do |v|
@@ -176,7 +215,7 @@ class VoiceService
 
   def self.normalize_voice(value_or_label)
     raw = value_or_label.to_s.strip
-    return "polly:kevin" if raw.blank?
+    return DEFAULT_VOICE if raw.blank?
 
     # Already canonical?
     return raw if raw.include?(":")
@@ -189,6 +228,6 @@ class VoiceService
     opt = get_voice(raw)
     return opt[:value] if opt
 
-    "polly:kevin"
+    DEFAULT_VOICE
   end
 end

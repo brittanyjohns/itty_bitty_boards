@@ -51,7 +51,16 @@
           </td>
           <td class="px-5 py-3 text-xs text-t2"><%= application.full_name.presence || "—" %></td>
           <td class="px-5 py-3 text-xs text-t2 whitespace-nowrap"><%= credential_label.call(application.credential_type) %></td>
-          <td class="px-5 py-3 text-xs text-t2"><%= application.license_id.presence || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t2">
+            <%= application.license_id.presence || "—" %>
+            <%# The applicant's "how should we verify me" answer. Shown under the %>
+            <%# license because it is what stands IN PLACE of one for an AT %>
+            <%# specialist or Other — an application with neither is the one that %>
+            <%# actually needs a closer look. %>
+            <% if application.verification_note.present? %>
+              <div class="text-[10px] text-t3 italic max-w-[220px] truncate" title="<%= application.verification_note %>">“<%= application.verification_note %>”</div>
+            <% end %>
+          </td>
           <td class="px-5 py-3 text-xs text-t2"><%= application.workplace.presence || "—" %></td>
           <td class="px-5 py-3 whitespace-nowrap">
             <span class="<%= status_badge.call(application.status) %> inline-block text-xs rounded px-2 py-0.5"><%= application.status %></span>

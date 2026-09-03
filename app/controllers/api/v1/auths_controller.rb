@@ -56,7 +56,12 @@ module API
             platform: platform,
           )
           user.ensure_minimum_communicator_slot!
-          user.record_signup_context!(platform: platform, method: "standard", ref: params[:ref])
+          # Allowlisted, defaulting to "standard" — so an older client that
+          # sends nothing is stamped exactly as it was before this param
+          # existed, and /clinicians/apply can identify itself without a new
+          # endpoint. See User::SIGNUP_METHODS.
+          signup_method = User.sanitize_signup_method(params[:signup_method])
+          user.record_signup_context!(platform: platform, method: signup_method, ref: params[:ref])
           user.notify_admin_of_signup!
           # Verification email. The user is already signed in — verification
           # gates the welcome tokens, never app access. See
@@ -92,7 +97,10 @@ module API
             MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end
           PosthogService.capture_for_user(user, "user_signed_up", properties: {
-            signup_method: "standard",
+            # The resolved value, not a hardcoded "standard" — the stamp on the
+            # user and the analytics property have to be the same string or the
+            # funnel and the admin view disagree about the same account.
+            signup_method: signup_method,
             plan_type: user.plan_type,
             platform: platform.presence || "web",
             signup_ref: user.settings&.dig("signup_ref"),
@@ -171,7 +179,11 @@ module API
           platform: platform,
         )
         user.ensure_minimum_communicator_slot!
-        user.record_signup_context!(platform: platform, method: "email_only", ref: params[:ref])
+        # Defaults to "email_only" here (the paid-intent passwordless path), but
+        # still allowlist-resolved: /clinicians/apply reaches this endpoint too
+        # when the applicant has no password yet.
+        signup_method = User.sanitize_signup_method(params[:signup_method], default: "email_only")
+        user.record_signup_context!(platform: platform, method: signup_method, ref: params[:ref])
         user.notify_admin_of_signup!
         # Verification email. The user is already signed in — verification
         # gates the welcome tokens, never app access. See
@@ -204,7 +216,7 @@ module API
           MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
         end
         PosthogService.capture_for_user(user, "user_signed_up", properties: {
-          signup_method: "email_only",
+          signup_method: signup_method,
           plan_type: user.plan_type,
           platform: platform.presence || "web",
           signup_ref: user.settings&.dig("signup_ref"),

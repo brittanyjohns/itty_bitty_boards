@@ -8,6 +8,7 @@ RSpec.describe User, "clinician application status" do
       full_name: "Alex Rivera",
       credential_type: "slp",
       license_id: "SLP-12345",
+      license_id: "SLP-12345",
       workplace: "Sunrise Elementary",
       status: status,
       created_at: created_at,

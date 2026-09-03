@@ -11,6 +11,7 @@ RSpec.describe NormalizeClinicianApplicationCredentialTypes do
     application = FactoryBot.create(:user).clinician_applications.create!(
       full_name: "Alex Rivera",
       credential_type: "slp",
+      license_id: "SLP-12345",
       status: ClinicianApplication::PENDING,
     )
     application.update_column(:credential_type, raw)
