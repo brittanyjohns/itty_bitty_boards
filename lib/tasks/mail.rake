@@ -29,18 +29,33 @@ namespace :mail do
       puts "  WARNING: perform_deliveries is false — the app sends no mail in this environment."
     end
 
-    # The unauthenticated IP relay is the prime suspect whenever intra-domain
-    # mail arrives and external mail vanishes with no error (#820): Google
-    # Workspace's SMTP relay service applies its own per-recipient rules, and a
-    # message it accepts and then drops leaves nothing behind in this app.
-    # Authenticated submission via smtp.gmail.com does not depend on the
-    # instance's outbound IP, which Hatchbox changes without warning.
-    if am.delivery_method == :smtp && settings[:user_name].blank?
-      puts "  WARNING: no SMTP_USERNAME/SMTP_PASSWORD — sending over the"
-      puts "           unauthenticated #{settings[:address]} IP relay. External"
+    # The IP relay is the prime suspect whenever intra-domain mail arrives and
+    # external mail vanishes with no error (#820): Google Workspace's SMTP relay
+    # service applies its own per-recipient rules, and a message it accepts and
+    # then drops leaves nothing behind in this app. Authenticated submission via
+    # smtp.gmail.com does not depend on the instance's outbound IP, which
+    # Hatchbox changes without warning.
+    #
+    # The question is which HOST the message actually leaves by, NOT whether
+    # credentials exist. Asking `settings[:user_name].blank?` kept this silent
+    # in exactly the configuration production turned out to be in: SMTP_USERNAME
+    # *and* SMTP_ADDRESS both set, the latter pinning the relay — so
+    # `ENV["SMTP_ADDRESS"].presence ||` in production.rb wins and the
+    # authenticated-submission branch beside it is dead code. Credentials being
+    # present is what made that read as healthy while the relay's own recipient
+    # rules still governed every external send.
+    if am.delivery_method == :smtp && settings[:address].to_s.include?("smtp-relay")
+      puts "  WARNING: sending over the #{settings[:address]} IP relay. External"
       puts "           recipients can be silently dropped by the relay's own"
-      puts "           rules while intra-domain mail still arrives. Prefer"
-      puts "           authenticated submission (set SMTP_USERNAME/SMTP_PASSWORD)."
+      puts "           rules while intra-domain mail still arrives."
+      if settings[:user_name].blank?
+        puts "           No SMTP_USERNAME/SMTP_PASSWORD is set — set both to"
+        puts "           use authenticated submission instead."
+      else
+        puts "           Credentials ARE set, so this host is forced by"
+        puts "           SMTP_ADDRESS=#{ENV["SMTP_ADDRESS"].inspect}. Clear it to"
+        puts "           fall through to smtp.gmail.com (production.rb)."
+      end
     end
     puts "-" * 64
     puts "Sending connectivity test to #{recipient} ..."
