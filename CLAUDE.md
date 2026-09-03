@@ -233,6 +233,36 @@ an explicit decision, not a drive-by edit.
   A feature gets its own predicate (`User#can_lend?`), published on the
   api_view so the frontend gates on the same answer instead of re-deriving it
   from `pro`; the slot math stays exactly where it was.
+- **A clinician application's license number is required only where one EXISTS,
+  and the check is `on: :create`.** `LICENSE_REQUIRED_CREDENTIALS` is `slp`/`ot`;
+  for `at_specialist` (RESNA ATP is optional, and the apply page recruits them
+  in its H1) and `other` the field is optional and `verification_note` — the
+  applicant's own words, its own column, never the admin-written `notes` — is
+  the alternative. A hard requirement gated nobody: `N/A` filed a real
+  application, so the field was a barrier to exactly the legitimate-but-
+  unlicensed applicants a human reviewer exists to judge. Placeholders are
+  refused where a license is required and DROPPED where it isn't (stored "N/A"
+  reads like an answer in the admin queue), and a refusal always names the
+  alternative — a rejection that only says no sends the applicant back to
+  inventing a value. `on: :create` is load-bearing: applications filed before
+  the rule carry no license at all, and `ClinicianApplications::Reviewer` SAVES
+  the row to approve or deny it, so a blanket validation would make every
+  historical SLP/OT application permanently unapprovable.
+- **`settings["signup_method"]` is an allowlist (`User::SIGNUP_METHODS`), and it
+  is written from a client param.** An account that arrived through
+  `/clinicians/apply` carried `"standard"` — indistinguishable from any other
+  web signup — so the one question that measures that page could not be asked.
+  Only the signup request knows which form it came from, so the param is the
+  fix; `User.sanitize_signup_method` resolves anything unrecognized to the
+  caller's own default, because the value is read by analytics and Mailchimp
+  segments and an unbounded string there is a segment nobody can enumerate. The
+  stamp and the PostHog `signup_method` property must be the SAME resolved
+  string — the capture used to hardcode `"standard"`, so the funnel and the
+  admin view could disagree about one account. `API::ClinicianApplicationsController`
+  carries a deliberately narrow bridge for clients that don't send it yet (first
+  application, account under 15 minutes old, method still `"standard"`):
+  provenance a later action can rewrite is worth nothing, so widening any of
+  those three conditions defeats the point.
 - **A board's `parent` is PROVENANCE, not ownership — never reassign it on a
   save.** `user_id` says who owns a board; `parent` says where it came from
   (the `Menu` a menu board was extracted from, the `Image` behind a
@@ -650,6 +680,29 @@ an explicit decision, not a drive-by edit.
   `#rewritable_voice_board_ids` excludes any board the account's owner does not
   own and any board on more than one dashboard. Rewriting one of those is not a
   preference change, it is destroying somebody else's audio.
+- **Which voice a communicator gets when NOBODY picked one is
+  `VoiceService.default_for_age_band`, and `voice_settings` may not write.**
+  The communicator form collects `age_band` and stores it in `details`; nothing
+  downstream read it, so every communicator was defaulted to `polly:kevin` — a
+  voice tagged `kid` whose own description said it was for kids, which on Free
+  is the ONLY option in the picker. The map keys on the band, and an
+  UNRECOGNIZED band resolves to the adult voice rather than the app default:
+  blank means "never asked", but an unknown value means the question was
+  answered in a form the table doesn't hold, and falling back to a child voice
+  there is the exact failure the map exists to prevent. `ChildAccount#voice_settings`
+  used to ASSIGN its default blob into `settings`, so merely reading a voice was
+  a pending write — the next save from any cause persisted it, and from then on
+  the value was a "choice" no default could improve. It now returns a merged
+  hash and writes nothing (`voice=` and the settings param are the writers), and
+  the blob is STRING-keyed because the column is jsonb and every reader indexes
+  it that way; the symbol-keyed seed meant an unsaved record answered
+  `voice_settings["name"]` with nil. The `kid` TAG stays on Kevin — it is what
+  the map and any future filter read — but no voice's `description` may say a
+  voice is for children, since that string is what the family reads. The server
+  can only fill an ABSENCE: a picker that seeds itself with a hardcoded voice
+  submits that value and is indistinguishable from a deliberate pick, which is
+  why `GET /api/voices?age_band=` serves `default_voice` for the picker to seed
+  from.
 - **A slug is derived from the name once, at creation, and a rename never
   changes it.** `slug` is the `/pb/<slug>` key that a shared link, a MySpeak
   tile and a printed QR code all resolve through; the name is just a label.
@@ -1180,6 +1233,19 @@ an explicit decision, not a drive-by edit.
   credits:backfill_welcome_tokens` for the ones that never verify).
   Verification is still stamped, still emailed, and still means "this inbox was
   opened"; it just buys nothing. It never gated authentication either.
+- **`users.tokens` is the LEGACY per-image counter; AI credits are the
+  `CreditService` ledger. Two quantities, never one number.** `WELCOME_TOKENS`
+  is 10 and is spent by `API::ImagesController#find_or_create`;
+  `PLAN_MONTHLY_CREDITS["free"]` is 25 and is what every surface advertises.
+  `User#api_view` published `tokens` and nothing else credit-shaped, so a client
+  rendering an AI-credit meter from the user object had only the wrong number to
+  read and reported 10 against copy promising 25 — with both sides correct about
+  their own quantity, which is why it survived as a "the grant is broken" bug
+  report. The payload now carries `ai_credits` (the balance) and
+  `ai_credit_allowance` alongside it. The allowance is `CreditService.plan_allowance`,
+  which reads the last `plan_grant` ROW rather than the plan-type constant, so a
+  Stripe Price `monthly_credits` override reaches the gauge — never restate
+  `PLAN_MONTHLY_CREDITS` at a call site, and never treat `tokens` as credits.
 - **A blank `board_images.display_image_url` means "this tile has no picture"
   — resolve tile art with a bare `||`, never `.presence`.** The app stops on
   the blank because `""` is truthy in Ruby

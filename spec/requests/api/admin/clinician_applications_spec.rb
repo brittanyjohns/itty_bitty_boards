@@ -5,7 +5,7 @@ RSpec.describe "API::Admin::ClinicianApplications", type: :request do
   let(:applicant) { FactoryBot.create(:user, plan_type: "free") }
   let!(:application) do
     applicant.clinician_applications.create!(
-      full_name: "Sam Lee", credential_type: "slp", status: "pending",
+      full_name: "Sam Lee", credential_type: "slp", license_id: "SLP-12345", status: "pending",
     )
   end
 

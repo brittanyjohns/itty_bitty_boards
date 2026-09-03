@@ -7,7 +7,7 @@ RSpec.describe "Admin::ClinicianApplications (dashboard)", type: :request do
 
   let(:applicant) { create(:user, email: "clin@example.com", plan_type: "free") }
   let!(:application) do
-    applicant.clinician_applications.create!(full_name: "Sam Lee", credential_type: "slp", status: "pending")
+    applicant.clinician_applications.create!(full_name: "Sam Lee", credential_type: "slp", license_id: "SLP-12345", status: "pending")
   end
 
   before do
@@ -26,7 +26,7 @@ RSpec.describe "Admin::ClinicianApplications (dashboard)", type: :request do
 
     it "filters by status" do
       sign_in admin
-      other = create(:user).clinician_applications.create!(full_name: "Approved One", credential_type: "ot", status: "approved")
+      other = create(:user).clinician_applications.create!(full_name: "Approved One", credential_type: "ot", license_id: "OT-9911", status: "approved")
       get admin_dashboard_clinician_applications_path(status: "approved")
       expect(response.body).to include("Approved One")
       expect(response.body).not_to include("clin@example.com")

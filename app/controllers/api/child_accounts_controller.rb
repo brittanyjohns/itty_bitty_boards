@@ -420,6 +420,7 @@ class API::ChildAccountsController < API::ApplicationController
     # Optional attrs
     @child_account.settings = normalized_settings(params[:settings]) if params[:settings].present?
     @child_account.details = params[:details] if params[:details].present?
+    apply_top_level_aac_profile_params!(@child_account)
 
     # A Free user's sandbox communicator is capped at one board; Pro sandbox
     # accounts fall through to ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT.
@@ -552,6 +553,7 @@ class API::ChildAccountsController < API::ApplicationController
     if details
       @child_account.details = details
     end
+    apply_top_level_aac_profile_params!(@child_account)
 
     if params[:layout]
       @child_account.layout = params[:layout]
@@ -684,6 +686,24 @@ class API::ChildAccountsController < API::ApplicationController
 
   # A settings blob straight off the wire: plain string-keyed hash (never an
   # ActionController::Parameters handed to a jsonb column), booleans typed.
+  # The AAC profile fields (age_band, aac_level, vocab_type, glp_stage) live in
+  # the `details` jsonb and have always been settable through the `details`
+  # param. Accepting them at the TOP LEVEL as well matches how the rest of this
+  # controller reads its params (`name`, `username`, `status`, `layout` are all
+  # top-level), so a caller sending `{ age_band: "15-18" }` gets an update
+  # rather than a silent no-op.
+  #
+  # Applied AFTER `details`, so a request carrying both has the explicit
+  # top-level field win. `key?` rather than `present?`: sending a blank is how a
+  # caller clears one, and normalize_aac_profile_fields already drops blanks.
+  def apply_top_level_aac_profile_params!(record)
+    ChildAccount::AAC_PROFILE_FIELDS.each_key do |field|
+      next unless params.key?(field)
+
+      record.public_send("#{field}=", params[field])
+    end
+  end
+
   def normalized_settings(incoming)
     incoming = incoming.to_unsafe_h if incoming.respond_to?(:to_unsafe_h)
     cast_boolean_settings(incoming.to_h.deep_stringify_keys)

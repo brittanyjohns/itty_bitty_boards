@@ -87,6 +87,97 @@ RSpec.describe "API::ClinicianApplications", type: :request do
       expect(JSON.parse(response.body)["application"]["credential_type"]).to eq("at_specialist")
     end
 
+    # The license field is the barrier the /clinicians/apply page put in front of
+    # the applicants it recruits by name. Backend half of the fix: required only
+    # where a license genuinely exists, placeholders refused there, and a
+    # free-text alternative accepted everywhere else.
+    describe "license requirements" do
+      before { allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true)) }
+
+      it "422s an SLP application whose license is the literal string N/A" do
+        expect {
+          post "/api/clinician_applications",
+               params: { clinician_application: valid_params[:clinician_application].merge(license_id: "N/A") },
+               headers: auth_headers(user)
+        }.not_to change { user.clinician_applications.count }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        body = JSON.parse(response.body)
+        expect(body["message"]).to include("doesn't look like")
+        # Field-keyed, so the form can put the refusal under the license input
+        # rather than in a page-level banner — which is where it has to appear
+        # for the alternative it offers to make sense.
+        expect(body["errors"]).to have_key("license_id")
+      end
+
+      it "lets an AT specialist apply without inventing a license number" do
+        expect {
+          post "/api/clinician_applications",
+               params: { clinician_application: {
+                 full_name: "Ray Okafor",
+                 credential_type: "at_specialist",
+                 workplace: "Northside USD",
+                 verification_note: "District AT lead — verify with my director, or my RESNA ATP is in progress.",
+               } },
+               headers: auth_headers(user)
+        }.to change { user.clinician_applications.count }.by(1)
+
+        expect(response).to have_http_status(:created)
+        application = JSON.parse(response.body)["application"]
+        expect(application["license_id"]).to be_nil
+        expect(application["license_required"]).to be(false)
+        expect(application["verification_note"]).to include("District AT lead")
+      end
+
+      it "drops a placeholder rather than storing it when no license is required" do
+        post "/api/clinician_applications",
+             params: { clinician_application: {
+               full_name: "Ray Okafor", credential_type: "other", license_id: "N/A",
+             } },
+             headers: auth_headers(user)
+
+        expect(response).to have_http_status(:created)
+        expect(JSON.parse(response.body)["application"]["license_id"]).to be_nil
+      end
+    end
+
+    # The account is created by the signup form and the application by this
+    # endpoint, so without this the clinician-apply funnel is indistinguishable
+    # from any other web signup and can't be measured.
+    describe "signup attribution" do
+      before { allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true)) }
+
+      it "stamps clinician_apply on a first application from a fresh account" do
+        user.update!(settings: (user.settings || {}).merge("signup_method" => "standard"))
+
+        post "/api/clinician_applications", params: valid_params, headers: auth_headers(user)
+
+        expect(response).to have_http_status(:created)
+        expect(user.reload.settings["signup_method"]).to eq("clinician_apply")
+      end
+
+      # Provenance that a later action can rewrite is worth nothing. An account
+      # that has been around for a while applied AFTER signing up some other way.
+      it "leaves an established account's signup_method alone" do
+        user.update!(settings: (user.settings || {}).merge("signup_method" => "standard"))
+        user.update_column(:created_at, 3.days.ago)
+
+        post "/api/clinician_applications", params: valid_params, headers: auth_headers(user)
+
+        expect(response).to have_http_status(:created)
+        expect(user.reload.settings["signup_method"]).to eq("standard")
+      end
+
+      it "never overwrites a method the signup request already recorded" do
+        user.update!(settings: (user.settings || {}).merge("signup_method" => "google"))
+
+        post "/api/clinician_applications", params: valid_params, headers: auth_headers(user)
+
+        expect(response).to have_http_status(:created)
+        expect(user.reload.settings["signup_method"]).to eq("google")
+      end
+    end
+
     # The web client sends a flat JSON body; Rails' ParamsWrapper (enabled by
     # load_defaults 8.0) wraps it under `clinician_application`. Pinned here so
     # a future initializer that turns wrapping off can't silently 400 the
@@ -105,7 +196,7 @@ RSpec.describe "API::ClinicianApplications", type: :request do
 
   describe "GET /api/clinician_applications/mine" do
     it "returns the user's latest application" do
-      app = user.clinician_applications.create!(full_name: "A", credential_type: "ot", status: "denied")
+      app = user.clinician_applications.create!(full_name: "A", credential_type: "ot", license_id: "OT-9911", status: "denied")
       get "/api/clinician_applications/mine", headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
       expect(JSON.parse(response.body)["application"]["id"]).to eq(app.id)

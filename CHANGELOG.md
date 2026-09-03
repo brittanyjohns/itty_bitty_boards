@@ -7,6 +7,33 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A communicator's default voice now follows their age.** The communicator
+  form asks how old the communicator is and stores the answer, but nothing read
+  it — so every communicator, a 17-year-old included, was handed Kevin, a voice
+  whose own description said it was for kids. Communicators aged 11 and up now
+  default to an adult voice, and no voice in the picker is described as being
+  for children any more. A voice you picked yourself is never changed.
+- **Applying to SpeakAnyWay for Clinicians no longer requires inventing a
+  license number.** The form hard-required one, which stopped nobody — the
+  literal string "N/A" filed a real application — while blocking the applicants
+  the page recruits by name: AT specialists (RESNA ATP is optional) and anyone
+  applying under "Other". A license or certification number is now required only
+  for SLPs and OTs, placeholders like "N/A" are refused there, and everyone else
+  can tell us how to verify them in their own words instead.
+- **Your AI credits and your image tokens are two different numbers, and the app
+  now says so.** The user payload carried only the legacy image-token count, so
+  an "AI credits" meter reading it showed 10 against copy promising 25. Both
+  numbers were right about their own quantity; the payload now carries the
+  credit balance and the allowance it's measured against, from the same source
+  the credits page uses. Nobody's Free allowance changed — it was 25 all along.
+
+### Changed
+
+- Accounts created through the clinician application page are now recorded as
+  coming from it, so that page can finally be measured.
+- `age_band`, `aac_level`, `vocab_type` and `glp_stage` can be set as ordinary
+  top-level fields on the communicator API, matching every other attribute.
+
 - **"You've reached your board limit" with an empty Boards page.** Your boards
   page and your plan's board count were two different lists. The page hid folder
   pages, menus, and — because of a SQL quirk — any board created outside the

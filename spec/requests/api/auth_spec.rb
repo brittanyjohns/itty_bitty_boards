@@ -162,6 +162,40 @@ RSpec.describe "API::V1::Auth", type: :request do
       expect(JSON.parse(response.body)["token"]).to be_present
     end
 
+    # An account that arrived through /clinicians/apply carried
+    # signup_method "standard", so the clinician funnel was indistinguishable
+    # from every other web signup and the one question that measures that page
+    # could not be asked.
+    describe "signup_method attribution" do
+      it "stamps an allowlisted method when the client sends one" do
+        allow_any_instance_of(User).to receive(:send_welcome_email)
+
+        post "/api/v1/users", params: valid_params.merge(signup_method: "clinician_apply")
+
+        expect(response).to have_http_status(:ok)
+        expect(User.find_by(email: "new-free@example.com").settings["signup_method"]).to eq("clinician_apply")
+      end
+
+      it "still stamps standard when the client sends nothing" do
+        allow_any_instance_of(User).to receive(:send_welcome_email)
+
+        post "/api/v1/users", params: valid_params
+
+        expect(User.find_by(email: "new-free@example.com").settings["signup_method"]).to eq("standard")
+      end
+
+      # The value is written from a client-supplied param and read by analytics
+      # and Mailchimp segments — an unbounded string there is a segment nobody
+      # can enumerate.
+      it "falls back to standard for anything off the allowlist" do
+        allow_any_instance_of(User).to receive(:send_welcome_email)
+
+        post "/api/v1/users", params: valid_params.merge(signup_method: "totally-made-up")
+
+        expect(User.find_by(email: "new-free@example.com").settings["signup_method"]).to eq("standard")
+      end
+    end
+
     it "does not send the free welcome email for partner_pro signups" do
       expect_any_instance_of(User).not_to receive(:send_welcome_email)
       expect_any_instance_of(User).to receive(:send_partner_welcome_email)

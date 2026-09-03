@@ -10,6 +10,7 @@ RSpec.describe ClinicianApplications::Reviewer do
       status: ClinicianApplication::PENDING,
       full_name: "Sam Lee",
       credential_type: "slp",
+      license_id: "SLP-12345",
     )
   end
 

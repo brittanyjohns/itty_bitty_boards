@@ -77,4 +77,62 @@ RSpec.describe "API::ChildAccounts AAC profile", type: :request do
       expect(communicator.reload.glp_stage).to be_nil
     end
   end
+
+  # Every other attribute this controller reads (name, username, status,
+  # layout) is a top-level param, so a caller sending `{ age_band: "15-18" }`
+  # reasonably expects it to land. It used to be a silent no-op.
+  describe "top-level AAC profile params" do
+    it "accepts them on update" do
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { age_band: "15-18", aac_level: "developing", vocab_type: "balanced", glp_stage: 4 }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      communicator.reload
+      expect(communicator.age_band).to eq("15-18")
+      expect(communicator.aac_level).to eq("developing")
+      expect(communicator.vocab_type).to eq("balanced")
+      expect(communicator.glp_stage).to eq(4)
+    end
+
+    it "accepts them on create" do
+      post "/api/child_accounts",
+           params: { name: "Jordan", status: "sandbox", age_band: "15-18" }.to_json,
+           headers: headers
+
+      expect(response).to have_http_status(:created)
+      expect(JSON.parse(response.body)["age_band"]).to eq("15-18")
+    end
+
+    it "still rejects an invalid value" do
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { age_band: "middle-aged" }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(communicator.reload.age_band).to be_nil
+    end
+
+    # `details` replaces wholesale; an explicit top-level field is the more
+    # specific instruction and is applied after it.
+    it "wins over the same key inside details" do
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { details: { age_band: "4-6" }, age_band: "adult" }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(communicator.reload.age_band).to eq("adult")
+    end
+
+    it "leaves a stored field alone when the key is absent" do
+      communicator.update!(details: { "age_band" => "7-10" })
+
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { name: "Jordan" }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(communicator.reload.age_band).to eq("7-10")
+    end
+  end
 end

@@ -36,6 +36,10 @@
                     <td style="padding:6px;"><%= @application.license_id.presence || "—" %></td>
                   </tr>
                   <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">How to verify</td>
+                    <td style="padding:6px;"><%= @application.verification_note.presence || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
                     <td style="padding:6px; color:#666666;">Workplace</td>
                     <td style="padding:6px;"><%= @application.workplace.presence || "—" %></td>
                   </tr>
