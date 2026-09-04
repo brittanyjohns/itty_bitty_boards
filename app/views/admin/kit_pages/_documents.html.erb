@@ -17,7 +17,7 @@
   </div>
 <% else %>
 <% documents = @kit_page.ordered_documents %>
-<% previews = @kit_page.preview_images_view %>
+<% preview_rows = @kit_page.preview_picker_rows %>
 
 <div class="admin-card border rounded-xl p-5 mb-6">
   <h2 class="text-sm font-medium text-t1 mb-1">Document</h2>
@@ -86,16 +86,57 @@
           This host can't render PDF previews, so the page will show no pictures. The download itself is
           unaffected.
         </p>
-      <% elsif previews.any? %>
-        <div class="flex flex-wrap gap-3">
-          <% previews.each do |preview| %>
-            <img src="<%= preview[:url] %>" alt="<%= preview[:variant].humanize %>"
-                 class="h-32 w-auto rounded border" style="border-color: var(--border);">
+      <% elsif preview_rows.any? %>
+        <% unless @kit_page.previews_curated? %>
+          <%# Ten thumbnails above a page showing two reads as a bug unless the
+              default is stated out loud. %>
+          <p class="text-[11px] text-t3 mb-3">
+            Nothing chosen yet — the page is showing the first
+            <%= KitPage::DEFAULT_PUBLIC_PREVIEW_COUNT %> pages of the first document. Pick below to change that.
+          </p>
+        <% end %>
+
+        <% if preview_rows.none? { |row| row[:visibility] == KitPage::PREVIEW_PUBLIC } %>
+          <div class="admin-flash-err border rounded-lg px-3 py-2 mb-3 text-[11px]">
+            Nothing is set to show on the page — visitors will see no pictures of what they're signing up for.
+          </div>
+        <% end %>
+
+        <%# A third sibling form in this card. Same reason as the upload: forms
+            can't nest, and the main form is re-rendered wholesale by Autofill. %>
+        <%= form_with url: update_previews_admin_dashboard_kit_page_path(@kit_page),
+              method: :patch, data: { turbo: false } do %>
+          <% preview_rows.group_by { |row| row[:document_position] }.each do |_position, rows| %>
+            <% if documents.size > 1 %>
+              <h4 class="text-[11px] font-medium text-t2 mt-3 mb-2"><%= rows.first[:document_label] %></h4>
+            <% end %>
+            <div class="flex flex-wrap gap-4 mb-3">
+              <% rows.each do |row| %>
+                <div class="w-40">
+                  <img src="<%= row[:url] %>" alt="Page <%= row[:page] %>"
+                       class="h-44 w-auto rounded border" style="border-color: var(--border);">
+                  <p class="text-[11px] text-t2 mt-1.5 mb-1">Page <%= row[:page] %></p>
+                  <%# Labelled in the admin's words, not the stored enum's. %>
+                  <% [[KitPage::PREVIEW_HIDDEN, "Don't show"],
+                      [KitPage::PREVIEW_PUBLIC, "On the page"],
+                      [KitPage::PREVIEW_GATED, "After the email"]].each do |value, label| %>
+                    <label class="flex items-center gap-1.5 text-[11px] text-t1 cursor-pointer">
+                      <%= radio_button_tag "visibility[#{row[:key]}]", value, row[:visibility] == value,
+                            id: "visibility_#{row[:key].tr(":", "_")}_#{value}" %>
+                      <%= label %>
+                    </label>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
           <% end %>
-        </div>
+
+          <%= submit_tag "Save which pages show",
+                class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1" %>
+        <% end %>
       <% else %>
         <p class="text-[11px] text-t3">
-          Rendering the first <%= KitPage::PREVIEW_PAGE_COUNT %> pages… refresh in a moment.
+          Rendering up to <%= KitPage.preview_render_limit %> pages of each document… refresh in a moment.
         </p>
       <% end %>
     </div>

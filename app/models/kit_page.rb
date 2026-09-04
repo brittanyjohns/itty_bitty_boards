@@ -63,11 +63,33 @@ class KitPage < ApplicationRecord
   CANVA_SHORT_HOSTS = ["canva.link"].freeze
   MAX_TEMPLATES = 5
 
-  # How many pages of the uploaded document are rasterized for the landing
-  # page's gallery. "A couple" — the hero and one more; a visitor deciding
-  # whether to hand over an email needs a look at the thing, not a page-by-page
-  # tour.
-  PREVIEW_PAGE_COUNT = 2
+  # What one rendered page may be. `hidden` is not "deleted" — the render still
+  # exists and the admin can promote it later; it simply isn't published.
+  PREVIEW_PUBLIC = "public".freeze
+  PREVIEW_GATED = "gated".freeze
+  PREVIEW_HIDDEN = "hidden".freeze
+  PREVIEW_VISIBILITIES = [PREVIEW_PUBLIC, PREVIEW_GATED, PREVIEW_HIDDEN].freeze
+
+  # How many pages of EVERY uploaded document are rasterized so an admin has
+  # something to choose from.
+  DEFAULT_PREVIEW_RENDER_LIMIT = 10
+
+  # How many rendered pages are PUBLIC when an admin has chosen nothing. A
+  # different number from the one above and deliberately unchanged: an empty
+  # `preview_settings` has to leave a live page exactly as it was.
+  DEFAULT_PUBLIC_PREVIEW_COUNT = 2
+
+  # Read at CALL time, never stamped — the same rule every other ENV-tunable
+  # limit in this app keeps, so raising it is a Hatchbox change and not a deploy.
+  def self.preview_render_limit
+    ENV.fetch("KIT_PREVIEW_RENDER_LIMIT", DEFAULT_PREVIEW_RENDER_LIMIT).to_i
+  end
+
+  # The key one rendered page is remembered by. Keyed on the document's BLOB id
+  # rather than its attachment id or its filename: the attachment id is a join
+  # row, and two documents can share a filename — which is why uploads already
+  # go to a versioned key.
+  def self.preview_setting_key(document_id, page) = "#{document_id}:#{page}"
 
   # How long an admin's draft-preview link stays good. Short on purpose and it
   # costs nothing: the admin screen mints a fresh token every time it renders,
@@ -171,7 +193,13 @@ class KitPage < ApplicationRecord
   # that the PDF a visitor came for is revealed only after an email; a
   # photograph of it is the thing that persuades them to enter one.
   def gallery_images
-    uploaded_download? ? preview_images_view : printable_gallery_images
+    uploaded_download? ? public_preview_images : printable_gallery_images
+  end
+
+  # The gallery as it stands AFTER the email. A printable-backed page has
+  # nothing gated, so it answers with the same list it already published.
+  def released_gallery_images
+    uploaded_download? ? released_preview_images : printable_gallery_images
   end
 
   # One row per uploaded document, in the order they were attached.
@@ -192,21 +220,35 @@ class KitPage < ApplicationRecord
     end
   end
 
-  # The rendered pages of the uploaded document, first page first. Drops any
-  # entry whose URL came back nil — `url_for_file` returns nil rather than
-  # raising — exactly as the printable gallery does.
-  def preview_images_view
+  # EVERY rendered page, in document order then page order, each carrying the
+  # document it came from and its resolved visibility. The admin picker, the
+  # public gallery and the post-email handover are all filters over this one
+  # list, so the three can never disagree about what a page is.
+  #
+  # Drops any entry whose URL came back nil — `url_for_file` returns nil rather
+  # than raising — exactly as the printable gallery does.
+  def preview_rows
     return [] unless preview_images.attached?
 
-    @preview_images_view ||= preview_images
-      .sort_by { |file| file.metadata["page"].to_i }
-      .filter_map do |file|
-        url = url_for_file(file)
-        next if url.blank?
-
-        { variant: "page_#{file.metadata["page"].to_i}", url: url }
-      end
+    @preview_rows ||= build_preview_rows
   end
+
+  # The admin picker's rows: everything, hidden pages included.
+  def preview_picker_rows = preview_rows
+
+  # PUBLIC. The rendered pages a visitor sees before entering an email.
+  def public_preview_images = serialized_previews(PREVIEW_PUBLIC)
+
+  # GATED + PUBLIC. What the download endpoint hands over, so the page can swap
+  # its gallery after capture without a second request. Public rows are included
+  # rather than diffed out: the frontend replaces the whole list, and the ones it
+  # already had must keep their position in it.
+  def released_preview_images = serialized_previews(PREVIEW_PUBLIC, PREVIEW_GATED)
+
+  # True once an admin has curated. An empty hash is "never asked", which is a
+  # different thing from "everything hidden" and resolves to the historical
+  # default instead.
+  def previews_curated? = preview_settings.present?
 
   def ordered_documents
     return [] unless documents.attached?
@@ -237,24 +279,74 @@ class KitPage < ApplicationRecord
     blob
   end
 
-  def attach_preview_image!(bytes:, page:)
+  # One rendered page.
+  #
+  # `document_id` and `batch` are OPTIONAL, and nil is meaningful in both: a
+  # preview with no document id is attributed to the first document (which is
+  # what every preview rendered before multi-document support actually was), and
+  # a preview with no batch reads as the current one. That is what lets this
+  # change deploy without a backfill and without blanking a live gallery.
+  def attach_preview_image!(bytes:, page:, document_id: nil, batch: nil)
+    filename = document_id ? "preview-#{document_id}-#{page}.png" : "preview-#{page}.png"
     blob = ActiveStorage::Blob.create_and_upload!(
       io: StringIO.new(bytes),
-      filename: "preview-#{page}.png",
+      filename: filename,
       content_type: "image/png",
-      key: versioned_storage_key_for("preview-#{page}.png"),
-      metadata: { "page" => page },
+      key: versioned_storage_key_for(filename),
+      metadata: { "page" => page, "document_id" => document_id, "batch" => batch }.compact,
     )
     preview_images.attach(blob)
     reset_file_memos
     blob
   end
 
-  def purge_preview_images!
-    preview_images.each(&:purge)
+  # `except_batch:` is what makes a re-render render-then-purge rather than
+  # purge-then-render. Purging first blanks the public gallery for as long as the
+  # job runs, which was a second at two pages and is a minute at fifty.
+  def purge_preview_images!(except_batch: nil)
+    doomed = preview_images.reject { |file| except_batch.present? && file.metadata["batch"] == except_batch }
+    return if doomed.empty?
+
+    doomed.each(&:purge)
     preview_images.reset
     preview_images_attachments.reset
     reset_file_memos
+  end
+
+  # Records which rendered pages show where. Writes only keys that name a page
+  # this record actually has, and only values from PREVIEW_VISIBILITIES — the
+  # form is the injection surface, and a key naming another page's document has
+  # no business here.
+  #
+  # Settings for documents that are still attached but whose render hasn't landed
+  # yet are PRESERVED, and settings for documents that are gone are pruned. A
+  # wholesale replacement would silently lose the first; a plain merge would never
+  # do the second.
+  def update_preview_settings!(submitted)
+    allowed = preview_rows.index_by { |row| row[:key] }
+
+    cleaned = Hash(submitted.respond_to?(:to_unsafe_h) ? submitted.to_unsafe_h : submitted)
+      .each_with_object({}) do |(key, value), acc|
+        next unless allowed.key?(key.to_s)
+        next unless PREVIEW_VISIBILITIES.include?(value.to_s)
+
+        acc[key.to_s] = value.to_s
+      end
+
+    update!(preview_settings: live_preview_settings.merge(cleaned))
+    reset_file_memos
+    preview_settings
+  end
+
+  # Drops settings whose document has been removed. Called when a document is
+  # purged so a deleted file's choices don't sit in the column forever.
+  def prune_preview_settings!
+    kept = live_preview_settings
+    return preview_settings if kept.size == preview_settings.size
+
+    update!(preview_settings: kept)
+    reset_file_memos
+    preview_settings
   end
 
   def versioned_storage_key_for(filename)
@@ -365,7 +457,93 @@ class KitPage < ApplicationRecord
   # what was there before.
   def reset_file_memos
     @document_files_view = nil
-    @preview_images_view = nil
+    @preview_rows = nil
+  end
+
+  # The settings hash with every entry whose document is gone dropped.
+  def live_preview_settings
+    live = ordered_documents.map(&:blob_id).map(&:to_s).to_set
+    preview_settings.select { |key, _| live.include?(key.to_s.split(":").first.to_s) }
+  end
+
+  # The batch every preview in the CURRENT set carries. Legacy previews carry no
+  # batch at all, and nil is the max of an all-nil set, so they read as current
+  # until the first re-render replaces them.
+  def current_preview_batch
+    preview_images.filter_map { |file| file.metadata["batch"].presence }.max
+  end
+
+  def build_preview_rows
+    documents = ordered_documents
+    return [] if documents.empty?
+
+    positions = {}
+    labels = {}
+    documents.each_with_index do |document, index|
+      positions[document.blob_id.to_s] = index
+      labels[document.blob_id.to_s] = document_label(document)
+    end
+
+    batch = current_preview_batch
+    default_document_id = documents.first.blob_id.to_s
+
+    preview_images
+      .select { |file| file.metadata["batch"].presence == batch }
+      .filter_map { |file| preview_row_for(file, positions, labels, default_document_id) }
+      .sort_by { |row| [row[:document_position], row[:page]] }
+  end
+
+  def preview_row_for(file, positions, labels, default_document_id)
+    # No document id means this render predates multi-document support, when the
+    # only document rendered WAS the first one.
+    document_id = file.metadata["document_id"].presence&.to_s || default_document_id
+    position = positions[document_id]
+    return nil if position.nil? # its document has been removed
+
+    url = url_for_file(file)
+    return nil if url.blank?
+
+    page = file.metadata["page"].to_i
+    key = self.class.preview_setting_key(document_id, page)
+
+    {
+      key: key,
+      document_id: document_id,
+      document_position: position,
+      document_label: labels[document_id],
+      page: page,
+      url: url,
+      visibility: resolved_preview_visibility(key, position, page),
+    }
+  end
+
+  # An empty `preview_settings` is "never asked" and answers with the historical
+  # default. Once it is non-empty a key that isn't in it is HIDDEN — a page that
+  # shows up later (a new upload, a raised render limit) must never publish
+  # itself.
+  def resolved_preview_visibility(key, document_position, page)
+    if previews_curated?
+      preview_settings[key].to_s.presence_in(PREVIEW_VISIBILITIES) || PREVIEW_HIDDEN
+    elsif document_position.zero? && page <= DEFAULT_PUBLIC_PREVIEW_COUNT
+      PREVIEW_PUBLIC
+    else
+      PREVIEW_HIDDEN
+    end
+  end
+
+  def serialized_previews(*visibilities)
+    preview_rows
+      .select { |row| visibilities.include?(row[:visibility]) }
+      .map { |row| { variant: "page_#{row[:page]}", url: row[:url], page: row[:page], label: preview_label(row) } }
+  end
+
+  # What the picture IS, for alt text and the enlarged view's caption. The
+  # document's name is only worth saying when there is more than one — on a
+  # single-document page it is noise on every tile.
+  def preview_label(row)
+    return "Page #{row[:page]}" if ordered_documents.size < 2
+
+    "#{row[:document_label]} — page #{row[:page]}"
   end
 
 

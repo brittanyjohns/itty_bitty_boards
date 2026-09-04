@@ -135,6 +135,9 @@ Rails.application.routes.draw do
         post :upload_document
         delete :remove_document
         post :regenerate_previews
+        # Which rendered pages show on the public page, which sit behind the
+        # email, and which don't show at all.
+        patch :update_previews
       end
       collection do
         post :autofill

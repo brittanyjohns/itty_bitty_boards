@@ -10,7 +10,8 @@ module Admin
   # who did it and when.
   class KitPagesController < Admin::ApplicationController
     before_action :set_kit_page,
-                  only: %i[edit update publish unpublish upload_document remove_document regenerate_previews]
+                  only: %i[edit update publish unpublish upload_document remove_document regenerate_previews
+                           update_previews]
 
     def index
       @kit_pages = KitPage.includes(board_printable: :board).order(created_at: :desc)
@@ -85,15 +86,20 @@ module Admin
         filename: upload.original_filename,
         label: params[:label].to_s.strip.presence,
       )
+      curated = @kit_page.previews_curated?
       enqueue_previews
 
-      redirect_to edit_admin_dashboard_kit_page_path(@kit_page),
-                  notice: "Uploaded “#{upload.original_filename}”. It is this page's download now."
+      notice = "Uploaded “#{upload.original_filename}”. It is this page's download now."
+      # A page that has been curated starts new renders hidden on purpose, and
+      # saying nothing would make that read as the render having failed.
+      notice += " Its pages start hidden — choose them under Pictures on the page." if curated
+
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page), notice: notice
     end
 
-    # Purges one document. The previews are rebuilt from whatever is left —
-    # they picture the FIRST document, so removing it must not leave the old
-    # pages sitting above a different file.
+    # Purges one document. The previews are rebuilt from whatever is left — a
+    # stale page from a document that has been removed is worse than no picture
+    # at all — and the removed file's visibility choices go with it.
     def remove_document
       document = find_document(params[:signed_id])
       unless document
@@ -103,9 +109,24 @@ module Admin
       filename = document.filename.to_s
       document.purge
       @kit_page.documents.reset
+      @kit_page.prune_preview_settings!
       enqueue_previews
 
       redirect_to edit_admin_dashboard_kit_page_path(@kit_page), notice: "Removed “#{filename}”."
+    end
+
+    # Records which rendered pages show where. Its own form and its own action
+    # rather than a field in the main one, for the same reason the upload is:
+    # the main form is re-rendered wholesale by Autofill.
+    #
+    # `permit(visibility: {})` opens the hash — the MODEL is what refuses a key
+    # naming a page this record doesn't have and a value outside the allowed
+    # three, because that is an invariant and not one controller remembering.
+    def update_previews
+      @kit_page.update_preview_settings!(params[:visibility])
+
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page),
+                  notice: "Saved which pages show on the page."
     end
 
     def regenerate_previews

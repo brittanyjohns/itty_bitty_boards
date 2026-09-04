@@ -486,6 +486,99 @@ RSpec.describe "Admin kit pages", type: :request do
         }.not_to change { RenderKitPreviewsJob.jobs.size }
         expect(flash[:alert]).to include("can't render PDF previews")
       end
+    end
+
+    describe "choosing which rendered pages show" do
+      let(:kit_page) { create(:kit_page, slug: "at-school") }
+
+      def render_pages!(pages: 3)
+        document = kit_page.attach_document!(
+          io: StringIO.new("%PDF handout"), filename: "handout.pdf", label: "Parent handout"
+        )
+        (1..pages).each { |n| kit_page.attach_preview_image!(bytes: "PNG", page: n, document_id: document.id) }
+        document
+      end
+
+      it "saves the choices and says so" do
+        document = render_pages!
+
+        patch update_previews_admin_dashboard_kit_page_path(kit_page), params: {
+          visibility: {
+            KitPage.preview_setting_key(document.id, 1) => "public",
+            KitPage.preview_setting_key(document.id, 2) => "gated",
+            KitPage.preview_setting_key(document.id, 3) => "hidden",
+          },
+        }
+
+        expect(response).to redirect_to(edit_admin_dashboard_kit_page_path(kit_page))
+        expect(flash[:notice]).to include("which pages show")
+        expect(kit_page.reload.public_preview_images.map { |i| i[:page] }).to eq([1])
+        expect(kit_page.released_preview_images.map { |i| i[:page] }).to eq([1, 2])
+      end
+
+      # The same reasoning as remove_document's linear scan: a key from the form
+      # must never reach a row this page doesn't own.
+      it "ignores a key naming another page's document" do
+        document = render_pages!
+        other = create(:kit_page, slug: "elsewhere")
+        other_doc = other.attach_document!(io: StringIO.new("%PDF x"), filename: "other.pdf")
+
+        patch update_previews_admin_dashboard_kit_page_path(kit_page), params: {
+          visibility: {
+            KitPage.preview_setting_key(document.id, 1) => "public",
+            KitPage.preview_setting_key(other_doc.id, 1) => "public",
+          },
+        }
+
+        expect(kit_page.reload.preview_settings.keys)
+          .to eq([KitPage.preview_setting_key(document.id, 1)])
+      end
+
+      it "ignores a visibility that isn't one of the three" do
+        document = render_pages!
+
+        patch update_previews_admin_dashboard_kit_page_path(kit_page), params: {
+          visibility: { KitPage.preview_setting_key(document.id, 1) => "everywhere" },
+        }
+
+        expect(kit_page.reload.preview_settings).to eq({})
+      end
+
+      it "prunes a removed document's choices" do
+        document = render_pages!
+        kit_page.update!(preview_settings: { KitPage.preview_setting_key(document.id, 1) => "public" })
+
+        delete remove_document_admin_dashboard_kit_page_path(
+          kit_page, signed_id: kit_page.ordered_documents.first.signed_id
+        )
+
+        expect(kit_page.reload.preview_settings).to eq({})
+      end
+
+      it "offers three choices per rendered page on the edit screen" do
+        document = render_pages!(pages: 2)
+
+        get edit_admin_dashboard_kit_page_path(kit_page)
+
+        expect(response.body).to include("Don&#39;t show").or include("Don't show")
+        expect(response.body).to include("On the page")
+        expect(response.body).to include("After the email")
+        expect(response.body).to include("visibility[#{KitPage.preview_setting_key(document.id, 2)}]")
+        # Nothing chosen yet, so the default it is actually showing is named.
+        expect(response.body).to include("Nothing chosen yet")
+      end
+
+      it "warns when nothing at all is set to show on the page" do
+        document = render_pages!(pages: 2)
+        kit_page.update!(preview_settings: {
+          KitPage.preview_setting_key(document.id, 1) => "gated",
+          KitPage.preview_setting_key(document.id, 2) => "hidden",
+        })
+
+        get edit_admin_dashboard_kit_page_path(kit_page)
+
+        expect(response.body).to include("visitors will see no pictures")
+      end
 
       # The upload needs a saved row, so the New screen can only point at the
       # next step — but it must point, or it reads as "no way to upload here".

@@ -52,19 +52,34 @@ module KitPages
       end
     end
 
-    def initialize(pages: KitPage::PREVIEW_PAGE_COUNT)
+    # A default keyword argument is evaluated on every `new`, so the limit is
+    # genuinely read at call time rather than frozen into the class.
+    def initialize(pages: KitPage.preview_render_limit)
       @pages = pages.to_i
+    end
+
+    # Yields one PNG at a time so the caller can attach and release it. The
+    # array form below holds every page in memory at once, which is nothing at
+    # two pages and 50-150 MB in one Sidekiq worker at five documents of ten
+    # 150-DPI letter pages.
+    #
+    # A page that fails to render is skipped, never yielded as nil.
+    def each_page(bytes)
+      return unless self.class.available?
+      return if bytes.blank? || @pages < 1
+
+      count = [page_count(bytes), @pages].min
+      return if count < 1
+
+      (0...count).each do |index|
+        png = render_page(bytes, index)
+        yield(png, index) if png
+      end
     end
 
     # => [png_bytes, ...] for the first `pages` pages of the document, or [].
     def call(bytes)
-      return [] unless self.class.available?
-      return [] if bytes.blank? || @pages < 1
-
-      count = [page_count(bytes), @pages].min
-      return [] if count < 1
-
-      (0...count).filter_map { |index| render_page(bytes, index) }
+      [].tap { |pages| each_page(bytes) { |png, _index| pages << png } }
     end
 
     private

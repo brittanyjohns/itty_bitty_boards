@@ -1459,7 +1459,7 @@ an explicit decision, not a drive-by edit.
     CDN is the deliberate trade.
 
   It is opt-in per call (`view_for(..., with_download_url: true)`) so
-  `listing_images_view` — and `KitPage#preview_images_view` — don't sign a URL
+  `listing_images_view` — and `KitPage#public_preview_images` — don't sign a URL
   per gallery image that nothing follows, and it returns nil rather than raising — same contract as
   `url_for_file`, since a bad credential must not 500 the admin status poll.
   **Dev and test are the Disk service, which honours `disposition` through the
@@ -1468,14 +1468,35 @@ an explicit decision, not a drive-by edit.
   `images`, the printable's rendered marketplace mockups, and that is not a hole
   in the bullet above — a lead magnet no one can see converts nothing, and these
   renders are marketing art on the same public CDN, not the document. For an
-  uploaded-document page the pictures are the document's own first pages,
-  capped at `KitPage::PREVIEW_PAGE_COUNT`; for a printable-backed one the line
+  uploaded-document page the pictures are the document's own rendered pages
+  (see the bullet below); for a printable-backed one the line
   is drawn by `KitPage::KIT_IMAGE_ORDER`, a curated ALLOWLIST over
   `BoardPrintable#listing_images_view` (which has already dropped retired
   gallery designs). Narrow by allowlist, exactly as `pdf_files` does: a new
   image variant must be opted in before a visitor can see it, and `about` /
   `page_index` stay out because they are Etsy shop framing. Never widen this by
   excluding what you don't want.
+- **A rendered document page is public, gated, or hidden — and the choice lives
+  in a COLUMN, because the job destroys every preview blob on each run.**
+  `RenderKitPreviewsJob` rasterizes the first `KitPage.preview_render_limit`
+  pages of EVERY uploaded document (10, ENV-tunable, read at call time) and
+  replaces the whole set, so a visibility stored in blob metadata would be wiped
+  by the next click of "Regenerate". `kit_pages.preview_settings` keys on
+  `"<document blob id>:<page>"` instead — the attachment id is a join row and two
+  documents can share a filename, which is why uploads already go to a versioned
+  key. `KitPage#preview_rows` is the single list the admin picker, the public
+  gallery (`gallery_images`) and the post-email handover
+  (`released_gallery_images`) all filter, so the three can't disagree about what
+  a page is. Three rails. An EMPTY hash is "never asked" and resolves to the
+  historical default (the first `DEFAULT_PUBLIC_PREVIEW_COUNT` pages of the first
+  document, public) — that is what let this ship without moving a live page —
+  while a non-empty hash treats an unlisted key as HIDDEN, so a page that appears
+  later never publishes itself. A preview carrying no `document_id` is attributed
+  to the first document, which is what every preview rendered before
+  multi-document support actually was; no backfill. And the replacement is
+  render-then-purge, gated on a `batch` stamp: purging first blanks a live public
+  gallery for as long as the job runs. `variant` is `page_N` numbered WITHIN its
+  document and so is not unique across documents — key on the URL, never on it.
 - **A kit page's Canva TEMPLATE LINK is the product; its label and description
   are marketing.** A template is an editable Canva design a visitor gets their
   own copy of — the MySpeak ID card, where the QR can only be made by the person

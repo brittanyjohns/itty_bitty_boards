@@ -55,8 +55,18 @@ module API
     # Everything the email bought. `files` stays present — as `[]` on a
     # templates-only page — so a frontend that predates templates renders its
     # existing "nothing to download" dead end rather than throwing.
+    #
+    # `images` is the WHOLE gallery, gated pages and already-public ones alike,
+    # because the frontend swaps the list wholesale and a public picture must
+    # keep its position in it. It is never a reason to open the gate: a page
+    # with pictures and nothing to hand over is still a dead end, which is why
+    # #download gates on `offers_anything?` and not on this.
     def handover_payload
-      { files: @kit_page.download_files, templates: @kit_page.template_links }
+      {
+        files: @kit_page.download_files,
+        templates: @kit_page.template_links,
+        images: @kit_page.released_gallery_images,
+      }
     end
 
     # Unpublished and unknown are the same answer on purpose: a draft page's
