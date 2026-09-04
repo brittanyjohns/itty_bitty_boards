@@ -1000,6 +1000,22 @@ an explicit decision, not a drive-by edit.
   board is not published rather than relying on the favorite TRANSITION — an
   already-favorited row saved nothing, never reached `MySpeakPublisher`, and
   left a card on a public page that 404s on tap.
+- **An action on the `skip_before_action :authenticate_token!` list that resolves
+  a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
+  `set_board` scopes by nothing — it takes any id or slug and only 404s a row
+  that does not exist — so being skipped from authentication is the whole
+  authorization story unless the action writes its own. `viewable_by?` is the
+  one predicate: true for a `published?` board with NO user, which is what keeps
+  anonymous download of the genuinely public free-boards library working, and
+  false for a private board with none. Board ids are sequential, so a missing
+  guard makes the entire corpus enumerable by incrementing an integer — and a
+  board name routinely carries a child's first name. `show` had the guard and
+  `pdf` did not, which handed any caller a complete PDF (every tile, label and
+  symbol) of any private board. The refusal is the same generic
+  `404 {"error": "Board not found"}` in both, never a 403: confirming the row
+  exists is itself the leak. Being on the skip list is not evidence an action is
+  safe — check `predictive_image_board`, which resolves the same way.
+
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);

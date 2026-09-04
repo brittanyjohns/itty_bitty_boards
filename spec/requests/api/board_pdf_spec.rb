@@ -57,4 +57,60 @@ RSpec.describe "API::Boards#pdf", type: :request do
       }.to change { board.reload.pdf_file.attached? }.from(false).to(true)
     end
   end
+
+  # `pdf` is in the controller's `skip_before_action :authenticate_token!` list
+  # because anonymous download of genuinely PUBLIC boards backs the free-boards
+  # landing page. That makes the action's own `viewable_by?` guard the only
+  # thing standing between an incrementing integer and every private board's
+  # complete contents — tile labels, symbols, and a board name that routinely
+  # carries a child's first name.
+  describe "authorization" do
+    let!(:public_board)  { create(:board, user: user, name: "Public PDF Board", published: true) }
+    let!(:other_user)    { create(:user) }
+
+    it "lets an anonymous caller download a published board" do
+      get "/api/boards/#{public_board.id}/pdf"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to start_with("application/pdf")
+    end
+
+    it "404s an anonymous caller asking for a private board" do
+      get "/api/boards/#{board.id}/pdf"
+
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)["error"]).to eq("Board not found")
+    end
+
+    it "lets the owner download their own private board" do
+      get "/api/boards/#{board.id}/pdf", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to start_with("application/pdf")
+    end
+
+    it "lets a communicator download a private board belonging to their own account" do
+      communicator = create(:child_account, user: user)
+
+      get "/api/boards/#{board.id}/pdf", headers: auth_headers(communicator)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to start_with("application/pdf")
+    end
+
+    it "404s a communicator asking for a private board on someone else's account" do
+      communicator = create(:child_account, user: other_user)
+
+      get "/api/boards/#{board.id}/pdf", headers: auth_headers(communicator)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s a signed-in non-owner asking for someone else's private board" do
+      get "/api/boards/#{board.id}/pdf", headers: auth_headers(other_user)
+
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)["error"]).to eq("Board not found")
+    end
+  end
 end
