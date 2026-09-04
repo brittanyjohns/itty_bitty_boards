@@ -106,11 +106,15 @@ class API::GeneratedBoardsController < API::ApplicationController
     # If your app already has a BoardsController#pdf action, the cleanest move
     # is to redirect to it with the real board id.
 
+    # The token has to travel with the redirect: boards#pdf authorizes on
+    # `viewable_by?`, and a generated board is user-less and unpublished, so
+    # without it the browser follows this redirect into a 404.
     redirect_to pdf_api_board_url(
       @board,
       screen_size: params[:screen_size] || "lg",
       hide_colors: params[:hide_colors] || "0",
       hide_header: params[:hide_header] || "0",
+      generated_token: @board.generated_token,
     )
   end
 
