@@ -1464,6 +1464,7 @@ class Board < ApplicationRecord
       new_board_image = self.add_image(image.id) if image
       apply_authored_part_of_speech!(new_board_image, authored_pos)
       new_board_image.update_column(:status, "skipped") if skip_generation && new_board_image&.persisted?
+      apply_phrase_art_fallback(new_board_image, word) unless is_a_menu?
       if image_ids_to_generate.count > 2
         image_ids_to_generate.each_slice(3) do |batch|
           GenerateImagesJob.perform_async(batch, id)
@@ -1492,6 +1493,35 @@ class Board < ApplicationRecord
     board_image.part_of_speech = pos
     board_image.set_colors
     board_image.save
+  end
+
+  # A multi-word tile whose phrase missed the symbol library borrows its head
+  # word's picture rather than rendering as a text placeholder — see
+  # Boards::PhraseArtFallback for why this is written to the TILE and not to
+  # the shared Image.
+  #
+  # `nil`, not `blank?`, is the test: `""` is the "this tile has no picture"
+  # marker and is truthy in Ruby, so overwriting it would put a symbol back on
+  # a tile someone deliberately blanked. That is the same rule
+  # BoardImage#set_defaults follows one line up, and the reason this can run
+  # unconditionally after it: a tile that already resolved to art has a URL.
+  #
+  # update_column, so the write neither re-runs set_defaults nor rebroadcasts
+  # the board once per tile while a board is still being built.
+  def apply_phrase_art_fallback(board_image, label)
+    return unless board_image&.persisted?
+    return unless board_image.display_image_url.nil?
+
+    art = Boards::PhraseArtFallback.art_for(label, user: user)
+    if art.blank?
+      # Logged so the coverage gap is measurable: which phrases the library
+      # cannot draw is the input to fixing it, and a silent placeholder is
+      # indistinguishable from a tile nobody looked at.
+      Rails.logger.info "PhraseArtFallback miss board=#{id} label=#{label.inspect}" if label.to_s.strip.include?(" ")
+      return
+    end
+
+    board_image.update_column(:display_image_url, art)
   end
 
   def remove_image(image_id)
@@ -3515,11 +3545,20 @@ class Board < ApplicationRecord
     # Fall back to the legacy free-text age_range when no structured profile was passed.
     profile ||= CommunicatorProfile.from_params(age_range: age_range)
     text = "Generate a list of words for a communication board. The topic or theme of the board is #{topic}. The name of the board is #{name}. "
-    text += "The age range for the person using the board is #{age_range}. Please provide a list of #{word_count} words that are appropriate for this age range and context. " if age_range.present?
+    # A canonical band is a slug ("under-4") and reads as one in a sentence, so
+    # it is humanized on the way into the prompt; a free-text range is the
+    # user's own words and is passed through, since "2-3" tells the model more
+    # than the band it folds into would.
+    age_text = CommunicatorProfile.age_range_prompt_text(age_range)
+    text += "The age range for the person using the board is #{age_text}. Please provide a list of #{word_count} words that are appropriate for this age range and context. " if age_range.present?
     text += "Please provide a list of #{word_count} words that are appropriate for this context. " if age_range.blank?
     text += "Exclude words that are too similar to each other or that would not be useful on a communication board. Also exclude words that are already on the board: #{words_to_exclude.join(", ")}." if words_to_exclude.any?
     words = get_word_suggestions_from_prompt(text, language: language, profile: profile)
-    words
+    # A whole board, so it is held to the core floor. This path is the one a
+    # user never sees before creation — boards#create enqueues it and the tiles
+    # simply appear — so a board that came back able to refuse and not to
+    # accept would ship that way with nobody able to catch it.
+    Prompts::Aac.with_core_floor(words, word_count: word_count, existing_words: words_to_exclude)
   end
 
   def get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude = [], language: nil)

@@ -1079,6 +1079,21 @@ class API::BoardsController < API::ApplicationController
         language: resolved_language,
         profile: profile,
       )
+      # The core floor is a WHOLE-BOARD rule, the same scope
+      # BOARD_COVERAGE_RULES has: `@board.new_record?` is the temporary board
+      # built above when no board_id was sent, i.e. a board being drafted at
+      # /boards/new rather than an existing one being topped up. Forcing `yes`
+      # and `help` into ten more words for a fringe page called "Places" is the
+      # bug incremental_word_rules exists to stop. Applied HERE and not inside
+      # the model so the words the user approves are the words that get built —
+      # a floor added after approval is a tile that appears from nowhere.
+      if @board.new_record?
+        additional_words = Prompts::Aac.with_core_floor(
+          additional_words,
+          word_count: num_of_words,
+          existing_words: words_to_exclude,
+        )
+      end
     end
     if additional_words.blank?
       Rails.logger.error "No additional words found for prompt: #{prompt} - creation_type: #{creation_type}"

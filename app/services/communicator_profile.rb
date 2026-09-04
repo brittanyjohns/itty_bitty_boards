@@ -15,6 +15,18 @@ class CommunicatorProfile
   # picked `4-6` and polluted the data. The value string is shared with the
   # frontend's own band labels — never rename it without them.
   AGE_BANDS = %w[under-4 4-6 7-10 11-14 15-18 adult].freeze
+  # The one place a band becomes text a person reads, and the reason
+  # GET /api/age_bands exists: the board form's "Age range" select and the
+  # communicator form's "Age band" select are two screens a user visits minutes
+  # apart, and each shipped its own hand-written list. They disagreed — `2-3`
+  # and `15+` existed only on the board form, `under-4`, `15-18` and `adult`
+  # only on the communicator form — so half the board form's options resolved
+  # to no band at all downstream. Labels are ported from the frontend locale
+  # files verbatim; keep the value strings and the labels together here rather
+  # than letting a second copy grow anywhere else.
+  # Every band needs a row — spec/services/communicator_profile_age_bands_spec.rb
+  # fails the build otherwise.
+  AGE_BAND_LABEL_KEYS = AGE_BANDS.index_with { |band| "age_bands.#{band.tr('-', '_')}" }.freeze
   # Natural Language Acquisition (NLA) stages for gestalt language processors,
   # 1–6. Optional metadata stored as an INTEGER (unlike the string enums above)
   # — see ChildAccount#normalize_aac_profile_fields for the int handling.
@@ -59,11 +71,77 @@ class CommunicatorProfile
     profile.present? ? profile : nil
   end
 
+  # --- The canonical band vocabulary, for anything that has to render or
+  # --- resolve one. Both forms read these through GET /api/age_bands.
+
+  # Human label for a band, in the requested locale. Unknown bands answer nil
+  # rather than a humanized guess: a band we cannot name is a band we did not
+  # define, and printing "Under-4" would hide that.
+  def self.age_band_label(band, locale: I18n.default_locale)
+    key = AGE_BAND_LABEL_KEYS[band.to_s]
+    return nil if key.nil?
+
+    I18n.t(key, locale: locale)
+  end
+
+  # The list both age selects render from, in band order.
+  def self.age_band_options(locale: I18n.default_locale)
+    AGE_BANDS.map { |band| { value: band, label: age_band_label(band, locale: locale) } }
+  end
+
+  # Which band an age falls in. `0..3` is split off the old `0..6` case because
+  # early intervention routinely starts AAC at 2 and a toddler was reported as
+  # `4-6`.
+  def self.band_for_age(age)
+    return nil if age.blank?
+
+    case age
+    when 0..3   then "under-4"
+    when 4..6   then "4-6"
+    when 7..10  then "7-10"
+    when 11..14 then "11-14"
+    when 15..18 then "15-18"
+    else "adult"
+    end
+  end
+
+  # Resolve the LEGACY free-text `age_range` into a canonical band.
+  #
+  # Two forms have shipped their own age ranges — the board form's
+  # `2-3 / 4-6 / 7-10 / 11-14 / 15+` and the scenario form's
+  # `0-3 / 4-6 / 7-9 / 10-12 / ...` — and the only way either reached a band
+  # was by happening to equal one. So `2-3` and `15+`, two of the board form's
+  # six options, resolved to nothing: no voice default, no `young?`, no
+  # age-appropriate guidance. A canonical value wins outright; otherwise the
+  # range is resolved by its LOWER bound, which is the youngest communicator it
+  # names. Erring young costs a board some register; erring old costs it core
+  # vocabulary, which is the more expensive mistake on an AAC board.
+  def self.band_for_age_range(value)
+    return nil if value.blank?
+
+    text = value.to_s.strip.downcase
+    return text if AGE_BANDS.include?(text)
+    return "adult" if text.include?("adult")
+
+    lower_bound = text[/\d+/]
+    lower_bound && band_for_age(lower_bound.to_i)
+  end
+
+  # What a prompt should SAY for a given age range. A canonical band is a slug
+  # ("under-4") and reads as one in a sentence, so it is humanized; anything
+  # else is the user's own text and is passed through, since "2-3" tells the
+  # model more than the band it folds into would.
+  def self.age_range_prompt_text(value)
+    label = age_band_label(value.to_s.strip.downcase)
+    label || value.to_s
+  end
+
   # `age_range` is the legacy free-text param already used by the scenario flow;
   # it's accepted as a fallback when no structured age/age_band is given.
   def initialize(age: nil, age_band: nil, aac_level: nil, vocab_type: nil, glp_stage: nil, age_range: nil)
     @age = normalize_age(age)
-    @age_band = normalize_age_band(age_band) || band_for_age(@age) || normalize_age_band(age_range)
+    @age_band = normalize_age_band(age_band) || self.class.band_for_age(@age) ||
+                self.class.band_for_age_range(age_range)
     @aac_level = normalize_enum(aac_level, AAC_LEVELS)
     @vocab_type = normalize_enum(vocab_type, VOCAB_TYPES)
     @glp_stage = normalize_glp_stage(glp_stage)
@@ -148,19 +226,6 @@ class CommunicatorProfile
 
     stage = value.to_i
     GLP_STAGES.include?(stage) ? stage : nil
-  end
-
-  def band_for_age(age)
-    return nil if age.blank?
-
-    case age
-    when 0..3   then "under-4"
-    when 4..6   then "4-6"
-    when 7..10  then "7-10"
-    when 11..14 then "11-14"
-    when 15..18 then "15-18"
-    else "adult"
-    end
   end
 
   def descriptor_sentence

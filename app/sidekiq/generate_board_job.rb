@@ -19,16 +19,30 @@ class GenerateBoardJob
         profile = CommunicatorProfile.for(params: options["profile"] || {}, communicator: communicator)
         case board_creation_type
         when "default", "scenario"
-          # The merged "Build a board" form can send seed words (word_list)
-          # and a topic together. Seed words are used as-is; when a topic is
-          # present we also generate scenario words and combine them. A board
-          # with seed words but no topic just keeps the seed words.
+          # The APPROVED word list is authoritative. The user reviews these
+          # chips and taps "Create board"; anything added afterwards lands on
+          # the board having never been shown to anyone.
+          #
+          # This used to generate a SECOND list from the topic and merge it in,
+          # so a 24-word approval produced a 26-tile board. The two extras were
+          # `happy` and `sad` — near-duplicates of the approved `I feel happy`
+          # and `I feel sad`, which the second generation was never told about:
+          # its exclusion clause reads `data["current_word_list"]`, and that is
+          # empty until tiles exist. Nor can this detect "the user typed no
+          # situation" and generate only then, because boards#create forces
+          # `topic` to the board NAME for a scenario board. The presence of
+          # seed words is the signal, and it is the right one: they are what
+          # was confirmed.
+          #
+          # Enrichment is not forbidden — it has to happen before the approval
+          # step, where it can be seen and edited. Prompts::Aac.with_core_floor
+          # runs there for exactly that reason.
           seed_words = (options["word_list"] || options["wordList"] || []).compact
           topic = options["topic"].to_s.strip
           age_range = options["age_range"].presence || options["ageRange"].presence
 
           generated = []
-          if topic.present?
+          if seed_words.empty? && topic.present?
             if word_count <= 0 || word_count > 80
               Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{board.id}."
               # `|| 6` doesn't fire on 0 (truthy in Ruby), which mattered when
