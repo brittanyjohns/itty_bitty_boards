@@ -7,6 +7,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Published menu boards now show up in the public board gallery.** A menu you
+  published and we flagged as a featured board was public — anyone with the link
+  could open it — but it never appeared in the shared board library, so the only
+  way to find one was to already have the link. Menus stay out of the starting
+  points we suggest for a communicator: those are for vocabulary.
 - **You can check a communicator username before you commit to it.** Communicator
   usernames are shared across the whole app, so the obvious one for your child's
   name is usually already somebody's — and you only found that out from an error

@@ -238,7 +238,9 @@ class API::BoardsController < API::ApplicationController
     if params["myspeak"] == "true"
       scope = Board.myspeak_public_boards.alphabetical
       if scope.count < 3
-        scope = Board.public_boards.alphabetical
+        # Menu-free on purpose: this is the picker that seeds a communicator's
+        # first board, and `public_boards` now carries published menus.
+        scope = Board.public_non_menu_boards.alphabetical
       end
       scope = scope.limit(10)
     else
