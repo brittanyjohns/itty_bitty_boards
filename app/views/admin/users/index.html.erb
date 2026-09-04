@@ -3,7 +3,9 @@
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight">Users</h1>
-    <p class="text-sm text-t3 mt-0.5"><%= @total_count %> total</p>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= @total_count %> total<%= " \u00b7 demo accounts hidden" if @hide_demo && @filter != "demo" %>
+    </p>
   </div>
   <%= link_to "Export CSV", export_admin_dashboard_users_path,
         class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
@@ -23,13 +25,21 @@
       <option value="partner" <%= "selected" if @filter == "partner" %>>Partner Pro</option>
       <option value="basic" <%= "selected" if @filter == "basic" %>>Basic</option>
       <option value="free" <%= "selected" if @filter == "free" %>>Free</option>
-      <option value="trial" <%= "selected" if @filter == "trial" %>>Trial</option>
+      <option value="trial" <%= "selected" if @filter == "trial" %>>Trialing</option>
       <option value="demo" <%= "selected" if @filter == "demo" %>>Demo accounts</option>
       <option value="locked" <%= "selected" if @filter == "locked" %>>Locked</option>
       <option value="ios" <%= "selected" if @filter == "ios" %>>Signed up on iOS</option>
       <option value="android" <%= "selected" if @filter == "android" %>>Signed up on Android</option>
       <option value="web" <%= "selected" if @filter == "web" %>>Signed up on web</option>
     </select>
+
+    <label class="flex items-center gap-2 text-sm text-t2 cursor-pointer select-none"
+           title="Excludes internal/test accounts (User.non_demo). Ignored while the Demo accounts filter is on.">
+      <input type="checkbox" name="hide_demo" value="1" <%= "checked" if @hide_demo %>
+             onchange="this.form.submit()"
+             class="admin-input border rounded">
+      Hide demo accounts
+    </label>
 
     <input type="hidden" name="sort" value="<%= @sort %>">
     <input type="hidden" name="dir" value="<%= @dir %>">
@@ -38,7 +48,7 @@
             class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded px-4 py-1.5 transition-colors">
       Search
     </button>
-    <% if @search.present? || @filter.present? %>
+    <% if @search.present? || @filter.present? || @hide_demo %>
       <%= link_to "Clear", admin_dashboard_users_path,
             class: "text-xs text-t3 hover:text-t1 transition-colors" %>
     <% end %>
@@ -66,6 +76,7 @@
             ["Email",      "email"],
             ["Name",       "name"],
             ["Plan",       "plan_type"],
+            ["Trial",      "plan_status"],
             ["Source",     "signup_platform"],
             ["Boards",     "boards"],
             ["Sign-ins",   "sign_in_count"],
@@ -74,7 +85,7 @@
           ].each do |label, col| %>
             <th class="text-left text-xs font-medium text-t2 px-5 py-3">
               <% next_dir = (@sort == col && @dir == "asc") ? "desc" : "asc" %>
-              <%= link_to admin_dashboard_users_path(sort: col, dir: next_dir, search: @search, filter: @filter),
+              <%= link_to admin_dashboard_users_path(sort: col, dir: next_dir, search: @search, filter: @filter, hide_demo: (@hide_demo ? "1" : nil)),
                     class: "hover:text-t1 transition-colors inline-flex items-center gap-1" do %>
                 <%= label %>
                 <% if @sort == col %>
@@ -114,6 +125,23 @@
               <span class="<%= pilot[:badge_class] %> inline-block text-xs rounded px-2 py-0.5 ml-1" title="Pilot ends <%= pilot[:end_date]&.strftime('%b %-d, %Y') || '—' %>">
                 <%= pilot[:label] %>
               </span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <% trial = trial_status(user) %>
+            <% if trial %>
+              <span class="<%= trial[:badge_class] %> inline-block text-xs rounded px-2 py-0.5" title="<%= trial[:title] %>">
+                <%= trial[:label] %>
+              </span>
+              <% if trial[:needs_payment_method] %>
+                <span class="bg-orange-900/60 text-orange-300 inline-block text-xs rounded px-2 py-0.5 ml-1"
+                      title="No card on file — this trial cancels to Free at the end.">no card</span>
+              <% end %>
+              <div class="text-xs text-t3 mt-0.5">
+                <%= trial[:ends_at]&.strftime("%b %-d, %Y") || "no end date" %>
+              </div>
+            <% else %>
+              <span class="text-xs text-t3">&mdash;</span>
             <% end %>
           </td>
           <td class="px-5 py-3">

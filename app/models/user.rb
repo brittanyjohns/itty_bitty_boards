@@ -210,6 +210,12 @@ class User < ApplicationRecord
         "OR plan_type LIKE '%premium%' OR (plan_type LIKE '%pro%' AND role = 'vendor')",
       )
   }
+  # SQL counterpart of Admin::MissionControlHelper#trialing? — both providers
+  # write plan_status = "trialing"; the legacy basic_trial soft-trial cohort
+  # predates that column and so is matched on plan_type. Keep the two in
+  # agreement or the admin filter and the admin trial badge disagree about who
+  # is on a trial.
+  scope :trialing, -> { where(plan_status: "trialing").or(where(plan_type: "basic_trial")) }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   include WordEventsHelper
