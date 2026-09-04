@@ -151,6 +151,56 @@ RSpec.describe "API::Boards#pdf", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    # The free board generator hands an anonymous visitor a board with no user
+    # and no `published` flag, authorized only by an unguessable token, then
+    # redirects to this action to render the PDF. The guard refuses that board
+    # on `viewable_by?` alone, so the token has to travel with the redirect.
+    context "a generated board (free board generator)" do
+      let(:generated_board) do
+        board = Board.new(
+          user: nil,
+          name: "Generated Circle Time",
+          generated_token: SecureRandom.hex(16),
+          generated_token_expires_at: 2.days.from_now,
+        )
+        board.board_type = "generated"
+        board.assign_parent
+        board.slug = board.generate_unique_slug
+        board.voice = "polly:kevin"
+        board.status = "generating"
+        board.save!
+        board
+      end
+
+      it "serves the PDF end to end, anonymously, through the redirect" do
+        get "/api/generated_boards/#{generated_board.generated_token}/pdf"
+        expect(response).to have_http_status(:found)
+
+        follow_redirect!
+
+        expect(response).to have_http_status(:ok)
+        expect(response.content_type).to start_with("application/pdf")
+      end
+
+      it "404s without the token — the token is what authorizes it, not the board type" do
+        get "/api/boards/#{generated_board.id}/pdf"
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "404s on a wrong token" do
+        get "/api/boards/#{generated_board.id}/pdf", params: { generated_token: SecureRandom.hex(16) }
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "does not let a generated token unlock a different board" do
+        get "/api/boards/#{board.id}/pdf", params: { generated_token: generated_board.generated_token }
+
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
     it "404s a signed-in non-owner asking for someone else's private board" do
       get "/api/boards/#{board.id}/pdf", headers: auth_headers(other_user)
 

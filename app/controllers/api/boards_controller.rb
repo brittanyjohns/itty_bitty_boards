@@ -1719,7 +1719,9 @@ class API::BoardsController < API::ApplicationController
     # communicator owns no boards — everything on their dashboard belongs to the
     # adult above them. `acting_user` resolves that token to `current_account.user`
     # and is nil for an anonymous caller, which `viewable_by?` refuses.
-    unless @board.viewable_by?(acting_user)
+    # A generated board is user-less and unpublished, so `viewable_by?` refuses
+    # it: see `generated_token_matches?`.
+    unless @board.viewable_by?(acting_user) || generated_token_matches?(@board)
       render json: { error: "Board not found" }, status: :not_found
       return
     end
@@ -1782,6 +1784,25 @@ class API::BoardsController < API::ApplicationController
   end
 
   private
+
+  # `GET /api/generated_boards/:token/pdf` authorizes by an unguessable token
+  # and then REDIRECTS here, which drops the capability — the browser follows
+  # with no credentials, and a generated board is `user: nil` and unpublished,
+  # so `viewable_by?` refuses it and the free board generator's download 404s.
+  # Carrying the token through the redirect restores it without widening the
+  # guard: this grants nothing to a caller who does not already hold the token,
+  # and it is scoped to the single board that token names.
+  #
+  # Deliberately match-only, no expiry check: `set_generated_board_by_token`
+  # does not enforce `generated_token_expires_at` either, and this is a
+  # security fix, not the place to quietly tighten a second rule.
+  def generated_token_matches?(board)
+    provided = params[:generated_token].to_s
+    actual = board.generated_token.to_s
+    return false if provided.blank? || actual.blank?
+
+    ActiveSupport::SecurityUtils.secure_compare(provided, actual)
+  end
 
   # The exclusion list arrives as an Array from a JSON caller and as a
   # comma-joined String from the board editor (see getWords in the frontend's
