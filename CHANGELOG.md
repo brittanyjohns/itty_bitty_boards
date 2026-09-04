@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Quick-add sets of words to a board.** Adding pronouns, action words,
+  greetings or numbers meant typing every one of them into a box. You can now
+  pick a ready-made set, uncheck anything you don't want, and add the rest in
+  one go. On a menu board you also get sizes, condiments and phrases for
+  ordering. The sets are curated, not generated: they cost no AI credits, and
+  each word arrives already the right colour. Words that don't have a picture in
+  the library yet are flagged before you add them — the tile still lands, you
+  just add art to it afterwards if you want to.
 - **Published menu boards now show up in the public board gallery.** A menu you
   published and we flagged as a featured board was public — anyone with the link
   could open it — but it never appeared in the shared board library, so the only

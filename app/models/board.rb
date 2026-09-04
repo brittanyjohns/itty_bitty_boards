@@ -1375,8 +1375,19 @@ class Board < ApplicationRecord
   # items: within budget they always get a fresh, private, description-driven
   # image rather than a label match from the shared library; over budget they
   # fall back to library reuse so the tile isn't left blank.
+  # `parts_of_speech` (normalized word => part_of_speech), same shape, is the
+  # AUTHORED part of speech for a word, and it lands in two places for two
+  # different reasons. On a newly created Image it skips the
+  # AacWordCategorizer call in Image#ensure_defaults — a synchronous OpenAI
+  # request per novel word, inside this user-facing path — the same way
+  # image_type "menu" does above. On the TILE it is what actually colours the
+  # word, because a matched library image may carry a stale or blank part of
+  # speech ("she" was stored `default`, so it came out grey beside a yellow
+  # "he"). It is never written back to the shared `images` row: that row is on
+  # thousands of other boards, and a per-board answer belongs to the tile.
+  # Used by the curated word packs (Boards::WordPacks).
   # Returns the number of images queued for generation.
-  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil)
+  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil, parts_of_speech: nil)
     if id.blank?
       self.save!
     end
@@ -1405,6 +1416,7 @@ class Board < ApplicationRecord
       end
       Rails.logger.debug "Change detected: #{og_word} -> #{word}" unless og_word == word
       menu_prompt = menu_prompts && menu_prompts[word.to_s.downcase.strip]
+      authored_pos = parts_of_speech && parts_of_speech[word.to_s.downcase.strip]
       skip_generation = false
       if menu_prompt && (max_generate.nil? || queued_count < max_generate)
         # Menu labels ("single", "virginia") collide with unrelated library
@@ -1431,7 +1443,7 @@ class Board < ApplicationRecord
               Image.create(label: word, user_id: user_id, is_private: true,
                            image_type: "menu", image_prompt: menu_prompt)
             else
-              Image.create(label: word)
+              Image.create(label: word, part_of_speech: authored_pos)
             end
         end
         image ||= new_image
@@ -1450,6 +1462,7 @@ class Board < ApplicationRecord
         end
       end
       new_board_image = self.add_image(image.id) if image
+      apply_authored_part_of_speech!(new_board_image, authored_pos)
       new_board_image.update_column(:status, "skipped") if skip_generation && new_board_image&.persisted?
       if image_ids_to_generate.count > 2
         image_ids_to_generate.each_slice(3) do |batch|
@@ -1466,6 +1479,19 @@ class Board < ApplicationRecord
       end
     end
     queued_count
+  end
+
+  # Pin an authored part of speech onto ONE tile and recolour it, leaving the
+  # shared Image alone. `set_colors` reads `effective_part_of_speech` and
+  # already resolves a menu tile to white, so the menu rule survives.
+  def apply_authored_part_of_speech!(board_image, pos)
+    return if pos.blank?
+    return unless board_image&.persisted?
+    return if board_image.part_of_speech == pos
+
+    board_image.part_of_speech = pos
+    board_image.set_colors
+    board_image.save
   end
 
   def remove_image(image_id)

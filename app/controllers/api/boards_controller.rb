@@ -13,12 +13,16 @@ class API::BoardsController < API::ApplicationController
   before_action :check_communicator_board_access!, only: %i[ add_image ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
-  before_action :check_board_view_edit_permissions, only: %i[update destroy]
+  # Declared BEFORE check_board_editable!, which answers a different question:
+  # User#board_editable? returns true for a board you don't own (it measures the
+  # PLAN lock, not permission), so without this a signed-in user could add tiles
+  # to anyone's board.
+  before_action :check_board_view_edit_permissions, only: %i[update destroy add_word_pack]
   before_action :check_board_create_permissions, only: %i[ create clone clone_plan create_from_template import_obf ]
-  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
+  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image generate_preview_image ]
   # Declared AFTER check_board_editable! so the plan gate still answers first —
   # a read-only board is 403 board_locked whether or not it's also for sale.
-  before_action :check_marketplace_edit_confirmed!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image associate_image associate_images remove_image ]
+  before_action :check_marketplace_edit_confirmed!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -1205,6 +1209,54 @@ class API::BoardsController < API::ApplicationController
     else
       render json: img_saved.errors, status: :unprocessable_content
     end
+  end
+
+  # Quick add: drop a curated set of words (Boards::WordPacks) onto the board.
+  #
+  # The client names a PACK KEY and the subset of that pack's words it wants;
+  # the server owns the vocabulary and the part of speech. Anything not in the
+  # named pack is dropped rather than 422'd — a stale client asking for a word
+  # a pack no longer carries should add the rest, not fail.
+  #
+  # Costs nothing and must stay that way. `max_generate: 0` means no
+  # GenerateImagesJob is ever enqueued (a word with no library art lands as a
+  # picture-less tile, which the client warned about before the add), and the
+  # authored part_of_speech means Image#ensure_defaults skips the synchronous
+  # AacWordCategorizer OpenAI call it would otherwise make per novel word.
+  def add_word_pack
+    # Already resolved by check_board_editable!; the guard is for the shape, not
+    # a second query.
+    set_board if @board.nil?
+    return if performed? || @board.nil?
+
+    pack = Boards::WordPacks.find(params[:pack_key])
+    unless pack
+      render json: { error: "word_pack_not_found", message: "We don't have that set of words." },
+             status: :not_found
+      return
+    end
+
+    words = Boards::WordPacks.requested_words(pack[:key], params[:words])
+    # Skip what's already here. The picker greys these out, but two tabs or a
+    # stale payload shouldn't produce duplicate tiles. Must be the SAME answer
+    # the catalog gave (Boards::WordPacks.placed_keys), or the picker offers a
+    # word this drops on the floor.
+    already = Boards::WordPacks.placed_keys(@board)
+    words = words.reject { |word| already.include?(Boards::WordPacks.normalize_key(word)) }
+
+    if words.any?
+      @board.find_or_create_images_from_word_list(
+        words,
+        max_generate: 0,
+        parts_of_speech: Boards::WordPacks.part_of_speech_map(pack[:key], words),
+      )
+      @board.reload
+    end
+
+    @board_with_images = @board.api_view_with_images(current_user)
+    broadcast_board_update! if words.any?
+
+    render json: @board_with_images.merge(words_added: words), status: :ok
   end
 
   def associate_image

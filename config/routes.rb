@@ -394,6 +394,7 @@ Rails.application.routes.draw do
         post "generate_preview_image"
         post "rearrange_images"
         post "add_image"
+        post "add_word_pack"
         post "remove_image"
         put "associate_image"
         put "associate_images"
@@ -418,6 +419,9 @@ Rails.application.routes.draw do
         patch "make_editable"
       end
     end
+    # Curated quick-add word packs for the Add-tiles modal. Read-only catalog;
+    # the add itself is POST /api/boards/:id/add_word_pack.
+    resources :word_packs, only: [:index]
     resources :board_exports, only: [:show] do
       member do
         get "download"
