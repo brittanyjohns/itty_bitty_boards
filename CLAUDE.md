@@ -322,7 +322,18 @@ an explicit decision, not a drive-by edit.
   INLINE rather than via a blanket `before_action` — the publish intent has to be
   known first, or the one board a capped user is allowed to add would be the one
   board they could never create. Unpublishing re-charges it and may put the user
-  over the cap; that is the ordinary over-limit state, not an error.
+  over the cap; that is the ordinary over-limit state, not an error. The
+  corollary one scope over: an admin-owned menu that is published AND
+  `predefined` is in `Board.public_boards` like any other catalogue board — it
+  was excluded as a side effect of `admin_owned_boards`' `where.not(parent_type:
+  "Menu")`, which the admin PRINTABLES dashboard wants and the catalogue does
+  not, so the two now split at `admin_published_boards`. A menu is still not
+  vocabulary, so every surface that offers a communicator a STARTING POINT reads
+  `Board.public_non_menu_boards` instead — the MySpeak starter grid (six cards,
+  a restaurant menu displacing a core board is the failure that cap exists to
+  prevent), the `?myspeak=true` picker, and `ChildAccount#go_to_boards`. That
+  scope excludes on `board_type` as well as `parent_type`, because a menu whose
+  `parent` was severed by the rename bug is still a menu.
 - **There is ONE communicator-slot answer and it is
   `Permissions::CommunicatorLimits.slots_for`.** A `loaner` occupies the
   lender's slot until a family CLAIMS it, and the slot returns on claim — that
