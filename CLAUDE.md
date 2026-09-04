@@ -1212,6 +1212,69 @@ an explicit decision, not a drive-by edit.
   autonomy failure, so the principle is preserved, not dropped. `WORD_RULES`
   stays byte-identical so the whole-board callers are untouched — never "tidy"
   the split by rewrapping it. Details: `.claude-notes/ai-prompting.md`.
+- **An APPROVED word list is the board — nothing is added after the user taps
+  Create.** `GenerateBoardJob` used to generate a SECOND list from the topic and
+  merge it into the seed words, so a 24-word approval built a 26-tile board
+  whose extras (`happy`, `sad`) were near-duplicates of words the user HAD
+  approved (`I feel happy`, `I feel sad`). The second generation could not know:
+  its exclusion clause reads `data["current_word_list"]`, which is empty until
+  tiles exist. Nor can the job detect "the user typed no situation" and generate
+  only then — `boards#create` forces `topic` to the board NAME for a scenario
+  board, so a topic is always present. The presence of SEED WORDS is the signal,
+  and it is the right one: they are what was confirmed. Enrichment is not
+  forbidden, it just has to happen where it can be seen and edited, which is why
+  `Prompts::Aac.with_core_floor` runs at the approval step and not after it.
+- **`Prompts::Aac.with_core_floor` guarantees `CORE_STARTER_WORDS` on a WHOLE
+  board, and its scope is `BOARD_COVERAGE_RULES`'.** `OBJECTION_REDIRECT_RULE`
+  is prose, and a model that honours exactly half of it still ships: a K-3
+  circle-time board came back with `no`, `stop`, `all done`, `different` and
+  `something else` — and no `yes`. A board offering a child a way to refuse and
+  no way to accept is an AAC modelling gap an SLP reads immediately, so the ask
+  is enforced in Ruby as well as asked for. Three things it gets right. It runs
+  at the APPROVAL step (`words` gates on `@board.new_record?`) and inside
+  `get_words_for_scenario`, never on an incremental add — forcing `yes` and
+  `help` into ten more words for a fringe page called "Places" is exactly the
+  bug `incremental_word_rules` exists to stop, one layer down. It never grows a
+  list past `word_count` and never spends more than HALF of one on the floor, so
+  a small board stays a board about its topic; the list is ordered by priority
+  (`yes`/`no` first) because that is what a small board keeps. And presence is
+  matched on word boundaries over normalised text, the same way
+  `can_object_or_redirect?` matches, so a board carrying "no thank you" is not
+  handed "no" again.
+- **A multi-word tile that misses the symbol library falls back to its HEAD
+  WORD's picture, and that fallback is written to the TILE.**
+  `Image.by_label` matches a whole label exactly, so a phrase either has a
+  library row of its own or it has nothing — nothing in the resolver chain
+  decomposes one. `I feel happy` and `I feel sad` resolved to real art while
+  `I feel tired`, built identically, rendered as an inline `data:image/svg+xml`
+  of its own text: a visibly emptier tile on screen, a blank square on the
+  laminated print. `Boards::PhraseArtFallback` answers with the head word's art
+  and `Board#apply_phrase_art_fallback` writes it to `display_image_url` —
+  never to the shared `Image`, whose row sits on boards across unrelated
+  accounts and would both inherit the borrowed art and stop art generation ever
+  running for the phrase. The guard is `display_image_url.nil?`, matching
+  `BoardImage#set_defaults` one line up: `""` is the "this tile has no picture"
+  marker and is truthy, so a `blank?` test would put a symbol back on a tile
+  someone deliberately blanked. It answers nil rather than guessing — "how are
+  you" is all function words and keeps the placeholder — because a wrong
+  picture on an AAC tile is worse than none, the picture being what a
+  nonspeaking user reads. Misses are logged (`PhraseArtFallback miss`) so the
+  coverage gap is measurable.
+- **There is ONE age-band vocabulary, `CommunicatorProfile::AGE_BANDS`, and
+  `GET /api/age_bands` is how a form gets it.** The board form's "Age range"
+  offered `Any age / 2–3 / 4–6 / 7–10 / 11–14 / 15+` and the communicator form's
+  "Age band" offered `Under 4 / 4-6 / 7-10 / 11-14 / 15-18 / adult` — two
+  vocabularies for one concept, two screens a user visits minutes apart. Worse
+  than cosmetic: `normalize_age_band` accepted a value only when it EQUALLED a
+  canonical band, so `2-3` and `15+`, two of the board form's six options,
+  resolved to no band at all and reached neither the voice default nor
+  `young?` — picking either was the same as leaving the select alone.
+  `AGE_BAND_LABEL_KEYS` pairs every band with a label (locale files, served like
+  `care_sections`), and `CommunicatorProfile.band_for_age_range` folds any
+  legacy free-text range by its LOWER bound — the youngest communicator it
+  names, since erring young costs a board some register while erring old costs
+  it core vocabulary. `age_band` stays STRICT (it is a stored enum
+  `ChildAccount` validates); only the legacy `age_range` slot is lenient.
 - **`Boards::TileArrangement` is the ONE part-of-speech band order, and it is
   shared.** It was `Boards::AdminBuilder::TileArrangement` until "Format with
   AI" started using it too; the old constant is a Zeitwerk-visible alias at the

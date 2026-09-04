@@ -229,6 +229,11 @@ Rails.application.routes.draw do
     # from a hand-copied duplicate of Profile::CARE_SECTIONS.
     get "care_sections", to: "care_sections#index"
     get "voices", to: "application#voice_options"
+    # The canonical communicator age bands. Static reference data, no auth —
+    # see the controller. Both the board form and the communicator form render
+    # their age select from this rather than from two hand-written lists that
+    # had already drifted apart.
+    get "age_bands", to: "age_bands#index"
 
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"

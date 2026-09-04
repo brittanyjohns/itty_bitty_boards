@@ -224,4 +224,77 @@ RSpec.describe Prompts::Aac do
         .to include(Boards::AdminBuilder::TileArrangement::PROMPT_RULE.rstrip)
     end
   end
+  # A K-3 circle-time board came back with `no`, `stop`, `all done`, `different`
+  # and `something else` — and no `yes`. OBJECTION_REDIRECT_RULE asks for a way
+  # to refuse and a way to redirect, and a model that honours exactly that much
+  # still ships a board that can decline and cannot accept, which an SLP reads
+  # immediately as "this tool doesn't know AAC". So the ask is enforced after
+  # the fact as well as asked for in prose.
+  describe ".with_core_floor" do
+    it "adds every missing core word to a board that has room" do
+      result = described_class.with_core_floor(%w[hello sunny rainy cloudy], word_count: 24)
+
+      expect(result).to include(*described_class::CORE_STARTER_WORDS)
+      expect(result.first(4)).to eq(%w[hello sunny rainy cloudy])
+    end
+
+    # The reported board: it could say no and not yes.
+    it "adds yes to a board that can already refuse" do
+      words = ["hello", "I feel happy", "no", "stop", "all done", "different"]
+
+      result = described_class.with_core_floor(words, word_count: 24)
+
+      expect(result).to include("yes")
+    end
+
+    it "leaves a list that already covers the floor exactly as it found it" do
+      words = ["yes", "no", "more", "help", "stop", "I want"]
+
+      expect(described_class.with_core_floor(words, word_count: 24)).to eq(words)
+    end
+
+    # Matched on word boundaries over normalised text, the same way
+    # can_object_or_redirect? matches, so a board is not handed a word it has.
+    it "counts a core word carried inside a longer label" do
+      words = ["no thank you", "I want more", "yes please", "help me", "stop it", "song"]
+
+      expect(described_class.with_core_floor(words, word_count: 24)).to eq(words)
+    end
+
+    it "counts a core word the board already has, given as existing_words" do
+      result = described_class.with_core_floor(%w[sunny rainy], word_count: 24, existing_words: %w[yes no])
+
+      expect(result).not_to include("yes")
+      expect(result).not_to include("no")
+      expect(result).to include("more")
+    end
+
+    it "never grows the list past the word count it was asked for" do
+      result = described_class.with_core_floor(%w[a b c d e f g h], word_count: 8)
+
+      expect(result.size).to eq(8)
+      expect(result).to include("yes", "no", "more", "help")
+    end
+
+    # A small board that spent every cell on the floor would stop being a board
+    # about its topic, so the floor takes at most half and leads with yes/no —
+    # the pair this exists for.
+    it "spends at most half a small board on the floor, highest priority first" do
+      result = described_class.with_core_floor(%w[apple banana cherry date], word_count: 4)
+
+      expect(result).to eq(%w[apple banana yes no])
+    end
+
+    # The model answering with nothing is a failure the callers already handle;
+    # filling it with six core words would turn that into a plausible-looking
+    # six-tile board nobody asked for.
+    it "does not manufacture a board out of an empty answer" do
+      expect(described_class.with_core_floor([], word_count: 24)).to eq([])
+      expect(described_class.with_core_floor(nil, word_count: 24)).to eq([])
+    end
+
+    it "does nothing when it is given no room at all" do
+      expect(described_class.with_core_floor(%w[a b], word_count: 0)).to eq(%w[a b])
+    end
+  end
 end

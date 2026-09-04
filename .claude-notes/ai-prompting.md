@@ -100,6 +100,38 @@ The general rule, which `.incremental_word_rules` is just one instance of:
 **ask what job the prompt is doing before handing it the kernel.** Social-story
 steps already opt out of `WORD_RULES` entirely for the same reason.
 
+## A rule the model can ignore is a rule that has to be enforced
+
+`OBJECTION_REDIRECT_RULE` asks for a way to object AND a way to redirect. A K-3
+circle-time board came back with `no`, `stop`, `all done`, `different` and
+`something else` — the rule honoured, exactly half of it — and no `yes`. A board
+that can decline and cannot accept is an AAC modelling gap an SLP reads
+immediately, and no amount of prompt rewriting makes a model's compliance a
+guarantee.
+
+`Prompts::Aac.with_core_floor` is the enforcement half: after the model answers,
+any missing `CORE_STARTER_WORDS` (`yes`, `no`, `more`, `help`, `stop`,
+`I want`, in that order) are merged in. It shares the scope of
+`BOARD_COVERAGE_RULES` — a whole board, never an incremental add — and shares
+its matching too, `mentions?` over normalised labels, so a board carrying
+"no thank you" or "I want more" is not handed those words a second time.
+
+Two limits are load-bearing. It never grows a list past `word_count`, because a
+generated board has a grid to fit, and it never spends more than half of one on
+the floor, so a four-word board stays a board about its topic and keeps only
+`yes`/`no`. And it runs where the user can still SEE the result: at the approval
+step in `boards#words` (gated on `@board.new_record?`) and inside
+`get_words_for_scenario`, which is the path with no approval step at all. A word
+added between "Generate words" and "Create board" is a tile that appears from
+nowhere — the same complaint as the two extra tiles `GenerateBoardJob` used to
+merge in.
+
+The general shape: **when a model keeps getting a rule half-right, move the
+half that is checkable into Ruby and leave the prompt asking for all of it.**
+Compare the tile-size fix above, which took the opposite route for a rule that
+was not checkable after the fact — a size the prompt cannot express is a size
+the model cannot get wrong.
+
 ## What is shared and what is not
 
 `AdminBuilder::Drafting` keeps its own `MODEL`, `TEMPERATURE`,

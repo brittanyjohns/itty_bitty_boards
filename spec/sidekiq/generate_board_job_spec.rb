@@ -142,7 +142,28 @@ RSpec.describe GenerateBoardJob, type: :job do
       allow_any_instance_of(described_class).to receive(:sleep)
     end
 
-    it "combines the seed word_list with topic-generated words (deduped)" do
+    # The approved list is authoritative. This used to generate a second list
+    # from the topic and merge it in, so a 24-word approval built a 26-tile
+    # board whose two extras were near-duplicates of words the user HAD
+    # approved. boards#create forces `topic` to the board name for a scenario
+    # board, so a topic is always present here and cannot be the signal.
+    it "builds only the seed word_list, without generating a second list" do
+      allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
+      expect(board).not_to receive(:get_words_for_scenario)
+
+      captured = nil
+      allow(board).to receive(:find_or_create_images_from_word_list) { |w| captured = w }
+
+      described_class.new.perform(
+        board.id,
+        "default",
+        { "topic" => "morning routine", "word_list" => %w[wake brush], "word_count" => 5 },
+      )
+
+      expect(captured).to eq(%w[wake brush])
+    end
+
+    it "generates from the topic when no seed words were approved" do
       allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
       expect(board).to receive(:get_words_for_scenario)
         .with("morning routine", nil, 5, profile: nil)
@@ -154,10 +175,10 @@ RSpec.describe GenerateBoardJob, type: :job do
       described_class.new.perform(
         board.id,
         "default",
-        { "topic" => "morning routine", "word_list" => %w[wake brush], "word_count" => 5 },
+        { "topic" => "morning routine", "word_count" => 5 },
       )
 
-      expect(captured).to eq(%w[wake brush eat])
+      expect(captured).to eq(%w[wake eat])
     end
 
     it "uses the seed words alone when no topic is given" do
@@ -178,9 +199,8 @@ RSpec.describe GenerateBoardJob, type: :job do
 
     # Image.by_label matches on LOWER(label), so "Dog" and "dog" resolve to
     # one Image — a case-sensitive uniq left two tiles showing one picture.
-    it "dedupes seeds against generated words case-insensitively" do
+    it "dedupes the word list case-insensitively" do
       allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
-      allow(board).to receive(:get_words_for_scenario).and_return(%w[dog Bus])
 
       captured = nil
       allow(board).to receive(:find_or_create_images_from_word_list) { |w| captured = w }
@@ -188,10 +208,10 @@ RSpec.describe GenerateBoardJob, type: :job do
       described_class.new.perform(
         board.id,
         "default",
-        { "topic" => "pets", "word_list" => %w[Dog cat], "word_count" => 5 },
+        { "topic" => "pets", "word_list" => %w[Dog cat dog], "word_count" => 5 },
       )
 
-      expect(captured).to eq(%w[Dog cat Bus])
+      expect(captured).to eq(%w[Dog cat])
     end
   end
 end

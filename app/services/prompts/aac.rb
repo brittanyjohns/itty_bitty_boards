@@ -130,17 +130,76 @@ module Prompts
     # (Board#current_word_list reads display_label), so casing and curly
     # apostrophes both have to be normalised away first.
     def self.can_object_or_redirect?(words)
-      labels = Array(words).filter_map do |word|
-        normalised = word.to_s.unicode_normalize(:nfkc).tr("‘’", "''").downcase.squish
-        normalised.presence
-      end
+      labels = normalise_labels(words)
       return false if labels.empty?
 
       mentions?(labels, OBJECTION_WORDS) && mentions?(labels, REDIRECTION_WORDS)
     end
 
+    # The floor a WHOLE generated board is held to, in priority order.
+    #
+    # OBJECTION_REDIRECT_RULE is a prompt instruction, and a model that honours
+    # half of it still ships: a K-3 circle-time board came back with `no`,
+    # `stop`, `all done`, `different` and `something else` — and no `yes`.
+    # Offering a child a way to refuse and no way to accept is an AAC modelling
+    # gap an SLP reads immediately, so the ask is ALSO enforced in Ruby rather
+    # than only asked for in prose.
+    #
+    # Order is priority order, because a small board cannot take all six:
+    # yes/no lead, since an accept with no refusal (or the reverse) is the
+    # specific failure this exists for.
+    CORE_STARTER_WORDS = ["yes", "no", "more", "help", "stop", "I want"].freeze
+
+    # Guarantee CORE_STARTER_WORDS on a whole-board word list.
+    #
+    # WHOLE-BOARD ONLY, exactly like BOARD_COVERAGE_RULES. Forcing `yes`, `no`
+    # and `help` into a ten-word top-up of a fringe page called "Places" is the
+    # same bug `incremental_word_rules` exists to stop, one layer down — which
+    # is why `existing_words` is a parameter rather than an afterthought: a
+    # board that can already say a thing is not handed it twice.
+    #
+    # Never grows the list past `word_count` (a generated board has a grid to
+    # fit) and never spends more than HALF of it on the floor, so a small board
+    # stays a board about its topic. Injected words replace the TAIL of the
+    # model's list — the end it ranked least important.
+    #
+    # Presence is matched on word boundaries over normalised text, the same way
+    # can_object_or_redirect? does, so a board carrying "no thank you" already
+    # has a way to say no and one carrying "I want more" already has "more".
+    def self.with_core_floor(words, word_count:, existing_words: [])
+      list = Array(words).filter_map { |word| word.to_s.gsub("_", " ").strip.presence }
+      count = word_count.to_i
+      return list if count <= 0
+      # A floor tops a list up; it does not manufacture one. The model answering
+      # with nothing is a FAILURE every caller already handles — boards#words
+      # 422s and GenerateBoardJob stops before building tiles — and filling that
+      # emptiness with six core words would turn it into a plausible-looking
+      # six-tile board instead.
+      return list if list.empty?
+
+      labels = normalise_labels(list + Array(existing_words))
+      missing = CORE_STARTER_WORDS.reject { |core| mentions?(labels, [core]) }
+      return list if missing.empty?
+
+      room = [count / 2, missing.size].min
+      return list if room <= 0
+
+      missing = missing.first(room)
+      list.first([count - missing.size, 0].max) + missing
+    end
+
+    # Labels arrive as display text (Board#current_word_list reads
+    # display_label), so casing and curly apostrophes both have to be
+    # normalised away before either side of a match is trustworthy.
+    def self.normalise_labels(words)
+      Array(words).filter_map do |word|
+        word.to_s.unicode_normalize(:nfkc).tr("‘’", "''").downcase.squish.presence
+      end
+    end
+    private_class_method :normalise_labels
+
     def self.mentions?(labels, vocabulary)
-      vocabulary.any? do |word|
+      normalise_labels(vocabulary).any? do |word|
         pattern = /(?<!\w)#{Regexp.escape(word)}(?!\w)/
         labels.any? { |label| label.match?(pattern) }
       end

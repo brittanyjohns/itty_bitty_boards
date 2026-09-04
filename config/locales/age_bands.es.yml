@@ -1,0 +1,12 @@
+# Spanish labels for CommunicatorProfile::AGE_BANDS — see age_bands.en.yml for
+# why these live server-side. Ported verbatim from the frontend's own es.json,
+# which has not translated this group yet; when it does, move the strings here
+# rather than adding a second copy there.
+es:
+  age_bands:
+    under_4: Under 4
+    "4_6": 4–6 years
+    "7_10": 7–10 years
+    "11_14": 11–14 years
+    "15_18": 15–18 years
+    adult: Adult

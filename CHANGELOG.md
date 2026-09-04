@@ -42,6 +42,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   name is very often a child's first name. Private boards now come back "not
   found" to anyone who isn't the owner, a teammate or an admin. Downloading the
   free public boards without signing in still works exactly as before.
+- **A board you generate now contains exactly the words you approved.** You
+  reviewed a 24-word list, tapped Create board, and got 26 tiles — the two
+  extras being near-duplicates of words already on it. The app was quietly
+  generating a second list after you approved the first. It no longer does:
+  what you confirm is what gets built.
+- **Generated boards always offer a way to say yes.** A circle-time board came
+  back able to say `no`, `stop` and `all done` and with no way to accept
+  anything. Every generated board now carries a small core set — yes, no, more,
+  help, stop, I want — and they appear in the word list *before* you approve
+  it, so you can still edit them. A small board takes only as many as it has
+  room for, and nothing is added twice if the board already says it.
+- **A tile with a phrase on it borrows a picture instead of showing text.**
+  `I feel tired` used to render as a blank-looking square of its own words
+  while `I feel happy` and `I feel sad`, built the same way, got real symbols —
+  fine on screen, a blank square on a laminated print. A phrase with no symbol
+  of its own now falls back to its main word's picture. Where there is no
+  sensible one to borrow, the tile is left as it was rather than given a wrong
+  picture.
+- **The board form and the communicator form now offer the same age bands.**
+  They offered different lists — `2–3` and `15+` on one, `Under 4`, `15–18` and
+  `adult` on the other — and picking `2–3` or `15+` on the board form did
+  nothing at all, because nothing downstream recognised them. There is one
+  list now, and every option on it actually reaches the word suggestions and
+  the voice default.
 - **A MySpeak page with no starred boards now offers a short starting point
   instead of the whole library.** Before anyone had starred a board, a
   communicator's public page — the one handed to a teacher on the first day of

@@ -1,0 +1,23 @@
+# Human-readable labels for CommunicatorProfile::AGE_BANDS.
+#
+# The band VALUES are the backend's (they gate the voice default, `young?`,
+# and the AAC prompt guidance), but the display strings lived only in the
+# frontend — twice, and differently. `/boards/new` offered
+# `Any age / 2–3 / 4–6 / 7–10 / 11–14 / 15+`; `/communicator-accounts/new`
+# offered `Under 4 / 4-6 / 7-10 / 11-14 / 15-18 / adult`. Two vocabularies for
+# one concept, two screens apart, and `2-3` and `15+` matched no band at all,
+# so picking either was the same as picking nothing.
+#
+# These are ported verbatim from the frontend locale files and are now served
+# on GET /api/age_bands, which makes this side the source of truth for both
+# forms. Every band needs an entry —
+# spec/services/communicator_profile_age_bands_spec.rb fails the build
+# otherwise.
+en:
+  age_bands:
+    under_4: Under 4
+    "4_6": 4–6 years
+    "7_10": 7–10 years
+    "11_14": 11–14 years
+    "15_18": 15–18 years
+    adult: Adult

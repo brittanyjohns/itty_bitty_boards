@@ -665,13 +665,17 @@ RSpec.describe "API::Boards", type: :request do
       allow_any_instance_of(API::BoardsController).to receive(:check_credits!).and_return(true)
     end
 
+    # No board_id, so these draft a WHOLE board and are held to
+    # Prompts::Aac.with_core_floor: a three-word board has room for one core
+    # word, and `yes` leads the list. See
+    # spec/requests/api/boards_word_core_floor_spec.rb for that contract.
     it "accepts an optional communicator profile without error" do
       allow_any_instance_of(Board).to receive(suggest).and_return(%w[more help go])
       get "/api/boards/words",
           params: { name: "Doctor Visit", num_of_words: 3, age: 4, aac_level: "emerging" },
           headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body)).to eq(%w[more help go])
+      expect(JSON.parse(response.body)).to eq(%w[more help yes])
     end
 
     it "still works with no profile params (no regression)" do
@@ -680,7 +684,7 @@ RSpec.describe "API::Boards", type: :request do
           params: { name: "Doctor Visit", num_of_words: 3 },
           headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body)).to eq(%w[doctor nurse clinic])
+      expect(JSON.parse(response.body)).to eq(%w[doctor nurse yes])
     end
 
     # The regression this endpoint's fork caused: the editor seeds the override
