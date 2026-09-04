@@ -26,6 +26,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A private board's printable PDF is no longer downloadable by anyone who
+  guesses its number.** The PDF export renders a board's complete contents —
+  every tile, its label and symbol, and the board name — and it was answering
+  callers with no account and no connection to the board at all. Board numbers
+  run in sequence, so one board's number gave up its neighbours', and a board
+  name is very often a child's first name. Private boards now come back "not
+  found" to anyone who isn't the owner, a teammate or an admin. Downloading the
+  free public boards without signing in still works exactly as before.
 - **A MySpeak page with no starred boards now offers a short starting point
   instead of the whole library.** Before anyone had starred a board, a
   communicator's public page — the one handed to a teacher on the first day of
