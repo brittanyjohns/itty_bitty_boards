@@ -14,7 +14,7 @@ class API::WordPacksController < API::ApplicationController
     arted = Boards::ImageResolver.arted_all_for(
       packs.flat_map { |pack| pack[:words] }, owner: current_user
     )
-    on_board = board ? board.current_word_list.to_a.map { |w| Boards::WordPacks.normalize_key(w) }.to_set : Set.new
+    on_board = Boards::WordPacks.placed_keys(board)
 
     render json: {
              packs: packs.map { |pack| pack_view(pack, arted, on_board) },

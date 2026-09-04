@@ -42,6 +42,20 @@ RSpec.describe "API::WordPacks", type: :request do
     expect(words["she"]["on_board"]).to be(false)
   end
 
+  # Reads the tiles, not the cached data["current_word_list"], which nothing
+  # invalidates on delete — otherwise the picker greys out a word the user
+  # removed and the add then skips it, with no way back.
+  it "stops flagging a word once its tile is deleted" do
+    image = create(:image, label: "he")
+    board.add_image(image.id)
+    board.reload.board_images.each(&:destroy)
+
+    get "/api/word_packs", params: { board_id: board.id }, headers: auth_headers(user)
+
+    words = pack("pronouns")["words"].index_by { |w| w["label"] }
+    expect(words["he"]["on_board"]).to be(false)
+  end
+
   it "returns the library art for a word that has some, and nil for one that doesn't" do
     arted = create(:image, label: "she", user_id: User::DEFAULT_ADMIN_ID, is_private: false)
     create(:doc, documentable: arted, user_id: User::DEFAULT_ADMIN_ID)

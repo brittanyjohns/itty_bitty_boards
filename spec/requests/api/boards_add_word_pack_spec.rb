@@ -43,7 +43,34 @@ RSpec.describe "API::Boards#add_word_pack", type: :request do
 
     tile = board.reload.board_images.find { |bi| bi.label == "he" }
     expect(tile.part_of_speech).to eq("pronoun")
-    expect(tile.bg_color).to be_present
+    expect(tile.bg_color).to eq(ColorHelper::PRESET_HEX["yellow"])
+  end
+
+  # A matched library image can carry a stale or blank part of speech — "she"
+  # was stored `default`, so the tile came out grey beside a yellow "he". The
+  # authored value is pinned on the TILE; the shared images row, which is on
+  # thousands of other boards, is left alone.
+  it "pins the pack's part of speech on the tile without rewriting the shared image" do
+    stale = create(:image, label: "she", user_id: User::DEFAULT_ADMIN_ID, is_private: false)
+    stale.update_columns(part_of_speech: "default")
+
+    add(pack_key: "pronouns", words: ["she"])
+
+    tile = board.reload.board_images.find { |bi| bi.label == "she" }
+    expect(tile.part_of_speech).to eq("pronoun")
+    expect(tile.bg_color).to eq(ColorHelper::PRESET_HEX["yellow"])
+    expect(stale.reload.part_of_speech).to eq("default")
+  end
+
+  # A menu board is not an AAC board: its tiles are white and look up no part
+  # of speech. The authored value must not defeat that.
+  it "leaves a menu board's tiles white" do
+    menu_board = create(:board, user: user, board_type: "menu")
+
+    add(pack_key: "condiments", words: ["ketchup"], on: menu_board)
+
+    tile = menu_board.reload.board_images.find { |bi| bi.label == "ketchup" }
+    expect(tile.bg_color).to eq(ColorHelper::PRESET_HEX["white"])
   end
 
   # Classification is by communicative function: a communicator hitting "stop"
@@ -73,6 +100,18 @@ RSpec.describe "API::Boards#add_word_pack", type: :request do
     add(pack_key: "pronouns", words: ["he"])
     expect { add(pack_key: "pronouns", words: %w[he she]) }.to change { board.reload.board_images.count }.by(1)
     expect(json["words_added"]).to eq(["she"])
+  end
+
+  # Board#current_word_list serves a cached data["current_word_list"] and
+  # nothing invalidates it when a tile is destroyed, so reading it here would
+  # make a deleted word permanently un-re-addable.
+  it "re-adds a word whose tile was deleted" do
+    add(pack_key: "pronouns", words: ["he"])
+    board.reload.board_images.each(&:destroy)
+
+    expect { add(pack_key: "pronouns", words: ["he"]) }
+      .to change { board.reload.board_images.count }.from(0).to(1)
+    expect(json["words_added"]).to eq(["he"])
   end
 
   it "404s an unknown pack key" do

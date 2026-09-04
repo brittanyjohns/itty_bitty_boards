@@ -74,6 +74,23 @@ If that spec blocks a change, the spec is right.
   private `image_type: "menu"` image instead. That path skips the categorizer
   too (`ensure_defaults` short-circuits menu images to `"noun"`), so packs stay
   free either way; only the colour differs.
+- **The authored part of speech lands on the TILE, not just on a new Image.**
+  A matched library image can carry a stale or blank POS — `she` was stored
+  `default`, so it came out grey next to a yellow `he` — and `Board#add_image`
+  copies `@image.part_of_speech || "default"` onto the tile.
+  `Board#apply_authored_part_of_speech!` pins the pack's value on the tile and
+  re-runs `set_colors`, and never writes it back to the shared `images` row:
+  that row is on thousands of other boards, so a per-board answer belongs to the
+  tile. `set_colors` reads `effective_part_of_speech` and already resolves a
+  menu tile to white, so the menu rule survives untouched.
+- **"Already on this board" is `WordPacks.placed_keys`, never
+  `Board#current_word_list`.** That reader serves a cached
+  `data["current_word_list"]` whenever one is present, and **nothing invalidates
+  it when a tile is destroyed** — so a word the user deleted still reads as
+  placed. Through this feature that greys the word out in the picker AND makes
+  the add skip it, with no way to get it back. `placed_keys` reads the tiles in
+  one query. The catalog and the add MUST use the same answer, or the picker
+  offers a word the add drops on the floor.
 - **Ownership needs its own gate.** `User#board_editable?` returns **true** for
   a board you don't own — it measures the PLAN lock, not permission — so
   `add_word_pack` is in `check_board_view_edit_permissions` (declared before
@@ -89,3 +106,13 @@ Both predate this feature and are worth their own issues:
 - `Image.create(label: word)` in `find_or_create_images_from_word_list` creates
   images with **no `user_id`**, unlike `ImageResolver.resolve` which sets one —
   orphan rows in the shared library.
+- `Board#current_word_list`'s cached `data["current_word_list"]` is never
+  invalidated when a tile is destroyed. `boards#update`'s own `word_list` dedupe
+  reads it, so the same "can't re-add a deleted word" bug is live on the
+  textarea path. `placed_keys` sidesteps it here rather than fixing it
+  everywhere.
+- `Board#api_view_with_images` / `#api_view_for_native_grid` serialize
+  `part_of_speech: @image.part_of_speech` — the SHARED image's, sitting among
+  `@board_image.*` fields — so the payload reports `default` for a tile stored
+  and rendered as `pronoun`. App-wide and pre-existing; the tile row and its
+  colour are correct.

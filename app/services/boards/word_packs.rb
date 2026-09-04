@@ -167,6 +167,23 @@ module Boards
       end
     end
 
+    # The normalized labels ALREADY on `board`, read straight from its tiles.
+    #
+    # Deliberately not `Board#current_word_list`: that serves a cached
+    # `data["current_word_list"]` whenever one is present, and nothing
+    # invalidates it when a tile is destroyed — so a word the user deleted still
+    # reads as placed. Here that would grey the word out in the picker AND make
+    # the add skip it, leaving no way to get it back. One query, always true.
+    def placed_keys(board)
+      return Set.new if board.nil?
+
+      board.board_images.pluck(:label, :display_label)
+           .flatten.compact
+           .map { |label| normalize_key(label) }
+           .reject(&:blank?)
+           .to_set
+    end
+
     # The lookup key for a word: the same normalization the tile-creation path
     # applies, then downcased, since label matching is case-insensitive.
     def normalize_key(word)

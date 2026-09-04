@@ -1236,8 +1236,10 @@ class API::BoardsController < API::ApplicationController
 
     words = Boards::WordPacks.requested_words(pack[:key], params[:words])
     # Skip what's already here. The picker greys these out, but two tabs or a
-    # stale payload shouldn't produce duplicate tiles.
-    already = @board.current_word_list.map { |w| Boards::WordPacks.normalize_key(w) }.to_set
+    # stale payload shouldn't produce duplicate tiles. Must be the SAME answer
+    # the catalog gave (Boards::WordPacks.placed_keys), or the picker offers a
+    # word this drops on the floor.
+    already = Boards::WordPacks.placed_keys(@board)
     words = words.reject { |word| already.include?(Boards::WordPacks.normalize_key(word)) }
 
     if words.any?
