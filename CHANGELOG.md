@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Quick-add sets of words to a board.** Adding pronouns, action words,
+  greetings or numbers meant typing every one of them into a box. You can now
+  pick a ready-made set, uncheck anything you don't want, and add the rest in
+  one go. On a menu board you also get sizes, condiments and phrases for
+  ordering. The sets are curated, not generated: they cost no AI credits, and
+  each word arrives already the right colour. Words that don't have a picture in
+  the library yet are flagged before you add them — the tile still lands, you
+  just add art to it afterwards if you want to.
 - **You can check a communicator username before you commit to it.** Communicator
   usernames are shared across the whole app, so the obvious one for your child's
   name is usually already somebody's — and you only found that out from an error

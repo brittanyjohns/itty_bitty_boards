@@ -68,12 +68,28 @@ module Boards
       return {} if authored.empty?
 
       words = authored.keys
-      arted = best_arted_all(owner.images, words)
-      arted = best_arted_all(default_public_scope, words - arted.keys).merge(arted)
+      arted = arted_all_for(words, owner: owner)
 
       words.index_with do |word|
         arted[word] || resolve(authored[word], owner: owner)
       end
+    end
+
+    # The art-bearing image for each of `labels` that HAS one, keyed by
+    # normalized label — labels with no art anywhere are simply absent. Two
+    # queries however many labels are asked for.
+    #
+    # Strictly READ-ONLY, unlike `resolve_all`: nothing is created for a label
+    # with no match. That is what makes it safe on a GET — the word-pack
+    # catalog endpoint asks "which of these words can we already picture?" for
+    # every word of every pack, and must not seed the library with blank images
+    # just because someone opened the Add-tiles modal.
+    def arted_all_for(labels, owner:)
+      words = Array(labels).filter_map { |label| normalize(label).presence }.uniq
+      return {} if words.empty?
+
+      arted = best_arted_all(owner.images, words)
+      best_arted_all(default_public_scope, words - arted.keys).merge(arted)
     end
 
     # The art-bearing image for each of `words`, keyed by normalized label.

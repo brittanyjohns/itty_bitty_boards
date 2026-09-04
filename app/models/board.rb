@@ -1360,8 +1360,15 @@ class Board < ApplicationRecord
   # items: within budget they always get a fresh, private, description-driven
   # image rather than a label match from the shared library; over budget they
   # fall back to library reuse so the tile isn't left blank.
+  # `parts_of_speech` (normalized word => part_of_speech), same shape, gives a
+  # NEWLY CREATED image its authored part of speech. That skips the
+  # AacWordCategorizer call in Image#ensure_defaults — a synchronous OpenAI
+  # request per novel word, inside this user-facing path — the same way
+  # image_type "menu" does above. Only ever applied on create: an image already
+  # in the library is shared, and its part of speech is not this caller's to
+  # rewrite. Used by the curated word packs (Boards::WordPacks).
   # Returns the number of images queued for generation.
-  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil)
+  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil, parts_of_speech: nil)
     if id.blank?
       self.save!
     end
@@ -1390,6 +1397,7 @@ class Board < ApplicationRecord
       end
       Rails.logger.debug "Change detected: #{og_word} -> #{word}" unless og_word == word
       menu_prompt = menu_prompts && menu_prompts[word.to_s.downcase.strip]
+      authored_pos = parts_of_speech && parts_of_speech[word.to_s.downcase.strip]
       skip_generation = false
       if menu_prompt && (max_generate.nil? || queued_count < max_generate)
         # Menu labels ("single", "virginia") collide with unrelated library
@@ -1416,7 +1424,7 @@ class Board < ApplicationRecord
               Image.create(label: word, user_id: user_id, is_private: true,
                            image_type: "menu", image_prompt: menu_prompt)
             else
-              Image.create(label: word)
+              Image.create(label: word, part_of_speech: authored_pos)
             end
         end
         image ||= new_image
