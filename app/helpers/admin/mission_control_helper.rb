@@ -46,6 +46,73 @@ module Admin
       SIGNUP_PLATFORM_BADGE_CLASSES.fetch(platform.to_s, "bg-gray-800 text-gray-400")
     end
 
+    # --- Trial state -------------------------------------------------------
+    # "Is this account trialing, and when does it end" — the question the admin
+    # users table asks. Keyed on plan_status, which is the one field BOTH
+    # providers write (Stripe subscription webhooks and RevenueCat alike), plus
+    # the legacy `basic_trial` soft-trial cohort, which predates plan_status and
+    # so carries none. Partner pilots are trials too and are included here on
+    # purpose; their own pilot badge answers a different question (where the
+    # 3-month window sits), not whether a trial is running.
+    TRIAL_STATE_META = {
+      ended:       { label: "Trial ended", badge: "bg-red-900/60 text-red-300" },
+      ending_soon: { label: "Ends soon",   badge: "bg-yellow-900/60 text-yellow-300" },
+      trialing:    { label: "Trialing",    badge: "bg-teal-900/60 text-teal-300" },
+      no_end_date: { label: "Trialing",    badge: "bg-gray-800 text-gray-400" },
+    }.freeze
+
+    TRIAL_ENDING_SOON_DAYS = 3
+
+    def trialing?(user)
+      user.plan_status.to_s == "trialing" || user.plan_type.to_s == "basic_trial"
+    end
+
+    # Returns nil for an account that isn't trialing. Never mutates anything.
+    def trial_status(user)
+      return nil unless trialing?(user)
+
+      ends_at = trial_end_date(user)
+      state =
+        if ends_at.nil?               then :no_end_date
+        elsif ends_at <= Time.current then :ended
+        elsif ends_at <= Time.current + TRIAL_ENDING_SOON_DAYS.days then :ending_soon
+        else :trialing
+        end
+
+      meta = TRIAL_STATE_META.fetch(state)
+      days_left = ends_at ? ((ends_at - Time.current) / 1.day).ceil : nil
+      provider = trial_provider_label(user)
+      {
+        state: state,
+        label: meta[:label],
+        badge_class: meta[:badge],
+        ends_at: ends_at,
+        days_left: days_left,
+        provider: provider,
+        # Only meaningful for a Stripe reverse trial (#264) — a RevenueCat
+        # trialist already pays through the store and can't add a card here.
+        needs_payment_method: provider == "Stripe" && (settings_hash(user)["has_payment_method"] != true),
+        title: trial_title(provider, ends_at, days_left),
+      }
+    end
+
+    # settings["trial_ends_at"] is what both webhook paths persist (ISO8601);
+    # plan_expires_at is the partner-pilot date and the fallback for a trial
+    # that predates that key. Parsing is defensive on purpose — one malformed
+    # string must not 500 a table rendering every user.
+    def trial_end_date(user)
+      raw = settings_hash(user)["trial_ends_at"]
+      if raw.present?
+        begin
+          parsed = Time.zone.parse(raw.to_s)
+          return parsed if parsed
+        rescue ArgumentError, TypeError
+          # fall through to the column
+        end
+      end
+      user.plan_expires_at
+    end
+
     PARTNER_PILOT_STATE_META = {
       ended:        { label: "Pilot ended",  badge: "bg-red-900/60 text-red-300" },
       ending_soon:  { label: "Ending soon",  badge: "bg-yellow-900/60 text-yellow-300" },
@@ -85,6 +152,33 @@ module Admin
         expired_flagged: settings["partner_pilot_expired"] == true,
         expired_at: settings["partner_pilot_expired_at"],
       }
+    end
+
+    private
+
+    def settings_hash(user)
+      user.settings.is_a?(Hash) ? user.settings : {}
+    end
+
+    # A Stripe trial always carries a subscription id; a RevenueCat (IAP) trial
+    # never does. The legacy soft trial ran through neither.
+    def trial_provider_label(user)
+      return "Stripe" if user.stripe_subscription_id.present?
+      return "RevenueCat" if user.plan_status.to_s == "trialing"
+
+      "soft trial"
+    end
+
+    def trial_title(provider, ends_at, days_left)
+      parts = [provider == "soft trial" ? "Legacy soft trial" : "#{provider} trial"]
+      parts << if ends_at.nil?
+                 "no end date recorded"
+               elsif ends_at <= Time.current
+                 "ended #{ends_at.strftime("%b %-d, %Y")}"
+               else
+                 "ends #{ends_at.strftime("%b %-d, %Y")} (#{days_left} day#{"s" unless days_left == 1})"
+               end
+      parts.join(" \u00b7 ")
     end
   end
 end

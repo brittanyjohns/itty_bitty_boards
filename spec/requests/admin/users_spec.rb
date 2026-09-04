@@ -101,6 +101,85 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response.body).to include("Pilot ended")
     end
 
+    it "badges a trialing account with its end date" do
+      trialist = create(:user, email: "trialing@example.com", plan_type: "pro",
+                               plan_status: "trialing", stripe_subscription_id: "sub_trial")
+      trialist.update_columns(settings: trialist.settings.merge("trial_ends_at" => 6.days.from_now.iso8601,
+                                                               "has_payment_method" => true))
+
+      get admin_dashboard_users_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Trialing")
+      expect(response.body).to include(6.days.from_now.strftime("%b %-d, %Y"))
+    end
+
+    it "flags a Stripe trialist with no card on file" do
+      trialist = create(:user, email: "nocard@example.com", plan_type: "basic",
+                               plan_status: "trialing", stripe_subscription_id: "sub_nocard")
+      trialist.update_columns(settings: trialist.settings.merge("trial_ends_at" => 2.days.from_now.iso8601))
+
+      get admin_dashboard_users_path
+
+      expect(response.body).to include("no card")
+      expect(response.body).to include("Ends soon")
+    end
+
+    it "falls back to plan_expires_at when no trial_ends_at is stored" do
+      partner = create(:user, email: "pilot@example.com", plan_type: "partner_pro", plan_status: "trialing")
+      partner.update_columns(plan_expires_at: 30.days.from_now)
+
+      get admin_dashboard_users_path(filter: "trial")
+
+      expect(response.body).to include("pilot@example.com")
+      expect(response.body).to include(30.days.from_now.strftime("%b %-d, %Y"))
+    end
+
+    it "filters to trialing accounts across both providers and the legacy cohort" do
+      stripe = create(:user, email: "stripe-trial@example.com", plan_status: "trialing",
+                             stripe_subscription_id: "sub_x")
+      legacy = create(:user, email: "soft-trial@example.com", plan_type: "basic_trial")
+
+      get admin_dashboard_users_path(filter: "trial")
+
+      expect(response.body).to include(stripe.email)
+      expect(response.body).to include(legacy.email)
+      expect(response.body).not_to include("alice@example.com")
+    end
+
+    it "hides demo accounts when the toggle is on" do
+      create(:user, email: "bhannajohns+hidden@gmail.com")
+
+      get admin_dashboard_users_path(hide_demo: "1")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("bhannajohns+hidden@gmail.com")
+      expect(response.body).to include("alice@example.com")
+      expect(response.body).to include("demo accounts hidden")
+    end
+
+    it "keeps the toggle off by default" do
+      create(:user, email: "bhannajohns+visible@gmail.com")
+
+      get admin_dashboard_users_path
+
+      expect(response.body).to include("bhannajohns+visible@gmail.com")
+    end
+
+    it "lets the explicit demo filter win over the hide toggle" do
+      create(:user, email: "bhannajohns+both@gmail.com")
+
+      get admin_dashboard_users_path(filter: "demo", hide_demo: "1")
+
+      expect(response.body).to include("bhannajohns+both@gmail.com")
+    end
+
+    it "carries the toggle through the column sort links" do
+      get admin_dashboard_users_path(hide_demo: "1")
+
+      expect(response.body).to include("hide_demo=1")
+    end
+
     context "when not signed in" do
       before { sign_out admin }
 

@@ -15,13 +15,18 @@ module Admin
     }.freeze
 
     def index
-      @sort = params[:sort].presence_in(%w[created_at email name plan_type sign_in_count current_sign_in_at boards signup_platform]) || "created_at"
+      @sort = params[:sort].presence_in(%w[created_at email name plan_type plan_status sign_in_count current_sign_in_at boards signup_platform]) || "created_at"
       @dir = params[:dir].presence_in(%w[asc desc]) || "desc"
       @filter = params[:filter]
       @search = params[:search]
+      @hide_demo = ActiveModel::Type::Boolean.new.cast(params[:hide_demo]) || false
 
       scope = User.all
       scope = apply_filter(scope)
+      # The toggle and the "Demo accounts" filter ask opposite questions. The
+      # explicit filter wins rather than the pair silently rendering an empty
+      # table that looks like a bug.
+      scope = scope.non_demo if @hide_demo && @filter != "demo"
       scope = scope.where("email ILIKE ? OR name ILIKE ?", "%#{@search}%", "%#{@search}%") if @search.present?
 
       @users =
@@ -333,7 +338,7 @@ module Admin
       when "partner" then scope.where(plan_type: "partner_pro")
       when "basic"  then scope.where(plan_type: "basic")
       when "free"   then scope.where(plan_type: "free")
-      when "trial"  then scope.where(plan_type: "basic_trial")
+      when "trial"  then scope.trialing
       when "demo"   then scope.demo_accounts
       when "ios", "android", "web" then scope.where("users.settings ->> 'signup_platform' = ?", @filter)
       when "locked" then scope.where(locked: true)
