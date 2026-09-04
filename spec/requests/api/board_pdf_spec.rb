@@ -75,6 +75,51 @@ RSpec.describe "API::Boards#pdf", type: :request do
       expect(response.content_type).to start_with("application/pdf")
     end
 
+    # The free-boards landing page lists `Board.public_boards` and downloads each
+    # one anonymously (`downloadPublicBoardPdf`), with the email capture enforced
+    # in the browser only — the endpoint knows nothing about a lead. So the
+    # guarantee this guard has to keep is about the SCOPE, not about a board that
+    # happens to be published: everything `free_download_boards` advertises must
+    # still come back 200 with no credentials.
+    it "keeps every board in the free-download scope anonymously downloadable" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) ||
+              create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      listed = create(:board, user: admin, name: "Free Core Board", published: true, predefined: true)
+
+      # Guards the premise: if the scope stops including this board, this spec
+      # is no longer testing what it claims to.
+      expect(Board.public_boards).to include(listed)
+
+      get "/api/boards/#{listed.id}/pdf"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to start_with("application/pdf")
+    end
+
+    # The end-to-end version of the guarantee above: whatever the free-boards
+    # page is told it can offer, it can actually fetch — both hops anonymous,
+    # exactly as a logged-out visitor makes them.
+    it "downloads every board the free-download listing advertises, all anonymous" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) ||
+              create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      create(:board, user: admin, name: "Free Core Board", published: true, predefined: true)
+      create(:board, user: admin, name: "Free Snack Board", published: true, predefined: true)
+
+      get "/api/free_download_boards"
+      expect(response).to have_http_status(:ok)
+
+      listed = JSON.parse(response.body)["boards"]
+      expect(listed).to be_present
+
+      listed.each do |board|
+        get "/api/boards/#{board["id"]}/pdf"
+
+        expect(response).to have_http_status(:ok),
+          "#{board["name"].inspect} is advertised on the free-boards page but 404s anonymously"
+        expect(response.content_type).to start_with("application/pdf")
+      end
+    end
+
     it "404s an anonymous caller asking for a private board" do
       get "/api/boards/#{board.id}/pdf"
 
