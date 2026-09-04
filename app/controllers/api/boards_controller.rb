@@ -242,7 +242,9 @@ class API::BoardsController < API::ApplicationController
     if params["myspeak"] == "true"
       scope = Board.myspeak_public_boards.alphabetical
       if scope.count < 3
-        scope = Board.public_boards.alphabetical
+        # Menu-free on purpose: this is the picker that seeds a communicator's
+        # first board, and `public_boards` now carries published menus.
+        scope = Board.public_non_menu_boards.alphabetical
       end
       scope = scope.limit(10)
     else
@@ -1704,6 +1706,24 @@ class API::BoardsController < API::ApplicationController
   end
 
   def pdf
+    # `pdf` is unauthenticated (skip_before_action :authenticate_token!) because
+    # anonymous download of genuinely PUBLIC boards backs the free-boards
+    # landing page. `set_board` resolves by id or slug with no ownership
+    # scoping, and board ids are sequential, so without this guard the whole
+    # corpus is enumerable: the PDF carries every tile, label and symbol plus a
+    # board name that routinely contains a child's first name. Same generic 404
+    # `show` returns, so we don't confirm the board exists.
+    #
+    # `acting_user`, not `current_user`: the frontend's `downloadBoardPdf` falls
+    # back to a COMMUNICATOR token when there is no user token, and a
+    # communicator owns no boards — everything on their dashboard belongs to the
+    # adult above them. `acting_user` resolves that token to `current_account.user`
+    # and is nil for an anonymous caller, which `viewable_by?` refuses.
+    unless @board.viewable_by?(acting_user)
+      render json: { error: "Board not found" }, status: :not_found
+      return
+    end
+
     bw_requested = ActiveModel::Type::Boolean.new.cast(params[:bw])
     qr_param = params[:qr]
     qr_requested = qr_param.nil? ? true : ActiveModel::Type::Boolean.new.cast(qr_param)

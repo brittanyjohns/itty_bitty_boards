@@ -1142,7 +1142,9 @@ class ChildAccount < ApplicationRecord
     end
 
     gt_boards = boards_by_most_used
-    gt_boards = Board.public_boards.limit(5) if gt_boards.none?
+    # `public_non_menu_boards`, not `public_boards`: this is the go-to strip a
+    # communicator opens, and a published menu is not vocabulary.
+    gt_boards = Board.public_non_menu_boards.limit(5) if gt_boards.none?
     gt_boards.includes(*Profile::BOARD_CARD_PRELOADS)
   end
 

@@ -1505,6 +1505,68 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe ".public_boards / .public_non_menu_boards" do
+    let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+    let!(:vocab_board) do
+      FactoryBot.create(:board, user: admin_user, predefined: true, published: true, parent_type: "User")
+    end
+    let!(:menu_board) do
+      FactoryBot.create(:board, user: admin_user, predefined: true, published: true, parent_type: "Menu")
+    end
+    # A menu whose `parent` was severed by the historical rename bug: it still
+    # carries board_type "menu" and nothing else points back.
+    let!(:severed_menu_board) do
+      FactoryBot.create(:board, user: admin_user, predefined: true, published: true,
+                                parent_type: "User", board_type: "menu")
+    end
+
+    it "includes a published, predefined menu board" do
+      ids = described_class.public_boards.pluck(:id)
+
+      expect(ids).to include(vocab_board.id, menu_board.id, severed_menu_board.id)
+    end
+
+    it "still excludes a menu board that is not predefined" do
+      draft_menu = FactoryBot.create(:board, user: admin_user, predefined: false, published: true, parent_type: "Menu")
+
+      expect(described_class.public_boards.pluck(:id)).not_to include(draft_menu.id)
+    end
+
+    it "still excludes a menu board that is not published" do
+      unpublished_menu = FactoryBot.create(:board, user: admin_user, predefined: true, published: false, parent_type: "Menu")
+
+      expect(described_class.public_boards.pluck(:id)).not_to include(unpublished_menu.id)
+    end
+
+    it "still excludes a published, predefined menu owned by a regular user" do
+      user_menu = FactoryBot.create(:board, user: FactoryBot.create(:user), predefined: true,
+                                            published: true, parent_type: "Menu")
+
+      expect(described_class.public_boards.pluck(:id)).not_to include(user_menu.id)
+    end
+
+    it "keeps menus out of public_non_menu_boards, by parent_type and by board_type" do
+      ids = described_class.public_non_menu_boards.pluck(:id)
+
+      expect(ids).to include(vocab_board.id)
+      expect(ids).not_to include(menu_board.id, severed_menu_board.id)
+    end
+
+    it "keeps menus out of the admin printables dashboard scope" do
+      ids = described_class.admin_owned_boards.pluck(:id)
+
+      expect(ids).to include(vocab_board.id)
+      expect(ids).not_to include(menu_board.id)
+    end
+
+    it "keeps menus out of the MySpeak starter cards even when tagged myspeak" do
+      menu_board.update!(tags: ["myspeak"])
+
+      expect(described_class.public_starter_boards.map(&:id)).not_to include(menu_board.id)
+      expect(described_class.myspeak_public_boards.pluck(:id)).not_to include(menu_board.id)
+    end
+  end
+
   describe "#public_card_view / .public_starter_cards" do
     let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
     let!(:public_board) do

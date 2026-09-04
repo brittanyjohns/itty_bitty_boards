@@ -15,6 +15,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   each word arrives already the right colour. Words that don't have a picture in
   the library yet are flagged before you add them — the tile still lands, you
   just add art to it afterwards if you want to.
+- **Published menu boards now show up in the public board gallery.** A menu you
+  published and we flagged as a featured board was public — anyone with the link
+  could open it — but it never appeared in the shared board library, so the only
+  way to find one was to already have the link. Menus stay out of the starting
+  points we suggest for a communicator: those are for vocabulary.
 - **You can check a communicator username before you commit to it.** Communicator
   usernames are shared across the whole app, so the obvious one for your child's
   name is usually already somebody's — and you only found that out from an error
@@ -29,6 +34,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A private board's printable PDF is no longer downloadable by anyone who
+  guesses its number.** The PDF export renders a board's complete contents —
+  every tile, its label and symbol, and the board name — and it was answering
+  callers with no account and no connection to the board at all. Board numbers
+  run in sequence, so one board's number gave up its neighbours', and a board
+  name is very often a child's first name. Private boards now come back "not
+  found" to anyone who isn't the owner, a teammate or an admin. Downloading the
+  free public boards without signing in still works exactly as before.
 - **A MySpeak page with no starred boards now offers a short starting point
   instead of the whole library.** Before anyone had starred a board, a
   communicator's public page — the one handed to a teacher on the first day of

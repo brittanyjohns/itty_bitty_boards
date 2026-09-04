@@ -322,7 +322,18 @@ an explicit decision, not a drive-by edit.
   INLINE rather than via a blanket `before_action` — the publish intent has to be
   known first, or the one board a capped user is allowed to add would be the one
   board they could never create. Unpublishing re-charges it and may put the user
-  over the cap; that is the ordinary over-limit state, not an error.
+  over the cap; that is the ordinary over-limit state, not an error. The
+  corollary one scope over: an admin-owned menu that is published AND
+  `predefined` is in `Board.public_boards` like any other catalogue board — it
+  was excluded as a side effect of `admin_owned_boards`' `where.not(parent_type:
+  "Menu")`, which the admin PRINTABLES dashboard wants and the catalogue does
+  not, so the two now split at `admin_published_boards`. A menu is still not
+  vocabulary, so every surface that offers a communicator a STARTING POINT reads
+  `Board.public_non_menu_boards` instead — the MySpeak starter grid (six cards,
+  a restaurant menu displacing a core board is the failure that cap exists to
+  prevent), the `?myspeak=true` picker, and `ChildAccount#go_to_boards`. That
+  scope excludes on `board_type` as well as `parent_type`, because a menu whose
+  `parent` was severed by the rename bug is still a menu.
 - **There is ONE communicator-slot answer and it is
   `Permissions::CommunicatorLimits.slots_for`.** A `loaner` occupies the
   lender's slot until a family CLAIMS it, and the slot returns on claim — that
@@ -1000,6 +1011,22 @@ an explicit decision, not a drive-by edit.
   board is not published rather than relying on the favorite TRANSITION — an
   already-favorited row saved nothing, never reached `MySpeakPublisher`, and
   left a card on a public page that 404s on tap.
+- **An action on the `skip_before_action :authenticate_token!` list that resolves
+  a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
+  `set_board` scopes by nothing — it takes any id or slug and only 404s a row
+  that does not exist — so being skipped from authentication is the whole
+  authorization story unless the action writes its own. `viewable_by?` is the
+  one predicate: true for a `published?` board with NO user, which is what keeps
+  anonymous download of the genuinely public free-boards library working, and
+  false for a private board with none. Board ids are sequential, so a missing
+  guard makes the entire corpus enumerable by incrementing an integer — and a
+  board name routinely carries a child's first name. `show` had the guard and
+  `pdf` did not, which handed any caller a complete PDF (every tile, label and
+  symbol) of any private board. The refusal is the same generic
+  `404 {"error": "Board not found"}` in both, never a 403: confirming the row
+  exists is itself the leak. Being on the skip list is not evidence an action is
+  safe — check `predictive_image_board`, which resolves the same way.
+
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);

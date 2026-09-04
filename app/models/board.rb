@@ -219,8 +219,23 @@ class Board < ApplicationRecord
     where("boards.settings->>'#{Boards::FringeTemplates::TEMPLATE_MARKER}' IS NULL")
       .where("NOT COALESCE((boards.settings->>'#{Boards::RobustSets::ROOT_MARKER}')::boolean, false)")
   }
-  scope :admin_owned_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, published: true).where.not(parent_type: "Menu").without_imported_pages.not_builder_seed.not_builder_child }
-  scope :public_boards, -> { admin_owned_boards.where(predefined: true) }
+  scope :admin_published_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, published: true).without_imported_pages.not_builder_seed.not_builder_child }
+  scope :admin_owned_boards, -> { admin_published_boards.where.not(parent_type: "Menu") }
+  # A published menu board is already public infrastructure — `viewable_by?`
+  # lets anyone open it and it stops counting against the plan cap — so a menu
+  # the admin has ALSO flagged `predefined` belongs in the curated catalogue
+  # rather than in a parallel list nothing but MyMenuPage reads. Built off
+  # `admin_published_boards`, not `admin_owned_boards`, so the printables
+  # dashboard keeps its own menu exclusion.
+  scope :public_boards, -> { admin_published_boards.where(predefined: true) }
+  # The public catalogue minus menus. A menu board is a restaurant menu, not
+  # vocabulary, so every surface that offers a communicator a STARTING POINT
+  # reads this instead: the MySpeak starter grid (capped at six cards on the
+  # page a parent hands to a teacher), the `?myspeak=true` picker, and
+  # `ChildAccount#go_to_boards`. Uses `non_menus`, which is NULL-safe on
+  # `board_type` as well as `parent_type` — a menu whose `parent` was severed
+  # by the historical rename bug (`rake menu_boards:relink`) is still a menu.
+  scope :public_non_menu_boards, -> { public_boards.non_menus }
   scope :public_menu_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true, parent_type: "Menu") }
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
@@ -298,7 +313,7 @@ class Board < ApplicationRecord
   end
 
   def self.myspeak_public_boards
-    Board.public_boards.with_all_tags(["myspeak"])
+    Board.public_non_menu_boards.with_all_tags(["myspeak"])
   end
 
   SAFE_FILTERS = %w[all countable predefined user_made ai_generated predictive public_boards in_use published sub_boards sub_pages main_boards recent newly_created not_in_use menus].freeze
@@ -3121,7 +3136,7 @@ class Board < ApplicationRecord
 
     # Only reached when the `myspeak` tag doesn't fill the list — an environment
     # that has never run the starter seed, or a deliberately larger limit.
-    filler = public_boards.where.not(id: tagged.map(&:id)).includes(CARD_PRELOADS).alphabetical.to_a
+    filler = public_non_menu_boards.where.not(id: tagged.map(&:id)).includes(CARD_PRELOADS).alphabetical.to_a
     welcome, rest = filler.partition { |board| board.category == "welcome" }
     kept + take_distinct_by_name(welcome + rest, limit - kept.size, seen: kept.map { |b| normalized_board_name(b.name) })
   end
