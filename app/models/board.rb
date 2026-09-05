@@ -2516,9 +2516,24 @@ class Board < ApplicationRecord
     settings["freeze_board"] == true
   end
 
-  def public_url
+  # The address a board would live at once published. Only ever handed to a
+  # caller that needs the URL BEFORE publication — the board-PDF QR, which is
+  # rendered from the editor and points at where the board will resolve.
+  def prospective_public_url
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     "#{base_url}/pb/#{slug}"
+  end
+
+  # The shareable address, and nil when there isn't one. `/pb/<slug>` only
+  # resolves for a published board (Board#viewable_by?), so serializing it
+  # unconditionally handed the app a link, a QR code and a "send this to
+  # anyone" panel for a resource that 404s for every recipient (#860).
+  # Gated on `published?` — the same condition `slug_locked?` uses, so
+  # "has something shareable been handed out" has one definition.
+  def public_url
+    return nil unless published?
+
+    prospective_public_url
   end
 
   def featured

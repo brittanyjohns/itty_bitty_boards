@@ -3,8 +3,13 @@ module Boards
   module AssetRendering
     extend self
 
+    # PROSPECTIVE on purpose: this QR is rendered into a board PDF from the
+    # editor, before the board is published, and it has to encode where the
+    # board will resolve. `Board#public_url` is nil until publication (#860),
+    # so reading it here would silently swap every draft's QR target for the
+    # Rails HTML route.
     def qr_target_url_for(board, routes:)
-      board.public_url || routes.board_url(board)
+      board.prospective_public_url || routes.board_url(board)
     end
 
     def qr_data_url_for(url, size: 480)
