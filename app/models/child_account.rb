@@ -79,7 +79,6 @@ class ChildAccount < ApplicationRecord
   has_one :profile, as: :profileable
 
   include WordEventsHelper
-  include BoardsHelper
   # Server-side defaults for the display flags in `settings`. Shared with User:
   # a communicator's board reads the same keys its owner's does, and without
   # this the backend wrote none of them — the effective default came from
@@ -1245,18 +1244,6 @@ class ChildAccount < ApplicationRecord
                                .includes(board: Profile::BOARD_CARD_PRELOADS)
                                .index_by(&:board_id)
     ordered_board_ids.filter_map { |board_id| boards_by_id[board_id] }
-  end
-
-  def update_board_layout(screen_size)
-    self.layout = {}
-    self.layout[screen_size] = {}
-    child_boards.order(:position).each do |cb|
-      cb.layout[screen_size] = cb.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
-      cb_layout = cb.layout[screen_size].merge("i" => cb.id.to_s)
-      cb.update(layout: { screen_size => cb_layout })
-      self.layout[screen_size][cb.id] = cb_layout
-    end
-    self.save
   end
 
   def api_view(viewing_user = nil)

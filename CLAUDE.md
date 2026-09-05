@@ -1334,6 +1334,21 @@ an explicit decision, not a drive-by edit.
   `purge_stale_pdfs!` on every "Regenerate", which is handed only the keys of
   the PDFs that run just wrote. A new kind gets its own reader and stays out of
   `KIND_DOWNLOADABLE`; never widen the partition by negation.
+- **A communicator's DASHBOARD placement is the frontend's, not the backend's.**
+  `child_accounts.layout` is a blob the client authors and `PATCH
+  /api/child_accounts/:id` stores verbatim; assigning a board writes the
+  `child_boards` row and no cell at all. `ChildBoard` used to carry
+  `grid_x`/`grid_y`/`initial_layout` mirroring `BoardImage`'s, with
+  `ChildAccount#update_board_layout` behind them — all unreached, and unable to
+  work even if called: they route through `BoardsHelper#next_available_cell`,
+  which opens with `get_number_of_columns`, and `child_accounts` has no
+  `*_screen_columns`. `update_board_layout` also defaulted every card to
+  `x: 0, y: 0` and emitted a hash keyed by id where the client expects an array.
+  They are gone, along with `ChildAccount`'s unused `include BoardsHelper`;
+  `child_boards.layout` and `child_boards.position` are the columns they read and
+  are now dead weight (nothing writes `position` at all). Don't rebuild this —
+  if placement ever needs to move server-side, it needs a real column count
+  first, and the client is currently the only thing that has one.
 - **`child_accounts.settings` MERGES on update; `details` REPLACES.** The two
   jsonb blobs have opposite semantics on purpose, and both are load-bearing.
   Several frontend surfaces save `settings` as a fresh literal holding only
