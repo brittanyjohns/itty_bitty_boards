@@ -806,6 +806,21 @@ an explicit decision, not a drive-by edit.
   can't 422 an otherwise-valid update). Deliberate renames go through
   `Board#rename_slug!` — the internal API's `force_slug` or the
   `boards:rename_slug` rake task.
+- **`Board#public_url` is nil until the board is published; the un-gated builder
+  is `prospective_public_url`.** `/pb/<slug>` only resolves for a published
+  board (`Board#viewable_by?`), and the frontend gates its entire share panel —
+  link, QR code, Open button — on the mere PRESENCE of the field, so serializing
+  it unconditionally handed a parent a link and a QR code for a resource that
+  404s for every recipient. Same `published?` condition `slug_locked?` uses, so
+  "has something shareable been handed out" has one definition. The gate is on
+  the SERIALIZED field, which is why the prospective address survives for the
+  one caller that legitimately runs before publication:
+  `Boards::AssetRendering.qr_target_url_for` renders the board-PDF QR from the
+  editor and must encode where the board WILL live — reading `public_url` there
+  would silently swap every draft's QR target for the Rails HTML route. The
+  printables pipeline is a separate path and reaches neither
+  (`Boards::Printables::Qr.target_url_for` builds its own URL from
+  `CollectPages::QR_BASE_URL`).
 - **A board that backs a marketplace listing can't be deleted, unpublished or
   renamed.** Same reason as the frozen slug, one step further: the board's
   content was sold as a PDF and every printed page carries a QR pointing at its

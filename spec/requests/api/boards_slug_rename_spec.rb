@@ -34,12 +34,16 @@ RSpec.describe "API::Boards slug on rename", type: :request do
       expect(board.slug).to eq("snack-time")
     end
 
+    # The board here is unpublished, so `public_url` is nil either way (#860) —
+    # `prospective_public_url` is the un-gated builder and the one that shows
+    # the rename did not re-key the address.
     it "keeps the public URL stable so a shared link still resolves" do
-      shared_url = board.public_url
+      shared_url = board.prospective_public_url
+      expect(shared_url).to end_with("/pb/snack-time")
 
       update_board(board, { name: "Lunch Time" }, as: owner)
 
-      expect(board.reload.public_url).to eq(shared_url)
+      expect(board.reload.prospective_public_url).to eq(shared_url)
     end
   end
 

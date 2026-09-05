@@ -43,6 +43,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A board you haven't published no longer offers a share link that can't
+  work.** Every board carried a "Share this board" panel — a link, a QR code
+  and an Open button — whether or not it had been published. Only a published
+  board is readable at that address, so anyone the link was sent to got a
+  "board not found" page. The share panel now appears when you publish the
+  board and goes away again if you unpublish it. Printed board PDFs are
+  unaffected: their QR code still points at where the board will live.
+
 - **Menu boards no longer come out with their tiles stacked down one side.** A
   menu board sizes its grid to however many dishes the photo turned out to have,
   but the last step of building it was still packing the tiles against the wider
