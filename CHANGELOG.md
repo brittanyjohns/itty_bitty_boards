@@ -43,6 +43,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Menu boards no longer come out with their tiles stacked down one side.** A
+  menu board sizes its grid to however many dishes the photo turned out to have,
+  but the last step of building it was still packing the tiles against the wider
+  grid guessed at before anything had been read off the menu. Every tile past
+  the real width fell outside the grid, and the board editor pushed all of them
+  into the last column in a single tall stack, leaving the rest of the board
+  empty. New menu boards fill left-to-right the way they should. Menu boards
+  already built this way can be repaired in place with
+  `rake menu_boards:repack_layouts`, which puts the dishes back in menu order.
+
 - **A private board's printable PDF is no longer downloadable by anyone who
   guesses its number.** The PDF export renders a board's complete contents —
   every tile, its label and symbol, and the board name — and it was answering

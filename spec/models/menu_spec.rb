@@ -110,6 +110,30 @@ RSpec.describe Menu, type: :model do
 
       expect(board.large_screen_columns).to eq(8)
     end
+
+    # Net for a tile left past the column count by any means: react-grid-layout
+    # clamps an off-grid tile to the last column and compacts it vertically, so
+    # the board renders as a stacked strip instead of a grid.
+    it "pulls an off-grid tile back inside the grid" do
+      allow(menu).to receive(:create_images_from_description) do |b|
+        9.times { |i| FactoryBot.create(:board_image, board: b, position: i) }
+      end
+      allow_any_instance_of(Board).to receive(:reset_layouts) do |b|
+        b.board_images.each_with_index do |bi, i|
+          # Everything on one row, running well past the 3 columns 9 tiles get.
+          bi.update_column(:layout, { "lg" => { "i" => bi.id.to_s, "x" => i, "y" => 0, "w" => 1, "h" => 1 } })
+        end
+      end
+
+      menu.create_board_from_menu_image(doc, board.id)
+      board.reload
+
+      columns = board.get_number_of_columns("lg").to_i
+      extents = board.board_images.map { |bi| bi.layout["lg"]["x"].to_i + bi.layout["lg"]["w"].to_i }
+
+      expect(columns).to eq(3)
+      expect(extents.max).to be <= columns
+    end
   end
 
   describe "#create_images_from_description image budget" do

@@ -539,6 +539,25 @@ an explicit decision, not a drive-by edit.
   while dropping restaurant names into the shared public library. `Image#menu?`
   is the single predicate and is case-insensitive: `Menu.set_image_types`
   writes `"Menu"`.
+- **A menu board's grid width is chosen AFTER its tiles exist, so anything that
+  re-packs it must read the PERSISTED column count.** The tile count isn't known
+  until the vision result is parsed, so `menus_controller#create` opens with a
+  guessed 8/6/4 and `Menu#apply_grid_columns!` narrows the row to whatever
+  `Boards::GridFit` makes squarest (16 dishes -> 4/3/2) before
+  `Board#reset_layouts` packs against it. `Board#get_number_of_columns` reads the
+  **in-memory** attributes, so a `Board` loaded before that resize packs tiles
+  0..7 across a row the database says is 4 wide — and nothing marks the columns
+  dirty, so the mismatch persists. `EnhanceImageDescriptionJob` held exactly such
+  a stale instance and re-packed with it after the menu path had already finished;
+  react-grid-layout clamps every off-grid tile to the last column and compacts it
+  vertically, so the board rendered as one tall stack with the grid empty beside
+  it (the Speak view repacks client-side and looked fine, which is what hid it).
+  The menu path owns the layout — `reload`, never re-pack — and
+  `Boards::LayoutRepacker.repack!` is the net behind it. Repair for rows packed
+  before the fix: `rake menu_boards:repack_layouts` (dry run by default), which
+  uses `reset_layouts` rather than the repacker, since the repacker shelf-packs
+  displaced tiles *below* the fitting ones and would preserve the scrambled
+  reading order instead of restoring menu order.
 
 - **`images.label` is a lowercase matching key; `display_label` is the text.**
   `Image#set_label` downcases and strips `label` on every write and captures
