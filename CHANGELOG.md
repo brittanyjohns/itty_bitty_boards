@@ -7,6 +7,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Choose which pages of a kit page's PDF people see, and when.** A `/kit/…`
+  landing page rendered only the first two pages of the first document you
+  uploaded, and showed both to everyone. It now renders the first ten pages of
+  every document, and each one gets its own choice under **Pictures on the
+  page**: don't show it, show it on the page, or hold it back until someone
+  enters their email. So the cover can sell the thing while the instruction
+  sheet is part of what the email buys. Visitors can tap any picture to see it
+  full size, which a dense page needs. Nothing changes on a page you haven't
+  curated — it keeps showing exactly what it shows today until you pick.
 - **Quick-add sets of words to a board.** Adding pronouns, action words,
   greetings or numbers meant typing every one of them into a box. You can now
   pick a ready-made set, uncheck anything you don't want, and add the rest in

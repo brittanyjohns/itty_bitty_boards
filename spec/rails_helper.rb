@@ -59,6 +59,17 @@ RSpec.configure do |config|
     ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
   end
 
+  # And AFTER every execution, for the same reason one step later: the executor
+  # RESETS CurrentAttributes when it completes, so a request spec that asserts
+  # on an attachment's URL once the request has returned is back to square one —
+  # `url_for_file` rescues the raise and answers nil, and a row that resolves to
+  # no URL is dropped rather than served. The symptom is an empty list, not an
+  # error, and it only shows up where the Disk service is in play (CI), which is
+  # why it can pass locally and fail there.
+  ActiveSupport::Executor.to_complete do
+    ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
+  end
+
   config.before(:each) do
     ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
   end

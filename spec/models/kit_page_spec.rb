@@ -180,7 +180,7 @@ RSpec.describe KitPage, type: :model do
       page.attach_preview_image!(bytes: "PNG one", page: 1)
 
       expect(page.gallery_images.map { |image| image[:variant] }).to eq(%w[page_1 page_2])
-      expect(page.gallery_images.map(&:keys)).to all(match_array(%i[variant url]))
+      expect(page.gallery_images.map(&:keys)).to all(match_array(%i[variant url page label]))
     end
 
     it "purges every preview" do
@@ -211,6 +211,172 @@ RSpec.describe KitPage, type: :model do
       expect(page.public_view[:downloadable]).to eq(true)
       expect(page.public_view[:images].map { |i| i[:url] }.join).not_to include(".pdf")
       expect(page.public_view.to_s).not_to include("handout.pdf")
+    end
+  end
+
+  describe "which rendered pages show where" do
+    let(:page) { create(:kit_page) }
+
+    def upload!(kit_page = page, filename: "handout.pdf", label: nil)
+      kit_page.attach_document!(io: StringIO.new("%PDF #{filename}"), filename: filename, label: label)
+    end
+
+    # Two documents of three pages each, so ordering, defaults and per-document
+    # attribution all have something to be wrong about.
+    def render_two_documents!
+      first = upload!(page, filename: "handout.pdf", label: "Parent handout")
+      second = upload!(page, filename: "guide.pdf", label: "Teacher guide")
+      [first, second].each do |document|
+        (1..3).each { |n| page.attach_preview_image!(bytes: "PNG", page: n, document_id: document.id) }
+      end
+      [first, second]
+    end
+
+    it "orders every rendered page by document, then by page" do
+      first, second = render_two_documents!
+
+      expect(page.preview_rows.map { |row| [row[:document_id], row[:page]] })
+        .to eq([[first.id.to_s, 1], [first.id.to_s, 2], [first.id.to_s, 3],
+                [second.id.to_s, 1], [second.id.to_s, 2], [second.id.to_s, 3]])
+    end
+
+    # The whole point of an empty hash: this change may not move a live page.
+    it "publishes only the first pages of the FIRST document when nothing is chosen" do
+      first, = render_two_documents!
+
+      expect(page).not_to be_previews_curated
+      expect(page.public_preview_images.map { |i| i[:page] }).to eq([1, 2])
+      expect(page.preview_rows.select { |r| r[:visibility] == KitPage::PREVIEW_PUBLIC }.map { |r| r[:document_id] })
+        .to all(eq(first.id.to_s))
+    end
+
+    it "publishes exactly what a non-empty hash names, and hides anything it doesn't" do
+      first, second = render_two_documents!
+      page.update!(preview_settings: {
+        KitPage.preview_setting_key(first.id, 1) => KitPage::PREVIEW_PUBLIC,
+        KitPage.preview_setting_key(second.id, 2) => KitPage::PREVIEW_GATED,
+      })
+
+      expect(page.public_preview_images.map { |i| i[:page] }).to eq([1])
+      expect(page.released_preview_images.map { |i| i[:page] }).to eq([1, 2])
+      # Page 2 of the FIRST document was public under the default and is not named here.
+      expect(page.preview_rows.find { |r| r[:key] == KitPage.preview_setting_key(first.id, 2) }[:visibility])
+        .to eq(KitPage::PREVIEW_HIDDEN)
+    end
+
+    it "keeps every public page in the released list, in the same order" do
+      first, = render_two_documents!
+      page.update!(preview_settings: {
+        KitPage.preview_setting_key(first.id, 1) => KitPage::PREVIEW_GATED,
+        KitPage.preview_setting_key(first.id, 2) => KitPage::PREVIEW_PUBLIC,
+      })
+
+      expect(page.released_preview_images.map { |i| i[:page] }).to eq([1, 2])
+      expect(page.public_preview_images).to all(be_in(page.released_preview_images))
+    end
+
+    it "names the document on a multi-document page and only the page on a single one" do
+      first, = render_two_documents!
+
+      expect(page.preview_rows.first[:document_label]).to eq("Parent handout")
+      expect(page.public_preview_images.first[:label]).to eq("Parent handout — page 1")
+
+      page.documents.reject { |d| d.blob_id == first.id }.each(&:purge)
+      page.documents.reset
+      page.send(:reset_file_memos)
+
+      expect(page.public_preview_images.first[:label]).to eq("Page 1")
+    end
+
+    # Every preview rendered before multi-document support carries no document
+    # id, and historically WAS the first document. Without this the live page
+    # goes blank the moment this deploys.
+    it "attributes a preview with no document id to the first document" do
+      first = upload!(page, filename: "handout.pdf")
+      page.attach_preview_image!(bytes: "PNG", page: 1)
+
+      expect(page.preview_rows.map { |row| row[:document_id] }).to eq([first.id.to_s])
+      expect(page.public_preview_images.map { |i| i[:page] }).to eq([1])
+    end
+
+    it "drops the rendered pages of a document that has been removed" do
+      first, second = render_two_documents!
+      page.documents.find { |d| d.blob_id == first.id }.purge
+      page.documents.reset
+      page.send(:reset_file_memos)
+
+      expect(page.preview_rows.map { |row| row[:document_id] }.uniq).to eq([second.id.to_s])
+    end
+
+    describe "#update_preview_settings!" do
+      it "writes what it is given" do
+        first, = render_two_documents!
+        page.update_preview_settings!(KitPage.preview_setting_key(first.id, 3) => KitPage::PREVIEW_GATED)
+
+        expect(page.reload.preview_settings).to eq(KitPage.preview_setting_key(first.id, 3) => "gated")
+      end
+
+      # The form is the injection surface: a key naming another page's document
+      # must never reach the column.
+      it "ignores a key that names no page on this record" do
+        first, = render_two_documents!
+        page.update_preview_settings!(
+          KitPage.preview_setting_key(first.id, 1) => KitPage::PREVIEW_PUBLIC,
+          "999999:1" => KitPage::PREVIEW_PUBLIC,
+          KitPage.preview_setting_key(first.id, 99) => KitPage::PREVIEW_PUBLIC,
+        )
+
+        expect(page.reload.preview_settings.keys).to eq([KitPage.preview_setting_key(first.id, 1)])
+      end
+
+      it "ignores a visibility that isn't one of the three" do
+        first, = render_two_documents!
+        page.update_preview_settings!(KitPage.preview_setting_key(first.id, 1) => "everywhere")
+
+        expect(page.reload.preview_settings).to eq({})
+      end
+
+      # A document whose render hasn't landed yet has no rows, so a wholesale
+      # replacement would silently drop choices already made about it.
+      it "preserves settings for a document that is attached but not yet rendered" do
+        first, = render_two_documents!
+        pending_doc = upload!(page, filename: "third.pdf")
+        page.update!(preview_settings: {
+          KitPage.preview_setting_key(pending_doc.id, 1) => KitPage::PREVIEW_PUBLIC,
+        })
+
+        page.update_preview_settings!(KitPage.preview_setting_key(first.id, 1) => KitPage::PREVIEW_GATED)
+
+        expect(page.reload.preview_settings).to eq(
+          KitPage.preview_setting_key(pending_doc.id, 1) => "public",
+          KitPage.preview_setting_key(first.id, 1) => "gated",
+        )
+      end
+
+      it "prunes settings whose document has been removed" do
+        first, second = render_two_documents!
+        page.update!(preview_settings: {
+          KitPage.preview_setting_key(first.id, 1) => KitPage::PREVIEW_PUBLIC,
+          KitPage.preview_setting_key(second.id, 1) => KitPage::PREVIEW_PUBLIC,
+        })
+        page.documents.find { |d| d.blob_id == first.id }.purge
+        page.documents.reset
+
+        page.prune_preview_settings!
+
+        expect(page.reload.preview_settings.keys).to eq([KitPage.preview_setting_key(second.id, 1)])
+      end
+    end
+
+    describe ".preview_render_limit" do
+      it "reads ENV at call time rather than freezing a constant" do
+        expect(KitPage.preview_render_limit).to eq(KitPage::DEFAULT_PREVIEW_RENDER_LIMIT)
+
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with("KIT_PREVIEW_RENDER_LIMIT", anything).and_return("4")
+
+        expect(KitPage.preview_render_limit).to eq(4)
+      end
     end
   end
 

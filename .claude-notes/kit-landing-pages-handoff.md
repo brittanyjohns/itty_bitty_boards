@@ -345,12 +345,15 @@ at all**.
 - **Versioned storage keys.** `#versioned_storage_key_for` mirrors
   `BoardPrintable`'s: CloudFront caches by path and ignores query strings, so
   re-uploading over a stable key leaves the CDN serving the previous document.
-- **No migration.** Everything above is Active Storage plus blob metadata.
+- **One migration since.** `preview_settings` (jsonb) records which rendered
+  page shows where — see "Curating the gallery" below. Everything else here is
+  still Active Storage plus blob metadata.
 
 ### Preview images
 
 `KitPages::DocumentPreviewRenderer` rasterizes the first
-`KitPage::PREVIEW_PAGE_COUNT` pages with **libvips** (`pdfload_buffer`), which is
+`KitPage.preview_render_limit` pages of EVERY uploaded document with **libvips**
+(`pdfload_buffer`), which is
 already the Active Storage variant processor in production and links libpoppler
 on the platforms we deploy — so no new gem and no new binary. Not poppler's
 `pdftoppm` or ImageMagick directly: `Boards::Printables::RenderPageThumbnails`
@@ -402,6 +405,56 @@ uploaded document was never sold.
   `spec/sidekiq/render_kit_previews_job_spec.rb`, plus additions to the kit page
   model, admin and API specs. `spec/fixtures/files/sample.pdf` is a real 2-page
   PDF — the renderer's whole job is decoding one, so stub bytes prove nothing.
+
+
+## Curating the gallery
+
+Every rendered page is one of three things — `hidden`, `public` (on the page
+before the email), or `gated` (handed over with the download). The admin picks
+per page under **Pictures on the page**, grouped by document.
+
+`kit_pages.preview_settings` (jsonb) is the record, keyed
+`"<document blob id>:<page>" => visibility`:
+
+- **A column, not blob metadata.** `RenderKitPreviewsJob` replaces every preview
+  blob on each run, so a choice written onto the blob dies at the next
+  "Regenerate".
+- **The BLOB id, not the attachment id.** `ordered_documents` yields
+  `ActiveStorage::Attachment`s whose `#id` is the join row; everything else in
+  the model reaches the blob through `delegate_missing_to`. Filenames aren't
+  identities either — two documents can share one, which is why uploads already
+  go to a versioned key.
+- **Empty means "never asked"**, and resolves to the historical default: the
+  first `DEFAULT_PUBLIC_PREVIEW_COUNT` (2) pages of the FIRST document, public.
+  That is what let this ship without moving `/kit/device-name-tags`. Once the
+  hash is non-empty an unlisted key is **hidden**, so a page that shows up later
+  (a new upload, a raised limit) never publishes itself.
+- `#update_preview_settings!` allowlists both the keys (must name a page this
+  record has) and the values — the form is the injection surface. It merges over
+  the settings of still-attached documents so choices about an unrendered upload
+  survive, and drops the settings of removed ones; `#prune_preview_settings!`
+  runs the same sweep from `remove_document`.
+
+`KitPage#preview_rows` is the one list everything filters:
+`gallery_images` (public only, on `public_view`), `released_gallery_images`
+(public + gated, on the download response), `preview_picker_rows` (everything).
+Rows carry `label` — `"Page 3"`, or `"Parent handout — page 3"` when there is
+more than one document — which the frontend prefers over its `IMAGE_ALT`
+variant lookup. `variant` stays `page_N` numbered within its own document, so it
+is NOT unique across documents; key on the URL.
+
+Two rails in the job:
+
+- **Render, then purge.** Each blob is stamped with a `batch` hex and the old set
+  goes only once the new one is complete; `preview_rows` reads the newest batch.
+  Purging first blanks a live public gallery for the length of the job — a second
+  at two pages, a minute at fifty.
+- **Legacy previews carry no `document_id` and no `batch`.** Both nils are
+  meaningful: such a preview is attributed to the first document (which is what
+  it actually was) and reads as the current batch. No backfill migration.
+
+Worst case is `MAX_DOCUMENTS` (5) x `preview_render_limit` (10) = 50 renders in
+one job; it logs documents/pages/seconds so that stays visible.
 
 
 ## Draft preview (`?preview=<token>`)

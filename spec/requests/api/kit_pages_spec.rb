@@ -380,6 +380,46 @@ RSpec.describe "API kit_pages", type: :request do
              params: { email: "teacher@example.com", data: { consent: true } }
       }.to change { MailchimpUpsertLeadJob.jobs.size }.by(1)
     end
+
+    # A picture may be marketing (public) or part of what the email buys
+    # (gated). The public read must never carry the second kind.
+    describe "pages held back until the email" do
+      let(:document) { page.ordered_documents.first }
+
+      before do
+        page.attach_preview_image!(bytes: "PNG", page: 2, document_id: document.blob_id)
+        page.attach_preview_image!(bytes: "PNG", page: 3, document_id: document.blob_id)
+        page.update!(preview_settings: {
+          KitPage.preview_setting_key(document.blob_id, 1) => "public",
+          KitPage.preview_setting_key(document.blob_id, 2) => "gated",
+          KitPage.preview_setting_key(document.blob_id, 3) => "hidden",
+        })
+      end
+
+      it "publishes only the public pages" do
+        get "/api/kit_pages/#{page.slug}"
+
+        expect(JSON.parse(response.body)["images"].map { |i| i["page"] }).to eq([1])
+      end
+
+      it "hands over the public and the gated pages after the email, never the hidden one" do
+        post "/api/kit_pages/#{page.slug}/download", params: { email: "teacher@example.com" }
+
+        expect(JSON.parse(response.body)["images"].map { |i| i["page"] }).to eq([1, 2])
+      end
+
+      it "shows no pictures at all when every page is held back" do
+        page.update!(preview_settings: page.preview_settings.merge(
+          KitPage.preview_setting_key(document.blob_id, 1) => "gated",
+        ))
+
+        get "/api/kit_pages/#{page.slug}"
+        expect(JSON.parse(response.body)["images"]).to eq([])
+
+        post "/api/kit_pages/#{page.slug}/download", params: { email: "teacher@example.com" }
+        expect(JSON.parse(response.body)["images"].map { |i| i["page"] }).to eq([1, 2])
+      end
+    end
   end
 
   # A page whose product is an editable Canva design rather than a PDF. Same

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_03_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_04_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -672,6 +672,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_03_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "canva_templates", default: [], null: false
+    t.jsonb "preview_settings", default: {}, null: false
     t.index ["board_printable_id"], name: "index_kit_pages_on_board_printable_id"
     t.index ["etsy_override_by_id"], name: "index_kit_pages_on_etsy_override_by_id"
     t.index ["slug"], name: "index_kit_pages_on_slug", unique: true
