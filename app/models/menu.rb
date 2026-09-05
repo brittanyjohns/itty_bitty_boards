@@ -116,6 +116,10 @@ class Menu < ApplicationRecord
       create_images_from_description(board)
       apply_grid_columns!(board)
       board.reset_layouts
+      # Net for a tile left past the column count: react-grid-layout clamps an
+      # off-grid tile to the last column and vertically compacts it, so the
+      # board renders as a single stacked strip. No-op on a clean board.
+      Boards::LayoutRepacker.repack!(board)
       board
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"

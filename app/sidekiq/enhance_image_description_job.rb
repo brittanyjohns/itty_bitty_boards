@@ -29,7 +29,17 @@ class EnhanceImageDescriptionJob
 
       # board.update_column(:description, result_str)
       board.update_column(:status, "processing")
-      board.reset_layouts
+
+      # The menu path owns this board's layout and has already finished with it:
+      # Menu#create_board_from_menu_image sizes the grid to the real tile count
+      # (Boards::GridFit, via #apply_grid_columns!) and packs the tiles against
+      # THAT width. Our `board` was loaded before any of that, so it still holds
+      # the 8/6/4 columns menus_controller#create guessed at. Re-packing here
+      # would read those stale attributes (Board#get_number_of_columns reads the
+      # in-memory values) and write tile x values past the board's real column
+      # count — off-grid tiles that react-grid-layout clamps into the last
+      # column and stacks vertically. Reload instead of re-laying-out.
+      board.reload
 
       board.update_column(:status, "complete")
       board.run_generate_preview_job
