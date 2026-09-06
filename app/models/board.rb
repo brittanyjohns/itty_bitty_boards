@@ -2736,7 +2736,9 @@ class Board < ApplicationRecord
     current_colors = @board_images.map { |bi| bi.bg_color }.flatten.compact.uniq
     # Not gated on the stored in_use flag — it can lag the join rows.
     @parent_boards = parent_boards(viewing_user&.id)
-    @child_accounts = communicator_child_boards.map(&:child_account).compact.uniq
+    # Viewer-scoped — see `visible_communicator_child_boards`.
+    @visible_child_boards = visible_communicator_child_boards(viewing_user)
+    @child_accounts = @visible_child_boards.map(&:child_account).compact.uniq
 
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
@@ -2754,11 +2756,11 @@ class Board < ApplicationRecord
       board_id: id,
       word_sample: word_sample,
       user_name: user&.display_name,
-      communicator_account_data: communicator_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
+      communicator_account_data: @visible_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
-      child_boards: communicator_child_boards.map { |cb| { board_id: cb.board_id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
+      child_boards: @visible_child_boards.map { |cb| { board_id: cb.board_id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
       in_use: in_use,
       is_template: is_template,
       parent_boards: @parent_boards&.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type, display_image_url: pb.display_image_url || pb.preview_image_url, preview_image_url: pb.preview_image_url } },
@@ -3228,11 +3230,17 @@ class Board < ApplicationRecord
     }
   end
 
-  def in_use_by
-    if in_use
-      @communicator_accounts = communicator_child_boards.map(&:child_account).compact.uniq
-      @communicator_accounts&.map(&:name)&.join(", ")
-    end
+  # Viewer-scoped: see `visible_communicator_child_boards`. Returns nil rather
+  # than "" for a viewer who may see none of them, so the badge that renders
+  # this stays hidden instead of showing an empty "Currently in use by".
+  def in_use_by(viewing_user = nil)
+    return unless in_use
+
+    names = visible_communicator_child_boards(viewing_user)
+              .map(&:child_account).compact.uniq.map(&:name)
+    return if names.empty?
+
+    names.join(", ")
   end
 
   # ChildBoard rows tying this board to communicators, across both join paths:
@@ -3250,6 +3258,29 @@ class Board < ApplicationRecord
        child_boards.includes(child_account: :profile).to_a)
       .uniq
       .select(&:child_account)
+  end
+
+  # The join rows above, narrowed to the communicators `viewing_user` is
+  # entitled to see.
+  #
+  # `communicator_child_boards` answers "who uses this board" globally. That is
+  # the right question for the owner's own board grid ("Currently in use by
+  # ...") and the wrong one for any other viewer, so the serializers that carry
+  # communicator identity resolve it through here instead. Same rule
+  # `public_card_view` already follows, applied in the serializers themselves.
+  #
+  # A nil viewer short-circuits before touching the database, which is also
+  # what keeps the board catalogue cheap to serialize: resolving these fields
+  # walks every join row, once per board.
+  def visible_communicator_child_boards(viewing_user = nil)
+    return [] unless viewing_user
+    return communicator_child_boards if viewing_user.try(:admin?)
+
+    viewer_id = viewing_user.id
+    communicator_child_boards.select do |cb|
+      account = cb.child_account
+      account.user_id == viewer_id || account.owner_id == viewer_id
+    end
   end
 
   # Whether viewing_user may edit this board's content. Owner/admin gate plus
@@ -3319,8 +3350,8 @@ class Board < ApplicationRecord
       in_a_public_group: @in_a_public_group,
       published: published,
       in_use: in_use,
-      in_use_by: in_use_by,
-      communicator_account_data: in_use ? communicator_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
+      in_use_by: in_use_by(viewing_user),
+      communicator_account_data: in_use ? visible_communicator_child_boards(viewing_user).map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
       can_edit: can_edit,
       # `destroy` is gated on owner-or-admin, NOT on the lock, so a user at
       # their board limit can still delete their way back under it. The boards

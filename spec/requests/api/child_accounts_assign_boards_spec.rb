@@ -76,7 +76,7 @@ RSpec.describe "API::ChildAccounts assign_boards", type: :request do
       assign!([source_root.id])
 
       expect(source_root.reload.in_use).to be true
-      expect(source_root.in_use_by).to include(communicator.name)
+      expect(source_root.in_use_by(owner)).to include(communicator.name)
     end
   end
 
