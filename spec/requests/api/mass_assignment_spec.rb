@@ -60,13 +60,28 @@ RSpec.describe "Mass-assignment of ownership fields", type: :request do
       expect(Board.public_boards).not_to include(board)
     end
 
+    # An unpublished board the attacker can't see 404s rather than 403s: board
+    # ids are sequential, so a permission answer would confirm the row exists.
     it "does not let a non-owner publish someone else's board" do
       patch "/api/boards/#{board.id}",
             params: { board: { published: true } },
             headers: auth_headers(attacker)
 
-      expect(response).to have_http_status(:unauthorized)
+      expect(response).to have_http_status(:not_found)
       expect(board.reload.published).to be_falsey
+    end
+
+    # Once the board IS visible to them there is nothing left to leak, so the
+    # answer becomes the permission one — and publishing is still refused.
+    it "does not let a non-owner unpublish someone else's PUBLISHED board" do
+      board.update!(published: true)
+
+      patch "/api/boards/#{board.id}",
+            params: { board: { published: false } },
+            headers: auth_headers(attacker)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(board.reload.published).to be true
     end
 
     it "still lets an admin curate predefined/published" do

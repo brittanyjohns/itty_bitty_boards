@@ -1069,12 +1069,28 @@ an explicit decision, not a drive-by edit.
   state — any signed-in caller could name another user's `board_image_ids` and
   spend their OWN AI credits to have `GenerateImagesJob` overwrite that board's
   tile art. The two `only:` lists are therefore kept in sync, with `add_image`
-  as the single deliberate exclusion: it is the one board write a COMMUNICATOR
-  may make, scoped by `check_communicator_board_access!`, and an
-  owner-or-admin check there would 401 every communicator token. The ownership
-  filter is declared FIRST so a non-owner is refused before the plan gate
-  leaks whether the board is locked, and it returns early on a nil board so a
-  bad id still 404s instead of 500ing.
+  as the single deliberate exclusion from the `before_action` LIST: it is the
+  one board write a COMMUNICATOR may make, scoped by
+  `check_communicator_board_access!`, and an owner-or-admin check in the list
+  would 401 every communicator token. Excluded from the list is not excluded
+  from the RULE — that gate opened with `return if current_user`, deferring a
+  user token to "the existing gates", which for `add_image` was only the plan
+  check, so a signed-in stranger could still add a tile to any board. It now
+  answers the dashboard question for a communicator token and DELEGATES to
+  `check_board_view_edit_permissions` for a user token; "the caller is signed
+  in" is not itself a gate. The ownership filter is declared FIRST so a
+  non-owner is refused before the plan gate leaks whether the board is locked,
+  and it returns early on a nil board so a bad id still 404s instead of 500ing.
+  Its refusal is two-shaped, and the shape is a question about VISIBILITY
+  rather than about the write: a board the caller can't see is the same generic
+  `404 {"error": "Board not found"}` that `show`/`pdf`/`download_obf` give (403
+  there would confirm a private board exists, and a board name routinely
+  carries a child's first name), while a board they can see but don't own is
+  403 — never 401, which is authentication and would trip a client's
+  session-expired handling. Team membership grants VIEWING only:
+  `Board#can_edit_for`, the `can_edit` flag the payload publishes, is
+  owner-or-admin, so widening the gate would let a caller do what the UI told
+  them they could not.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row

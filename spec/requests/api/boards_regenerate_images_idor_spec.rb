@@ -41,12 +41,17 @@ RSpec.describe "API::Boards#regenerate_images IDOR", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "401s a signed-in user who does not own the board" do
+  # The board is unpublished, so the non-owner can't see it at all and gets the
+  # same generic 404 #show gives — board ids are sequential, and a permission
+  # answer would confirm the row exists. Once the board IS visible to them the
+  # answer becomes 403; both are covered in boards_write_permission_spec.rb.
+  it "refuses a signed-in user who does not own the board" do
     expect(GenerateImagesJob).not_to receive(:perform_async)
 
     regenerate(as: other_user)
 
-    expect(response).to have_http_status(:unauthorized)
+    expect(response).to have_http_status(:not_found)
+    expect(JSON.parse(response.body)["error"]).to eq("Board not found")
   end
 
   it "spends none of the non-owner's credits" do
@@ -89,12 +94,12 @@ RSpec.describe "API::Boards#regenerate_images IDOR", type: :request do
       "post /remove_image" => [:post, "remove_image"],
       "post /generate_preview_image" => [:post, "generate_preview_image"],
     }.each do |label, (verb, action)|
-      it "401s a non-owner on #{label}" do
+      it "refuses a non-owner on #{label}" do
         public_send(verb, "/api/boards/#{board.id}/#{action}",
                     headers: auth_headers(other_user),
                     as: :json)
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:not_found)
       end
     end
   end

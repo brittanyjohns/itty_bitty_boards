@@ -2011,14 +2011,33 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  # Whether current_user may WRITE to this board. Owner or admin, and nothing
+  # else: Board#can_edit_for — the `can_edit` flag the payload publishes, which
+  # is what the editor gates its affordances on — gives the same answer, so a
+  # team member is refused only what the UI already told them they cannot do.
+  # Team membership grants VIEWING (Board#viewable_by?), never editing.
+  #
+  # The refusal has two shapes and which one applies is a question about
+  # visibility, not about the write:
+  #   - can't see the board -> 404 "Board not found", byte-identical to #show /
+  #     #pdf / #download_obf. Board ids are sequential and a board name
+  #     routinely carries a child's first name, so answering 403 here would
+  #     make the private corpus enumerable by incrementing an integer.
+  #   - can see it but doesn't own it (published, or shared with their team)
+  #     -> 403. Nothing is left to leak, and 403 is the permission answer per
+  #     the HTTP-semantics invariant.
+  # Generic strings in both cases — never name the owner or the board.
   def check_board_view_edit_permissions
-    set_board
+    set_board if @board.nil?
     return if @board.nil? # set_board already rendered 404
+    return if current_user && (@board.user_id == current_user.id || current_user.admin?)
 
-    unless @board.user == current_user || current_user.admin?
-      render json: { error: "Unauthorized" }, status: :unauthorized
+    unless @board.viewable_by?(current_user)
+      render json: { error: "Board not found" }, status: :not_found
       return
     end
+
+    render json: { error: "Unauthorized" }, status: :forbidden
   end
 
   # Boards over a downgraded user's plan limit are read-only: still fully
@@ -2059,7 +2078,13 @@ class API::BoardsController < API::ApplicationController
   # communicator token could write a tile onto any board id in the system.
   # Ordinary user tokens are untouched — they keep exactly the gates they had.
   def check_communicator_board_access!
-    return if current_user # a user token answers to the existing gates
+    # A USER token answers to the ownership gate, the same one every other board
+    # write uses. It can't simply be added to that before_action's list: on a
+    # communicator token current_user is nil, and the question there is "is this
+    # board on MY dashboard", not "do I own it" — a communicator owns nothing.
+    # Deferring to "the existing gates" without this left add_image with only
+    # check_board_editable!, which passes for a board you don't own.
+    return check_board_view_edit_permissions if current_user
 
     # authenticate_signed_in! guarantees one of the two credentials exists, so
     # reaching here means a communicator token.

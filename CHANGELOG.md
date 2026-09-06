@@ -24,6 +24,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   invalid took credits before rejecting itself, and a failed regenerate on a menu
   board refunded against the menu's original build instead of its own.
 
+- **Adding a tile to someone else's board is refused too.** The ownership check
+  above covered every editing action except "add a tile", which was left out
+  because it is also the one action a communicator can do from their own
+  dashboard. Signed in as yourself, it was still possible to drop a tile onto
+  any board. Communicators are unaffected — adding to a board on their own
+  dashboard works exactly as before.
+- **Asking to edit a board you can't see no longer reveals that it exists.**
+  Refusing with "not authorized" told you a board was there and simply wasn't
+  yours, which is enough to walk the whole library by guessing numbers — and
+  board names often contain a child's first name. A board you can't see now
+  answers the same "Board not found" the rest of the app gives; a board you can
+  see but don't own is refused as a permission error. Board sharing is
+  unchanged: team members open and use a shared board exactly as before,
+  matching what the app already showed them.
+
 - **A communicator's usage stats are now only readable by people connected to
   that communicator.** The stats behind the Stats tab — words used, most-clicked
   words, activity over time — checked that you were signed in, but not that the
