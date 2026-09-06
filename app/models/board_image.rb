@@ -375,6 +375,23 @@ class BoardImage < ApplicationRecord
     self.display_image_url = nil
   end
 
+  # The picture an img2img edit would start from, or nil when there is nothing
+  # to edit. Third member of the picture_hidden? / unhide_picture! family.
+  #
+  # picture_hidden? comes FIRST and that is the point: a blank means "this tile
+  # deliberately has no picture", so falling through to the shared Image's art
+  # would silently un-hide the tile by editing art it isn't showing. Beyond
+  # that it is the same chain every renderer uses, and deliberately wider than
+  # the `display_image_url || image.src_url` that create_image_edit! used to
+  # inline — that one misses a tile whose art lives on a per-user Doc.
+  def edit_source_image_url(viewing_user = nil)
+    return nil if picture_hidden?
+
+    display_image_url.presence ||
+      image&.display_image_url(viewing_user).presence ||
+      image&.src_url.presence
+  end
+
   def is_dynamic?
     predictive_board_id.present? && predictive_board_id != board_id
   end
@@ -1072,7 +1089,14 @@ class BoardImage < ApplicationRecord
 
   def create_image_edit!(prompt, transparent_bg = false)
     begin
-      url = display_image_url || image.src_url
+      url = edit_source_image_url(board&.user)
+      # Nothing to edit — fail here rather than making a paid call with a blank
+      # url. The bulk path filters these out before charging; this covers the
+      # single-tile path and the tile that got hidden after it was queued.
+      if url.blank?
+        Rails.logger.error "No source picture to edit for board_image ID #{id}"
+        return nil
+      end
       Rails.logger.debug "Creating image edit for board_image ID #{id} with URL: #{url}"
       if transparent_bg
         prompt_with_bg = "#{prompt} with a transparent background"

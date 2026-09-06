@@ -79,6 +79,51 @@ RSpec.describe GenerateImagesJob, type: :job do
     end
   end
 
+  describe "appearance modifiers" do
+    let(:plain_board) { FactoryBot.create(:board, user: user, board_type: "dynamic") }
+    let(:mods) { "medium-brown skin tone, higher contrast outlines" }
+
+    before do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)
+      plain_board.add_image(image.id)
+    end
+
+    it "composes them into the prompt alongside the tile's own subject" do
+      image.update!(image_prompt: "a golden retriever wearing a party hat")
+
+      expect_any_instance_of(Image).to receive(:create_image_doc) do |_img, _user_id, prompt|
+        expect(prompt).to include("a golden retriever wearing a party hat")
+        expect(prompt).to include(mods)
+        nil
+      end
+
+      described_class.new.perform([image.id], plain_board.id, { "modifiers" => mods })
+    end
+
+    # Request-scoped by design: persisting them would re-wrap this run's styling
+    # into every future regeneration of the tile.
+    it "never persists them onto image_prompt" do
+      image.update!(image_prompt: "a golden retriever wearing a party hat")
+
+      described_class.new.perform([image.id], plain_board.id, { "modifiers" => mods })
+
+      expect(image.reload.image_prompt).to eq("a golden retriever wearing a party hat")
+    end
+
+    it "is a no-op on a menu board, which bypasses the builder" do
+      expect_any_instance_of(Image).to receive(:create_image_doc) do |_img, _user_id, prompt|
+        expect(prompt).not_to include(mods)
+        nil
+      end
+
+      described_class.new.perform([image.id], board.id, { "modifiers" => mods })
+    end
+
+    it "still accepts a two-argument perform, so in-flight jobs survive a deploy" do
+      expect { described_class.new.perform([image.id], plain_board.id) }.not_to raise_error
+    end
+  end
+
   describe "menu image failure refunds" do
     before do
       allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)

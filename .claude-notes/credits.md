@@ -73,6 +73,18 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
   `images_queued` / `credits_spent` / `credits_remaining` so the client re-syncs its
   gauge instead of decrementing a guess. Admins spend nothing and report
   `credits_spent: 0`.
+- **Bulk EDIT charges per BOARD IMAGE, and only after the picture-less tiles
+  are filtered out.** `POST /api/boards/:id/edit_images` spends
+  `editable_tiles × image_edit` (5 each) in one transaction. Two differences
+  from bulk regenerate, both deliberate: the billed set is **not deduped**,
+  because an edit writes each tile's own `display_image_url` rather than the
+  shared `Image`, so two tiles on one library Image are two pictures; and the
+  editable/skipped partition runs **before** `check_credits!`, because a tile
+  with no picture has nothing to edit and billing for it would take money for
+  work that can never run. The response names the skipped ids so the client can
+  say what was left out. All-skipped is a 422 `no_editable_images` with zero
+  spend. `EditBoardImagesJob` refunds a failed tile through `Credits::TxnRefunds`
+  under `image_edit_failed`, keyed on the **board_image** id.
 - **A pre-paid image refunds against the txn that PAID for it.**
   `Credits::TxnRefunds` is the shared refund core — idempotent on
   `(txn, refund_reason, image_id)`, capped cumulatively at the original spend under

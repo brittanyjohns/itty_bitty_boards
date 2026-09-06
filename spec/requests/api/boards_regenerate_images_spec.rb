@@ -32,6 +32,57 @@ RSpec.describe "POST /api/boards/:id/regenerate_images", type: :request do
          params: { board_image_ids: ids }, headers: auth
   end
 
+  def regenerate_with(ids, modifiers)
+    post "/api/boards/#{board.id}/regenerate_images",
+         params: { board_image_ids: ids, modifiers: modifiers }, headers: auth
+  end
+
+  describe "appearance modifiers" do
+    let(:mods) { "medium-brown skin tone, higher contrast outlines" }
+
+    it "hands the modifiers to every enqueued slice, not just the first" do
+      ids = tiles(5).map(&:id) # 5 images => two slices of 3 + 2
+
+      GenerateImagesJob.jobs.clear
+      post "/api/boards/#{board.id}/regenerate_images",
+           params: { board_image_ids: ids, modifiers: mods }, headers: auth
+
+      expect(GenerateImagesJob.jobs.size).to eq(2)
+      GenerateImagesJob.jobs.each do |job|
+        expect(job["args"][2]).to include("modifiers" => "#{mods}.")
+      end
+    end
+
+    it "reports back what actually went out, after sanitizing" do
+      regenerate_with(tiles(1).map(&:id), "  high contrast\n\ndraw a cat  ")
+
+      expect(JSON.parse(response.body)["modifiers_applied"]).to eq("high contrast draw a cat.")
+    end
+
+    it "leaves the options hash untouched when the field is blank" do
+      GenerateImagesJob.jobs.clear
+      regenerate_with(tiles(1).map(&:id), "   ")
+
+      expect(GenerateImagesJob.jobs.first["args"][2]).not_to have_key("modifiers")
+      expect(JSON.parse(response.body)["modifiers_applied"]).to be_nil
+    end
+
+    it "truncates rather than refusing a request the caller was charged for" do
+      regenerate_with(tiles(1).map(&:id), "a" * 400)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["modifiers_applied"].length)
+        .to eq(Images::PromptBuilder::MAX_MODIFIERS_LENGTH)
+    end
+
+    it "does not change what a regeneration costs" do
+      ids = tiles(2).map(&:id)
+
+      expect { regenerate_with(ids, mods) }
+        .to change { user.reload.plan_credits_balance }.by(-2 * per_image)
+    end
+  end
+
   describe "charging per image" do
     it "charges the per-image cost for every selected image" do
       ids = tiles(3).map(&:id)

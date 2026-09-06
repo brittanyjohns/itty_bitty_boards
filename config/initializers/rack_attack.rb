@@ -92,7 +92,7 @@ class Rack::Attack
   TOKEN_ACCESS_PATHS = %r{\A/api/(temp-login|communicator_claims)/|\A/api/verify_email\z}
 
   # AI-generation path suffixes (the issue's `/generate*` + audio generation).
-  AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images].freeze
+  AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images edit_images].freeze
 
   # Free in-house text-tile rendering. Not in AI_GEN_SUFFIXES on purpose.
   # The bulk form is here too: one request, but it fans out to a render per

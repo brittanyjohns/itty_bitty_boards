@@ -14,6 +14,9 @@ class EditBoardImageJob
     board_image.update(status: "error") if board_image.present?
     raise e
   ensure
-    board_image.update(status: "edited") if board_image.present?
+    # Never over the "error" the rescue just wrote — this ensure used to run
+    # unconditionally, so a failed edit reported itself as finished and the
+    # tile's real state was unrecoverable from the row.
+    board_image.update(status: "edited") if board_image.present? && board_image.status != "error"
   end
 end

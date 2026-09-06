@@ -38,6 +38,12 @@ class GenerateImagesJob
   # sets `current: true` on the new doc but does NOT clear its siblings, so
   # without this the old library doc stays current alongside the new one.
   #
+  # options["modifiers"] — the bulk editor's "apply to every selected tile"
+  # appearance field. Request-scoped: it is composed into the prompt here and
+  # deliberately never written to image_prompt, so tomorrow's regeneration of
+  # this tile starts clean instead of inheriting one run's styling forever.
+  # A no-op on menu boards, which bypass the builder entirely (see below).
+  #
   # options["credit_txn_id"] / options["credit_per_image"] — the caller pre-paid
   # per image against that spend txn (bulk regenerate), so a failed generation
   # refunds one image's cost against it. Absent for every enqueue that spends
@@ -45,6 +51,7 @@ class GenerateImagesJob
   def perform(image_ids, board_id = nil, options = {})
     options = (options || {}).with_indifferent_access
     replace_current = options[:replace_current].present?
+    modifiers = options[:modifiers].presence
     images = Image.where(id: image_ids)
     return if images.empty?
 
@@ -86,6 +93,7 @@ class GenerateImagesJob
                 user_input: image.image_prompt,
                 board: board,
                 user: image.user,
+                modifiers: modifiers,
               )
             end
 
