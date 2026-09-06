@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Editing a board is now restricted to its owner (or an admin) on every
+  editing action.** Rearranging tiles, regenerating or recategorizing tile art,
+  setting colors, changing the cover, formatting with AI, adding or removing
+  tiles, and generating a preview all checked that the board was editable on
+  your plan but not that it was yours. Anyone signed in could change someone
+  else's board — and regenerating that board's artwork spent their own AI
+  credits doing it.
 - **A communicator's usage stats are now only readable by people connected to
   that communicator.** The stats behind the Stats tab — words used, most-clicked
   words, activity over time — checked that you were signed in, but not that the

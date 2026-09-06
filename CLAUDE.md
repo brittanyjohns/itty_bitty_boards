@@ -1045,6 +1045,21 @@ an explicit decision, not a drive-by edit.
   board is not published rather than relying on the favorite TRANSITION — an
   already-favorited row saved nothing, never reached `MySpeakPublisher`, and
   left a card on a public page that 404s on tap.
+- **`check_board_editable!` is a PLAN gate, not a permission gate — a mutating
+  board action needs `check_board_view_edit_permissions` as well.**
+  `User#board_editable?` opens with `return true if board.nil? || board.user_id
+  != id`: it measures the read-only lock a downgrade imposes on YOUR boards and
+  deliberately says nothing about a board you don't own, so an action guarded
+  only by it is guarded by nothing. `regenerate_images` sat in exactly that
+  state — any signed-in caller could name another user's `board_image_ids` and
+  spend their OWN AI credits to have `GenerateImagesJob` overwrite that board's
+  tile art. The two `only:` lists are therefore kept in sync, with `add_image`
+  as the single deliberate exclusion: it is the one board write a COMMUNICATOR
+  may make, scoped by `check_communicator_board_access!`, and an
+  owner-or-admin check there would 401 every communicator token. The ownership
+  filter is declared FIRST so a non-owner is refused before the plan gate
+  leaks whether the board is locked, and it returns early on a nil board so a
+  bad id still 404s instead of 500ing.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row
