@@ -58,6 +58,22 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
       expect(user.reload.plan_credits_balance).to eq(before_balance)
     end
 
+    # Bulk regenerate runs one paid generation per image, so it charges per
+    # image — not a flat fee for the request, however many tiles were selected.
+    it "regenerate_images costs 3 per selected image" do
+      board = FactoryBot.create(:board, user: user)
+      ids = Array.new(3) do
+        image = FactoryBot.create(:image, user: user)
+        board.add_image(image.id)
+        board.board_images.find_by(image_id: image.id).id
+      end
+
+      expect {
+        post "/api/boards/#{board.id}/regenerate_images",
+             params: { board_image_ids: ids }, headers: auth
+      }.to change { user.reload.plan_credits_balance }.by(-9)
+    end
+
     it "word_suggestion costs 1" do
       # Stub the OpenAI call so the action doesn't actually hit the network
       allow_any_instance_of(Board).to receive(:get_word_suggestions_from_default_prompt).and_return(["red", "blue"])

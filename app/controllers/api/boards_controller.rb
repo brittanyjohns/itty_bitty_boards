@@ -685,24 +685,46 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  # Bulk "Regenerate with AI": one paid OpenAI generation per distinct image, so
+  # the charge is per image and not per request. Validate BEFORE spending —
+  # check_credits! spends rather than checks, so an ordering slip bills a caller
+  # for a request that is about to 422.
   def regenerate_images
     set_board
-    return unless check_credits!(feature_key: "image_generation", feature_name: "AI Image Regeneration")
     board_image_ids = params[:board_image_ids]
     if board_image_ids.blank? || !board_image_ids.is_a?(Array)
       render json: { error: "board_image_ids parameter is required and must be an array" }, status: :unprocessable_content
       return
     end
-    board_images = @board.board_images.where(id: board_image_ids)
-    if board_images.empty?
+    # Two tiles on one board can share a library Image, and that Image is
+    # generated once — so the deduped set is both what runs and what is billed.
+    image_ids = @board.board_images.where(id: board_image_ids).pluck(:image_id).compact.uniq
+    if image_ids.empty?
       render json: { error: "No valid board images found for the provided IDs" }, status: :unprocessable_content
       return
     end
-    image_ids = board_images.pluck(:image_id)
+
+    per_image = CreditService.cost_for("image_generation")
+    amount = image_ids.size * per_image
+    return unless check_credits!(feature_key: "image_generation", feature_name: "AI Image Regeneration",
+                                 amount: amount,
+                                 metadata: { board_id: @board.id,
+                                             breakdown: { images: image_ids.size, per_image: per_image } })
+
+    # The spend txn committed inside CreditService.spend!, so the jobs below can
+    # name it — keep this stretch out of any new transaction, or the worker
+    # dequeues before the id it was handed exists.
+    options = regenerate_credit_options(per_image)
     image_ids.each_slice(3) do |batch|
-      GenerateImagesJob.perform_async(batch, @board.id)
+      GenerateImagesJob.perform_async(batch, @board.id, options)
     end
-    render json: { status: "ok", message: "Image regeneration job started" }
+    render json: {
+      status: "ok",
+      message: "Image regeneration job started",
+      images_queued: image_ids.size,
+      credits_spent: @credit_spend_transaction ? amount : 0,
+      credits_remaining: current_user ? CreditService.balance(current_user)[:total] : nil,
+    }
   end
 
   def recategorize_images
@@ -1799,6 +1821,15 @@ class API::BoardsController < API::ApplicationController
   end
 
   private
+
+  # Hand GenerateImagesJob the exact spend to refund against when one of its
+  # images fails. Keyed off the txn rather than off `admin?` because
+  # check_credits! also returns true with no spend when there is no current_user
+  # — nothing was paid, so there is nothing to give back.
+  def regenerate_credit_options(per_image)
+    return {} unless @credit_spend_transaction
+    { "credit_txn_id" => @credit_spend_transaction.id, "credit_per_image" => per_image }
+  end
 
   # `GET /api/generated_boards/:token/pdf` authorizes by an unguessable token
   # and then REDIRECTS here, which drops the capability — the browser follows

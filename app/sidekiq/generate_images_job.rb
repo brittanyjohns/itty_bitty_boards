@@ -2,6 +2,34 @@ class GenerateImagesJob
   include Sidekiq::Job
   sidekiq_options queue: :ai_images, retry: 1, backtrace: true
 
+  # The per-image rescues below refund a failure as it happens; this covers the
+  # job dying outright (the outer rescue re-raises, retry: 1 then gives up), so
+  # images that never got their turn are still refunded. Only the explicit
+  # reservation is honoured here — a menu build's settings["menu_credit"] is
+  # left to its own paths, whose behaviour this change doesn't touch. Tiles that
+  # already reached "complete" are skipped; ones already refunded in-loop hit the
+  # idempotency marker and cost nothing.
+  sidekiq_retries_exhausted do |msg, _ex|
+    image_ids, board_id, options = msg["args"]
+    options = (options || {}).with_indifferent_access
+    txn = Credits::TxnRefunds.spend_txn(options[:credit_txn_id])
+    per_image = options[:credit_per_image].to_i
+    next unless txn && per_image.positive?
+
+    unfinished = BoardImage.where(board_id: board_id, image_id: image_ids)
+      .where.not(status: "complete").pluck(:image_id).uniq
+    unfinished = Array(image_ids) if board_id.blank?
+
+    unfinished.each do |image_id|
+      Credits::TxnRefunds.refund!(txn, per_image, reason: REFUND_REASON,
+                                                  image_id: image_id, metadata: { board_id: board_id })
+    end
+  end
+
+  # Marker for a refunded failed generation. Deliberately distinct from the
+  # menu path's "menu_image_failed" — the two reserve different transactions.
+  REFUND_REASON = "image_generation_failed"
+
   # `options` is a trailing optional arg so jobs already enqueued with two
   # arguments keep running after a deploy.
   #
@@ -9,6 +37,11 @@ class GenerateImagesJob
   # replacing it (the admin builder's "regenerate with AI" mark). Image#create_image_doc
   # sets `current: true` on the new doc but does NOT clear its siblings, so
   # without this the old library doc stays current alongside the new one.
+  #
+  # options["credit_txn_id"] / options["credit_per_image"] — the caller pre-paid
+  # per image against that spend txn (bulk regenerate), so a failed generation
+  # refunds one image's cost against it. Absent for every enqueue that spends
+  # nothing (admin builds) or that reserves through the board instead (menus).
   def perform(image_ids, board_id = nil, options = {})
     options = (options || {}).with_indifferent_access
     replace_current = options[:replace_current].present?
@@ -65,7 +98,7 @@ class GenerateImagesJob
             failed_image_ids << image.id
             image.update_column(:status, "failed") if image.has_attribute?(:status)
             board_image&.update_column(:status, "failed")
-            refund_menu_image_credit(board, image.id)
+            refund_failed_image_credit(board, image.id, options)
             next
           end
 
@@ -100,7 +133,7 @@ class GenerateImagesJob
 
           image.update_column(:status, "failed") if image.has_attribute?(:status)
           board_image&.update_column(:status, "failed")
-          refund_menu_image_credit(board, image.id)
+          refund_failed_image_credit(board, image.id, options)
 
           next
         end
@@ -144,11 +177,32 @@ class GenerateImagesJob
 
   private
 
-  # Menu boards pre-pay per generated image (board.settings["menu_credit"]);
-  # give one image's cost back when its generation failed. Idempotent inside
-  # the refund service, so the Sidekiq retry can't double-refund. No-op for
-  # non-menu boards and admin builds (no reservation stashed).
-  def refund_menu_image_credit(board, image_id)
+  # Give one image's cost back when its generation failed. Idempotent inside the
+  # refund service, so the Sidekiq retry can't double-refund. No-op when nothing
+  # was pre-paid (admin builds).
+  #
+  # An explicit reservation in `options` WINS over the menu board's
+  # settings["menu_credit"]. A bulk regenerate run on a menu board pre-paid its
+  # OWN spend; refunding that failure against the original menu_create txn
+  # credits back an unrelated purchase — and would eat into the budget the menu
+  # build's own refunds are capped against.
+  #
+  # One spend fans out to several jobs (the caller slices the batch), so every
+  # slice refunds the same txn: `image_id` in the marker is what keeps them from
+  # standing in for each other, and the cap inside the refund service is what
+  # makes concurrent slices safe.
+  def refund_failed_image_credit(board, image_id, options)
+    txn_id = options[:credit_txn_id]
+    per_image = options[:credit_per_image].to_i
+
+    if txn_id.present? && per_image.positive?
+      Credits::TxnRefunds.refund!(
+        Credits::TxnRefunds.spend_txn(txn_id), per_image,
+        reason: REFUND_REASON, image_id: image_id, metadata: { board_id: board&.id },
+      )
+      return
+    end
+
     return unless board&.board_type == "menu"
     Menus::CreditRefunds.refund_failed_image!(board, image_id)
   end
