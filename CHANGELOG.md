@@ -24,6 +24,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   invalid took credits before rejecting itself, and a failed regenerate on a menu
   board refunded against the menu's original build instead of its own.
 
+- **Only a board's owner (or an admin) can change it.** Editing a board's tiles
+  and name was already restricted, but the AI and layout actions around it —
+  regenerating tile art, recoloring, "Format with AI", rearranging or saving a
+  layout, resetting tiles to the library picture, adding or removing a tile,
+  changing the board cover, and rebuilding the cover snapshot — checked only
+  whether your plan allowed editing, never whose board it was. Any signed-in
+  user could run them on any board. A board you can't see now answers the same
+  "Board not found" it always did elsewhere, so nothing new is discoverable by
+  guessing ids; a board you can see but don't own is refused as a permission
+  error. Board sharing is unchanged: team members still open and use a shared
+  board exactly as before, matching what the app already showed them.
+
 - **A communicator's usage stats are now only readable by people connected to
   that communicator.** The stats behind the Stats tab — words used, most-clicked
   words, activity over time — checked that you were signed in, but not that the

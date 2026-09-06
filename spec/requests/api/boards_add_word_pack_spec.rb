@@ -127,12 +127,15 @@ RSpec.describe "API::Boards#add_word_pack", type: :request do
   end
 
   # User#board_editable? returns TRUE for a board you don't own — it measures
-  # the plan lock, not permission — so ownership needs its own gate.
+  # the plan lock, not permission — so ownership needs its own gate. An
+  # unpublished board the caller can't see 404s rather than 403s: board ids are
+  # sequential, so a permission answer would confirm the row exists.
   it "refuses a board the caller does not own" do
     other_board = create(:board, user: create(:user))
 
     expect { add(pack_key: "pronouns", words: ["he"], on: other_board) }
       .not_to change { other_board.reload.board_images.count }
-    expect(response).to have_http_status(:unauthorized)
+    expect(response).to have_http_status(:not_found)
+    expect(json["error"]).to eq("Board not found")
   end
 end

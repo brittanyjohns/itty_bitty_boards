@@ -1091,6 +1091,29 @@ an explicit decision, not a drive-by edit.
   exists is itself the leak. Being on the skip list is not evidence an action is
   safe — check `predictive_image_board`, which resolves the same way.
 
+- **A board WRITE is gated by ownership, and `User#board_editable?` is not that
+  gate.** It opens with `return true if board.user_id != id` — it measures the
+  PLAN lock, not permission — so it passes for every board you don't own, and
+  `set_board` scopes by nothing. `check_board_view_edit_permissions` (owner or
+  admin) is the only ownership answer, and EVERY action on
+  `check_board_editable!`'s list must carry it. Thirteen did not, so
+  `regenerate_images`, `set_colors`, `format_with_ai`, `save_layout` and the
+  rest were reachable on any board by incrementing an integer. The one
+  exception is `add_image`, the single write a COMMUNICATOR token may make: it
+  can't join the `before_action` list because a communicator has no
+  `current_user` and owns nothing, so its own gate
+  (`check_communicator_board_access!`) answers the dashboard question for a
+  communicator token and DELEGATES to the ownership gate for a user token —
+  "the caller is signed in" is not itself a gate. The refusal is two-shaped and
+  the shape is a question about VISIBILITY, not about the write: a board the
+  caller can't see is the same generic `404 {"error": "Board not found"}` that
+  `show`/`pdf`/`download_obf` give (403 there would confirm a private board
+  exists, and a board name routinely carries a child's first name), while a
+  board they can see but don't own is 403. Team membership grants VIEWING only
+  — `Board#can_edit_for`, the `can_edit` flag the payload publishes, is
+  owner-or-admin, so widening the gate would let a caller do what the UI told
+  them they could not.
+
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);
