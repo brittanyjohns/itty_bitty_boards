@@ -193,4 +193,133 @@ RSpec.describe GenerateImagesJob, type: :job do
       expect { described_class.new.perform([image.id], plain_board.id) }.not_to raise_error
     end
   end
+
+  # Bulk regenerate pre-pays per image against its OWN spend txn and hands the
+  # job that txn, rather than reserving through board.settings like a menu build.
+  describe "pre-paid regenerate refunds" do
+    let(:plain_board) { FactoryBot.create(:board, user: user, board_type: "dynamic") }
+    let(:other_image) { FactoryBot.create(:image, user: user) }
+
+    before do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)
+      plain_board.add_image(image.id)
+      plain_board.add_image(other_image.id)
+    end
+
+    # 2 images at 3 credits each.
+    def regenerate_options(images: 2, per_image: 3)
+      txn = CreditService.spend!(user, feature_key: "image_generation", amount: images * per_image)
+      { "credit_txn_id" => txn.id, "credit_per_image" => per_image }
+    end
+
+    it "refunds one image's cost when a non-menu board's generation fails" do
+      options = regenerate_options
+
+      expect {
+        described_class.new.perform([image.id], plain_board.id, options)
+      }.to change { user.reload.plan_credits_balance }.by(3)
+    end
+
+    it "refunds each failed image separately across the batch" do
+      options = regenerate_options
+
+      expect {
+        described_class.new.perform([image.id, other_image.id], plain_board.id, options)
+      }.to change { user.reload.plan_credits_balance }.by(6)
+    end
+
+    it "refunds only the images that failed" do
+      options = regenerate_options
+      allow_any_instance_of(Image).to receive(:create_image_doc) do |img, *|
+        img.id == image.id ? nil : FactoryBot.create(:doc, documentable: img, user: user)
+      end
+
+      expect {
+        described_class.new.perform([image.id, other_image.id], plain_board.id, options)
+      }.to change { user.reload.plan_credits_balance }.by(3)
+    end
+
+    it "does not double-refund across the Sidekiq retry" do
+      options = regenerate_options
+
+      described_class.new.perform([image.id], plain_board.id, options)
+      expect {
+        described_class.new.perform([image.id], plain_board.id, options)
+      }.not_to change { user.reload.plan_credits_balance }
+    end
+
+    it "never refunds more than the spend, however many slices report failures" do
+      options = regenerate_options(images: 1)
+
+      described_class.new.perform([image.id], plain_board.id, options)
+      described_class.new.perform([other_image.id], plain_board.id, options)
+
+      refunded = CreditTransaction.where(kind: "refund")
+        .where("metadata ->> 'refund_for_txn' = ?", options["credit_txn_id"].to_s).sum(:amount)
+      expect(refunded).to eq(3)
+    end
+
+    # The regenerate spend is a separate purchase from the menu build's; crediting
+    # it back against the menu reservation refunds an unrelated transaction and
+    # eats the budget the menu's own refunds are capped against.
+    it "refunds its own txn on a menu board, leaving the menu reservation alone" do
+      reserve!
+      menu_txn_id = board.reload.settings["menu_credit"]["txn_id"]
+      options = regenerate_options
+
+      described_class.new.perform([image.id], board.id, options)
+
+      refunds = CreditTransaction.where(kind: "refund")
+      expect(refunds.where("metadata ->> 'refund_for_txn' = ?", options["credit_txn_id"].to_s).count).to eq(1)
+      expect(refunds.where("metadata ->> 'refund_for_txn' = ?", menu_txn_id.to_s)).to be_empty
+    end
+
+    it "refunds nothing without a reservation on a non-menu board" do
+      expect {
+        described_class.new.perform([image.id], plain_board.id)
+      }.not_to change { user.reload.plan_credits_balance }
+    end
+
+    describe "when the job dies outright" do
+      def exhaust!(image_ids, options)
+        described_class.sidekiq_retries_exhausted_block.call(
+          { "args" => [image_ids, plain_board.id, options] }, RuntimeError.new("boom")
+        )
+      end
+
+      it "refunds the images that never reached complete" do
+        options = regenerate_options
+
+        expect {
+          exhaust!([image.id, other_image.id], options)
+        }.to change { user.reload.plan_credits_balance }.by(6)
+      end
+
+      it "skips images that already generated successfully" do
+        options = regenerate_options
+        plain_board.board_images.find_by(image_id: other_image.id).update_column(:status, "complete")
+
+        expect {
+          exhaust!([image.id, other_image.id], options)
+        }.to change { user.reload.plan_credits_balance }.by(3)
+      end
+
+      it "does not refund an image the per-image rescue already refunded" do
+        options = regenerate_options
+        described_class.new.perform([image.id], plain_board.id, options)
+
+        expect {
+          exhaust!([image.id], options)
+        }.not_to change { user.reload.plan_credits_balance }
+      end
+
+      it "no-ops for a job carrying no reservation" do
+        expect {
+          described_class.sidekiq_retries_exhausted_block.call(
+            { "args" => [[image.id], plain_board.id] }, RuntimeError.new("boom")
+          )
+        }.not_to change { user.reload.plan_credits_balance }
+      end
+    end
+  end
 end

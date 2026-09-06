@@ -65,38 +65,13 @@ module Menus
         nil
       end
 
-      # Refund `amount` against the spend txn. `reason` (+ image_id) is the
-      # idempotency marker — the same reason/image pair never refunds twice —
-      # and the sum of all refunds is capped at the original spend amount.
-      # Refunds return topup credits first: spend! drains plan first, so
-      # topup was the last money taken.
+      # Refund `amount` against the spend txn. The idempotency marker, the cap
+      # at the original spend, and the topup-first split all live in
+      # Credits::TxnRefunds — shared with the bulk-regenerate path, which
+      # reserves its own spend the same way. Only the board_id context is ours.
       def refund!(board, txn, amount, reason:, image_id: nil)
-        return if amount <= 0
-
-        txn.with_lock do
-          refunds = CreditTransaction.where(kind: "refund")
-            .where("metadata ->> 'refund_for_txn' = ?", txn.id.to_s)
-
-          marker = refunds.where("metadata ->> 'refund_reason' = ?", reason)
-          marker = marker.where("metadata ->> 'image_id' = ?", image_id.to_s) if image_id
-          next if marker.exists?
-
-          already_refunded = refunds.sum(:amount).to_i
-          amount = [amount, txn.amount.abs - already_refunded].min
-          next if amount <= 0
-
-          meta = { board_id: board.id, refund_for_txn: txn.id, refund_reason: reason }
-          meta[:image_id] = image_id if image_id
-
-          topup_spent = txn.metadata["from_topup"].to_i
-          topup_refunded = refunds.where(source: "topup").sum(:amount).to_i
-          to_topup = [amount, [topup_spent - topup_refunded, 0].max].min
-          to_plan = amount - to_topup
-
-          user = txn.user
-          CreditService.refund!(user, amount: to_topup, feature_key: txn.feature_key, source: "topup", metadata: meta) if to_topup.positive?
-          CreditService.refund!(user, amount: to_plan, feature_key: txn.feature_key, source: "plan", metadata: meta) if to_plan.positive?
-        end
+        Credits::TxnRefunds.refund!(txn, amount, reason: reason, image_id: image_id,
+                                                 metadata: { board_id: board.id })
       end
     end
   end
