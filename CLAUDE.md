@@ -408,6 +408,21 @@ an explicit decision, not a drive-by edit.
   count, since a viewer never waits on a tile they can't see. It is deliberately
   absent from `Board#api_view`, which serializes board LISTS and would pay a
   query per board.
+- **`check_credits!` SPENDS, so it goes after validation — and a bulk AI action
+  charges per unit of work.** It reads as a check and is not one: it debits the
+  ledger and renders 402 only when the balance is short. `regenerate_images` called
+  it FIRST, so a request with a blank `board_image_ids`, or ids matching no tile on
+  the board, took the money and then 422'd. It also charged the flat
+  `image_generation` fee (3) for the whole request while firing one paid OpenAI call
+  per image, so 30 selected tiles bought 30 generations for 3 credits; the charge is
+  now `images × per_image` over the DEDUPED image set, since two tiles sharing one
+  library `Image` are one generation. The corollary of pre-paying N units is that a
+  failed unit has to come back: `Credits::TxnRefunds` is the one refund core
+  (idempotent on `(txn, reason, image_id)`, capped at the original spend under a lock,
+  topup-first, fail-soft), `Menus::CreditRefunds` delegates to it, and a job is handed
+  the txn that paid for ITS work — never left to find a reservation on the board,
+  which is how a regenerate failure on a menu board refunded the unrelated
+  `menu_create` purchase. Details: `.claude-notes/credits.md`.
 - **Webhooks are the sole credit-grant authority** (Stripe + RevenueCat).
   Client-called endpoints may reflect plan state but never grant credits. All
   credit movement goes through `CreditService` and the immutable

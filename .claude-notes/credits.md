@@ -58,8 +58,36 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
   Generating an image for an empty tile/label (no doc yet) still enqueues
   `GenerateImageJob` but is **not billed** — we don't charge users to build the shared
   image library. Charging only applies when they're replacing/customizing an existing
-  image. `regenerate_images`, `create_image_edit`, and `create_image_variation` act on
-  images that already have a picture, so they keep charging unconditionally.
+  image. `create_image_edit` and `create_image_variation` act on images that already
+  have a picture, so they keep charging unconditionally.
+- **Bulk regenerate charges PER IMAGE, and only after the request validates.**
+  `POST /api/boards/:id/regenerate_images` runs one paid OpenAI generation per
+  distinct `image_id` among the selected tiles, so it spends
+  `images × image_generation` (3 each) in one transaction — not a flat fee for the
+  request, which is what it did until it was found under-charging by up to 80x.
+  Two tiles sharing one library `Image` are one generation and one charge, so the
+  billed set is the DEDUPED set. `check_credits!` **spends**, so both param guards
+  run above it: a blank/non-array `board_image_ids`, or ids matching no tile on the
+  board, used to burn 3 credits and then 422. The spend txn carries a
+  `breakdown` (`images`/`per_image`) like the menu build's, and the response reports
+  `images_queued` / `credits_spent` / `credits_remaining` so the client re-syncs its
+  gauge instead of decrementing a guess. Admins spend nothing and report
+  `credits_spent: 0`.
+- **A pre-paid image refunds against the txn that PAID for it.**
+  `Credits::TxnRefunds` is the shared refund core — idempotent on
+  `(txn, refund_reason, image_id)`, capped cumulatively at the original spend under
+  `txn.with_lock`, topup-first (because `spend!` drains plan first), and fail-soft.
+  `Menus::CreditRefunds` keeps the menu reservation lookup and delegates the
+  arithmetic to it. The regenerate path hands `GenerateImagesJob` its own
+  `credit_txn_id`/`credit_per_image` through the job's existing trailing `options`
+  hash, and **the job prefers a passed reservation over `board.settings["menu_credit"]`**
+  — a regenerate run on a menu board pre-paid its own spend, so refunding that
+  failure against the original `menu_create` txn credits back an unrelated purchase
+  and eats the budget the menu's own refunds are capped against. One spend fans out
+  to several jobs (`each_slice(3)`), so `image_id` in the marker is what keeps slices
+  from standing in for each other. `sidekiq_retries_exhausted` covers the job dying
+  outright, refunding only the tiles that never reached `complete`. Two-argument
+  enqueues (menu builds, admin builds, the board word-list fanout) are unaffected.
   Because this path never calls `check_credits!`, it briefly carried its own
   gate — `require_verified_email!`, a 403 `email_verification_required` for an
   unverified caller — which existed only because the initial credit grant was

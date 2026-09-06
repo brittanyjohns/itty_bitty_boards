@@ -14,6 +14,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   your plan but not that it was yours. Anyone signed in could change someone
   else's board — and regenerating that board's artwork spent their own AI
   credits doing it.
+- **Regenerating a batch of tiles with AI now charges for the images it actually
+  makes.** Selecting 30 tiles and regenerating them ran 30 AI image generations
+  but only ever charged for one, whatever you picked. It now costs the normal
+  per-image price for each distinct picture it regenerates — two tiles sharing
+  the same picture still count once — and the response reports what it spent and
+  what you have left. Credits for a generation that fails come back. Two
+  credit-losing bugs went with it: a regenerate request that turned out to be
+  invalid took credits before rejecting itself, and a failed regenerate on a menu
+  board refunded against the menu's original build instead of its own.
+
 - **A communicator's usage stats are now only readable by people connected to
   that communicator.** The stats behind the Stats tab — words used, most-clicked
   words, activity over time — checked that you were signed in, but not that the
