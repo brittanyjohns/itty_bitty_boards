@@ -1069,12 +1069,28 @@ an explicit decision, not a drive-by edit.
   state — any signed-in caller could name another user's `board_image_ids` and
   spend their OWN AI credits to have `GenerateImagesJob` overwrite that board's
   tile art. The two `only:` lists are therefore kept in sync, with `add_image`
-  as the single deliberate exclusion: it is the one board write a COMMUNICATOR
-  may make, scoped by `check_communicator_board_access!`, and an
-  owner-or-admin check there would 401 every communicator token. The ownership
-  filter is declared FIRST so a non-owner is refused before the plan gate
-  leaks whether the board is locked, and it returns early on a nil board so a
-  bad id still 404s instead of 500ing.
+  as the single deliberate exclusion from the `before_action` LIST: it is the
+  one board write a COMMUNICATOR may make, scoped by
+  `check_communicator_board_access!`, and an owner-or-admin check in the list
+  would 401 every communicator token. Excluded from the list is not excluded
+  from the RULE — that gate opened with `return if current_user`, deferring a
+  user token to "the existing gates", which for `add_image` was only the plan
+  check, so a signed-in stranger could still add a tile to any board. It now
+  answers the dashboard question for a communicator token and DELEGATES to
+  `check_board_view_edit_permissions` for a user token; "the caller is signed
+  in" is not itself a gate. The ownership filter is declared FIRST so a
+  non-owner is refused before the plan gate leaks whether the board is locked,
+  and it returns early on a nil board so a bad id still 404s instead of 500ing.
+  Its refusal is two-shaped, and the shape is a question about VISIBILITY
+  rather than about the write: a board the caller can't see is the same generic
+  `404 {"error": "Board not found"}` that `show`/`pdf`/`download_obf` give (403
+  there would confirm a private board exists, and a board name routinely
+  carries a child's first name), while a board they can see but don't own is
+  403 — never 401, which is authentication and would trip a client's
+  session-expired handling. Team membership grants VIEWING only:
+  `Board#can_edit_for`, the `can_edit` flag the payload publishes, is
+  owner-or-admin, so widening the gate would let a caller do what the UI told
+  them they could not.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row
@@ -1090,29 +1106,6 @@ an explicit decision, not a drive-by edit.
   `404 {"error": "Board not found"}` in both, never a 403: confirming the row
   exists is itself the leak. Being on the skip list is not evidence an action is
   safe — check `predictive_image_board`, which resolves the same way.
-
-- **A board WRITE is gated by ownership, and `User#board_editable?` is not that
-  gate.** It opens with `return true if board.user_id != id` — it measures the
-  PLAN lock, not permission — so it passes for every board you don't own, and
-  `set_board` scopes by nothing. `check_board_view_edit_permissions` (owner or
-  admin) is the only ownership answer, and EVERY action on
-  `check_board_editable!`'s list must carry it. Thirteen did not, so
-  `regenerate_images`, `set_colors`, `format_with_ai`, `save_layout` and the
-  rest were reachable on any board by incrementing an integer. The one
-  exception is `add_image`, the single write a COMMUNICATOR token may make: it
-  can't join the `before_action` list because a communicator has no
-  `current_user` and owns nothing, so its own gate
-  (`check_communicator_board_access!`) answers the dashboard question for a
-  communicator token and DELEGATES to the ownership gate for a user token —
-  "the caller is signed in" is not itself a gate. The refusal is two-shaped and
-  the shape is a question about VISIBILITY, not about the write: a board the
-  caller can't see is the same generic `404 {"error": "Board not found"}` that
-  `show`/`pdf`/`download_obf` give (403 there would confirm a private board
-  exists, and a board name routinely carries a child's first name), while a
-  board they can see but don't own is 403. Team membership grants VIEWING only
-  — `Board#can_edit_for`, the `can_edit` flag the payload publishes, is
-  owner-or-admin, so widening the gate would let a caller do what the UI told
-  them they could not.
 
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
