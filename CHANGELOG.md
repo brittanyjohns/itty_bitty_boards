@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Editing a board is now restricted to its owner (or an admin) on every
+  editing action.** Rearranging tiles, regenerating or recategorizing tile art,
+  setting colors, changing the cover, formatting with AI, adding or removing
+  tiles, and generating a preview all checked that the board was editable on
+  your plan but not that it was yours. Anyone signed in could change someone
+  else's board — and regenerating that board's artwork spent their own AI
+  credits doing it.
 - **Regenerating a batch of tiles with AI now charges for the images it actually
   makes.** Selecting 30 tiles and regenerating them ran 30 AI image generations
   but only ever charged for one, whatever you picked. It now costs the normal

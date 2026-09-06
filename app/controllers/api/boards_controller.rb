@@ -17,7 +17,15 @@ class API::BoardsController < API::ApplicationController
   # User#board_editable? returns true for a board you don't own (it measures the
   # PLAN lock, not permission), so without this a signed-in user could add tiles
   # to anyone's board.
-  before_action :check_board_view_edit_permissions, only: %i[update destroy add_word_pack]
+  #
+  # This list mirrors check_board_editable!'s minus #add_image, which is the one
+  # board write a COMMUNICATOR may make and carries its own scoping
+  # (check_communicator_board_access!) — running an owner-or-admin check there
+  # would 401 every communicator token. Every other mutating action is
+  # owner-or-admin, including the AI ones: #regenerate_images spends the
+  # CALLER's credits to overwrite the TARGET board's tile art, so an ungated
+  # action let any signed-in user pay to mutate somebody else's board.
+  before_action :check_board_view_edit_permissions, only: %i[ save_layout rearrange_images update destroy regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_word_pack associate_image associate_images remove_image generate_preview_image ]
   before_action :check_board_create_permissions, only: %i[ create clone clone_plan create_from_template import_obf ]
   before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image generate_preview_image ]
   # Declared AFTER check_board_editable! so the plan gate still answers first —
@@ -2005,6 +2013,8 @@ class API::BoardsController < API::ApplicationController
 
   def check_board_view_edit_permissions
     set_board
+    return if @board.nil? # set_board already rendered 404
+
     unless @board.user == current_user || current_user.admin?
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
