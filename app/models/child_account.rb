@@ -294,6 +294,22 @@ class ChildAccount < ApplicationRecord
     team_users.where(user_id: viewing_user.id, role: User::CURATE_ROLES).exists?
   end
 
+  # Can `viewing_user` READ this communicator's data — usage stats, word
+  # events, the pages of the communicator screen that don't curate anything?
+  #
+  # Broader than `curatable_by?` on purpose: every team role is a legitimate
+  # reader (a Support member watching how the week went does not get to change
+  # the boards), so this deliberately does not filter on `User::CURATE_ROLES`.
+  # Narrower than "any signed-in user", which is what the stats endpoint
+  # effectively allowed before it had a gate at all.
+  def viewable_by?(viewing_user)
+    return false unless viewing_user
+    return true if user_id == viewing_user.id || owner_id == viewing_user.id
+    return true if viewing_user.admin?
+
+    team_users.where(user_id: viewing_user.id).exists?
+  end
+
   # Most-recent Board Builder root still attached to this communicator, if any.
   # Detector for the re-run duplicate guard (issue #269): the wizard marks each
   # root board settings["builder_root"] = true. Deletion-safe — if the user
