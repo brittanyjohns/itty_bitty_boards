@@ -5,6 +5,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **A board now lists only the communicators you're entitled to see.** The
+  "Currently in use by" information on a board is yours: you still see your own
+  communicators on your own boards, an admin still sees everything, and nobody
+  else sees any. This also makes the public board library markedly faster to
+  load, since working that out was most of what the library was doing.
+
 ### Added
 
 - **Choose which pages of a kit page's PDF people see, and when.** A `/kit/…`
