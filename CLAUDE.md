@@ -442,12 +442,14 @@ an explicit decision, not a drive-by edit.
   means "this tile has no picture", while `nil` falls through to the shared
   Image's art. Never "tidy" a blank to nil, and never wrap the chain in
   `.presence` — that erased the marker and printed an apple on a Core Safety
-  colour tile (#683). `BoardImage#picture_hidden?` and `#unhide_picture!` are
-  where that distinction is written down; use them rather than comparing to
-  `""` by hand. Because it is the *same* marker the renderers already honour,
-  "Hide pictures" works in PDF exports, board covers, and printables without
-  any of them knowing the feature exists — which is exactly why it must not
-  become a second `data[...]` flag.
+  colour tile (#683). `BoardImage#picture_hidden?`, `#unhide_picture!` and
+  `#edit_source_image_url` (the art an img2img edit starts from — nil for a
+  hidden picture, so a bulk edit can't silently un-hide a tile by editing art
+  it isn't showing) are where that distinction is written down; use them rather
+  than comparing to `""` by hand. Because it is the *same* marker the renderers
+  already honour, "Hide pictures" works in PDF exports, board covers, and
+  printables without any of them knowing the feature exists — which is exactly
+  why it must not become a second `data[...]` flag.
 - **`BoardImage#set_defaults` SEEDS a picture, it never overwrites one — a
   non-nil `display_image_url` is the pin, and a copy has to look like its
   source.** The `before_create` cannot tell an authored URL from a defaulted

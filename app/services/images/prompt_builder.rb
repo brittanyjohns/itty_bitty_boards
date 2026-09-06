@@ -12,8 +12,9 @@
 # Prompt layers, in order:
 #   1. subject          — the user's input, else the label
 #   2. disambiguation   — from part_of_speech, only when it adds information
-#   3. style spec       — STYLES[:symbol] or STYLES[:illustrated]
-#   4. hard constraints — always; no text, single subject, background rule
+#   3. appearance mods  — the bulk "apply to every selected tile" field
+#   4. style spec       — STYLES[:symbol] or STYLES[:illustrated]
+#   5. hard constraints — always; no text, single subject, background rule
 module Images
   class PromptBuilder
     SYMBOL = "symbol".freeze
@@ -45,6 +46,18 @@ module Images
     TRANSPARENT_CONSTRAINT = "The background must be fully transparent.".freeze
     OPAQUE_CONSTRAINT = "Use a plain, solid, uncluttered background.".freeze
 
+    # The bulk editor's "apply to every selected tile" field — skin tone,
+    # contrast, line weight. Unlike `user_input` it describes how the picture
+    # LOOKS, never what it is of, so it is a separate layer rather than a second
+    # way to write the subject. The guard sentence is not decoration: without it
+    # a modifier phrased as a noun ("a brown-skinned child") is read as the
+    # subject by the model and every selected tile comes back as the same
+    # picture, which is the exact failure this layer exists to avoid.
+    MAX_MODIFIERS_LENGTH = 240
+    MODIFIERS_LEAD_IN = "Apply these appearance instructions to the whole picture:".freeze
+    MODIFIERS_GUARD = "Keep the subject exactly as described above; these instructions " \
+                      "change only how it looks.".freeze
+
     # Part-of-speech clauses exist to disambiguate AAC homographs — "can",
     # "orange", "watch", "left", "back", "second", "fly", "ring" all render as
     # the wrong concept without them. We already compute and store
@@ -72,7 +85,39 @@ module Images
                               "gesture or hand sign.",
     }.freeze
 
-    attr_reader :label, :user_input, :part_of_speech, :style, :transparent
+    attr_reader :label, :user_input, :part_of_speech, :style, :transparent, :modifiers
+
+    # Free text from a user, made safe to drop into a composed prompt.
+    #
+    # The `[[...]]` strip is load-bearing: `[[REPLACE_LABEL]]` is the ADMIN-only
+    # raw-prompt escape hatch that API::ImagesController#generate honours, and
+    # the bulk fields this sanitizes are the first place a NON-admin's free text
+    # reaches the composer. Control characters go too — a newline lets a user
+    # visually "end" our prompt and start their own.
+    #
+    # Returns nil for anything that reduces to blank, so a caller can treat
+    # "typed nothing" and "typed only whitespace" identically.
+    def self.sanitize_user_text(value, max_length:)
+      text = value.to_s
+        .gsub(/\[\[.*?\]\]/, " ")
+        .gsub(/[[:cntrl:]]/, " ")
+        .squish
+        .slice(0, max_length).to_s
+        .strip
+      return nil if text.blank?
+      return text if text.end_with?(".", "!", "?")
+      # max_length is a ceiling on what we EMIT, so text already at the cap
+      # keeps its (lossy) truncation rather than growing a 241st character. The
+      # terminator only matters for text we didn't cut — it stops the next
+      # clause running into the user's last word.
+      return text if text.length >= max_length
+
+      "#{text}."
+    end
+
+    def self.sanitize_modifiers(value)
+      sanitize_user_text(value, max_length: MAX_MODIFIERS_LENGTH)
+    end
 
     # Resolves the style for a generation: an explicit request param wins, then
     # the board's setting, then the user's, then the default. Unknown values
@@ -94,26 +139,28 @@ module Images
 
     # Convenience wrapper for the common "generate art for this Image record"
     # case, so callers don't have to remember to pass part_of_speech.
-    def self.for_image(image, user_input: nil, style: nil, transparent: true, board: nil, user: nil)
+    def self.for_image(image, user_input: nil, style: nil, transparent: true, board: nil, user: nil, modifiers: nil)
       new(
         label: image.label,
         user_input: user_input,
         part_of_speech: image.part_of_speech,
         style: style || resolve_style(board: board, user: user || image.user),
         transparent: transparent,
+        modifiers: modifiers,
       ).call
     end
 
-    def initialize(label:, user_input: nil, part_of_speech: nil, style: nil, transparent: true)
+    def initialize(label:, user_input: nil, part_of_speech: nil, style: nil, transparent: true, modifiers: nil)
       @label = label.to_s.strip
       @user_input = user_input.to_s.strip
       @part_of_speech = part_of_speech.to_s.strip.downcase
       @style = STYLE_NAMES.include?(style.to_s) ? style.to_s : DEFAULT_STYLE
       @transparent = transparent
+      @modifiers = self.class.sanitize_modifiers(modifiers)
     end
 
     def call
-      [subject_clause, pos_clause, style_clause, BASE_CONSTRAINTS, background_clause]
+      [subject_clause, pos_clause, modifiers_clause, style_clause, BASE_CONSTRAINTS, background_clause]
         .compact_blank
         .join(" ")
     end
@@ -147,6 +194,18 @@ module Images
       return nil if user_input.present? && !user_input.casecmp?(label)
 
       POS_CLAUSES[part_of_speech]
+    end
+
+    # Sits AFTER the subject and part-of-speech clauses — each tile keeps its own
+    # word — and BEFORE the style spec, so the house style stays the last and
+    # therefore most authoritative instruction. A modifier that contradicts it
+    # ("watercolor", "photorealistic") loses to it, which is the trade we want:
+    # a board full of tiles that no longer match each other is worse than an
+    # instruction the model only partly honours.
+    def modifiers_clause
+      return nil if modifiers.blank?
+
+      "#{MODIFIERS_LEAD_IN} #{modifiers} #{MODIFIERS_GUARD}"
     end
 
     def background_clause

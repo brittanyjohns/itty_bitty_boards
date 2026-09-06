@@ -1,6 +1,11 @@
 class API::BoardsController < API::ApplicationController
   include BoardCreationLimit
 
+  # The bulk image-edit instruction. Longer than PromptBuilder's modifiers cap
+  # because this text IS the whole prompt to the edit endpoint, not one layer
+  # inside a composed envelope.
+  MAX_EDIT_PROMPT_LENGTH = 400
+
   # add_image is the one board write a COMMUNICATOR may make: Quick add, where a
   # nonspeaking user drops a word onto a board on their own dashboard. It is
   # skipped from the user-only `authenticate_token!` and re-gated below by
@@ -22,15 +27,15 @@ class API::BoardsController < API::ApplicationController
   # board write a COMMUNICATOR may make and carries its own scoping
   # (check_communicator_board_access!) — running an owner-or-admin check there
   # would 401 every communicator token. Every other mutating action is
-  # owner-or-admin, including the AI ones: #regenerate_images spends the
-  # CALLER's credits to overwrite the TARGET board's tile art, so an ungated
-  # action let any signed-in user pay to mutate somebody else's board.
-  before_action :check_board_view_edit_permissions, only: %i[ save_layout rearrange_images update destroy regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_word_pack associate_image associate_images remove_image generate_preview_image ]
+  # owner-or-admin, including the AI ones: #regenerate_images and #edit_images
+  # spend the CALLER's credits to overwrite the TARGET board's tile art, so an
+  # ungated action let any signed-in user pay to mutate somebody else's board.
+  before_action :check_board_view_edit_permissions, only: %i[ save_layout rearrange_images update destroy regenerate_images edit_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_word_pack associate_image associate_images remove_image generate_preview_image ]
   before_action :check_board_create_permissions, only: %i[ create clone clone_plan create_from_template import_obf ]
-  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image generate_preview_image ]
+  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images edit_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image generate_preview_image ]
   # Declared AFTER check_board_editable! so the plan gate still answers first —
   # a read-only board is 403 board_locked whether or not it's also for sale.
-  before_action :check_marketplace_edit_confirmed!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image ]
+  before_action :check_marketplace_edit_confirmed!, only: %i[ save_layout rearrange_images update regenerate_images edit_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -723,6 +728,11 @@ class API::BoardsController < API::ApplicationController
     # name it — keep this stretch out of any new transaction, or the worker
     # dequeues before the id it was handed exists.
     options = regenerate_credit_options(per_image)
+    # Truncated rather than refused: a cosmetic input problem must not fail a
+    # batch the caller has already been charged for. The client caps the field
+    # at the same length, and the response reports what actually went out.
+    modifiers = Images::PromptBuilder.sanitize_modifiers(params[:modifiers])
+    options = options.merge("modifiers" => modifiers) if modifiers
     image_ids.each_slice(3) do |batch|
       GenerateImagesJob.perform_async(batch, @board.id, options)
     end
@@ -730,6 +740,78 @@ class API::BoardsController < API::ApplicationController
       status: "ok",
       message: "Image regeneration job started",
       images_queued: image_ids.size,
+      modifiers_applied: modifiers,
+      credits_spent: @credit_spend_transaction ? amount : 0,
+      credits_remaining: current_user ? CreditService.balance(current_user)[:total] : nil,
+    }
+  end
+
+  # Bulk "Edit pictures with a prompt": one paid OpenAI image EDIT (img2img)
+  # per selected tile, run against the art that tile is already showing rather
+  # than redrawing it from scratch. Same credit shape as #regenerate_images —
+  # validate BEFORE spending, because check_credits! spends rather than checks.
+  #
+  # Billed per BOARD IMAGE, not per distinct library Image: an edit writes the
+  # tile's own display_image_url, so two tiles sharing one Image are two
+  # separate edits and two separate pictures. That is the deliberate difference
+  # from regenerate, which dedupes because generation writes the shared Image.
+  def edit_images
+    set_board
+    prompt = Images::PromptBuilder.sanitize_user_text(params[:prompt], max_length: MAX_EDIT_PROMPT_LENGTH)
+    if prompt.blank?
+      render json: { error: "prompt_required", message: "Tell us how to change the pictures." }, status: :unprocessable_content
+      return
+    end
+
+    board_image_ids = params[:board_image_ids]
+    if board_image_ids.blank? || !board_image_ids.is_a?(Array)
+      render json: { error: "board_image_ids parameter is required and must be an array" }, status: :unprocessable_content
+      return
+    end
+
+    board_images = @board.board_images.where(id: board_image_ids).includes(:image)
+    if board_images.empty?
+      render json: { error: "No valid board images found for the provided IDs" }, status: :unprocessable_content
+      return
+    end
+
+    # Partition BEFORE charging. A tile with no picture has nothing to edit, so
+    # billing for it would take money for work that can never run — the
+    # opposite ordering from a check that merely gates the request.
+    editable, skipped = board_images.partition { |bi| bi.edit_source_image_url(@board.user).present? }
+    if editable.empty?
+      render json: {
+        error: "no_editable_images",
+        message: "None of the selected tiles have a picture to edit.",
+        skipped_board_image_ids: skipped.map(&:id),
+      }, status: :unprocessable_content
+      return
+    end
+
+    per_image = CreditService.cost_for("image_edit")
+    amount = editable.size * per_image
+    return unless check_credits!(feature_key: "image_edit", feature_name: "AI Image Edits",
+                                 amount: amount,
+                                 metadata: { board_id: @board.id,
+                                             breakdown: { images: editable.size, per_image: per_image } })
+
+    editable_ids = editable.map(&:id)
+    BoardImage.where(id: editable_ids).update_all(status: "editing")
+
+    # The spend txn committed inside CreditService.spend!, so the jobs below can
+    # name it — keep this stretch out of any new transaction, or the worker
+    # dequeues before the id it was handed exists.
+    options = regenerate_credit_options(per_image)
+    transparent_bg = params[:transparent_background].to_s == "true"
+    editable_ids.each_slice(3) do |batch|
+      EditBoardImagesJob.perform_async(@board.id, batch, prompt, transparent_bg, options)
+    end
+
+    render json: {
+      status: "ok",
+      message: "Image editing job started",
+      images_queued: editable_ids.size,
+      skipped_board_image_ids: skipped.map(&:id),
       credits_spent: @credit_spend_transaction ? amount : 0,
       credits_remaining: current_user ? CreditService.balance(current_user)[:total] : nil,
     }

@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Bulk regeneration takes instructions about how the pictures should look.**
+  `POST /api/boards/:id/regenerate_images` accepts an optional `modifiers`
+  string — skin tone, contrast, line weight — applied to every selected tile.
+  It is a new layer of the composed prompt, not a replacement for each tile's
+  subject, so every tile still comes back as its own word. Sanitized and
+  truncated rather than refused, request-scoped, and never persisted; sending
+  nothing behaves exactly as before.
+
+- **Bulk editing of the pictures a board already has.**
+  `POST /api/boards/:id/edit_images` runs an AI image edit against the art each
+  selected tile is currently showing, rather than redrawing it. Priced per tile
+  and charged only after the tiles that have no picture are filtered out — those
+  are reported back and never billed. A tile whose edit fails gets its own
+  credits back.
+
 ### Fixed
 
 - **Editing a board is now restricted to its owner (or an admin) on every
@@ -14,6 +31,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   your plan but not that it was yours. Anyone signed in could change someone
   else's board — and regenerating that board's artwork spent their own AI
   credits doing it.
+
+- **A failed single-tile image edit no longer reports itself as finished.** The
+  job wrote "edited" over its own error on the way out, so a tile whose edit had
+  failed was indistinguishable from one that succeeded.
+
 - **Regenerating a batch of tiles with AI now charges for the images it actually
   makes.** Selecting 30 tiles and regenerating them ran 30 AI image generations
   but only ever charged for one, whatever you picked. It now costs the normal

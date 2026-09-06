@@ -24,12 +24,43 @@ Prompt layers, in order:
 
 1. **Subject** — `user_input` if given, else `label`
 2. **Disambiguation** — from `part_of_speech`, only when it adds information
-3. **Style spec** — `STYLES[:symbol]` or `STYLES[:illustrated]`
-4. **Hard constraints** — always: no text/letters/numbers, single centered
+3. **Appearance modifiers** — the bulk editor's "apply to every selected tile"
+   field, when one was sent
+4. **Style spec** — `STYLES[:symbol]` or `STYLES[:illustrated]`
+5. **Hard constraints** — always: no text/letters/numbers, single centered
    subject, background rule
 
 The only bypass is `raw_prompt: true`, gated to admins via the
 `[[REPLACE_LABEL]]` marker in `images_controller#generate`.
+
+### Modifiers never replace the subject, and never come last
+
+`modifiers` describes how a picture LOOKS — skin tone, contrast, line weight —
+and is a separate layer precisely because `user_input` is the *subject*. Bulk
+text sent down the subject path regenerates every selected tile as a picture of
+the phrase itself instead of its own word, which is the whole failure the layer
+exists to avoid. `MODIFIERS_GUARD` restates that to the model in the prompt, for
+the same reason: a modifier phrased as a noun ("a brown-skinned child") reads as
+a subject without it.
+
+It sits **before** the style spec so the house style stays the last and
+therefore most authoritative instruction. A modifier that contradicts it
+("watercolor", "photorealistic") loses — a board whose tiles no longer match
+each other is worse than an instruction the model only partly honours.
+
+### `sanitize_user_text` is where non-admin free text is made safe
+
+`Images::PromptBuilder.sanitize_user_text` strips `[[...]]` and control
+characters, squishes, truncates and terminates. The `[[...]]` strip is the
+load-bearing part: `[[REPLACE_LABEL]]` is the admin-only raw-prompt escape
+hatch above, and the bulk fields are the first place a NON-admin's free text
+reaches the composer — in bulk, across a whole board. Control characters go for
+the same reason a newline is dangerous in any templated prompt: it lets a user
+visually "end" ours and start their own.
+
+Truncation, not refusal: `regenerate_images` charges before composing, so
+refusing an over-long field would fail a batch the caller has already paid for.
+The response reports `modifiers_applied` so the client can show what went out.
 
 ## `image_prompt` stores intent, never the composed prompt
 
@@ -37,6 +68,14 @@ The only bypass is `raw_prompt: true`, gated to admins via the
 composed at call time and passed to `create_image_doc`. Persisting the composed
 prompt would make each regeneration wrap the previous envelope inside a new one.
 `GenerateImageJob` and `GenerateImagesJob` both follow this split — keep it.
+
+Modifiers follow the same split one step further: they are **request-scoped and
+never persisted at all**, not even as intent. Storing them would re-wrap one
+run's styling into every future regeneration of that tile. The visible
+consequence is that a later single-tile regenerate drops them and that tile
+falls out of the set — deliberate, and the reason a board-level sticky setting
+(`board.settings["image_modifiers"]`) is the eventual answer rather than a
+persisted column.
 
 Menu items are the exception: they carry their own complete prompt in
 `image_prompt` (set from the vision parse in `Menu#create_images_from_description`)
@@ -100,6 +139,37 @@ variation" used to emit visibly off-style art next to gpt-image tiles.
 spec, different composition. `ImageVariationService` was deleted. Do not
 reintroduce the variations endpoint.
 
+## Bulk edit vs. bulk regenerate
+
+Two bulk actions off the same drawer, and the differences between them are all
+deliberate:
+
+|  | `regenerate_images` | `edit_images` |
+|---|---|---|
+| What runs | `images/generations` — a new picture from the tile's word | `images/edits` — img2img over the art the tile already shows |
+| Free text | `modifiers`, **optional**, one layer of a composed prompt | `prompt`, **required**, the whole instruction to the edit endpoint |
+| Billed per | distinct **Image** (deduped) | **BoardImage** (not deduped) |
+| Charge order | validate → count → charge | validate → **partition** → charge |
+
+The billing unit differs because the writes differ: a generation writes the
+shared `Image`, so two tiles on one library Image are one picture; an edit
+writes each tile's own `display_image_url`, so they are two.
+
+The extra partition step is the picture-less-tile filter. A tile whose picture
+is hidden has nothing to edit, so billing for it would take money for work that
+can never run — hence it happens before `check_credits!`, which spends rather
+than checks. `BoardImage#edit_source_image_url` is that filter, and it asks
+`picture_hidden?` first: a blank `display_image_url` means "this tile
+deliberately has no picture", so falling through to the shared Image's art would
+silently un-hide the tile by editing art it isn't showing.
+
+`EditBoardImagesJob` exists rather than a loop over `EditBoardImageJob` because
+that one reports no per-image outcome — it swallows its own failures — which
+makes a per-image refund impossible. Both refund through `Credits::TxnRefunds`
+against the reservation the controller hands them, under distinct reasons
+(`image_edit_failed` vs `image_generation_failed`) since the two name different
+spend transactions.
+
 ## Prompt provenance
 
 gpt-image models do **not** return `revised_prompt` (DALL·E 3 did), so without
@@ -145,6 +215,8 @@ placements. The freshly minted URL is known-good and is never re-validated.
 | `Board#find_or_create_images_from_word_list` | `GenerateImagesJob` | Board fill; branches menu vs. everything else |
 | `BoardImage#create_image_variation!` | inline | Routes to `ImageEditService` |
 | `BoardImage#create_image_edit!` | inline | User-supplied edit prompt |
+| `POST api/boards/:id/regenerate_images` | `GenerateImagesJob` | Bulk redraw; accepts `modifiers` |
+| `POST api/boards/:id/edit_images` | `EditBoardImagesJob` | Bulk img2img; `prompt` required, billed per tile |
 
 ## Staging
 
