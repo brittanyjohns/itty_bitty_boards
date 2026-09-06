@@ -384,8 +384,54 @@ RSpec.describe Board, type: :model do
         expect(view[:in_use]).to be(true)
       end
 
-      it "names the communicator in in_use_by" do
-        expect(board.reload.in_use_by).to eq("Mason")
+      it "names the communicator in in_use_by, for a viewer who owns them" do
+        expect(board.reload.in_use_by(user)).to eq("Mason")
+      end
+    end
+
+    # Both serializers below carry communicator identity — names, usernames and
+    # avatar URLs — and both are reachable with no signed-in user, so they
+    # resolve it through `visible_communicator_child_boards` rather than
+    # listing every communicator using the board.
+    context "for a viewer who does not own the communicator" do
+      before { communicator.child_boards.create!(board: board, created_by_id: user.id) }
+
+      let(:stranger) { FactoryBot.create(:user) }
+
+      it "names no communicator to an unauthenticated viewer" do
+        view = board.reload.api_view(nil)
+
+        expect(view[:in_use_by]).to be_nil
+        expect(view[:communicator_account_data]).to eq([])
+      end
+
+      it "names no communicator to a signed-in stranger" do
+        view = board.reload.api_view(stranger)
+
+        expect(view[:in_use_by]).to be_nil
+        expect(view[:communicator_account_data]).to eq([])
+      end
+
+      it "leaks no communicator identity through the show payload" do
+        view = board.reload.api_view_with_predictive_images(stranger)
+
+        expect(view[:communicator_accounts]).to eq([])
+        expect(view[:communicator_account_data]).to eq([])
+        expect(view[:child_boards]).to eq([])
+      end
+
+      it "still shows the owner their own communicator" do
+        view = board.reload.api_view(user)
+
+        expect(view[:in_use_by]).to eq("Mason")
+        expect(view[:communicator_account_data].map { |d| d[:acct_id] }).to eq([communicator.id])
+      end
+
+      it "still shows an admin the full picture" do
+        admin = FactoryBot.create(:admin_user)
+        view = board.reload.api_view(admin)
+
+        expect(view[:in_use_by]).to eq("Mason")
       end
     end
 
