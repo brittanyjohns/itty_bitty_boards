@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A communicator's usage stats are now only readable by people connected to
+  that communicator.** The stats behind the Stats tab — words used, most-clicked
+  words, activity over time — checked that you were signed in, but not that the
+  communicator was anything to do with you. The owner, an admin, and team
+  members of any role can read them; everyone else is refused. Loading the tab
+  is also considerably faster.
+
 ### Added
 
 - **Choose which pages of a kit page's PDF people see, and when.** A `/kit/…`

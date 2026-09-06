@@ -90,17 +90,30 @@ class API::AuditsController < API::ApplicationController
       return
     end
 
+    # This action is behind `authenticate_signed_in!` only, which answers "is
+    # SOMEONE signed in", not "may THIS person read THIS communicator". Without
+    # the gate below, any signed-in user could read any communicator's usage by
+    # walking `account_id`. Owner, admin and team members of every role may
+    # read; nobody else may. (`viewable_by?` is deliberately broader than the
+    # curate gate — reading stats is not editing.)
+    viewer = current_user || current_account&.user
+    unless account.viewable_by?(viewer)
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
     days = params[:days].to_i
     days = DEFAULT_STATS_DAYS unless ALLOWED_STATS_DAYS.include?(days)
     range = days.days.ago.beginning_of_day..Time.current
 
+    # `:user` and `:profile` are read per event by `WordEvent#api_view`
+    # (`user.email`, `profile&.id`) — without them a full 500-event page costs
+    # a thousand extra queries.
     events = account.word_events
-                     .includes(:image, :board, :child_account)
+                     .includes(:image, :board, :child_account, :user, :profile)
                      .where(timestamp: range)
                      .order(timestamp: :desc)
                      .limit(500)
-    viewer = current_user || current_account&.user
-
     render json: {
       range: { days: days, start_date: range.begin.iso8601, end_date: range.end.iso8601 },
       summary: account.word_events_summary(range),

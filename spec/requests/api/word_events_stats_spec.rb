@@ -19,6 +19,59 @@ RSpec.describe "API::Audits communicator_stats", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    # `authenticate_signed_in!` answers "is someone signed in", not "may this
+    # person read this communicator". Without an explicit gate, any signed-in
+    # user could read any communicator's usage by walking `account_id`.
+    describe "authorization" do
+      it "refuses a signed-in user with no relationship to the communicator" do
+        stranger = create(:user)
+
+        get "/api/word_events/stats", params: { account_id: account.id },
+                                      headers: auth_headers(stranger)
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "leaks no usage data in the refusal" do
+        create_event(word: "bathroom", timestamp: 1.day.ago)
+        stranger = create(:user)
+
+        get "/api/word_events/stats", params: { account_id: account.id },
+                                      headers: auth_headers(stranger)
+
+        expect(response.body).not_to include("bathroom")
+      end
+
+      it "allows the owner" do
+        get "/api/word_events/stats", params: { account_id: account.id },
+                                      headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "allows an admin" do
+        get "/api/word_events/stats", params: { account_id: account.id },
+                                      headers: auth_headers(create(:admin_user))
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      # Reading stats is not editing, so every team role may read — including
+      # the restricted one, which may not curate boards.
+      TeamUser::ROLES.each do |role|
+        it "allows a team member with the #{role.inspect} role" do
+          member = create(:user)
+          team = account.ensure_team!(creator: user)
+          TeamUser.create!(team: team, user: member, role: role)
+
+          get "/api/word_events/stats", params: { account_id: account.id },
+                                        headers: auth_headers(member)
+
+          expect(response).to have_http_status(:ok)
+        end
+      end
+    end
+
     it "returns the bundled stats payload for the account" do
       create_event(word: "hello", timestamp: 1.day.ago)
       create_event(word: "hello", timestamp: 1.day.ago)
