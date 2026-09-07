@@ -167,4 +167,34 @@ namespace :board_covers do
 
     puts "board_covers:render_missing — enqueued #{enqueued} preview render(s)."
   end
+
+  # Run the public-catalogue cover sweep on demand, instead of waiting for the
+  # 1:15am cron. Same selection as PublicBoardPreviewSweepJob — it IS that job —
+  # so this is the lever for healing an existing backlog (#871) right after a
+  # deploy rather than a second, drifting copy of the query.
+  #
+  # The per-run cap still applies; raise it for one run with
+  # PUBLIC_BOARD_PREVIEW_SWEEP_MAX_PER_RUN=N, or set 0 for no cap.
+  #
+  #   rake board_covers:sweep_public                                    # dry run
+  #   DRY_RUN=false rake board_covers:sweep_public                      # apply
+  #   DRY_RUN=false PUBLIC_BOARD_PREVIEW_SWEEP_MAX_PER_RUN=0 rake board_covers:sweep_public
+  desc "Render covers for public-catalogue boards that have tiles and none (DRY_RUN=false to apply)"
+  task sweep_public: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+    scope = Board.missing_public_preview.order(:id)
+    total = scope.count
+
+    puts "board_covers:sweep_public — #{total} public board(s) with tiles and no cover."
+    scope.limit(50).pluck(:id, :name).each { |id, name| puts "  #{id}  #{name}" }
+
+    if dry_run
+      cap = PublicBoardPreviewSweepJob.max_per_run
+      puts "(dry run — re-run with DRY_RUN=false to enqueue up to #{cap.positive? ? cap : total} Grover render(s))"
+      next
+    end
+
+    enqueued = PublicBoardPreviewSweepJob.new.perform
+    puts "board_covers:sweep_public — enqueued #{enqueued} preview render(s)."
+  end
 end

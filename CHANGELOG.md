@@ -35,6 +35,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Public boards that had never had a preview picture generated now get one.**
+  Nine boards in the public library — including Feelings & Emotions, Requests &
+  Wants, Protests & Boundaries and Visual Schedule — showed as a bare title with
+  empty space where the thumbnail belongs, because nothing rendered a cover when
+  a board joined the library; that only ever happened as a side effect of
+  editing it. A board added to the library now gets its cover automatically, a
+  nightly sweep picks up any that slip through, and a failed render is written
+  to the log instead of silently leaving the picture blank.
+
 - **Editing a board is now restricted to its owner (or an admin) on every
   editing action.** Rearranging tiles, regenerating or recategorizing tile art,
   setting colors, changing the cover, formatting with AI, adding or removing

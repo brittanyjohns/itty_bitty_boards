@@ -394,6 +394,26 @@ an explicit decision, not a drive-by edit.
   Envelope only, never a body. `MAIL_DELIVERY_LOG=false` disables recording;
   `PruneMailDeliveriesJob` enforces `MAIL_DELIVERY_RETENTION_DAYS` (90) so the
   table stays a log rather than an archive.
+- **A board that joins the PUBLIC CATALOGUE earns a cover; nothing else in the
+  app was ever responsible for that.** Preview rendering is wired to AUTHORING
+  paths only — a layout save, AI word/art generation, an .obf/.obz import, a
+  clone, a deliberate "Regenerate from tiles" — so a catalogue board got a cover
+  only if somebody happened to edit it one of those ways afterwards. The
+  catalogue seeders (`words.rake`, `classroom_boards.rake`, `core_boards.rake`),
+  `Boards::GlpTemplates.seed_board!` and an admin flipping
+  `predefined`/`published` through the internal API do none of them, which is
+  how 9 of 67 boards on `/api/public_boards` had `preview_image_url: null` and
+  rendered as a title over empty space (#871). It was never a failed render:
+  all nine carried `preview_status: nil`, so nothing had ever been enqueued to
+  fail. `Board#enqueue_preview_for_public_board` fires on the publish itself and
+  `PublicBoardPreviewSweepJob` (nightly, capped) is the net behind it — both
+  read `Board.missing_public_preview`, so the thing that heals the backlog and
+  the thing that stops it recurring cannot disagree about what "missing" means.
+  The sweep is not redundant: every catalogue seeder saves the board published
+  BEFORE adding a single tile, so the hook has nothing to photograph and says so
+  in the log rather than returning silently. Selection is by OUTCOME, never by
+  provenance — a new creation path needs no wiring. Manual lever:
+  `rake board_covers:sweep_public` (dry run by default).
 - **A board is `complete` when its WORDS exist; `images_ready?` is when it can
   be DRAWN.** `GenerateBoardJob` sets `status: "complete"` immediately after
   enqueuing per-tile art, so a client gating a "board ready" screen on status
