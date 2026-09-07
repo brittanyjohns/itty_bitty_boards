@@ -195,8 +195,16 @@ RSpec.describe "POST /api/boards/:id/edit_images", type: :request do
     end
   end
 
+  # #866 gave check_board_view_edit_permissions two refusal shapes, and 401 is
+  # not one of them: a board the caller cannot even SEE is answered 404 with the
+  # same generic body #show uses, because board ids are sequential and a board
+  # name routinely carries a child's first name — 403 there would make the
+  # private corpus enumerable by incrementing an integer. A board they can see
+  # but do not own is 403. This example was written against the pre-#866 gate on
+  # a branch that merged after it, so it asserted a status the gate had already
+  # stopped rendering. boards_write_permission_spec.rb owns the contract.
   describe "permission" do
-    it "refuses a board the caller does not own" do
+    it "404s a board the caller cannot see, without leaking that it exists" do
       stranger = FactoryBot.create(:user)
       ids = tiles(1).map(&:id)
 
@@ -205,7 +213,8 @@ RSpec.describe "POST /api/boards/:id/edit_images", type: :request do
              params: { board_image_ids: ids, prompt: prompt }, headers: auth_headers(stranger)
       }.not_to change(EditBoardImagesJob.jobs, :size)
 
-      expect(response).to have_http_status(:unauthorized)
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)["error"]).to eq("Board not found")
     end
   end
 

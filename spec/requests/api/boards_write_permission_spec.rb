@@ -23,9 +23,16 @@ RSpec.describe "API::Boards write-permission gate", type: :request do
   # communicator Quick-add path and is scoped by check_communicator_board_access!
   # (covered by spec/requests/api/boards_quick_add_spec.rb), plus the three that
   # were already gated — their refusal shape changed here too.
+  #
+  # KEEP THIS LIST IN STEP WITH THE before_action LISTS. #edit_images was added
+  # to all three of them by #867 and to none of this, so the only thing pinning
+  # its refusal was an example in its own spec written against the pre-#866 gate
+  # — which asserted 401, a status the gate no longer renders. An action absent
+  # here is an action whose gate nothing checks.
   def writes(target)
     [
       [:post, "regenerate_images",           { board_image_ids: [1] }],
+      [:post, "edit_images",                 { board_image_ids: [1], prompt: "make it blue" }],
       [:put,  "recategorize_images",         {}],
       [:put,  "set_colors",                  {}],
       [:post, "format_with_ai",              {}],
