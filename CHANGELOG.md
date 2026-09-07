@@ -22,6 +22,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   are reported back and never billed. A tile whose edit fails gets its own
   credits back.
 
+### Changed
+
+- **The Sizes, Extras & condiments and Ordering quick-add word sets are now
+  offered on every board, not only on a restaurant menu.** `GET /api/word_packs`
+  serves the whole catalog regardless of the board it is asked about. The words
+  those three carry — "small", "ketchup", "Can I have", "I'm allergic" — are
+  ordinary AAC vocabulary, and the board someone builds for a cafe visit or a
+  lunch routine is usually a plain board, so scoping them to Menu-parented
+  boards put them out of reach of the people they were written for. They still
+  cost no AI credits.
+
 ### Fixed
 
 - **Editing a board is now restricted to its owner (or an admin) on every

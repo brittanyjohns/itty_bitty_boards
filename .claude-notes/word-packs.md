@@ -1,8 +1,9 @@
 # Quick-add word packs
 
 Curated static sets of words a user drops onto a board in one action from the
-frontend's Add-tiles modal: pronouns, action words, greetings, numbers, plus
-menu-only sets (sizes, condiments, ordering phrases) on a restaurant-menu board.
+frontend's Add-tiles modal: pronouns, action words, greetings, numbers, sizes,
+condiments and ordering phrases. **Every pack is offered on every board** — see
+the invariant below.
 
 - Catalog: `app/services/boards/word_packs.rb`
 - Read: `GET /api/word_packs[?board_id=]` — `API::WordPacksController`
@@ -40,6 +41,23 @@ If that spec blocks a change, the spec is right.
 
 ## Invariants
 
+- **The catalog is the same on every board — no pack carries a board-type
+  scope.** Sizes, condiments and ordering shipped as `board_types: %w[menu]`,
+  filtered by a `WordPacks.for_board` the controller called instead of `.all`.
+  That was a guess about where the words belong rather than a fact about them:
+  `small`, `ketchup` and `Can I have` are ordinary AAC vocabulary, and the board
+  someone builds for a cafe visit or a lunch routine is a plain board, not a
+  Menu-parented one — so the scoping put those three packs out of reach of
+  exactly the people they were written for, with nothing in the UI to say they
+  existed. `for_board` and `board_types_for` are deleted rather than left as an
+  identity function, and `word_packs_spec.rb` pins that no pack grows a
+  `board_types` key back. The board argument survives only for `placed_keys`.
+  The free-by-construction contract above is unaffected: each of the three
+  declares a `part_of_speech` in `VALID_PARTS_OF_SPEECH` (`adjective`, `noun`,
+  `phrase`), so the categorizer is skipped off a menu board exactly as it is on
+  one — the catalog spec's parts-of-speech check is now load-bearing for them
+  rather than belt-and-braces, since off a menu board that value is what colours
+  the tile.
 - **The client names a pack KEY; the server owns the vocabulary and the part of
   speech.** `WordPacks.requested_words` intersects the caller's word list with
   the pack's own, dropping anything else — so a caller can neither invent labels

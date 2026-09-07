@@ -9,7 +9,7 @@
 class API::WordPacksController < API::ApplicationController
   def index
     board = find_board
-    packs = Boards::WordPacks.for_board(board)
+    packs = Boards::WordPacks.all
 
     arted = Boards::ImageResolver.arted_all_for(
       packs.flat_map { |pack| pack[:words] }, owner: current_user
@@ -24,8 +24,8 @@ class API::WordPacksController < API::ApplicationController
   private
 
   # Ownership-scoped, and a board the caller can't reach is treated as "no
-  # board" rather than 404'd: the packs are a static catalog, so the board only
-  # decides which ones are offered and which words are already placed.
+  # board" rather than 404'd: the packs are a static catalog offered in full on
+  # every board, so all the board decides is which words are already placed.
   def find_board
     return nil if params[:board_id].blank?
 

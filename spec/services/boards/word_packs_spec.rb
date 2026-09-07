@@ -77,29 +77,19 @@ RSpec.describe Boards::WordPacks do
     end
   end
 
-  describe ".for_board" do
-    let(:user) { create(:user) }
-
-    it "offers only the unscoped packs on an ordinary board" do
-      board = create(:board, user: user, board_type: "static")
-      expect(described_class.for_board(board).map { |p| p[:key] }).to eq(%w[pronouns actions social numbers])
+  # Sizes, condiments and ordering used to be scoped to `board_types: %w[menu]`
+  # and reachable only from a Menu-parented board. There is no filter any more —
+  # the catalog is the same everywhere — so this pins that no pack grows one
+  # back by accident, which would silently take those words away again from the
+  # ordinary boards people build a restaurant trip on.
+  describe ".all" do
+    it "offers every pack, with no per-board scoping" do
+      expect(described_class.all.map { |p| p[:key] })
+        .to eq(%w[pronouns actions social numbers sizes condiments ordering])
     end
 
-    it "adds the menu packs on a menu board" do
-      board = create(:board, user: user, board_type: "menu")
-      expect(described_class.for_board(board).map { |p| p[:key] }).to include("sizes", "condiments", "ordering")
-    end
-
-    # A board extracted from a Menu carries the parent, and older rows may have
-    # no board_type at all — Board#is_a_menu? is the predicate, not the column.
-    it "recognises a menu board by its parent" do
-      menu = create(:menu, user: user)
-      board = create(:board, user: user, board_type: nil, parent_type: "Menu", parent_id: menu.id)
-      expect(described_class.for_board(board).map { |p| p[:key] }).to include("ordering")
-    end
-
-    it "offers the unscoped packs when there is no board" do
-      expect(described_class.for_board(nil).map { |p| p[:key] }).to eq(%w[pronouns actions social numbers])
+    it "leaves no pack carrying a board-type scope" do
+      expect(described_class::PACKS.select { |pack| pack.key?(:board_types) }).to be_empty
     end
   end
 end
