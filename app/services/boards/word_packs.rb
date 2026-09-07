@@ -1,9 +1,18 @@
 # app/services/boards/word_packs.rb
 #
 # Curated, static sets of words a user can drop onto a board in one action from
-# the Add-tiles modal ("Quick add"). Pronouns, action words, greetings, numbers
-# — plus menu-only sets (sizes, condiments, ordering phrases) surfaced on
-# restaurant-menu boards.
+# the Add-tiles modal ("Quick add"). Pronouns, action words, greetings, numbers,
+# sizes, condiments and ordering phrases.
+#
+# EVERY PACK IS OFFERED ON EVERY BOARD. Sizes, condiments and ordering shipped
+# scoped to `board_types: %w[menu]`, which was a guess about where the words
+# belong rather than a fact about them: "small", "ketchup" and "Can I have" are
+# ordinary AAC vocabulary, and the boards people build for a cafe visit or a
+# lunch routine are plain boards, not Menu-parented ones. The scoping put those
+# three packs out of reach of everyone building the board they were written for.
+# They are safe everywhere by construction — each declares a part_of_speech the
+# colour resolver knows, so the free-by-construction contract below holds
+# unchanged off a menu board (see the note under PACKS for what differs).
 #
 # THE POINT OF THIS FILE IS THAT IT COSTS NOTHING. Adding a word normally fires
 # OpenAI twice, and neither call is credit-gated:
@@ -75,7 +84,6 @@ module Boards
         name: "Sizes",
         description: "How much or how big.",
         part_of_speech: "adjective",
-        board_types: %w[menu],
         words: ["small", "medium", "large", "extra large", "kids size",
                 "half", "whole", "a little", "a lot"],
       },
@@ -84,7 +92,6 @@ module Boards
         name: "Extras & condiments",
         description: "The things you ask for on the side.",
         part_of_speech: "noun",
-        board_types: %w[menu],
         words: ["ketchup", "mustard", "mayo", "ranch", "barbecue sauce",
                 "hot sauce", "soy sauce", "salt", "pepper", "butter", "syrup",
                 "sugar", "cream", "lemon", "ice", "napkin", "straw"],
@@ -94,36 +101,30 @@ module Boards
         name: "Ordering",
         description: "Whole phrases for ordering and asking at the table.",
         part_of_speech: "phrase",
-        board_types: %w[menu],
         words: ["I want", "I would like", "Can I have", "No thank you",
                 "That's all", "More please", "Check please", "To go",
                 "For here", "Water please", "I'm all done", "I'm allergic"],
       },
     ].freeze
 
-    # NOTE for the menu packs: on a menu board the authored part_of_speech is
-    # deliberately IGNORED. A menu board is not an AAC board — its tiles are
-    # white and look up no part of speech — so a word with no library match
-    # takes Board#find_or_create_images_from_word_list's `is_a_menu?` branch and
+    # NOTE: on a MENU board the authored part_of_speech is deliberately IGNORED,
+    # for any pack. A menu board is not an AAC board — its tiles are white and
+    # look up no part of speech — so a word with no library match takes
+    # Board#find_or_create_images_from_word_list's `is_a_menu?` branch and
     # becomes a private `image_type: "menu"` image instead. That path skips the
-    # categorizer too (ensure_defaults short-circuits menu images to "noun"),
-    # so the packs stay free either way; only the colour differs. The declared
-    # part_of_speech still matters for the same pack added to a normal board.
+    # categorizer too (ensure_defaults short-circuits menu images to "noun"), so
+    # the packs stay free either way; only the colour differs. Off a menu board
+    # the declared part_of_speech is what colours the tile, which is why the
+    # catalog spec pins every pack's value against VALID_PARTS_OF_SPEECH — since
+    # the sizes/condiments/ordering packs are no longer menu-only, that check is
+    # now load-bearing for them too rather than belt-and-braces.
 
     module_function
 
-    # Every pack, unfiltered.
+    # Every pack. There is deliberately no per-board filter: the catalog is the
+    # same on every board, so the controller hands `board` only to `placed_keys`.
     def all
       PACKS
-    end
-
-    # The packs offered for `board`. A pack with no `board_types` is always
-    # offered; one that names them is offered only on a matching board. Menu
-    # boards are identified by Board#is_a_menu? (board_type OR a Menu parent) —
-    # `board_type` alone misses menus created before it was set.
-    def for_board(board)
-      types = board_types_for(board)
-      PACKS.select { |pack| pack[:board_types].blank? || (pack[:board_types] & types).any? }
     end
 
     def find(key)
@@ -188,14 +189,6 @@ module Boards
     # applies, then downcased, since label matching is case-insensitive.
     def normalize_key(word)
       Boards::InterestWords.normalize_word(word).to_s.downcase
-    end
-
-    def board_types_for(board)
-      return [] if board.nil?
-
-      types = [board.board_type.to_s]
-      types << "menu" if board.is_a_menu?
-      types.compact_blank.uniq
     end
   end
 end

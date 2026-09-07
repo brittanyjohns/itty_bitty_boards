@@ -13,19 +13,24 @@ RSpec.describe "API::WordPacks", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
-  it "serves the universal packs with their words" do
+  it "serves every pack with its words" do
     get "/api/word_packs", headers: auth_headers(user)
 
     expect(response).to have_http_status(:ok)
-    expect(json["packs"].map { |p| p["key"] }).to eq(%w[pronouns actions social numbers])
+    expect(json["packs"].map { |p| p["key"] })
+      .to eq(%w[pronouns actions social numbers sizes condiments ordering])
     expect(pack("pronouns")["words"].map { |w| w["label"] }).to include("he", "she", "they")
   end
 
-  it "offers the menu packs only on a menu board" do
+  # Sizes, condiments and ordering were menu-only, which put them out of reach
+  # of the ordinary board someone builds for a cafe visit. Same catalog on every
+  # board now, board_id or not.
+  it "offers the sizes, condiments and ordering packs off a menu board too" do
     menu_board = create(:board, user: user, board_type: "menu")
 
     get "/api/word_packs", params: { board_id: board.id }, headers: auth_headers(user)
-    expect(json["packs"].map { |p| p["key"] }).not_to include("condiments")
+    expect(json["packs"].map { |p| p["key"] }).to include("sizes", "condiments", "ordering")
+    expect(pack("ordering")["words"].map { |w| w["label"] }).to include("Can I have")
 
     get "/api/word_packs", params: { board_id: menu_board.id }, headers: auth_headers(user)
     expect(json["packs"].map { |p| p["key"] }).to include("sizes", "condiments", "ordering")
@@ -83,12 +88,17 @@ RSpec.describe "API::WordPacks", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
+  # Treated as "no board", not 404'd. The catalog is the same either way, so the
+  # observable half is `on_board`: a tile on someone else's board must not be
+  # reported as placed on yours.
   it "ignores a board belonging to someone else rather than leaking its existence" do
-    other_board = create(:board, user: create(:user), board_type: "menu")
+    other_board = create(:board, user: create(:user))
+    other_board.add_image(create(:image, label: "he").id)
 
     get "/api/word_packs", params: { board_id: other_board.id }, headers: auth_headers(user)
 
     expect(response).to have_http_status(:ok)
-    expect(json["packs"].map { |p| p["key"] }).not_to include("condiments")
+    words = pack("pronouns")["words"].index_by { |w| w["label"] }
+    expect(words["he"]["on_board"]).to be(false)
   end
 end
