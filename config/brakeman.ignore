@@ -44,7 +44,7 @@
       "cwe_id": [
         22
       ],
-      "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix — no user-supplied path traversal is possible."
+      "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix \u2014 no user-supplied path traversal is possible."
     },
     {
       "warning_type": "SQL Injection",
@@ -118,21 +118,21 @@
     {
       "warning_type": "Unmaintained Dependency",
       "warning_code": 122,
-      "fingerprint": "21ab0fe00fdd5899ffc405cff75aadb91b805ee996a614f7e27b08a287e9062d",
+      "fingerprint": "98b26f60d776fd41ee6f088c833725145be9aac2d7c5b33780241c273622db42",
       "check_name": "EOLRails",
       "message": "Support for Rails 8.0.5 ends on 2026-10-07",
       "file": "Gemfile.lock",
-      "line": 439,
+      "line": 430,
       "link": "https://brakemanscanner.org/docs/warning_types/unmaintained_dependency/",
       "code": null,
       "render_path": null,
       "location": null,
       "user_input": null,
-      "confidence": "Weak",
+      "confidence": "Medium",
       "cwe_id": [
         1104
       ],
-      "user_note": "Not a vulnerability — Brakeman warns 60 days before a Rails series goes EOL, so this fired on its own on 2026-08-08 and turned the Security workflow red on main. Rails 8.0 support ends 2026-10-07; the fix is the 8.1 upgrade, tracked separately. Remove this entry with that upgrade — the fingerprint is version-specific, so it will not silence the next series' warning."
+      "user_note": "Not a vulnerability \u2014 Brakeman warns ahead of a Rails series going EOL, and ESCALATES ITS CONFIDENCE as the date nears. That escalation changes the fingerprint, so the ignore orphans itself and the Security workflow goes red on main with nothing having changed in the repo: it first fired Weak on 2026-08-08 (60 days out) and re-fired Medium on 2026-09-07 (30 days out), which is what obsoleted fingerprint 21ab0fe0. Expect one more flip if the 8.1 upgrade has not landed by 2026-10-07. Rails 8.0 support ends then; the fix is that upgrade, tracked separately. Remove this entry with it \u2014 the fingerprint is version-specific, so it will not silence the next series' warning."
     },
     {
       "warning_type": "Mass Assignment",
@@ -155,7 +155,7 @@
       "cwe_id": [
         915
       ],
-      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment — a non-listed role is ignored."
+      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment \u2014 a non-listed role is ignored."
     },
     {
       "warning_type": "Mass Assignment",
@@ -181,6 +181,6 @@
       "user_note": "False positive: API::Admin::UsersController requires an admin token, nothing is mass-assigned from these params (every key is read explicitly in #update), and promoting a user to :role \"admin\" is additionally gated on current_admin&.admin?."
     }
   ],
-  "updated": null,
+  "updated": "2026-09-07T10:18:30-04:00",
   "brakeman_version": null
 }
