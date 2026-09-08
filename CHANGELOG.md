@@ -75,6 +75,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A communicator handed over by a clinician keeps its login on the Free plan.**
+  Private passcode sign-in was quietly tied to the parent's account being less
+  than 14 days old, so a family who claimed a loaner communicator lost the login
+  two weeks after they signed up — with nothing on screen to explain it. Free is
+  meant to host one claimed communicator with a real login so the hand-off never
+  hits a paywall, and now it does. Sign-in is still off for no-login MySpeak
+  Free accounts, and still off for communicators over the slot limit after a
+  downgrade.
+
+- **A communicator on the Free plan is no longer reported as demo data.**
+  Every communicator payload now answers with `status` alone. The old `is_demo`
+  flag was a second name for "sandbox" — the no-login MySpeak Free account every
+  Free user gets — so it read as "test data" on genuinely real accounts, and a
+  marketing or analytics filter keyed on it would have dropped exactly the free
+  users it was meant to count. `free_trial` is gone from those payloads for the
+  same reason: it described the account owner's first 14 days, not anything
+  about the communicator. Both still answer on the user, where they belong.
 - **Folder buttons on a shared board now open for visitors instead of showing
   "not found".** Publishing a board — including starring one onto a
   communicator's MySpeak page — only made that one page public. Every folder

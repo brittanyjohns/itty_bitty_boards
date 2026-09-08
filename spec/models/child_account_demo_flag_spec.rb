@@ -48,6 +48,27 @@ RSpec.describe "ChildAccount#is_demo vs User#demo_user?" do
     expect(User.non_demo).to include(free_user)
   end
 
+  # #876, the half that keeps getting re-reported. The values above were always
+  # correct, but `is_demo` reads as "test data" to anyone holding the payload,
+  # and `free_trial` was the OWNER's 14-day-from-signup window stapled onto a
+  # communicator that has no subscription of its own. Neither is serialized now
+  # — `status` is the whole answer, and the user payload owns `free_trial`.
+  describe "the communicator payloads" do
+    %i[api_view index_api_view vendor_api_view].each do |view_name|
+      it "publishes status without is_demo or free_trial from ##{view_name}" do
+        view = communicator.public_send(view_name, free_user)
+
+        expect(view[:status]).to eq(ChildAccount::SANDBOX)
+        expect(view).not_to have_key(:is_demo)
+        expect(view).not_to have_key(:free_trial)
+      end
+    end
+
+    it "still answers free_trial on the USER payload, which is who owns it" do
+      expect(free_user.api_view).to have_key(:free_trial)
+    end
+  end
+
   it "keys demo_user? on the user's own identity, not on any communicator" do
     internal = create(:user, email: "someone@speakanyway.com")
     create(:child_account, user: internal, owner: internal, status: ChildAccount::ACTIVE)

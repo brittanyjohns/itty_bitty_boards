@@ -357,17 +357,35 @@ an explicit decision, not a drive-by edit.
   directly, which is how `accounts_included` showed an overridden account one
   number while the gate refused it on another. Sandbox communicators have their
   own quota and never occupy a slot.
-- **`ChildAccount#is_demo` says SANDBOX, not "test data"; the test/internal
-  predicate is `User#demo_user?`.** `is_demo` is a legacy alias for `sandbox?`,
-  and `Permissions::CommunicatorLimits.self_create_status` forces every Free
-  user's self-create to sandbox (their one full slot is claim/hand-off only) —
-  so a genuine Free parent's communicator reads `is_demo: true`, correctly. An
+- **A communicator payload publishes `status`, and nothing else answers "what
+  kind of account is this".** `is_demo` was a legacy alias for `sandbox?` and is
+  no longer serialized (#876); `free_trial` was the OWNER's 14-day-from-signup
+  window stapled onto a communicator that has no subscription of its own, and is
+  gone from the same three views — it stays on the USER payload, which is who
+  owns it. The reader, the writer and the column survive because older app
+  builds still POST `is_demo`; the frontend resolves through `getStatus()`,
+  which reads `status` first, so dropping the key is safe for shipped clients.
+  The reason it had to go: `Permissions::CommunicatorLimits.self_create_status`
+  forces every Free user's self-create to sandbox (their one full slot is
+  claim/hand-off only), so a genuine Free parent's communicator read
+  `is_demo: true` — correct, and reported as a data bug twice, because an
   analytics or marketing filter keyed there would drop exactly the cohort those
-  exclusions exist to protect. The real one lives on the USER (`demo_user?` /
-  `User.demo_accounts` — email pattern + the `internal_account` flag), and is
-  already what the Mailchimp `DEMO_USER` merge field, the journey gate, and
-  Mission Control's `without_demo` read; keep the scope and the predicate in
-  agreement. Pinned by `spec/models/child_account_demo_flag_spec.rb`.
+  exclusions exist to protect. The test/internal predicate lives on the USER
+  (`demo_user?` / `User.demo_accounts` — email pattern + the `internal_account`
+  flag), and is already what the Mailchimp `DEMO_USER` merge field, the journey
+  gate, and Mission Control's `without_demo` read; keep the scope and the
+  predicate in agreement. Nothing demo-shaped is sent to PostHog at all. Pinned
+  by `spec/models/child_account_demo_flag_spec.rb`.
+- **Private passcode sign-in is gated by `sandbox?` and `fallback_mode?` — never
+  by the owner's plan.** `ChildAccount#can_sign_in?` used to fall through to
+  `user.free_trial?` for a non-paid owner, which is the 14-day-from-signup
+  window and not a subscription, so a CLAIMED communicator on a Free account
+  silently lost its login on day 15 of the parent's signup. `pricing-structure.md`
+  prices the opposite — "Free hosts 1 claimed communicator ... (real login) so
+  the hand-off never hits a paywall" — and the downgrade paywall is already
+  `fallback_mode?`, set only by `User#reconcile_communicator_fallback!` when a
+  communicator goes over the slot limit. A sandbox never signs in (it has no
+  passcode); everything past those two guards holds a real login slot.
 - **`can_edit` on a communicator payload is one question — "can this VIEWER
   curate boards here" — and `ChildAccount#curatable_by?` is the only answer.**
   It was answered twice and differently: `index_api_view` asked whether the
