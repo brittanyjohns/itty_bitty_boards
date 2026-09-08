@@ -341,6 +341,62 @@ RSpec.describe "API kit_pages", type: :request do
     end
   end
 
+  # Pictures an admin uploaded by hand. They ride the SAME public contract as
+  # every other picture: a mockup is marketing and may sit in the read, the file
+  # a visitor came for may not.
+  describe "a page with uploaded pictures" do
+    def upload_picture!(filename: "mockup.png", label: nil)
+      page.attach_gallery_upload!(
+        io: StringIO.new("PNG #{filename}"), filename: filename, content_type: "image/png", label: label,
+      )
+    end
+
+    it "shows an uploaded picture ahead of the printable's own mockups" do
+      attach_all_variants
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      upload_picture!(label: "On the fridge")
+
+      get "/api/kit_pages/#{page.slug}"
+
+      body = JSON.parse(response.body)
+      expect(body["images"].map { |image| image["variant"] })
+        .to eq(["upload_1", BoardPrintable::IMAGE_HERO])
+      expect(body["images"].first["label"]).to eq("On the fridge")
+      expect(response.body).not_to include(".pdf")
+    end
+
+    it "keeps a gated picture out of the read and hands it over after the email" do
+      attach_all_variants
+      blob = upload_picture!
+      page.update_preview_settings!(KitPage.upload_preview_key(blob.id) => KitPage::PREVIEW_GATED)
+
+      get "/api/kit_pages/#{page.slug}"
+      expect(JSON.parse(response.body)["images"]).to eq([])
+
+      post "/api/kit_pages/#{page.slug}/download", params: { email: "teacher@school.org" }
+
+      expect(JSON.parse(response.body)["images"].map { |image| image["variant"] }).to eq(["upload_1"])
+    end
+
+    # A picture is not a product: it can never open the gate on its own, and it
+    # is never in `files`.
+    it "is not a download and does not make an empty page downloadable" do
+      empty = create(:kit_page, slug: "pictures-only", board_printable: nil)
+      empty.attach_gallery_upload!(
+        io: StringIO.new("PNG"), filename: "mockup.png", content_type: "image/png",
+      )
+
+      get "/api/kit_pages/#{empty.slug}"
+      body = JSON.parse(response.body)
+      expect(body["downloadable"]).to eq(false)
+      expect(body["images"].size).to eq(1)
+
+      post "/api/kit_pages/#{empty.slug}/download", params: { email: "teacher@school.org" }
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("not_available")
+    end
+  end
+
   # A page whose download is uploaded straight onto it, rather than generated
   # as a board printable. The public contract is identical — same `files`
   # shape, same email gate, same "no file URL on the read".

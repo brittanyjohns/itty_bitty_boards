@@ -1,0 +1,146 @@
+<%# The gallery card. Its own forms, outside the main one, for the same two
+    reasons the Document card has its own: forms can't nest, and "Autofill the
+    page" re-renders the main form, which a file input can't survive. %>
+<%# Everything curatable lives here — the pictures uploaded by hand and the
+    rendered pages of any uploaded PDF — because they are one list in the model
+    and splitting them across two cards would let the screen imply otherwise. %>
+<% if !@kit_page.persisted? %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Pictures on the page</h2>
+    <p class="text-[11px] text-t3">
+      Want to show pictures you made yourself — a Canva mockup, a photo of it printed? Create the page
+      first; the upload box appears here as soon as it's saved.
+    </p>
+  </div>
+<% else %>
+<% documents = @kit_page.ordered_documents %>
+<% rows = @kit_page.preview_picker_rows %>
+<% upload_rows = rows.select { |row| row[:source] == KitPage::SOURCE_UPLOAD } %>
+<% rendered_rows = rows.select { |row| row[:source] == KitPage::SOURCE_RENDER } %>
+<% generated = @kit_page.generated_gallery_images %>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-center gap-3 mb-1">
+    <h2 class="text-sm font-medium text-t1">Pictures on the page</h2>
+    <% if documents.any? && preview_renderer_available? %>
+      <%= button_to "Regenerate", regenerate_previews_admin_dashboard_kit_page_path(@kit_page),
+            method: :post,
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+    <% end %>
+  </div>
+  <p class="text-[11px] text-t3 mb-4">
+    Upload your own pictures — they show first, ahead of anything the page makes for itself.
+    <% if generated.any? %>
+      This page also shows <%= pluralize(generated.size, "mockup") %> from its printable, after yours.
+    <% end %>
+    Regenerating the rendered pages never touches what you upload here.
+  </p>
+
+  <% if @kit_page.ordered_gallery_uploads.size < KitPage::MAX_IMAGES %>
+    <%= form_with url: upload_images_admin_dashboard_kit_page_path(@kit_page), method: :post,
+                  class: "flex flex-wrap items-center gap-3 mb-4" do |f| %>
+      <%= f.file_field :images, multiple: true, accept: KitPage::IMAGE_CONTENT_TYPES.join(","),
+            class: "text-xs text-t2" %>
+      <%= f.text_field :label, placeholder: "Label (optional)",
+            class: "admin-input border rounded px-3 py-1.5 text-xs w-48 focus:border-indigo-500 focus:outline-none" %>
+      <%= f.submit "Upload",
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+      <span class="text-[11px] text-t3">
+        PNG, JPEG or WebP, under <%= number_to_human_size(KitPage::MAX_IMAGE_BYTES) %>,
+        up to <%= KitPage::MAX_IMAGES %> pictures.
+        The label is the caption, and only applies when you pick one file.
+      </span>
+    <% end %>
+  <% else %>
+    <p class="text-[11px] text-t3 mb-4">
+      That's the limit of <%= KitPage::MAX_IMAGES %> pictures. Remove one to upload another.
+    </p>
+  <% end %>
+
+  <% if documents.any? && !preview_renderer_available? %>
+    <%# Said plainly rather than left blank: an empty gallery with no
+        explanation reads as a bug in the upload. %>
+    <p class="text-[11px] text-t3 mb-4">
+      This host can't render PDF previews, so the uploaded document contributes no pictures. Upload your
+      own above. The download itself is unaffected.
+    </p>
+  <% end %>
+
+  <% if rows.any? %>
+    <% unless @kit_page.previews_curated? %>
+      <%# Ten thumbnails above a page showing two reads as a bug unless the
+          default is stated out loud. %>
+      <p class="text-[11px] text-t3 mb-3">
+        Nothing chosen yet — the page is showing everything you uploaded, plus the first
+        <%= KitPage::DEFAULT_PUBLIC_PREVIEW_COUNT %> pages of the first document. Pick below to change that.
+      </p>
+    <% end %>
+
+    <%# Only a warning when there is genuinely nothing to see: a printable's own
+        mockups are still pictures, and they aren't in this picker. %>
+    <% if generated.none? && rows.none? { |row| row[:visibility] == KitPage::PREVIEW_PUBLIC } %>
+      <div class="admin-flash-err border rounded-lg px-3 py-2 mb-3 text-[11px]">
+        Nothing is set to show on the page — visitors will see no pictures of what they're signing up for.
+      </div>
+    <% end %>
+
+    <%= form_with url: update_previews_admin_dashboard_kit_page_path(@kit_page),
+          method: :patch, data: { turbo: false } do %>
+      <% if upload_rows.any? %>
+        <% if rendered_rows.any? %>
+          <h4 class="text-[11px] font-medium text-t2 mt-3 mb-2">Yours</h4>
+        <% end %>
+        <div class="flex flex-wrap gap-4 mb-3">
+          <% upload_rows.each do |row| %>
+            <div class="w-40">
+              <img src="<%= row[:url] %>" alt="<%= row[:label] %>"
+                   class="h-44 w-auto rounded border" style="border-color: var(--border);">
+              <p class="text-[11px] text-t2 mt-1.5 mb-1 truncate" title="<%= row[:label] %>"><%= row[:label] %></p>
+              <%= render "visibility_choices", row: row %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% rendered_rows.group_by { |row| row[:document_position] }.each do |_position, group| %>
+        <% if documents.size > 1 %>
+          <h4 class="text-[11px] font-medium text-t2 mt-3 mb-2"><%= group.first[:document_label] %></h4>
+        <% elsif upload_rows.any? %>
+          <h4 class="text-[11px] font-medium text-t2 mt-3 mb-2">From the document</h4>
+        <% end %>
+        <div class="flex flex-wrap gap-4 mb-3">
+          <% group.each do |row| %>
+            <div class="w-40">
+              <img src="<%= row[:url] %>" alt="Page <%= row[:page] %>"
+                   class="h-44 w-auto rounded border" style="border-color: var(--border);">
+              <p class="text-[11px] text-t2 mt-1.5 mb-1">Page <%= row[:page] %></p>
+              <%= render "visibility_choices", row: row %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= submit_tag "Save which pictures show",
+            class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1" %>
+    <% end %>
+
+    <%# The Remove buttons live outside the picker form for the reason above —
+        button_to emits a form, and forms can't nest. %>
+    <% if upload_rows.any? %>
+      <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t" style="border-color: var(--border);">
+        <% upload_rows.each do |row| %>
+          <%= button_to "Remove “#{row[:label]}”",
+                remove_image_admin_dashboard_kit_page_path(@kit_page, signed_id: row[:signed_id]),
+                method: :delete,
+                class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                form: { data: { turbo_confirm: "Remove “#{row[:label]}” from this page?" } } %>
+        <% end %>
+      </div>
+    <% end %>
+  <% elsif documents.any? && preview_renderer_available? %>
+    <p class="text-[11px] text-t3">
+      Rendering up to <%= KitPage.preview_render_limit %> pages of each document… refresh in a moment.
+    </p>
+  <% end %>
+</div>
+<% end %>

@@ -1579,14 +1579,21 @@ an explicit decision, not a drive-by edit.
   `KitPage::DOCUMENT_CONTENT_TYPES` — both ALLOWLISTS, so a listing image or the
   listing video can never be handed to a visitor as the product.
 - **A kit page's UPLOADED documents win outright over its printable — for the
-  download and for the pictures alike.** `KitPage has_many_attached :documents`
-  (the file) and `:preview_images` (rendered from it); while any document is
-  attached, `#download_files` and `#gallery_images` both ignore
-  `board_printable` completely. Serving half of one and half of the other would
-  put a board's marketplace mockups above an unrelated document. Two named
-  attachments rather than one bag keyed on blob metadata, deliberately: the
-  `pdf_files` invariant above exists because `BoardPrintable` shares one `files`
-  collection across three meanings and once partitioned it by exclusion. A
+  download and for the pictures alike. Uploaded PICTURES displace nothing.**
+  `KitPage has_many_attached :documents` (the file), `:preview_images` (rendered
+  from it) and `:gallery_uploads` (pictures an admin uploaded by hand); while any
+  document is attached, `#download_files` and `#generated_gallery_images` both
+  ignore `board_printable` completely. Serving half of one and half of the other
+  would put a board's marketplace mockups above an unrelated document. A picture
+  is the opposite case, and the difference is the point: a hand-made hero shot OF
+  the printable this page gives away should LEAD its mockups, not delete them, so
+  `#gallery_images` is uploads-then-generated and `gallery_uploads` is the one
+  collection `RenderKitPreviewsJob` never purges. Named attachments rather than
+  one bag keyed on blob metadata, deliberately: the `pdf_files` invariant above
+  exists because `BoardPrintable` shares one `files` collection across three
+  meanings and once partitioned it by exclusion — and here that separation is
+  what makes "an uploaded picture is never a download" structural rather than a
+  check, since `#download_files` reads `documents` and nothing else. A
   document's admin-typed LABEL rides its blob metadata and is published as the
   row's `variant`, because that is the field the frontend prints on the button —
   which is why a multi-document kit needed no frontend change at all. Preview
@@ -1636,7 +1643,7 @@ an explicit decision, not a drive-by edit.
   image variant must be opted in before a visitor can see it, and `about` /
   `page_index` stay out because they are Etsy shop framing. Never widen this by
   excluding what you don't want.
-- **A rendered document page is public, gated, or hidden — and the choice lives
+- **A picture on a kit page is public, gated, or hidden — and the choice lives
   in a COLUMN, because the job destroys every preview blob on each run.**
   `RenderKitPreviewsJob` rasterizes the first `KitPage.preview_render_limit`
   pages of EVERY uploaded document (10, ENV-tunable, read at call time) and
@@ -1647,11 +1654,19 @@ an explicit decision, not a drive-by edit.
   key. `KitPage#preview_rows` is the single list the admin picker, the public
   gallery (`gallery_images`) and the post-email handover
   (`released_gallery_images`) all filter, so the three can't disagree about what
-  a page is. Three rails. An EMPTY hash is "never asked" and resolves to the
-  historical default (the first `DEFAULT_PUBLIC_PREVIEW_COUNT` pages of the first
-  document, public) — that is what let this ship without moving a live page —
-  while a non-empty hash treats an unlisted key as HIDDEN, so a page that appears
-  later never publishes itself. A preview carrying no `document_id` is attributed
+  a picture is — hand-uploaded ones included, first in the list and keyed
+  `upload:<blob id>`. That prefix is load-bearing: `live_preview_settings` has
+  to tell which KIND of file a stored key names in order to prune it, and a bare
+  blob id could collide with a rendered page's key. Three rails. An EMPTY hash
+  is "never asked" and resolves to the historical default (the first
+  `DEFAULT_PUBLIC_PREVIEW_COUNT` pages of the first document, public; an uploaded
+  picture is public, since an admin chose it) — that is what let this ship
+  without moving a live page — while a non-empty hash treats an unlisted key as
+  HIDDEN, so a page that appears later never publishes itself. Which is why
+  `#attach_gallery_upload!` WRITES `public` for a new picture on an
+  already-curated page rather than exempting uploads in the resolver: a picture
+  somebody just chose must not arrive invisible, and the column has to keep
+  saying exactly what shows where. A preview carrying no `document_id` is attributed
   to the first document, which is what every preview rendered before
   multi-document support actually was; no backfill. And the replacement is
   render-then-purge, gated on a `batch` stamp: purging first blanks a live public

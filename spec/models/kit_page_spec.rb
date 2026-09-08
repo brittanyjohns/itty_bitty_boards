@@ -647,6 +647,192 @@ RSpec.describe KitPage, type: :model do
     end
   end
 
+  describe "uploaded pictures" do
+    let(:page) { create(:kit_page, board_printable: printable) }
+
+    def upload_image!(kit_page = page, filename: "mockup.png", label: nil, content_type: "image/png")
+      kit_page.attach_gallery_upload!(
+        io: StringIO.new("PNG #{filename}"), filename: filename, content_type: content_type, label: label,
+      )
+    end
+
+    def upload_document!(kit_page = page, filename: "handout.pdf", label: nil)
+      kit_page.attach_document!(io: StringIO.new("%PDF #{filename}"), filename: filename, label: label)
+    end
+
+    it "shows an uploaded picture on a page that generates nothing at all" do
+      page = create(:kit_page, board_printable: nil)
+      upload_image!(page)
+
+      expect(page.gallery_images.map { |image| image[:variant] }).to eq(["upload_1"])
+      expect(page.gallery_images.map(&:keys)).to all(match_array(%i[variant url page label]))
+    end
+
+    # The whole difference between an uploaded PICTURE and an uploaded DOCUMENT:
+    # a document displaces the printable, a picture is added to it.
+    it "leads the printable's own mockups rather than replacing them" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      upload_image!
+
+      expect(page.gallery_images.map { |image| image[:variant] })
+        .to eq(["upload_1", BoardPrintable::IMAGE_HERO])
+    end
+
+    it "leads the rendered pages of an uploaded document" do
+      document = upload_document!
+      page.attach_preview_image!(bytes: "PNG", page: 1, document_id: document.id)
+      upload_image!
+
+      expect(page.gallery_images.map { |image| image[:variant] }).to eq(%w[upload_1 page_1])
+    end
+
+    it "keeps the printable's mockups out of a page whose document displaced them" do
+      printable.attach_image!(bytes: "PNG", variant: BoardPrintable::IMAGE_HERO)
+      upload_document!
+      upload_image!
+
+      expect(page.gallery_images.map { |image| image[:variant] }).to eq(["upload_1"])
+    end
+
+    it "is never a download" do
+      printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF c", variant: "color")
+      upload_image!
+
+      expect(page).not_to be_uploaded_download
+      expect(page.download_files.map { |f| f[:variant] }).to eq(["color"])
+      expect(page.download_files.map { |f| f[:filename] }).not_to include("mockup.png")
+    end
+
+    it "captions with the admin's label, falling back to the filename" do
+      upload_image!(filename: "on-the-fridge.png")
+      upload_image!(filename: "second.png", label: "In a classroom")
+
+      expect(page.gallery_images.map { |image| image[:label] })
+        .to eq(["on-the-fridge", "In a classroom"])
+    end
+
+    # The allowlist is an invariant of what the page may publish, not one
+    # controller remembering to ask.
+    it "refuses a content type outside the allowlist" do
+      expect { upload_image!(filename: "logo.svg", content_type: "image/svg+xml") }
+        .to raise_error(ArgumentError, /image\/svg\+xml/)
+      expect(page.reload.gallery_uploads).to be_empty
+    end
+
+    # Same CloudFront lesson the documents record: it caches by path.
+    it "writes each upload to its own versioned key" do
+      upload_image!
+      first = page.ordered_gallery_uploads.first.key
+      page.gallery_uploads.each(&:purge)
+      page.gallery_uploads.reset
+      upload_image!
+
+      expect(page.reload.ordered_gallery_uploads.first.key).not_to eq(first)
+    end
+
+    describe "visibility" do
+      it "shows by default, and sits in the picker alongside rendered pages" do
+        document = upload_document!
+        (1..3).each { |n| page.attach_preview_image!(bytes: "PNG", page: n, document_id: document.id) }
+        upload_image!
+
+        rows = page.preview_picker_rows
+        expect(rows.first[:source]).to eq(KitPage::SOURCE_UPLOAD)
+        expect(rows.map { |row| row[:source] }).to eq([:upload, :render, :render, :render])
+        expect(rows.first[:visibility]).to eq(KitPage::PREVIEW_PUBLIC)
+      end
+
+      it "can be held back until after the email" do
+        upload_image!
+        key = KitPage.upload_preview_key(page.ordered_gallery_uploads.first.blob_id)
+        page.update_preview_settings!(key => KitPage::PREVIEW_GATED)
+
+        expect(page.public_preview_images).to eq([])
+        expect(page.released_preview_images.map { |i| i[:variant] }).to eq(["upload_1"])
+        expect(page.gallery_images).to eq([])
+        expect(page.released_gallery_images.map { |i| i[:variant] }).to eq(["upload_1"])
+      end
+
+      it "can be hidden outright" do
+        upload_image!
+        key = KitPage.upload_preview_key(page.ordered_gallery_uploads.first.blob_id)
+        page.update_preview_settings!(key => KitPage::PREVIEW_HIDDEN)
+
+        expect(page.released_gallery_images).to eq([])
+      end
+
+      # An unlisted key is HIDDEN on a curated page, and a picture an admin has
+      # just chosen to upload must not arrive invisible.
+      it "arrives public even on a page that has already been curated" do
+        document = upload_document!
+        page.attach_preview_image!(bytes: "PNG", page: 1, document_id: document.id)
+        page.update_preview_settings!(KitPage.preview_setting_key(document.id, 1) => KitPage::PREVIEW_HIDDEN)
+        expect(page).to be_previews_curated
+
+        blob = upload_image!
+
+        expect(page.reload.preview_settings[KitPage.upload_preview_key(blob.id)]).to eq("public")
+        expect(page.gallery_images.map { |image| image[:variant] }).to eq(["upload_1"])
+      end
+
+      it "prunes the choice when the picture is removed" do
+        blob = upload_image!
+        key = KitPage.upload_preview_key(blob.id)
+        page.update_preview_settings!(key => KitPage::PREVIEW_GATED)
+
+        page.gallery_uploads.each(&:purge)
+        page.gallery_uploads.reset
+        page.prune_preview_settings!
+
+        expect(page.reload.preview_settings).to eq({})
+      end
+
+      # The prefix is why this can be told apart from a rendered page's key.
+      it "keeps a document's choices when a picture is removed" do
+        document = upload_document!
+        page.attach_preview_image!(bytes: "PNG", page: 1, document_id: document.id)
+        blob = upload_image!
+        page.update_preview_settings!(
+          KitPage.preview_setting_key(document.id, 1) => KitPage::PREVIEW_GATED,
+          KitPage.upload_preview_key(blob.id) => KitPage::PREVIEW_GATED,
+        )
+
+        page.gallery_uploads.each(&:purge)
+        page.gallery_uploads.reset
+        page.prune_preview_settings!
+
+        expect(page.reload.preview_settings.keys).to eq([KitPage.preview_setting_key(document.id, 1)])
+      end
+
+      it "ignores a key naming a picture that is not on this page" do
+        upload_image!
+        page.update_preview_settings!(KitPage.upload_preview_key(999_999) => KitPage::PREVIEW_HIDDEN)
+
+        expect(page.reload.preview_settings).to eq({})
+      end
+    end
+
+    # Regenerating rebuilds the rendered pages; it must not touch what an admin
+    # uploaded, which was never generated from anything.
+    it "survives a preview purge" do
+      document = upload_document!
+      page.attach_preview_image!(bytes: "PNG", page: 1, document_id: document.id)
+      upload_image!
+
+      page.purge_preview_images!
+
+      expect(page.reload.gallery_images.map { |image| image[:variant] }).to eq(["upload_1"])
+    end
+
+    it "still carries no file URL in the public payload" do
+      printable.attach_pdf!(filename: "a.color.pdf", bytes: "%PDF", variant: "color")
+      upload_image!
+
+      expect(page.public_view[:images].map { |i| i[:url] }).to be_present
+      expect(page.public_view[:images].map { |i| i[:url] }.join).not_to include(".pdf")
+    end
+  end
+
   describe "#gives_away_protected_printable?" do
     it "is true only for a printable that was published to Etsy and not waived" do
       page = create(:kit_page, board_printable: printable)

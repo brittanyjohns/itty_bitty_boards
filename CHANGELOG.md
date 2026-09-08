@@ -17,6 +17,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   included: widening for admins the way the boards grid does would name every
   stranger whose communicator uses a board from the predefined library.
 
+- **Kit landing pages take pictures you upload, not only ones they generate.**
+  `/admin/kit_pages` has a Pictures card: upload PNG/JPEG/WebP mockups straight
+  onto a page and they lead its gallery, ahead of the printable's marketplace
+  images or the rendered pages of an uploaded PDF. They sit in the same
+  Don't show / On the page / After the email picker as those rendered pages, and
+  "Regenerate" never touches them. An uploaded picture is never a download.
+
 - **Bulk regeneration takes instructions about how the pictures should look.**
   `POST /api/boards/:id/regenerate_images` accepts an optional `modifiers`
   string — skin tone, contrast, line weight — applied to every selected tile.

@@ -134,6 +134,9 @@ Rails.application.routes.draw do
         # a board printable.
         post :upload_document
         delete :remove_document
+        # Pictures uploaded by hand, alongside whatever the page generates.
+        post :upload_images
+        delete :remove_image
         post :regenerate_previews
         # Which rendered pages show on the public page, which sit behind the
         # email, and which don't show at all.

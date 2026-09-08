@@ -488,6 +488,125 @@ RSpec.describe "Admin kit pages", type: :request do
       end
     end
 
+    describe "picture upload" do
+      let(:kit_page) { create(:kit_page, slug: "at-school", board_printable: printable) }
+
+      def image_upload(filename: "mockup.png", type: "image/png")
+        Rack::Test::UploadedFile.new(file_fixture("sample.png"), type, original_filename: filename)
+      end
+
+      it "attaches the picture and shows it on the page" do
+        post upload_images_admin_dashboard_kit_page_path(kit_page),
+             params: { images: [image_upload], label: "On the fridge" }
+
+        expect(response).to redirect_to(edit_admin_dashboard_kit_page_path(kit_page))
+        expect(kit_page.reload.ordered_gallery_uploads.map { |f| f.filename.to_s }).to eq(["mockup.png"])
+        expect(kit_page.gallery_images.map { |image| image[:label] }).to eq(["On the fridge"])
+      end
+
+      it "attaches several at once, and captions none of them with the single label" do
+        post upload_images_admin_dashboard_kit_page_path(kit_page),
+             params: { images: [image_upload(filename: "a.png"), image_upload(filename: "b.png")],
+                       label: "On the fridge" }
+
+        expect(kit_page.reload.gallery_images.map { |image| image[:label] }).to eq(%w[a b])
+      end
+
+      # These were never generated from anything, so there is nothing to render.
+      it "queues no render job" do
+        expect {
+          post upload_images_admin_dashboard_kit_page_path(kit_page), params: { images: [image_upload] }
+        }.not_to change { RenderKitPreviewsJob.jobs.size }
+      end
+
+      it "refuses a file that isn't one of the allowed image types" do
+        post upload_images_admin_dashboard_kit_page_path(kit_page),
+             params: { images: [image_upload(filename: "logo.svg", type: "image/svg+xml")] }
+
+        expect(flash[:alert]).to include("PNG, JPEG or WebP")
+        expect(kit_page.reload.gallery_uploads).to be_empty
+      end
+
+      # Partial success would leave an admin counting thumbnails to work out
+      # which of five landed.
+      it "refuses the whole batch when one file is wrong" do
+        post upload_images_admin_dashboard_kit_page_path(kit_page),
+             params: { images: [image_upload(filename: "good.png"),
+                                image_upload(filename: "logo.svg", type: "image/svg+xml")] }
+
+        expect(flash[:alert]).to include("logo.svg")
+        expect(kit_page.reload.gallery_uploads).to be_empty
+      end
+
+      it "refuses a file over the cap" do
+        allow_any_instance_of(ActionDispatch::Http::UploadedFile)
+          .to receive(:size).and_return(KitPage::MAX_IMAGE_BYTES + 1)
+
+        post upload_images_admin_dashboard_kit_page_path(kit_page), params: { images: [image_upload] }
+
+        expect(flash[:alert]).to include("the cap is")
+        expect(kit_page.reload.gallery_uploads).to be_empty
+      end
+
+      it "refuses a submit with no file chosen" do
+        post upload_images_admin_dashboard_kit_page_path(kit_page)
+
+        expect(flash[:alert]).to eq("Choose at least one picture to upload.")
+        expect(kit_page.reload.gallery_uploads).to be_empty
+      end
+
+      it "refuses a batch that would pass the per-page limit" do
+        KitPage::MAX_IMAGES.times do |n|
+          kit_page.attach_gallery_upload!(
+            io: StringIO.new("PNG"), filename: "shot-#{n}.png", content_type: "image/png",
+          )
+        end
+
+        post upload_images_admin_dashboard_kit_page_path(kit_page), params: { images: [image_upload] }
+
+        expect(flash[:alert]).to include("already has #{KitPage::MAX_IMAGES}")
+        expect(kit_page.reload.ordered_gallery_uploads.size).to eq(KitPage::MAX_IMAGES)
+      end
+
+      it "removes a picture and its visibility choice" do
+        blob = kit_page.attach_gallery_upload!(
+          io: StringIO.new("PNG"), filename: "mockup.png", content_type: "image/png",
+        )
+        kit_page.update_preview_settings!(KitPage.upload_preview_key(blob.id) => KitPage::PREVIEW_GATED)
+
+        delete remove_image_admin_dashboard_kit_page_path(kit_page, signed_id: blob.signed_id)
+
+        expect(kit_page.reload.gallery_uploads).to be_empty
+        expect(kit_page.preview_settings).to eq({})
+      end
+
+      it "will not remove a blob that isn't on this page" do
+        other = create(:kit_page)
+        stranger = other.attach_gallery_upload!(
+          io: StringIO.new("PNG"), filename: "other.png", content_type: "image/png",
+        )
+
+        delete remove_image_admin_dashboard_kit_page_path(kit_page, signed_id: stranger.signed_id)
+
+        expect(flash[:alert]).to include("isn't on this page")
+        expect(other.reload.gallery_uploads.size).to eq(1)
+      end
+
+      it "renders the picker with both kinds of picture on it" do
+        kit_page.attach_gallery_upload!(
+          io: StringIO.new("PNG"), filename: "mockup.png", content_type: "image/png", label: "On the fridge",
+        )
+        document = kit_page.attach_document!(io: StringIO.new("%PDF"), filename: "handout.pdf")
+        kit_page.attach_preview_image!(bytes: "PNG", page: 1, document_id: document.id)
+
+        get edit_admin_dashboard_kit_page_path(kit_page)
+
+        expect(response.body).to include("On the fridge")
+        expect(response.body).to include("Page 1")
+        expect(response.body).to include("Save which pictures show")
+      end
+    end
+
     describe "choosing which rendered pages show" do
       let(:kit_page) { create(:kit_page, slug: "at-school") }
 
