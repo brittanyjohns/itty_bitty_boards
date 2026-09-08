@@ -291,8 +291,11 @@ class API::BoardsController < API::ApplicationController
     return unless stale?(etag: etag, last_modified: last_modified)
 
     @boards = scope.to_a
+    assigned_names = Board.communicator_names_for(@boards, current_user)
 
-    render json: { boards: @boards.map { |board| board.list_api_view(current_user) } }
+    render json: {
+      boards: @boards.map { |board| board.list_api_view(current_user, assigned_to: assigned_names[board.id]) },
+    }
   end
 
   def common_boards
@@ -1975,12 +1978,27 @@ class API::BoardsController < API::ApplicationController
   end
 
   def boards_list_etag(user, scope, last_modified)
+    # The communicator terms are load-bearing, not belt-and-braces: assigning a
+    # board flips `Board#in_use` through `update_column`, which never touches
+    # `updated_at`, and renaming a communicator touches no board at all. Without
+    # them the list keeps serving a 304 whose payload predates the assignment it
+    # is supposed to show.
+    assignments = ChildBoard.joins(:child_account).where(
+      "child_accounts.user_id = :viewer OR child_accounts.owner_id = :viewer",
+      viewer: user.id,
+    )
+
     [
-      "boards-list-v1",
+      "boards-list-v2",
       user.id,
       last_modified.to_i,
       scope.maximum(:id),
       scope.count,
+      # Full precision, not `to_i`: assigning a board and then renaming the
+      # communicator inside the same second has to invalidate too.
+      assignments.maximum(:updated_at).to_f,
+      assignments.count,
+      ChildAccount.where("user_id = :viewer OR owner_id = :viewer", viewer: user.id).maximum(:updated_at).to_f,
     ]
   end
 

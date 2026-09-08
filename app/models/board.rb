@@ -3207,7 +3207,12 @@ class Board < ApplicationRecord
     name.to_s.downcase.gsub("&", " and ").gsub(/[^a-z0-9]+/, " ").strip
   end
 
-  def list_api_view(viewing_user = nil)
+  # `assigned_to` lets a caller serializing many boards hand in the answer from
+  # `Board.communicator_names_for` instead of paying `in_use_by`'s per-board
+  # queries. Omit it and a single board still resolves its own.
+  def list_api_view(viewing_user = nil, assigned_to: :unset)
+    assigned = assigned_to == :unset ? in_use_by(viewing_user) : assigned_to.presence
+
     {
       id: id,
       board_id: id,
@@ -3224,6 +3229,11 @@ class Board < ApplicationRecord
       locked: locked_for?(viewing_user),
       lock_reason: lock_reason_for(viewing_user),
       is_template: is_template,
+      in_use: in_use,
+      # Who this board is assigned to, so the board picker can say "Assigned to
+      # Austin" instead of offering two identically named boards with nothing to
+      # tell them apart. nil when the viewer owns none of the communicators.
+      in_use_by: assigned,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
       user_id: user_id,
@@ -3241,6 +3251,56 @@ class Board < ApplicationRecord
     return if names.empty?
 
     names.join(", ")
+  end
+
+  # Batched "assigned to whom" for a list of boards: {board_id => "Austin, Mia"}.
+  #
+  # `in_use_by` on its own resolves both join paths per board, so rendering it
+  # across a whole board list costs a couple of queries per row — the reason
+  # `list_api_view` carried no assignment data at all. This answers the question
+  # for every board in one ChildBoard read.
+  #
+  # Deliberately narrower than `visible_communicator_child_boards`, which widens
+  # to EVERY communicator for an admin viewer. That is right for the boards grid
+  # and wrong here: the admin owns the predefined public library, so a board of
+  # theirs is cloned onto strangers' communicators by the hundred, and the label
+  # this feeds would name all of them. "Assigned to" in the picker means "to a
+  # communicator YOU own" for every viewer, admin included.
+  #
+  # Boards with no such communicator are simply absent from the hash, so a
+  # caller can treat a miss as nil and keep the label hidden.
+  def self.communicator_names_for(boards, viewing_user = nil)
+    boards = Array(boards)
+    return {} if boards.empty? || viewing_user.nil?
+
+    board_ids = boards.map(&:id)
+    id_set = board_ids.to_set
+
+    rows = ChildBoard
+             .joins(:child_account)
+             .where("child_boards.board_id IN (:ids) OR child_boards.original_board_id IN (:ids)", ids: board_ids)
+             .where(
+               "child_accounts.user_id = :viewer OR child_accounts.owner_id = :viewer",
+               viewer: viewing_user.id,
+             )
+
+    names_by_board = Hash.new { |hash, key| hash[key] = [] }
+
+    rows.pluck("child_boards.board_id", "child_boards.original_board_id", "child_accounts.name")
+        .each do |board_id, original_board_id, name|
+      next if name.blank?
+
+      # A row can match on either column, and only the ids we were asked about
+      # belong in the result — the clone side of an assignment is a board of its
+      # own that the caller may not be listing.
+      [board_id, original_board_id].compact.uniq.each do |id|
+        names_by_board[id] << name if id_set.include?(id)
+      end
+    end
+
+    names_by_board.each_with_object({}) do |(board_id, names), out|
+      out[board_id] = names.uniq.join(", ")
+    end
   end
 
   # ChildBoard rows tying this board to communicators, across both join paths:
