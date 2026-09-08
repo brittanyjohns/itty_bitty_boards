@@ -970,6 +970,54 @@ RSpec.describe Board, type: :model do
         end
         board.get_word_suggestions_from_default_prompt("places", 5)
       end
+
+      # The topic used to be stated once, in position 2, after which recency
+      # belonged to the exclusion list and a generic "common, useful words"
+      # line — so on a Food page it was outgunned by 39 exclusions and the
+      # answer came back as ten core words with no food in it.
+      describe "where the topic sits in the turn" do
+        def turn_for(prompt, words_to_exclude:)
+          captured = nil
+          allow(openai).to receive(:get_word_suggestions_from_prompt) do |text, **|
+            captured = text
+            { content: '{"words":[]}' }
+          end
+          board.get_word_suggestions_from_default_prompt(prompt, 10, words_to_exclude: words_to_exclude)
+          captured
+        end
+
+        let(:food) { %w[banana cracker veggie egg] }
+
+        it "names the topic before it names the words to avoid" do
+          text = turn_for("Food", words_to_exclude: food)
+
+          expect(text.index("Food")).to be < text.index("banana, cracker")
+        end
+
+        it "restates the topic last, after the exclusion list" do
+          text = turn_for("Food", words_to_exclude: food)
+
+          expect(text.rindex("Food")).to be > text.rindex("banana, cracker")
+          expect(text).to include("must belong to this page's topic")
+        end
+
+        it "frames the existing words as context, not as a change of topic" do
+          text = turn_for("Food", words_to_exclude: food)
+
+          expect(text).to include("not a reason to move away from its topic")
+        end
+
+        # The prompt-override box is the only way to put non-topical vocabulary
+        # on a topic page. It reaches here as `prompt`, and the board name must
+        # never be reintroduced alongside it as a rival topic.
+        it "lets an override be the topic, with the page's own words only as exclusions" do
+          text = turn_for("core words", words_to_exclude: food)
+
+          expect(text).to include("about: core words")
+          expect(text).to include("must belong to this page's topic: core words")
+          expect(text).not_to include("about: Food")
+        end
+      end
     end
 
     describe "#get_word_suggestions_from_prompt" do

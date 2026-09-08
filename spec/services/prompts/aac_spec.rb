@@ -130,40 +130,116 @@ RSpec.describe Prompts::Aac do
 
   describe ".incremental_word_rules" do
     it "always carries the craft rules" do
-      expect(described_class.incremental_word_rules(existing_words: []))
-        .to include(described_class::WORD_CRAFT_RULES)
-      expect(described_class.incremental_word_rules(existing_words: ["stop", "all done"]))
-        .to include(described_class::WORD_CRAFT_RULES)
+      expect(described_class.incremental_word_rules).to include(described_class::WORD_CRAFT_RULES)
     end
 
-    # The rule is an autonomy requirement, so it is re-added rather than dropped
-    # when the board genuinely cannot refuse yet.
-    it "asks for a way to object when the board has none" do
-      rules = described_class.incremental_word_rules(existing_words: %w[store kitchen zoo])
-
-      expect(rules).to include("a way to object and a way to redirect")
-    end
-
-    # ...and is not spent on a board that already has all four words, which is
-    # what filled a Places board with "again" / "different" / "all done".
-    it "does not ask again when the board can already object and redirect" do
-      rules = described_class.incremental_word_rules(existing_words: ["go", "stop", "all done"])
+    # The ask used to be re-added when the board's own tiles could not refuse.
+    # WORD_CRAFT_RULES is entirely formatting and negative constraints, so it
+    # was the only instruction telling the model WHAT TO PICK — and being
+    # uncapped, it became the whole brief: a Food page asked for ten more words
+    # got ten core words and no food. Refusal is guaranteed where a board is
+    # CREATED, not re-asserted on every top-up.
+    it "never spends an add's budget on the objection ask" do
+      rules = described_class.incremental_word_rules
 
       expect(rules).not_to include("a way to object and a way to redirect")
       expect(rules).not_to include("something else")
+      expect(rules).not_to include(described_class::OBJECTION_REDIRECT_RULE)
     end
 
     # A fringe page names things on purpose; the core board carries refusal.
-    it "never suppresses nouns, however the board is stocked" do
-      [[], %w[store zoo], ["stop", "all done"]].each do |words|
-        expect(described_class.incremental_word_rules(existing_words: words))
-          .not_to include("Skip nouns that exist to be labelled")
-      end
+    it "never suppresses nouns" do
+      expect(described_class.incremental_word_rules)
+        .not_to include("Skip nouns that exist to be labelled")
     end
 
     it "never carries the full whole-board coverage set" do
-      expect(described_class.incremental_word_rules(existing_words: []))
+      expect(described_class.incremental_word_rules)
         .not_to include(described_class::BOARD_COVERAGE_RULES)
+    end
+  end
+
+  describe "INCREMENTAL_WORD_LIST_SYSTEM_PROMPT" do
+    let(:persona) { described_class::INCREMENTAL_WORD_LIST_SYSTEM_PROMPT }
+
+    it "keeps the SLP framing" do
+      expect(persona).to include("speech-language pathologist")
+      expect(persona).to include("nonspeaking communicators")
+    end
+
+    # The judgement that produced `more`, `help`, `like` and `please` on a Food
+    # page — four words that appear in no RULE this path sends.
+    it "drops the whole-board judgement that a naming board has failed" do
+      expect(persona).not_to include("board that can only name things has failed")
+      expect(persona).not_to include("not writing a vocabulary list about a topic")
+    end
+
+    it "says a topic page names things on purpose" do
+      expect(persona).to include("full of that topic")
+    end
+
+    it "keeps the count and format guarantees verbatim" do
+      expect(persona).to include("Return the EXACT number of words asked for, with no duplicates and no")
+      expect(persona).to include("Respond with JSON only — no prose, no code fences, no commentary.")
+    end
+
+    # The prompt-override box is the only way to put non-topical vocabulary on a
+    # topic page. A persona that names core words as off-limits would refuse
+    # "core words" typed into it, so the instruction is topic-OBEDIENCE only.
+    it "names no kind of word as off-limits, so an override can still steer it" do
+      expect(persona).to include("must belong to the topic you are given")
+      expect(persona).not_to match(/core words?.*(another|somebody else's|different) page/i)
+      expect(persona).not_to include("Core words the whole board shares")
+    end
+  end
+
+  describe ".incremental_system_prompt" do
+    # A board-less /words request builds a throwaway Board and reaches this same
+    # path, so the persona is SELECTED rather than swapped.
+    it "keeps the whole-board persona for a board being drafted from nothing" do
+      [[], nil, ["", "  "]].each do |words|
+        expect(described_class.incremental_system_prompt(existing_words: words))
+          .to eq(described_class::WORD_LIST_SYSTEM_PROMPT)
+      end
+    end
+
+    it "uses the incremental persona for a page that already holds words" do
+      expect(described_class.incremental_system_prompt(existing_words: %w[banana cracker egg]))
+        .to eq(described_class::INCREMENTAL_WORD_LIST_SYSTEM_PROMPT)
+    end
+  end
+
+  describe ".reject_existing" do
+    it "drops a word the board already has, whatever its casing" do
+      expect(described_class.reject_existing(%w[Banana toast], existing_words: %w[banana]))
+        .to eq(%w[toast])
+    end
+
+    it "folds curly apostrophes on both sides" do
+      expect(described_class.reject_existing(["don't like"], existing_words: ["don\u2019t like"]))
+        .to eq([])
+    end
+
+    # Exact equality, not the word-boundary match the floors use: a Food page
+    # holding "banana" may legitimately want "banana bread".
+    it "keeps a longer phrase that merely contains an existing word" do
+      expect(described_class.reject_existing(["banana bread"], existing_words: %w[banana]))
+        .to eq(["banana bread"])
+    end
+
+    it "de-dupes the answer against itself, keeping the first spelling" do
+      expect(described_class.reject_existing(%w[Toast toast jam], existing_words: []))
+        .to eq(%w[Toast jam])
+    end
+
+    it "preserves order and normalises underscores" do
+      expect(described_class.reject_existing(["ice_cream", "pie"], existing_words: []))
+        .to eq(["ice cream", "pie"])
+    end
+
+    it "answers an empty list for nothing" do
+      expect(described_class.reject_existing(nil, existing_words: %w[banana])).to eq([])
+      expect(described_class.reject_existing(["", "  "], existing_words: [])).to eq([])
     end
   end
 
@@ -171,6 +247,19 @@ RSpec.describe Prompts::Aac do
     it "frames the job as what a board lets someone say, not what it names" do
       expect(described_class::SYSTEM_PROMPT).to match(/request, refuse, comment, direct, repair/)
       expect(described_class::SYSTEM_PROMPT).to include("board that can only name things has failed")
+    end
+  end
+
+  describe "WORD_LIST_SYSTEM_PROMPT" do
+    # The whole-board judgement stays HERE. Three callers still lay out a whole
+    # board through this persona — ScenariosController, the social-story path,
+    # and WORD_SUGGESTION_SYSTEM_PROMPT — so the incremental fix had to add a
+    # persona beside it, never soften this one.
+    it "keeps the whole-board judgement for the callers that lay out a board" do
+      expect(described_class::WORD_LIST_SYSTEM_PROMPT)
+        .to include("board that can only name things has failed")
+      expect(described_class::WORD_LIST_SYSTEM_PROMPT)
+        .to include("not writing a vocabulary list about a topic")
     end
   end
 
