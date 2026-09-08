@@ -1,0 +1,10 @@
+<%# Labelled in the admin's words, not the stored enum's. %>
+<% [[KitPage::PREVIEW_HIDDEN, "Don't show"],
+    [KitPage::PREVIEW_PUBLIC, "On the page"],
+    [KitPage::PREVIEW_GATED, "After the email"]].each do |value, label| %>
+  <label class="flex items-center gap-1.5 text-[11px] text-t1 cursor-pointer">
+    <%= radio_button_tag "visibility[#{row[:key]}]", value, row[:visibility] == value,
+          id: "visibility_#{row[:key].tr(":", "_")}_#{value}" %>
+    <%= label %>
+  </label>
+<% end %>

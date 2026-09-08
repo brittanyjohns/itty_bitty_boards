@@ -286,8 +286,20 @@ writes all of it from the printable the page gives away.
 
 ## Mockup images on the public page
 
-`KitPage#gallery_images` puts the printable's rendered marketplace mockups into
-`public_view` as `images: [{variant, url}]`, first one first.
+`KitPage#gallery_images` is **uploads first, then whatever the page generates**:
+
+```ruby
+def gallery_images = public_preview_images + generated_gallery_images
+```
+
+`public_preview_images` is the public slice of `#preview_rows` — the pictures an
+admin uploaded by hand, then the rendered pages of any uploaded PDF.
+`generated_gallery_images` is the printable's marketplace mockups, or `[]` once
+uploaded documents have displaced the printable. See "Uploaded pictures" below
+for the first, and this section for the last.
+
+The printable's own mockups reach `public_view` as `images: [{variant, url}]`,
+first one first.
 
 - It is a curated **allowlist**, `KitPage::KIT_IMAGE_ORDER` — hero, on_paper,
   flip_book, whats_included, on_a_device. `about` and `page_index` are Etsy shop
@@ -407,14 +419,67 @@ uploaded document was never sold.
   PDF — the renderer's whole job is decoding one, so stub bytes prove nothing.
 
 
+## Uploaded pictures (the gallery art that isn't generated)
+
+`has_many_attached :gallery_uploads` — PNG/JPEG/WebP an admin uploads under
+**Pictures on the page**, capped at `MAX_IMAGES` (10) and `MAX_IMAGE_BYTES`
+(10 MB) each. Same versioned storage key as a document, same CloudFront reason.
+
+**A picture is added, never a replacement.** This is the deliberate opposite of
+an uploaded DOCUMENT, which displaces the printable outright: a hand-made hero
+shot *of* the printable this page gives away should lead its mockups, not delete
+them. So an uploaded picture composes with whatever else the page shows, and
+never with the download — `#download_files` reads `documents` and nothing else,
+which is why these are their own named attachment rather than a fourth `kind`
+in one bag.
+
+- **`RenderKitPreviewsJob` never touches this collection.** "Regenerate"
+  rebuilds `preview_images` and cannot purge what an admin uploaded — a picture
+  that was never generated has nothing to regenerate from.
+- **Same picker, same three visibilities.** Upload rows sit at the head of
+  `#preview_rows` carrying `source: :upload`, `variant: "upload_N"` and a
+  `label` (the admin's, else the filename without its extension). One list, so
+  the admin screen, the public gallery and the post-email handover cannot
+  disagree — the whole reason not to give uploads a parallel path.
+- **Keyed `upload:<blob id>` in `preview_settings`.** The prefix is
+  load-bearing: `#live_preview_settings` has to tell an upload key from a
+  rendered page's `"<document blob id>:<page>"` in order to prune the right one,
+  and a bare blob id could collide with a document's.
+- **A new picture on a CURATED page is written `public`.** Once the hash is
+  non-empty an unlisted key is hidden, and a picture an admin just chose must
+  not arrive invisible — so `#attach_gallery_upload!` writes the row rather than
+  the resolver special-casing uploads. The column keeps saying exactly what
+  shows where.
+- **The content type is re-checked in the model**, which raises `ArgumentError`
+  outside `IMAGE_CONTENT_TYPES`. An allowlist (no SVG — a script container on
+  our own CDN; no HEIC — most browsers can't draw it), and an invariant of what
+  the page may publish rather than one controller remembering to ask.
+
+### Admin
+
+Its own card, `app/views/admin/kit_pages/_pictures.html.erb`, holding the upload
+form, the Regenerate button and the whole picker; `_documents.html.erb` keeps
+only the PDFs. Several files at a time — a gallery is naturally several — and
+the optional label applies only when exactly one is chosen, since one label
+across five pictures captions four of them wrongly. A bad file refuses the WHOLE
+batch: a flash saying three of five landed leaves an admin counting thumbnails.
+
+`POST upload_images` / `DELETE remove_image`, both flashes rather than 422s, for
+the same reason the document upload is — re-rendering the edit screen would lose
+anything typed in the main form.
+
 ## Curating the gallery
 
-Every rendered page is one of three things — `hidden`, `public` (on the page
-before the email), or `gated` (handed over with the download). The admin picks
-per page under **Pictures on the page**, grouped by document.
+Every curatable picture — a rendered page, or one uploaded by hand — is one of
+three things: `hidden`, `public` (on the page before the email), or `gated`
+(handed over with the download). The admin picks per picture under **Pictures on
+the page**: uploads first, then the rendered pages grouped by document. The
+printable's own marketplace mockups are NOT in the picker; they are all-or-
+nothing with the printable itself.
 
 `kit_pages.preview_settings` (jsonb) is the record, keyed
-`"<document blob id>:<page>" => visibility`:
+`"<document blob id>:<page>"` for a rendered page and `"upload:<blob id>"` for
+an uploaded picture:
 
 - **A column, not blob metadata.** `RenderKitPreviewsJob` replaces every preview
   blob on each run, so a choice written onto the blob dies at the next
@@ -435,13 +500,15 @@ per page under **Pictures on the page**, grouped by document.
   survive, and drops the settings of removed ones; `#prune_preview_settings!`
   runs the same sweep from `remove_document`.
 
-`KitPage#preview_rows` is the one list everything filters:
+`KitPage#preview_rows` is the one list everything filters — uploads first, then
+every rendered page in document order:
 `gallery_images` (public only, on `public_view`), `released_gallery_images`
 (public + gated, on the download response), `preview_picker_rows` (everything).
 Rows carry `label` — `"Page 3"`, or `"Parent handout — page 3"` when there is
 more than one document — which the frontend prefers over its `IMAGE_ALT`
-variant lookup. `variant` stays `page_N` numbered within its own document, so it
-is NOT unique across documents; key on the URL.
+variant lookup. `variant` stays `page_N` numbered within its own document, and
+an upload's is `upload_N` by position — so neither is unique or stable across a
+removal. Key a gallery on the URL, never on the variant.
 
 Two rails in the job:
 

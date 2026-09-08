@@ -2,7 +2,7 @@
 # these in /admin; the frontend renders whatever this row says, so a new
 # campaign page needs no deploy on either side.
 #
-# Three things are deliberately NOT here:
+# Four things are deliberately NOT here:
 #
 #   * The leads. A kit signup is a DownloadLead with `source = "kit_<slug>"`,
 #     the same table /classroom and /ctg already use. No parallel lead model.
@@ -10,6 +10,10 @@
 #     plus a chosen variant, or PDFs uploaded straight onto this page — a
 #     visitor gets a document an admin has already looked at, never something
 #     rendered on the way out. Uploaded documents WIN: see #download_files.
+#   * A picture that has to be generated to exist. The gallery is a printable's
+#     marketplace mockups, rasterized pages of an uploaded PDF, or images an
+#     admin uploaded by hand — see #gallery_images. Nothing is drawn on the way
+#     out, and an uploaded picture is never a download.
 #   * The gate. Production S3 is `public: true`, so every printable already sits
 #     behind a permanent unsigned CDN URL and the hex path segment is the only
 #     protection. Asking for an email before revealing that URL is a soft gate
@@ -47,6 +51,22 @@ class KitPage < ApplicationRecord
 
   MAX_DOCUMENT_BYTES = 50.megabytes
   MAX_DOCUMENTS = 5
+
+  # Pictures an admin uploads by hand — a Canva mockup, a photo of the thing
+  # printed, a screenshot of it in use. An ALLOWLIST of formats, the same rule
+  # DOCUMENT_CONTENT_TYPES keeps: a file picker will happily hand over an SVG
+  # (a script container served from our own CDN) or a HEIC (which most browsers
+  # cannot draw), and neither belongs on a public landing page.
+  IMAGE_CONTENT_TYPES = %w[image/png image/jpeg image/webp].freeze
+  MAX_IMAGE_BYTES = 10.megabytes
+  MAX_IMAGES = 10
+
+  # Where one row in #preview_rows came from. An uploaded picture and a
+  # rasterized PDF page are the same KIND of thing to everything downstream —
+  # both are marketing art with a visibility — so they share one list and differ
+  # only by this.
+  SOURCE_UPLOAD = :upload
+  SOURCE_RENDER = :render
 
   # An editable Canva design a visitor gets their own copy of. The link is
   # checked against an ALLOWLIST of host and path, the same rule
@@ -91,6 +111,14 @@ class KitPage < ApplicationRecord
   # go to a versioned key.
   def self.preview_setting_key(document_id, page) = "#{document_id}:#{page}"
 
+  # The key one uploaded picture is remembered by. PREFIXED rather than keyed on
+  # the blob id alone: a bare id could collide with a rendered page's
+  # "<document blob id>:<page>", and #live_preview_settings has to be able to
+  # tell which kind of row a stored key names in order to prune it.
+  UPLOAD_KEY_PREFIX = "upload:".freeze
+
+  def self.upload_preview_key(blob_id) = "#{UPLOAD_KEY_PREFIX}#{blob_id}"
+
   # How long an admin's draft-preview link stays good. Short on purpose and it
   # costs nothing: the admin screen mints a fresh token every time it renders,
   # so a stale link is fixed by reloading /admin/kit_pages.
@@ -103,13 +131,17 @@ class KitPage < ApplicationRecord
   # #url_for_file (preview) / #download_url_for_file (saves the file).
   include AttachedFileUrls
 
-  # Two NAMED attachments rather than one collection partitioned by blob
-  # metadata. BoardPrintable shares a single `files` bag across PDFs, gallery
-  # images and video, and the invariant in CLAUDE.md about `pdf_files` exists
-  # precisely because that partition was once written as an exclusion and handed
-  # a listing video to a buyer as the product. Nothing here needs a partition.
+  # NAMED attachments rather than one collection partitioned by blob metadata.
+  # BoardPrintable shares a single `files` bag across PDFs, gallery images and
+  # video, and the invariant in CLAUDE.md about `pdf_files` exists precisely
+  # because that partition was once written as an exclusion and handed a listing
+  # video to a buyer as the product. Nothing here needs a partition — and with
+  # three collections the separation is doing real work: an uploaded PICTURE can
+  # never be served as the download, because #download_files reads `documents`
+  # and nothing else.
   has_many_attached :documents        # the download, when any are attached
-  has_many_attached :preview_images   # rendered from documents.first
+  has_many_attached :preview_images   # rendered from the documents
+  has_many_attached :gallery_uploads  # pictures an admin uploaded by hand
 
   belongs_to :board_printable, optional: true
   belongs_to :etsy_override_by, class_name: "User", optional: true
@@ -185,21 +217,34 @@ class KitPage < ApplicationRecord
     uploaded_download? ? document_files_view : printable_download_files
   end
 
-  # The mockup renders shown on the page — for a printable, the marketplace
-  # gallery; for an uploaded document, its own first pages.
+  # The pictures shown on the page: whatever an admin uploaded by hand, then
+  # whatever the page produces on its own.
   #
   # These are MARKETING art, not the product, which is why they may sit in the
   # public read while the download may not. The rule the public payload keeps is
   # that the PDF a visitor came for is revealed only after an email; a
   # photograph of it is the thing that persuades them to enter one.
   def gallery_images
-    uploaded_download? ? public_preview_images : printable_gallery_images
+    public_preview_images + generated_gallery_images
   end
 
-  # The gallery as it stands AFTER the email. A printable-backed page has
-  # nothing gated, so it answers with the same list it already published.
+  # The gallery as it stands AFTER the email. Generated pictures have no
+  # visibility of their own, so they are the same list either way.
   def released_gallery_images
-    uploaded_download? ? released_preview_images : printable_gallery_images
+    released_preview_images + generated_gallery_images
+  end
+
+  # The pictures the page makes for itself: a printable's marketplace mockups,
+  # or none at all once uploaded documents have displaced the printable — the
+  # rendered pages of those documents arrive through #preview_rows instead.
+  #
+  # Uploaded IMAGES do not displace anything. They are an addition to the page's
+  # gallery rather than a replacement for its product, which is the whole
+  # difference between them and an uploaded DOCUMENT: a hand-made hero shot of
+  # the very printable this page gives away should lead its own mockups, not
+  # delete them.
+  def generated_gallery_images
+    uploaded_download? ? [] : printable_gallery_images
   end
 
   # One row per uploaded document, in the order they were attached.
@@ -220,17 +265,16 @@ class KitPage < ApplicationRecord
     end
   end
 
-  # EVERY rendered page, in document order then page order, each carrying the
-  # document it came from and its resolved visibility. The admin picker, the
-  # public gallery and the post-email handover are all filters over this one
-  # list, so the three can never disagree about what a page is.
+  # EVERY curatable picture: the hand-uploaded ones first, then every rendered
+  # page in document order and page order, each carrying its resolved
+  # visibility. The admin picker, the public gallery and the post-email handover
+  # are all filters over this one list, so the three can never disagree about
+  # what a picture is.
   #
   # Drops any entry whose URL came back nil — `url_for_file` returns nil rather
   # than raising — exactly as the printable gallery does.
   def preview_rows
-    return [] unless preview_images.attached?
-
-    @preview_rows ||= build_preview_rows
+    @preview_rows ||= upload_preview_rows + rendered_preview_rows
   end
 
   # The admin picker's rows: everything, hidden pages included.
@@ -256,9 +300,21 @@ class KitPage < ApplicationRecord
     documents.sort_by { |file| [file.created_at, file.id] }
   end
 
+  def ordered_gallery_uploads
+    return [] unless gallery_uploads.attached?
+
+    gallery_uploads.sort_by { |file| [file.created_at, file.id] }
+  end
+
   # The button text for one document. An admin-typed label wins; otherwise the
   # filename without its extension, which is very often already the right words.
   def document_label(file)
+    file.metadata["label"].presence || File.basename(file.filename.to_s, ".*")
+  end
+
+  # What one uploaded picture IS — its alt text, and the caption under the
+  # enlarged view. Same fallback as a document's label.
+  def gallery_upload_label(file)
     file.metadata["label"].presence || File.basename(file.filename.to_s, ".*")
   end
 
@@ -276,6 +332,34 @@ class KitPage < ApplicationRecord
     )
     documents.attach(blob)
     reset_file_memos
+    blob
+  end
+
+  # Attaches one uploaded picture, at a versioned key for the same reason a
+  # document gets one.
+  #
+  # The content type is re-checked here rather than trusted from the caller:
+  # the allowlist is an invariant of what this page may publish, not one
+  # controller remembering to ask.
+  def attach_gallery_upload!(io:, filename:, content_type:, label: nil)
+    unless IMAGE_CONTENT_TYPES.include?(content_type)
+      raise ArgumentError, "#{content_type.inspect} is not one of #{IMAGE_CONTENT_TYPES.join(", ")}"
+    end
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: io,
+      filename: filename,
+      content_type: content_type,
+      key: versioned_storage_key_for(filename),
+      metadata: { "label" => label.presence },
+    )
+    gallery_uploads.attach(blob)
+    reset_file_memos
+    # On a curated page an unlisted key resolves to HIDDEN, and a picture an
+    # admin has just chosen to upload must not arrive invisible. Written into
+    # the column rather than special-cased in the resolver, so `preview_settings`
+    # keeps saying exactly what shows where.
+    publish_gallery_upload!(blob) if previews_curated?
     blob
   end
 
@@ -453,6 +537,51 @@ class KitPage < ApplicationRecord
       .map { |image| { variant: image[:variant], url: image[:url] } }
   end
 
+  # Every rendered page, or [] on a page whose documents haven't been rendered.
+  def rendered_preview_rows
+    return [] unless preview_images.attached?
+
+    build_preview_rows
+  end
+
+  # One row per hand-uploaded picture, in the order they were attached.
+  #
+  # `document_position: -1` keeps them ahead of every rendered page under any
+  # sort that reads it, and `page` carries the picture's position so the
+  # serialized shape is the same for both kinds — the frontend keys a gallery on
+  # the URL and reads `label`, and a missing key there is a different bug in
+  # every browser.
+  def upload_preview_rows
+    ordered_gallery_uploads.each_with_index.filter_map do |file, index|
+      url = url_for_file(file)
+      next if url.blank?
+
+      position = index + 1
+      key = self.class.upload_preview_key(file.blob_id)
+
+      {
+        key: key,
+        source: SOURCE_UPLOAD,
+        document_id: nil,
+        document_position: -1,
+        document_label: nil,
+        page: position,
+        variant: "upload_#{position}",
+        label: gallery_upload_label(file),
+        url: url,
+        signed_id: file.signed_id,
+        visibility: resolved_upload_visibility(key),
+      }
+    end
+  end
+
+  def publish_gallery_upload!(blob)
+    update!(preview_settings: preview_settings.merge(
+      self.class.upload_preview_key(blob.id) => PREVIEW_PUBLIC,
+    ))
+    reset_file_memos
+  end
+
   # Attaching or purging inside one request leaves the views above memoized on
   # what was there before.
   def reset_file_memos
@@ -460,10 +589,20 @@ class KitPage < ApplicationRecord
     @preview_rows = nil
   end
 
-  # The settings hash with every entry whose document is gone dropped.
+  # The settings hash with every entry whose file is gone dropped — an uploaded
+  # picture that has been removed and a document that has been removed alike.
   def live_preview_settings
-    live = ordered_documents.map(&:blob_id).map(&:to_s).to_set
-    preview_settings.select { |key, _| live.include?(key.to_s.split(":").first.to_s) }
+    live_documents = ordered_documents.map { |file| file.blob_id.to_s }.to_set
+    live_uploads = ordered_gallery_uploads.map { |file| self.class.upload_preview_key(file.blob_id) }.to_set
+
+    preview_settings.select do |key, _|
+      key = key.to_s
+      if key.start_with?(UPLOAD_KEY_PREFIX)
+        live_uploads.include?(key)
+      else
+        live_documents.include?(key.split(":").first.to_s)
+      end
+    end
   end
 
   # The batch every preview in the CURRENT set carries. Legacy previews carry no
@@ -506,15 +645,19 @@ class KitPage < ApplicationRecord
     page = file.metadata["page"].to_i
     key = self.class.preview_setting_key(document_id, page)
 
-    {
+    row = {
       key: key,
+      source: SOURCE_RENDER,
       document_id: document_id,
       document_position: position,
       document_label: labels[document_id],
       page: page,
+      variant: "page_#{page}",
       url: url,
       visibility: resolved_preview_visibility(key, position, page),
     }
+
+    row.merge(label: preview_label(row))
   end
 
   # An empty `preview_settings` is "never asked" and answers with the historical
@@ -531,10 +674,20 @@ class KitPage < ApplicationRecord
     end
   end
 
+  # An uploaded picture is a deliberate choice, so it shows unless the admin says
+  # otherwise. On a CURATED page the answer is already in the column —
+  # #attach_gallery_upload! writes it — so an unlisted key here means a picture
+  # somebody hid, exactly as it does for a rendered page.
+  def resolved_upload_visibility(key)
+    return PREVIEW_PUBLIC unless previews_curated?
+
+    preview_settings[key].to_s.presence_in(PREVIEW_VISIBILITIES) || PREVIEW_HIDDEN
+  end
+
   def serialized_previews(*visibilities)
     preview_rows
       .select { |row| visibilities.include?(row[:visibility]) }
-      .map { |row| { variant: "page_#{row[:page]}", url: row[:url], page: row[:page], label: preview_label(row) } }
+      .map { |row| { variant: row[:variant], url: row[:url], page: row[:page], label: row[:label] } }
   end
 
   # What the picture IS, for alt text and the enlarged view's caption. The

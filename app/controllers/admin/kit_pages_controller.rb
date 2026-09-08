@@ -10,8 +10,8 @@ module Admin
   # who did it and when.
   class KitPagesController < Admin::ApplicationController
     before_action :set_kit_page,
-                  only: %i[edit update publish unpublish upload_document remove_document regenerate_previews
-                           update_previews]
+                  only: %i[edit update publish unpublish upload_document remove_document upload_images
+                           remove_image regenerate_previews update_previews]
 
     def index
       @kit_pages = KitPage.includes(board_printable: :board).order(created_at: :desc)
@@ -115,6 +115,52 @@ module Admin
       redirect_to edit_admin_dashboard_kit_page_path(@kit_page), notice: "Removed “#{filename}”."
     end
 
+    # Attaches pictures the admin made themselves — a Canva mockup, a photo of
+    # the thing printed. They sit alongside whatever the page generates rather
+    # than replacing it, and RenderKitPreviewsJob never touches this collection,
+    # so "Regenerate" cannot purge them.
+    #
+    # Several at a time, because a gallery is naturally several. The optional
+    # label applies only when exactly one file is chosen — a single label spread
+    # across five pictures would caption four of them wrongly.
+    def upload_images
+      uploads = Array(params[:images]).reject(&:blank?)
+
+      if (error = image_batch_error(uploads))
+        return redirect_to(edit_admin_dashboard_kit_page_path(@kit_page), alert: error)
+      end
+
+      label = uploads.size == 1 ? params[:label].to_s.strip.presence : nil
+      uploads.each do |upload|
+        @kit_page.attach_gallery_upload!(
+          io: upload,
+          filename: upload.original_filename,
+          content_type: upload.content_type,
+          label: label,
+        )
+      end
+
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page),
+                  notice: "Uploaded #{helpers.pluralize(uploads.size, "picture")}. " \
+                          "#{uploads.size == 1 ? "It shows" : "They show"} on the page now."
+    end
+
+    # Purges one uploaded picture, and its visibility choice with it. No render
+    # to rebuild: these were never generated from anything.
+    def remove_image
+      image = find_gallery_upload(params[:signed_id])
+      unless image
+        return redirect_to(edit_admin_dashboard_kit_page_path(@kit_page), alert: "That picture isn't on this page.")
+      end
+
+      filename = image.filename.to_s
+      image.purge
+      @kit_page.gallery_uploads.reset
+      @kit_page.prune_preview_settings!
+
+      redirect_to edit_admin_dashboard_kit_page_path(@kit_page), notice: "Removed “#{filename}”."
+    end
+
     # Records which rendered pages show where. Its own form and its own action
     # rather than a field in the main one, for the same reason the upload is:
     # the main form is re-rendered wholesale by Autofill.
@@ -173,6 +219,42 @@ module Admin
 
       if @kit_page.ordered_documents.size >= KitPage::MAX_DOCUMENTS
         return "This page already has #{KitPage::MAX_DOCUMENTS} documents. Remove one first."
+      end
+
+      nil
+    end
+
+    def find_gallery_upload(signed_id)
+      return nil if signed_id.blank?
+
+      @kit_page.gallery_uploads.find { |file| file.signed_id == signed_id }
+    end
+
+    # Refuses the WHOLE batch rather than attaching what happens to pass: a
+    # flash saying three of five landed leaves an admin counting thumbnails to
+    # work out which. Reported as a flash for the same reason the document
+    # upload is — re-rendering the edit screen would lose anything typed in the
+    # main form.
+    def image_batch_error(uploads)
+      return "Choose at least one picture to upload." if uploads.empty?
+      return "Choose at least one picture to upload." unless uploads.all? { |upload| upload.respond_to?(:read) }
+
+      attached = @kit_page.ordered_gallery_uploads.size
+      if attached + uploads.size > KitPage::MAX_IMAGES
+        return "This page holds #{KitPage::MAX_IMAGES} pictures and already has #{attached}. Remove one first."
+      end
+
+      uploads.each do |upload|
+        unless KitPage::IMAGE_CONTENT_TYPES.include?(upload.content_type)
+          return "“#{upload.original_filename}” is #{upload.content_type.presence || "an unknown type"}; " \
+                 "upload a PNG, JPEG or WebP."
+        end
+
+        if upload.size > KitPage::MAX_IMAGE_BYTES
+          return "“#{upload.original_filename}” is " \
+                 "#{ActiveSupport::NumberHelper.number_to_human_size(upload.size)}; the cap is " \
+                 "#{ActiveSupport::NumberHelper.number_to_human_size(KitPage::MAX_IMAGE_BYTES)}."
+        end
       end
 
       nil
