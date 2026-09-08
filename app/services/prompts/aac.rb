@@ -56,6 +56,43 @@ module Prompts
       - Respond with JSON only — no prose, no code fences, no commentary.
     PROMPT
 
+    # The same job, for a prompt that ADDS words to a page that already exists.
+    #
+    # WORD_LIST_SYSTEM_PROMPT opens with a WHOLE-BOARD judgement — "not writing
+    # a vocabulary list about a topic", "a board that can only name things has
+    # failed" — which is right for a caller laying out a board and wrong here.
+    # A fringe page called "Food" asked for ten more words came back with `no`,
+    # `stop`, `all done`, `different`, `more`, `help`, `like`, `don't like`,
+    # `again`, `please`: ten out of ten core words, zero food words. Four of
+    # those appear in no RULE this path sends — they came from the persona, so
+    # scoping the RULES to the job (#763) could never have been enough alone.
+    #
+    # The instruction here is topic-OBEDIENCE, not anti-core-vocabulary, and it
+    # must never name a kind of word as off-limits. The topic is whatever the
+    # caller passed, and "core words" typed into the editor's prompt-override
+    # box is a legitimate topic that a rule like "core words belong on another
+    # page" would refuse — that box is the only way to put non-topical
+    # vocabulary on a topic page, so a persona that fights it takes the escape
+    # hatch away. Refusal itself is guaranteed where a board is CREATED
+    # (BOARD_COVERAGE_RULES, then with_core_floor), not re-asked on every add.
+    INCREMENTAL_WORD_LIST_SYSTEM_PROMPT = <<~PROMPT.freeze
+      You are a speech-language pathologist who builds AAC (Augmentative and
+      Alternative Communication) grid boards for nonspeaking communicators.
+
+      You are adding words to a PAGE of a board that already exists. You are
+      given its topic and the words it already holds. Your job is to extend
+      that page: words that belong to its topic, that a communicator would
+      really use there, and that the page does not already have. A page about
+      a topic should be full of that topic — including the concrete things it
+      names, which is what such a page is for.
+
+      These hold for every request, whatever else the instructions ask for:
+      - Return the EXACT number of words asked for, with no duplicates and no
+        near-duplicates.
+      - Every word you return must belong to the topic you are given.
+      - Respond with JSON only — no prose, no code fences, no commentary.
+    PROMPT
+
     # The word-selection rules every prompt shares, so they can't drift apart on
     # what makes a good tile.
     #
@@ -125,6 +162,12 @@ module Prompts
     # Does this set of tile labels already carry a way to object AND a way to
     # redirect?
     #
+    # No longer gates any prompt: incremental_word_rules used to re-add
+    # OBJECTION_REDIRECT_RULE when this answered false, which is the bug
+    # documented there. Kept because it is the predicate a "this board has no
+    # way to refuse" nudge reads — telling the user, rather than silently
+    # spending their tiles on words they did not ask for.
+    #
     # Matched on word boundaries rather than string equality, so a tile labelled
     # "no thank you" counts as a way to object. Labels arrive as display text
     # (Board#current_word_list reads display_label), so casing and curly
@@ -193,7 +236,13 @@ module Prompts
     # normalised away before either side of a match is trustworthy.
     def self.normalise_labels(words)
       Array(words).filter_map do |word|
-        word.to_s.unicode_normalize(:nfkc).tr("‘’", "''").downcase.squish.presence
+        text = word.to_s
+        # unicode_normalize raises Encoding::CompatibilityError on a string that
+        # is not Unicode, and on invalid bytes inside one. Labels are
+        # user-authored display text and this helper is on the path of every
+        # word-suggestion request, so neither is worth a 500.
+        text = text.dup.force_encoding(Encoding::UTF_8) unless text.encoding == Encoding::UTF_8
+        text.scrub.unicode_normalize(:nfkc).tr("‘’", "''").downcase.squish.presence
       end
     end
     private_class_method :normalise_labels
@@ -206,20 +255,67 @@ module Prompts
     end
     private_class_method :mentions?
 
-    # The rules that apply when words are being ADDED to a board that already
+    # Which PERSONA a word-list prompt gets: a page being topped up, or a board
+    # being laid out from nothing.
+    #
+    # `existing_words` is the signal because it is the one the client reliably
+    # has, and it tracks the `@board.new_record?` split boards#words already
+    # uses to gate with_core_floor — the same request reaches this method for
+    # both jobs, since a board-less /words call builds a throwaway Board. An
+    # empty list is a board being drafted at /boards/new and keeps the
+    # whole-board persona; words mean a real page, which gets the incremental
+    # one. Swapping unconditionally would tell a from-scratch draft it is
+    # extending a page that already exists.
+    def self.incremental_system_prompt(existing_words: [])
+      return WORD_LIST_SYSTEM_PROMPT if normalise_labels(existing_words).empty?
+
+      INCREMENTAL_WORD_LIST_SYSTEM_PROMPT
+    end
+
+    # The rules that apply when words are being ADDED to a page that already
     # exists, rather than when a whole board is being laid out.
     #
-    # The coverage rules are a whole-board judgement and misfire badly on an
-    # add: "skip nouns that exist to be labelled" suppresses exactly the place
-    # names a board called "Places" exists for, and the objection/redirect
-    # mandate is a list of literal words the model will spend the user's tiles
-    # on — "again", "different", "something else", "all done" — even when the
-    # board already has all four. So craft rules always, and the objection ask
-    # only when the board genuinely cannot refuse yet.
-    def self.incremental_word_rules(existing_words: [])
-      return WORD_CRAFT_RULES if can_object_or_redirect?(existing_words)
+    # Craft rules only. The coverage rules are a whole-board judgement and
+    # misfire badly on an add: "skip nouns that exist to be labelled"
+    # suppresses exactly the place names a board called "Places" exists for.
+    #
+    # The objection/redirect ask used to be re-added here when the board's own
+    # tiles could not yet refuse. It is gone. WORD_CRAFT_RULES is entirely
+    # formatting and negative constraints, so that ask was the only instruction
+    # in the whole system message telling the model WHAT TO PICK — and being
+    # uncapped ("at least one of…"), it became the entire brief: a Food page
+    # asked for ten more words got ten core words and no food. Refusal is
+    # guaranteed where a board is CREATED (BOARD_COVERAGE_RULES on the
+    # whole-board path, then with_core_floor in Ruby), not re-asserted on every
+    # top-up of a fringe page.
+    def self.incremental_word_rules
+      WORD_CRAFT_RULES
+    end
 
-      OBJECTION_REDIRECT_RULE + WORD_CRAFT_RULES
+    # Suggestions that repeat a tile the board already has.
+    #
+    # The prompt says not to repeat them and the model mostly obeys; this makes
+    # it true, since a returned duplicate otherwise becomes a duplicate TILE.
+    # Deliberately EXACT normalised equality rather than the word-boundary
+    # match can_object_or_redirect? uses: a Food page holding "banana" may
+    # legitimately want "banana bread", which a boundary match would drop. Also
+    # de-dupes the answer against itself.
+    #
+    # Returning fewer words than were asked for is the right failure for a
+    # suggestion list — the alternative is a top-up loop and a second billable
+    # call. Validating the count is issue #751.
+    def self.reject_existing(words, existing_words: [])
+      seen = normalise_labels(existing_words).each_with_object({}) { |label, acc| acc[label] = true }
+      Array(words).filter_map do |word|
+        label = word.to_s.gsub("_", " ").strip
+        next if label.blank?
+
+        key = normalise_labels([label]).first
+        next if key.nil? || seen[key]
+
+        seen[key] = true
+        label
+      end
     end
 
     # The part-of-speech clause. The enum is interpolated from

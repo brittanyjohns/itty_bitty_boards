@@ -1226,6 +1226,20 @@ class API::BoardsController < API::ApplicationController
         language: resolved_language,
         profile: profile,
       )
+      # Drop suggestions naming a tile the board already has. The prompt says
+      # not to and the model mostly obeys; this makes it true, since a returned
+      # duplicate otherwise becomes a duplicate TILE. Runs BEFORE the floor so
+      # the floor's count arithmetic sees the real list. Default branch only —
+      # custom/predictive/social_story keep their existing behaviour. It may
+      # return fewer than num_of_words; validating the count is issue #751.
+      # Guarded on Array so a malformed response still reaches the "Invalid
+      # response" check below rather than being coerced into junk strings here.
+      if additional_words.is_a?(Array)
+        additional_words = Prompts::Aac.reject_existing(
+          additional_words,
+          existing_words: words_to_exclude,
+        )
+      end
       # The core floor is a WHOLE-BOARD rule, the same scope
       # BOARD_COVERAGE_RULES has: `@board.new_record?` is the temporary board
       # built above when no board_id was sent, i.e. a board being drafted at
@@ -1252,7 +1266,7 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Invalid response from word suggestion service" }, status: :unprocessable_content
       return
     end
-    normalize_words = additional_words.map do |word|
+    normalize_words = additional_words.filter_map do |word|
       next unless word.is_a?(String)
       word.gsub("_", " ").strip
     end

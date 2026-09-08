@@ -737,6 +737,62 @@ RSpec.describe "API::Boards", type: :request do
       end
     end
 
+    # The same failure as "Places", reported again on a board named "Food" with
+    # 39 food tiles: ten words asked for, ten core words returned —
+    # `no, stop, all done, different, more, help, like, don't like, again,
+    # please` — and no food at all. The whole-board persona and the uncapped
+    # objection ask were both still reaching an incremental add.
+    describe "topping up a topic page" do
+      let!(:food) { create(:board, user: user, name: "Food") }
+      let(:food_words) do
+        %w[apple\ sauce yogurt toast cereal soup pasta snack drink hungry thirsty]
+      end
+
+      def request_words(params = {})
+        get "/api/boards/words",
+            params: { board_id: food.id, name: "Food", num_of_words: 10 }.merge(params),
+            headers: auth_headers(user)
+        JSON.parse(response.body)
+      end
+
+      it "returns the topical words the model gave, adding no core vocabulary" do
+        allow_any_instance_of(Board).to receive(:current_word_list)
+          .and_return(%w[banana cracker veggie egg breakfast chicken butter])
+        allow_any_instance_of(Board).to receive(suggest).and_return(food_words)
+
+        expect(request_words).to eq(food_words)
+      end
+
+      # The complement of the whole-board floor, asserted from this side: an
+      # existing page is never handed CORE_STARTER_WORDS or the objection set.
+      it "never injects a word the model did not choose" do
+        allow_any_instance_of(Board).to receive(suggest).and_return(food_words)
+
+        body = request_words
+        expect(body).not_to include("yes", "no", "help", "more", "stop", "I want")
+        expect(body).not_to include("all done", "different", "again", "something else")
+      end
+
+      # The override is how a user deliberately asks for non-topical vocabulary
+      # now that the objection ask is gone from adds — it must still reach the
+      # model as the topic.
+      it "still lets an override steer the page off its own topic" do
+        expect_any_instance_of(Board).to receive(suggest) do |_b, prompt, _n, **|
+          expect(prompt).to eq("core words")
+          %w[yes no more help stop go want different again all\ done]
+        end
+
+        expect(request_words(prompt: "core words")).to include("yes", "no", "more")
+      end
+
+      it "drops a suggestion the board already has" do
+        allow_any_instance_of(Board).to receive(:current_word_list).and_return(%w[Banana egg])
+        allow_any_instance_of(Board).to receive(suggest).and_return(%w[banana toast jam])
+
+        expect(request_words).to eq(%w[toast jam])
+      end
+    end
+
     describe "the words already on the board" do
       let!(:board) { create(:board, user: user, name: "Places") }
 
