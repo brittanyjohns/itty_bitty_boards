@@ -75,6 +75,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Folder buttons on a shared board now open for visitors instead of showing
+  "not found".** Publishing a board — including starring one onto a
+  communicator's MySpeak page — only made that one page public. Every folder
+  button on it still pointed at a private page, so a visitor tapped "Food" and
+  hit a dead end, on a link that may already be printed on a card or in an IEP.
+  Publishing now covers the pages a board opens into, and the pages those open
+  into, and a folder page added to an already-shared board is shared from the
+  moment it is created. Pages belonging to somebody else — an SLP's board shared
+  onto the communicator's dashboard — are left alone; that is their decision to
+  make, not the account owner's. Unpublishing is unchanged and still only
+  affects the board you unpublished, since the same page can be reachable from
+  someone else's board. Boards already in this state are repaired by
+  `bin/rails myspeak:backfill_published`.
+
 - **Public boards that had never had a preview picture generated now get one.**
   Nine boards in the public library — including Feelings & Emotions, Requests &
   Wants, Protests & Boundaries and Visual Schedule — showed as a bare title with

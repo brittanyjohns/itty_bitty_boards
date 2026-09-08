@@ -263,4 +263,114 @@ RSpec.describe Boards::PublishCascade do
       expect(foreign.reload.published).to be false
     end
   end
+  # The third membership source: boards the root descends into through folder
+  # tiles (board_images.predictive_board_id). Deliberately PUBLISH-ONLY — see
+  # the asymmetry argument on Boards::PublishCascade.
+  describe "hand-linked folder pages" do
+    let(:other_user) { create(:user) }
+
+    def link(from, to, data: {})
+      create(:board_image, board: from, predictive_board_id: to.id, data: data)
+    end
+
+    it "publishes a linked page and its grandchild from a plain board" do
+      root = create(:board, user: user, name: "Home", published: false)
+      page = create(:board, user: user, name: "Food", published: false)
+      deep = create(:board, user: user, name: "Snacks", published: false)
+      link(root, page)
+      link(page, deep)
+
+      expect(described_class.new(root).apply!(published: true)).to eq(2)
+      expect(page.reload.published).to be true
+      expect(deep.reload.published).to be true
+      expect(root.reload.published).to be false # the caller saves the root
+    end
+
+    it "names the linked pages in the confirm summary" do
+      root = create(:board, user: user, name: "Home", published: false)
+      page = create(:board, user: user, name: "Food", published: false)
+      link(root, page)
+
+      summary = described_class.new(root).summary(published: true)
+      expect(summary[:affected][:count]).to eq(1)
+      expect(summary[:affected][:names]).to contain_exactly("Food")
+      expect(summary[:board_group]).to be_nil
+    end
+
+    # A child page's "go back" tile points UP at the root. Following it turns a
+    # two-page descent into the whole set plus every sibling of every ancestor.
+    it "does not follow a back tile" do
+      root = create(:board, user: user, name: "Home", published: false)
+      page = create(:board, user: user, name: "Food", published: false)
+      sibling = create(:board, user: user, name: "Play", published: false)
+      link(root, page)
+      link(page, root, data: { "back_tile" => true })
+      link(root, sibling, data: { "back_tile" => true })
+
+      described_class.new(root).apply!(published: true)
+      expect(page.reload.published).to be true
+      expect(sibling.reload.published).to be false
+    end
+
+    # A folder tile's target is not validated on the generic tile-update path,
+    # so a tile on my board can point at a stranger's. The walk must refuse to
+    # FOLLOW the pointer, not merely filter the result — the children of a
+    # board I don't own are not mine to publish either.
+    it "neither publishes nor descends through a board owned by someone else" do
+      root = create(:board, user: user, name: "Home", published: false)
+      foreign = create(:board, user: other_user, name: "Theirs", published: false)
+      behind_foreign = create(:board, user: user, name: "Mine But Behind", published: false)
+      link(root, foreign)
+      link(foreign, behind_foreign)
+
+      expect(described_class.new(root).apply!(published: true)).to eq(0)
+      expect(foreign.reload.published).to be false
+      expect(behind_foreign.reload.published).to be false
+    end
+
+    it "terminates on a link cycle" do
+      root = create(:board, user: user, name: "Home", published: false)
+      page = create(:board, user: user, name: "Food", published: false)
+      link(root, page)
+      link(page, root)
+
+      expect(described_class.new(root).apply!(published: true)).to eq(1)
+      expect(page.reload.published).to be true
+    end
+
+    # THE one-way rail. A linked page can be reached from more than one root and
+    # more than one communicator's page, and its /pb/<slug> may already be
+    # printed into an IEP — so unpublishing one parent must not take it down.
+    it "is never reached by an unpublish" do
+      root = create(:board, user: user, name: "Home", published: true)
+      page = create(:board, user: user, name: "Food", published: true)
+      link(root, page)
+
+      expect(described_class.new(root).needed?(published: false)).to be false
+      expect(described_class.new(root).apply!(published: false)).to eq(0)
+      expect(page.reload.published).to be true
+    end
+
+    # update_all skips ensure_slug, so a member that never had a slug would come
+    # out published with no /pb/<slug> at all — visible in the summary,
+    # reachable by nobody.
+    it "gives a published page a slug when it has none" do
+      root = create(:board, user: user, name: "Home", published: false)
+      page = create(:board, user: user, name: "Food", published: false)
+      page.update_column(:slug, "")
+      link(root, page)
+
+      described_class.new(root).apply!(published: true)
+      expect(page.reload.slug).to be_present
+    end
+
+    it "leaves an existing slug alone" do
+      root = create(:board, user: user, name: "Home", published: false)
+      page = create(:board, user: user, name: "Food", published: false, slug: "food-page")
+      link(root, page)
+
+      described_class.new(root).apply!(published: true)
+      expect(page.reload.slug).to eq("food-page")
+    end
+  end
 end

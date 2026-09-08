@@ -497,8 +497,12 @@ module API
 
         def publish_starter!(child_board, board)
           return if child_board.blank?
-          return if board.reload.published?
 
+          # No `published?` short-circuit. A published root can still have
+          # private pages below it, and MySpeakPublisher now cascades on every
+          # call for exactly that reason — re-deciding that here would put the
+          # skip back and let the two drift.
+          board.reload
           Boards::MySpeakPublisher.new(child_board).call
         rescue StandardError => e
           # Never fail setup over the publish: the board is attached either way,

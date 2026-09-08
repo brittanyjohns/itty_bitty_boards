@@ -67,8 +67,41 @@ RSpec.describe "API::Images create_predictive_board", type: :request do
     expect { create_folder!(page) }.to change { User.find(user.id).countable_board_count }.by(1)
   end
 
-  it "leaves the new page covered by the publish cascade" do
-    root, _group, page = build_builder_set(published: true)
+  # The tile is live on the parent the moment it's created, so a visitor can
+  # tap into the new page before anyone touches the publish toggle again. The
+  # cascade only runs on a toggle, so creation has to carry the invariant
+  # itself — otherwise every new folder on a shared board 404s until the next
+  # save.
+  it "publishes the new page when its parent is already published" do
+    _root, _group, page = build_builder_set(published: true)
+
+    create_folder!(page)
+    new_board = Board.find(JSON.parse(response.body)["board"]["id"])
+
+    expect(new_board.published).to be true
+    expect(new_board.slug).to be_present
+  end
+
+  it "leaves the new page unpublished when the parent is private" do
+    _root, _group, page = build_builder_set(published: false)
+
+    create_folder!(page)
+    new_board = Board.find(JSON.parse(response.body)["board"]["id"])
+
+    expect(new_board.published).to be_falsey
+  end
+
+  it "publishes a new page under a published board that is in no builder set" do
+    plain = create(:board, user: user, name: "Loose board", published: true)
+
+    create_folder!(plain)
+    new_board = Board.find(JSON.parse(response.body)["board"]["id"])
+
+    expect(new_board.published).to be true
+  end
+
+  it "still leaves the new page covered by the publish cascade" do
+    root, _group, page = build_builder_set(published: false)
 
     create_folder!(page)
     new_board = Board.find(JSON.parse(response.body)["board"]["id"])

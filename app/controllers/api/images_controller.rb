@@ -482,6 +482,7 @@ class API::ImagesController < API::ApplicationController
     @board_image.data["mute_name"] = true
     if @board_image.update(predictive_board_id: predictive_board.id)
       attach_to_builder_set(@board, predictive_board)
+      publish_with_parent(@board, predictive_board)
       render json: { status: "ok", message: "Creating predictive board for image.", board: predictive_board }
     else
       render json: { status: "error", message: "Could not create predictive board." }
@@ -878,6 +879,34 @@ class API::ImagesController < API::ApplicationController
     group.add_board(new_board)
   rescue => e
     Rails.logger.error("[ImagesController] builder set attach failed board=#{new_board&.id}: #{e.class} - #{e.message}")
+  end
+
+  # A folder page created under a PUBLISHED parent is born published.
+  #
+  # `Boards::PublishCascade` only runs when someone toggles `published`, so a
+  # page added to an already-shared board would sit private until the next
+  # toggle — the tile is live on the parent the moment it's created, and every
+  # visitor tapping it gets a 404. Publishing at creation is what keeps the
+  # invariant true continuously rather than at save time.
+  #
+  # Ownership-scoped like `attach_to_builder_set`: only when the parent belongs
+  # to the caller, so a folder tile added on a board shared from another account
+  # can't publish anything into that account's name. `generate_unique_slug`
+  # first — a published board with no slug has no /pb/<slug> at all, and
+  # `freeze_published_slug` would refuse to fill one in afterwards.
+  #
+  # Best-effort: the page exists and works either way, so a failure here must
+  # never fail the creation.
+  def publish_with_parent(parent_board, new_board)
+    return unless parent_board&.published?
+    return unless new_board
+    return if new_board.published?
+    return unless parent_board.user_id == current_user.id && new_board.user_id == current_user.id
+
+    new_board.generate_unique_slug if new_board.slug.blank?
+    new_board.update!(published: true)
+  rescue => e
+    Rails.logger.error("[ImagesController] publish with parent failed board=#{new_board&.id}: #{e.class} - #{e.message}")
   end
 
   # Issue #26 (IDOR): images are a shared library. A row is either PUBLIC
