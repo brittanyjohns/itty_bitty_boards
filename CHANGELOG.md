@@ -7,6 +7,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **`GET /api/boards/list` says which communicator each board is assigned to.**
+  The listing that feeds the board picker now carries `in_use` and `in_use_by`,
+  so the picker can tell a source board from the copy living on a communicator
+  when the two share a name. `Board.communicator_names_for` resolves the whole
+  list in one read of the join table rather than the couple of queries per board
+  `Board#in_use_by` costs on its own — the reason the field was left off this
+  serializer. Scoped to communicators the caller owns for every viewer, admins
+  included: widening for admins the way the boards grid does would name every
+  stranger whose communicator uses a board from the predefined library.
+
 - **Bulk regeneration takes instructions about how the pictures should look.**
   `POST /api/boards/:id/regenerate_images` accepts an optional `modifiers`
   string — skin tone, contrast, line weight — applied to every selected tile.
