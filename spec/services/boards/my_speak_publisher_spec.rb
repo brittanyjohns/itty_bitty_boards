@@ -30,11 +30,50 @@ RSpec.describe Boards::MySpeakPublisher do
       expect(board.reload.published).to be false
     end
 
-    it "is a no-op for an already-published board" do
+    it "reports no work for an already-published board with nothing below it" do
       board = create(:board, user: owner, published: true)
 
       expect(described_class.new(favorited_child_board(board)).call).to be false
       expect(board.reload.published).to be true
+    end
+
+    # A published root with private pages below it is the broken state this
+    # class exists to prevent, and it is indistinguishable from a healthy one
+    # by looking at the root. The old `return false if board.published?` sat in
+    # front of the cascade, so favoriting could never repair it.
+    it "publishes the subboards of a board that is already published" do
+      board = create(:board, user: owner, published: true)
+      page = create(:board, user: owner, published: false)
+      deep = create(:board, user: owner, published: false)
+      create(:board_image, board: board, predictive_board_id: page.id)
+      create(:board_image, board: page, predictive_board_id: deep.id)
+
+      expect(described_class.new(favorited_child_board(board)).call).to be true
+      expect(page.reload.published).to be true
+      expect(deep.reload.published).to be true
+    end
+
+    it "publishes the subboards of a board it publishes" do
+      board = create(:board, user: owner, published: false)
+      page = create(:board, user: owner, published: false)
+      create(:board_image, board: board, predictive_board_id: page.id)
+
+      expect(described_class.new(favorited_child_board(board)).call).to be true
+      expect(board.reload.published).to be true
+      expect(page.reload.published).to be true
+    end
+
+    # The ownership rail reaches the descent too: a parent's favorite tap is
+    # not an SLP's consent to publish their page.
+    it "leaves a linked page owned by someone else private" do
+      board = create(:board, user: owner, published: false)
+      theirs = create(:board, user: create(:user), published: false)
+      create(:board_image, board: board, predictive_board_id: theirs.id)
+
+      described_class.new(favorited_child_board(board)).call
+
+      expect(board.reload.published).to be true
+      expect(theirs.reload.published).to be false
     end
 
     it "fills in a blank slug on the way to published" do

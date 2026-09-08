@@ -973,18 +973,81 @@ Re-send the identical payload with `confirm=true` to apply it; the root's save a
 The guard runs **before any attribute is assigned**, so a declined cascade writes
 nothing — other fields in the same payload are neither applied nor lost.
 
-The cascade set has **two** membership sources, unioned:
+The cascade set has **three** membership sources, unioned:
 
 1. the root's builder `BoardGroup` membership — the same set
-   `Boards::UsageCheck#builder_group` cascades on delete; and
+   `Boards::UsageCheck#builder_group` cascades on delete;
 2. `Boards::SetCloner`'s sub-clones, which carry
    `settings["assignment_root_id"] = <root clone id>` and have **no**
    `BoardGroup` at all. Without this source a cloned starter's folder tiles
-   404'd on a published root — the exact failure the cascade exists to prevent.
+   404'd on a published root — the exact failure the cascade exists to prevent;
+   and
+3. **publish only** — every board the root descends into through folder tiles
+   (`board_images.predictive_board_id`), via
+   `Boards::ReachableBoardIds.new(board.id, skip_back_tiles: true,
+   max_depth: PublishCascade::MAX_DEPTH, admit: owner_board_ids)`.
 
-Hand-linked folder-tile descendants (`board_images.predictive_board_id`)
-outside the root's own tree are deliberately **not** included: they aren't
-owned by the root.
+#### Source 3 is asymmetric on purpose
+
+**Publish has to reach it.** Sources 1 and 2 both read a stored membership
+(a `BoardGroupBoard` row, an assignment stamp) that a page linked BY HAND
+never has. A user's own board starred onto a MySpeak page therefore published
+a card that worked and folder tiles that all 404'd. The invariant is "a board
+reachable from a MySpeak page is published", and reachability is the tile
+graph, not the bookkeeping.
+
+**Unpublish must not.** A hand-linked page can be reached from more than one
+root, and from more than one communicator's page; its `/pb/<slug>` may already
+be printed into an IEP. Unpublishing one parent is not a decision about a page
+somebody else's board also opens. So `member_board_ids(published)` adds source
+3 only when `published` is true, and an unpublish sees exactly what it saw
+before source 3 existed.
+
+Three rails on the walk:
+
+- `skip_back_tiles: true` — a child page's "go back" tile points UP at the set
+  root. Following it turns a two-page descent into the whole set plus every
+  sibling of every ancestor.
+- `admit:` — **the ownership control, and a security control, not an
+  optimization.** `predictive_board_id` is permitted on the generic tile-update
+  path without validating the target, so a tile on my board may point at a
+  stranger's. The walk refuses to FOLLOW such a pointer rather than walking
+  through it and filtering afterwards — the children of a board I don't own
+  aren't mine to publish either. Same shape, and the same once-per-level
+  contract, as `Boards::QuickAddScope#entitled_ids`.
+- `max_depth: MAX_DEPTH` (12, matching `QuickAddScope`) — bounds queries. A
+  truncated walk publishes less than the whole tree, which is the safe
+  direction to be wrong in. Deliberately **not**
+  `Boards::CloneSetPlanner.depth_cap`: that is a tunable clone BUDGET, and
+  turning it down to make copies cheaper must not quietly stop publishing the
+  bottom of somebody's set.
+
+#### `apply!` backfills a blank slug
+
+`apply!` writes with `update_all`, which skips `ensure_slug` — so a member that
+never had a slug came out `published: true` with no `/pb/<slug>` at all:
+visible in the cascade summary, reachable by nobody. On the publish direction
+it does a second pass over just the blank ones (`generate_unique_slug` +
+`save!`), logging and continuing on failure so one unsluggable page can't roll
+back a cascade that already published the rest.
+
+#### A new folder page under a published parent is born published
+
+The cascade only runs when someone TOGGLES `published`, but the tile is live on
+the parent the moment it's created. `Api::ImagesController#publish_with_parent`
+(called beside `attach_to_builder_set` in `create_predictive_board`) publishes
+and slugs the new page when the parent is published and both boards belong to
+the caller. Best-effort, like the group attach: the page exists and works
+either way, so a failure never fails the creation.
+
+#### Repairing pages broken before this
+
+`bin/rails myspeak:backfill_published` — dry-run; `APPLY=1` writes. It walks
+every starred `ChildBoard` whose board is published and owned by the page's
+owner and asks `PublishCascade` itself what's missing, so there is one
+authority for the rule. An unpublished favorite is deliberately skipped: that's
+usually a board owned by someone other than the page owner, and publishing it
+would make the consent decision `MySpeakPublisher` declines to make.
 
 Members are additionally scoped to **the root board's owner**
 (`user_id: board.user_id`). `Board#builder_board_group` falls back to
@@ -998,10 +1061,11 @@ scope follows the root's owner, not the requester.
 
 **Group membership must therefore stay a superset of the set's reachable folder
 graph.** A page reachable from the published root by tapping a tile but missing
-from the group is invisible to publish, unpublish, delete, and the 0-slot board
-count — the visitor taps the tile and gets the 404 this feature exists to
-remove, and re-saving publish on the root doesn't help because
-`PublishCascade#needed?` only compares *members*. Two paths keep them in sync
+from the group is invisible to unpublish, delete, and the 0-slot board count.
+(Publish is the one that no longer depends on it — source 3 above walks the tile
+graph directly — but that is a floor, not a licence to skip the join: the other
+three still read membership, so a page that never joins is deleted out from
+under its parent and counts as a free board.) Two paths keep them in sync
 (issue #586): `Api::ImagesController#create_predictive_board` adds the page it
 creates to the parent board's builder group
 (`Board#containing_builder_board_group`, ownership-scoped on both ends), and
@@ -1018,11 +1082,17 @@ without any board attribute assignment or save, so there is nothing to confirm.
 has to be published or its card 404s on tap. It goes straight to
 `PublishCascade#apply!` with no 409: `blocked_board_ids` returns empty for
 `published: true` (publishing can't break printed paper), so there is nothing
-to confirm. Three rails distinguish it from the controller path — it never
+to confirm. Four rails distinguish it from the controller path — it never
 unpublishes (unfavoriting is a no-op, since `/pb/<slug>` may already be on
-paper), it publishes only boards owned by the communicator's owner, and a
+paper), it publishes only boards owned by the communicator's owner, a
 Board Builder set gets a second sync at the end of `BuildBoardSetJob`, since
-at favorite time the root's group is still empty. The matching read-side
+at favorite time the root's group is still empty, and **the cascade runs on
+every call, not only when the root itself changes**. That last one was a bug:
+`return false if board.published?` sat in front of the cascade, so favoriting
+could never repair a published root with private pages below it — and that is
+a state you cannot detect by looking at the root.
+`Api::V1::Onboarding::Myspeak#publish_starter!` had the same skip and no longer
+decides for itself. The matching read-side
 filter lives in `Profile#communication_boards` — see
 `.claude-notes/safety-profiles.md`.
 

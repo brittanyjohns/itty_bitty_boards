@@ -843,6 +843,27 @@ an explicit decision, not a drive-by edit.
   can't 422 an otherwise-valid update). Deliberate renames go through
   `Board#rename_slug!` — the internal API's `force_slug` or the
   `boards:rename_slug` rake task.
+- **Publishing cascades DOWN the tile graph; unpublishing does not.**
+  `Boards::PublishCascade` is the single authority, and its asymmetry is the
+  point. Publish reads three membership sources — the builder `BoardGroup`,
+  `SetCloner` children stamped `settings["assignment_root_id"]`, and every board
+  the root descends into through folder tiles
+  (`board_images.predictive_board_id`, walked by `Boards::ReachableBoardIds`
+  with `skip_back_tiles: true` and an `admit:` ownership filter). A hand-linked
+  page has neither a group row nor an assignment stamp, so before source 3 a
+  shared board's folder tiles all 404 while its card worked. Unpublish keeps
+  sources 1 and 2 ONLY: a linked page can be reached from several roots and
+  several communicators' pages, and its `/pb/<slug>` may already be printed —
+  unpublishing one parent is not a decision about a page somebody else's board
+  also opens. `admit:` is a security control, not an optimization: a folder
+  tile's target is unvalidated, so the walk refuses to FOLLOW a pointer at a
+  board the owner doesn't own rather than filtering afterwards (same shape as
+  `Boards::QuickAddScope#entitled_ids`). `apply!` writes with `update_all`, so
+  it backfills a blank `slug` in a second pass — a published board with no slug
+  has no `/pb/<slug>` at all. And because the cascade only runs on a TOGGLE, a
+  folder page created under an already-published parent is born published
+  (`Api::ImagesController#publish_with_parent`), or the invariant would break
+  the moment a tile is added.
 - **`Board#public_url` is nil until the board is published; the un-gated builder
   is `prospective_public_url`.** `/pb/<slug>` only resolves for a published
   board (`Board#viewable_by?`), and the frontend gates its entire share panel —
@@ -1046,17 +1067,25 @@ an explicit decision, not a drive-by edit.
   unpublished board — so favoriting alone served a working card that 404'd on
   tap, and that was the DEFAULT state (Board Builder roots and
   `SetCloner` clones are both born unpublished). Both halves are
-  required. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
+  required. **"The board" means the whole tree a visitor can tap into**, not one
+  row — a published root whose folder pages are private is the same 404, one tap
+  further in. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
   `favorite` transition so no call site can forget it, publishes the board and
-  cascades to its set. READ: `Profile#communication_boards` and
-  `Profile#user_boards` filter on `published`. Three rails on the write half —
+  cascades to everything below it. READ: `Profile#communication_boards` and
+  `Profile#user_boards` filter on `published`. Four rails on the write half —
   it is **one-way** (unfavoriting never unpublishes; `/pb/<slug>` may already be
   printed into an IEP), it publishes **only boards owned by the page's owner**
   (a parent's favorite tap is not an SLP's consent to publish their shared
-  board — such a board is left private and the read filter hides it), and a
+  board — such a board is left private and the read filter hides it), a
   Board Builder set is synced again in `BuildBoardSetJob` because at favorite
-  time the set is still empty. `child_boards.published` is a dead column that
-  nothing writes; read `board.published?`.
+  time the set is still empty, and **the cascade runs on every favorite, not
+  only when the root changes** — the old `return false if board.published?` sat
+  in FRONT of it, so favoriting could never repair a published root with private
+  pages, and that is a state the root alone cannot reveal.
+  `Api::V1::Onboarding::Myspeak#publish_starter!` must not re-add that skip.
+  `child_boards.published` is a dead column that nothing writes; read
+  `board.published?`. Repair sweep for pages broken before this:
+  `bin/rails myspeak:backfill_published` (dry-run; `APPLY=1` writes).
 - **The MySpeak wizard's starter board is the PARENT'S OWN board, and it is
   gated like any other board create.** Assignment attaches an EXISTING board and
   spends no slot; the wizard CREATES one, so it is a board create and pays for

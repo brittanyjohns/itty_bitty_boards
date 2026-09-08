@@ -259,4 +259,58 @@ RSpec.describe "API::Boards publish cascade", type: :request do
       expect(response).to have_http_status(:ok)
     end
   end
+  # The publish cascade also descends hand-linked folder tiles, so a plain
+  # board with folder pages now prompts where it used to save silently.
+  describe "publishing a plain board with hand-linked folder pages" do
+    def link(from, to)
+      create(:board_image, board: from, predictive_board_id: to.id)
+    end
+
+    it "returns 409 naming the linked pages and writes nothing" do
+      root = create(:board, user: member_user, name: "Home", published: false)
+      page = create(:board, user: member_user, name: "Food", published: false)
+      link(root, page)
+
+      update_board(root, as: member_user, params: { board: { published: true } })
+
+      expect(response).to have_http_status(:conflict)
+      body = JSON.parse(response.body)
+      expect(body["error"]).to eq("publish_cascade_confirmation_required")
+      expect(body["cascade"]["board_group"]).to be_nil
+      expect(body["cascade"]["affected"]["names"]).to contain_exactly("Food")
+
+      expect(root.reload.published).to be false
+      expect(page.reload.published).to be false
+    end
+
+    it "publishes the root and its linked pages on confirm" do
+      root = create(:board, user: member_user, name: "Home", published: false)
+      page = create(:board, user: member_user, name: "Food", published: false)
+      deep = create(:board, user: member_user, name: "Snacks", published: false)
+      link(root, page)
+      link(page, deep)
+
+      update_board(root, as: member_user,
+                         params: { board: { published: true }, confirm: "true" })
+
+      expect(response).to have_http_status(:ok)
+      expect(root.reload.published).to be true
+      expect(page.reload.published).to be true
+      expect(deep.reload.published).to be true
+    end
+
+    # The one-way rail, at the API boundary: unpublishing the root must not
+    # take a hand-linked page down with it, so it doesn't prompt either.
+    it "does not prompt or cascade when unpublishing" do
+      root = create(:board, user: member_user, name: "Home", published: true)
+      page = create(:board, user: member_user, name: "Food", published: true)
+      link(root, page)
+
+      update_board(root, as: member_user, params: { board: { published: false } })
+
+      expect(response).to have_http_status(:ok)
+      expect(root.reload.published).to be false
+      expect(page.reload.published).to be true
+    end
+  end
 end
