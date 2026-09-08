@@ -327,9 +327,12 @@ class ChildAccount < ApplicationRecord
           .order("boards.created_at DESC")
   end
 
-  # `is_demo` is derived from status now. The DB column is retained until the
-  # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
-  # into `status` for backwards compatibility.
+  # `is_demo` is derived from status now, and is NO LONGER SERIALIZED — every
+  # communicator payload publishes `status` instead (#876). What survives here
+  # is the WRITE side: older app builds still POST `is_demo`, so the reader,
+  # the writer and the column stay until those builds age out, then the column
+  # is dropped. Writes to `is_demo` flow into `status` for backwards
+  # compatibility.
   #
   # It says NOTHING about whether this is test/internal data, and it must never
   # be used to filter one out. `sandbox` is a plan-driven LIFECYCLE status: a
@@ -815,7 +818,6 @@ class ChildAccount < ApplicationRecord
       is_vendor: is_vendor,
       layout: layout,
       status: status,
-      is_demo: is_demo?,
       archived_at: archived_at,
       claim_token: claim_token,
       claim_url: claim_link_url,
@@ -826,7 +828,6 @@ class ChildAccount < ApplicationRecord
       vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
-      free_trial: cached_user.free_trial?,
       admin: cached_user.admin?,
       parent_name: cached_user.display_name,
       name: name,
@@ -1007,12 +1008,18 @@ class ChildAccount < ApplicationRecord
     # bypasses for support access; the public MySpeak page stays open. #255.
     return false if fallback_mode?
 
+    # Past the two guards above, this communicator is `active` or `loaner` and
+    # is not over the owner's slot limit — i.e. it holds a real login slot — so
+    # the owner's PLAN says nothing more about it. It used to fall through to
+    # `user.free_trial?` for a non-paid owner, which is the 14-day-from-signup
+    # window and not a subscription: a claimed communicator on a Free account
+    # silently lost passcode sign-in on day 15 of the PARENT's signup (#876).
+    # That contradicts the priced behavior — marketing/pricing-structure.md:
+    # "Free hosts 1 claimed communicator ... (real login) so the hand-off never
+    # hits a paywall." The downgrade paywall is `fallback_mode?` above, which
+    # only User#reconcile_communicator_fallback! sets; nothing else here gates.
     if user
-      if user.paid_plan? || user.vendor?
-        return true
-      else
-        user.free_trial? || false
-      end
+      true
     else
       Rails.logger.error "No user provided for can_sign_in check"
       false
@@ -1290,7 +1297,6 @@ class ChildAccount < ApplicationRecord
       is_vendor: is_vendor,
       layout: layout,
       status: status,
-      is_demo: is_demo?,
       archived_at: archived_at,
       claim_token: claim_token,
       claim_url: claim_link_url,
@@ -1314,7 +1320,6 @@ class ChildAccount < ApplicationRecord
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
-      free_trial: cached_user.free_trial?,
       admin: cached_user.admin?,
       parent_name: cached_user.display_name,
       parent_email: cached_user.email,
@@ -1486,7 +1491,6 @@ class ChildAccount < ApplicationRecord
       sign_in_count: sign_in_count,
       can_edit: curatable_by?(viewing_user),
       pro: user.pro?,
-      free_trial: user.free_trial?,
       admin: user.admin?,
       can_sign_in: can_sign_in?,
       fallback_mode: fallback_mode?,
@@ -1503,7 +1507,6 @@ class ChildAccount < ApplicationRecord
       device_tag_url: device_tag_url,
       scan_tag_url: scan_tag_url,
       safety_id_url: safety_id_url,
-      is_demo: is_demo?,
       voice: voice,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },

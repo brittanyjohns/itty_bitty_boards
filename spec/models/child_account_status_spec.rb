@@ -78,11 +78,15 @@ RSpec.describe ChildAccount, "status lifecycle", type: :model do
   end
 
   describe "#api_view" do
-    it "emits status alongside the derived is_demo alias" do
+    # #876 — `is_demo` is no longer serialized anywhere; `status` is the whole
+    # answer. The column and the writer survive for older clients that still
+    # POST the boolean (see the model comment), which is what the "is_demo
+    # column sync" block above covers.
+    it "emits status and no longer emits the legacy is_demo alias" do
       account = FactoryBot.create(:child_account, user: user, status: "loaner")
       view = account.api_view(user)
       expect(view[:status]).to eq("loaner")
-      expect(view[:is_demo]).to be(false)
+      expect(view).not_to have_key(:is_demo)
     end
   end
 
