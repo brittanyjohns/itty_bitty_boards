@@ -3824,9 +3824,26 @@ class Board < ApplicationRecord
   # prompt can tell whether this board can already object and redirect.
   def get_word_suggestions_from_default_prompt(prompt, number_of_words, words_to_exclude: nil, language: nil, profile: nil)
     words_to_exclude = words_to_exclude.presence || current_word_list || []
-    text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
+    # The topic opens the turn AND closes it. It used to be stated once, in
+    # position 2, after which recency belonged to the exclusion list and a
+    # generic "prioritize common, useful words" line — so on a Food page the
+    # topic was outgunned by 39 exclusions and an anti-topical persona, and the
+    # answer came back as ten core words with no food in it.
+    #
+    # `prompt` is the editor's prompt-override box when the user typed in it,
+    # and the board name otherwise (boards_controller#words). Both restatements
+    # therefore have to name `prompt` and never `name`: typing "core words" on
+    # a Food board is a deliberate request for non-topical vocabulary, and
+    # reintroducing the board name here would give the model a rival topic.
+    text = "This is a page of an AAC board about: #{prompt}. "
+    text += "Generate a list of EXACTLY #{number_of_words} more words or short phrases for this page. "
     unless words_to_exclude.blank?
-      text += "The current words on the board are: #{words_to_exclude.join(", ")}. Please exclude these from your suggestions but you can use them as context to create a cohesive AAC board. "
+      # Framed as level-and-style context, not as "stay on the board's subject":
+      # under an override the page's existing words are deliberately NOT the
+      # topic, and telling the model to match them would fight the override.
+      text += "The page already has these words — do not repeat them. They are context " \
+              "for the page's level and style, not a reason to move away from its topic: " \
+              "#{words_to_exclude.join(", ")}. "
     end
     if board_type == "menu"
       text += "The board is a restaurant menu, so please include words/phrases that would commonly be found on a restaurant menu such as food items, drinks, common modifiers (like \"with cheese\" or \"no onions\"), and other relevant words/phrases that would help someone communicate their order effectively in a restaurant setting. Infer the type of restaurant from the prompt and suggest words/phrases accordingly. "
@@ -3834,6 +3851,7 @@ class Board < ApplicationRecord
       text += "The words/phrases will be used on an AAC board, so please prioritize common, relevant, and useful words/phrases that would help someone communicate effectively. "
     end
     text += "Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized. "
+    text += "Every word you return must belong to this page's topic: #{prompt}. "
     get_word_suggestions_from_prompt(text, language: language, profile: profile,
                                            existing_words: words_to_exclude)
   end

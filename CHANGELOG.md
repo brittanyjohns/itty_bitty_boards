@@ -88,6 +88,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   affects the board you unpublished, since the same page can be reachable from
   someone else's board. Boards already in this state are repaired by
   `bin/rails myspeak:backfill_published`.
+- **Word suggestions on an existing board return words about that board again.**
+  Asking a board named "Food" (39 food tiles) for ten more words returned `no,
+  stop, all done, different, more, help, like, don't like, again, please` — ten
+  core words, no food. Two channels were still sending whole-board framing to an
+  incremental add. The objection/redirect rule was re-added whenever the board's
+  own tiles could not yet refuse, and being uncapped it became the whole brief;
+  it is gone from adds, and refusal stays guaranteed where a board is *created*.
+  The system persona still said "a board that can only name things has failed",
+  which is right for laying out a board and wrong for topping up a topic page —
+  there is now a separate incremental persona, selected on whether the board has
+  words so a from-scratch draft is unaffected. Suggestions that repeat a tile the
+  board already has are dropped. Typing a topic into **Prompt override** still
+  steers the suggestions, including deliberately off-topic ones like "core
+  words".
 
 - **Public boards that had never had a preview picture generated now get one.**
   Nine boards in the public library — including Feelings & Emotions, Requests &

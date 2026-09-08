@@ -271,11 +271,14 @@ RSpec.describe OpenAiClient do
       end
     end
 
-    # Adding words to a board that already exists is a different job from laying
-    # one out, so it takes the craft rules and only the coverage ask the board
-    # still needs. Sending the full set here is what filled a board called
-    # "Places" with "different" / "again" / "something else" / "all done".
+    # Adding words to a page that already exists is a different job from laying
+    # a board out, so it takes the craft rules and the incremental persona.
+    # Sending the whole-board set here is what filled a board called "Places"
+    # with "different" / "again" / "something else" / "all done", and later a
+    # board called "Food" with ten core words and no food.
     describe "#get_word_suggestions_from_prompt" do
+      let(:food_tiles) { %w[banana cracker veggie egg breakfast chicken butter] }
+
       it "sends the persona and the craft rules" do
         client.get_word_suggestions_from_prompt("places to go")
 
@@ -290,23 +293,36 @@ RSpec.describe OpenAiClient do
         expect(system_content).not_to include(Prompts::Aac::BOARD_COVERAGE_RULES)
       end
 
-      it "asks for a way to object when the board has none" do
-        client.get_word_suggestions_from_prompt("places to go", existing_words: %w[store kitchen zoo])
+      # The reported bug: a Food page with 39 food tiles asked for ten more
+      # words returned `no, stop, all done, different, more, help, like,
+      # don't like, again, please`. Both channels that produced it are asserted
+      # here — the uncapped objection ask, and the persona sentence that says
+      # naming things is failure (which is where `more`/`help`/`like`/`please`
+      # came from, since they appear in no rule this path sends).
+      it "does not tell a page about food that naming things is failure" do
+        client.get_word_suggestions_from_prompt("Food", existing_words: food_tiles)
 
-        expect(system_content).to include("a way to object and a way to redirect")
-      end
-
-      it "does not ask again when the board can already object and redirect" do
-        client.get_word_suggestions_from_prompt("places to go", existing_words: ["go", "stop", "all done"])
-
+        expect(system_content).not_to include("board that can only name things has failed")
+        expect(system_content).not_to include("not writing a vocabulary list about a topic")
         expect(system_content).not_to include("a way to object and a way to redirect")
+        expect(system_content).to include(Prompts::Aac::WORD_CRAFT_RULES)
       end
 
-      # An empty board really does need the whole ask.
-      it "asks when it knows nothing about the board" do
+      it "never spends an add on the objection ask, however the page is stocked" do
+        [%w[store kitchen zoo], ["go", "stop", "all done"], food_tiles].each do |existing|
+          client.get_word_suggestions_from_prompt("places to go", existing_words: existing)
+
+          expect(system_content).not_to include("a way to object and a way to redirect")
+        end
+      end
+
+      # A board-less /words request builds a throwaway Board and arrives here
+      # with no existing words. That is a board being DRAFTED, so it keeps the
+      # whole-board persona rather than being told it is extending a page.
+      it "keeps the whole-board persona when it knows nothing about the board" do
         client.get_word_suggestions_from_prompt("places to go")
 
-        expect(system_content).to include("a way to object and a way to redirect")
+        expect(system_content).to include("board that can only name things has failed")
       end
     end
 
@@ -318,6 +334,16 @@ RSpec.describe OpenAiClient do
 
         expect(system_content).to include("speech-language pathologist")
         expect(system_content).not_to include(Prompts::Aac::WORD_RULES)
+      end
+
+      # This caller shares WORD_LIST_SYSTEM_PROMPT with the whole-board paths,
+      # so it must not be re-pointed at the incremental persona by a later edit.
+      it "keeps the whole-board persona" do
+        client.get_social_story_word_suggestions("brushing teeth", 5, 4)
+
+        expect(system_content).to include("board that can only name things has failed")
+        expect(system_content)
+          .not_to include(Prompts::Aac::INCREMENTAL_WORD_LIST_SYSTEM_PROMPT)
       end
     end
   end

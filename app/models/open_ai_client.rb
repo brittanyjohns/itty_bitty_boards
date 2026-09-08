@@ -299,15 +299,18 @@ class OpenAiClient
 
   # The same kernel for a prompt that ADDS words to a board that already exists.
   #
-  # Built per call rather than frozen once, because which rules apply depends on
-  # what the board is already holding: `Prompts::Aac.incremental_word_rules`
-  # drops the whole-board coverage rules and puts the objection/redirect ask
-  # back only when the existing tiles can't already object and redirect.
+  # Built per call rather than frozen once, because the PERSONA depends on what
+  # the board is already holding: `Prompts::Aac.incremental_system_prompt`
+  # keeps the whole-board persona for a board being drafted from nothing (no
+  # existing words) and swaps in the incremental one for a real page, whose job
+  # is its own topic rather than whole-board coverage. The rules half is
+  # unconditional craft rules — see `Prompts::Aac.incremental_word_rules` for
+  # why the objection ask no longer rides along.
   def self.incremental_word_system_prompt(existing_words: [])
     <<~PROMPT
-      #{Prompts::Aac::WORD_LIST_SYSTEM_PROMPT}
+      #{Prompts::Aac.incremental_system_prompt(existing_words: existing_words)}
       Word selection rules:
-      #{Prompts::Aac.incremental_word_rules(existing_words: existing_words)}
+      #{Prompts::Aac.incremental_word_rules}
     PROMPT
   end
 
