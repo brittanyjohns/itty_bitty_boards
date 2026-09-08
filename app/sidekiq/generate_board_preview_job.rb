@@ -60,5 +60,16 @@ class GenerateBoardPreviewJob
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
+  rescue => e
+    # Log EVERY failed attempt, not only the last one. Until now the sole record
+    # of a render failing was the retries-exhausted hook, so a board that failed
+    # twice and succeeded on the third try left nothing behind, and a board whose
+    # failures were spread over days never looked like a pattern — the null
+    # `preview_image_url` was the only symptom, which is how 9 public boards went
+    # unnoticed (#871). Re-raise: Sidekiq owns the retry, this only names the row.
+    Rails.logger.error(
+      "GenerateBoardPreviewJob failed for board #{board_id}: #{e.class}: #{e.message}"
+    )
+    raise
   end
 end

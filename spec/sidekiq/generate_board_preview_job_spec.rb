@@ -142,4 +142,20 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
       expect(board.reload.preview_generated_at).to be > first_stamp
     end
   end
+
+  # Issue #871 — a null preview_image_url used to be the ONLY trace of a render
+  # that never happened. Every attempt names the board now, not just the last.
+  describe "failure logging" do
+    it "logs the board a render failed for and re-raises so Sidekiq retries" do
+      allow(Boards::GeneratePreviewAssets).to receive(:new).and_raise(Grover::JavaScript::Error, "boom")
+      allow(Rails.logger).to receive(:error)
+
+      expect {
+        described_class.new.perform(board.id, "generate_png" => true)
+      }.to raise_error(Grover::JavaScript::Error)
+
+      expect(Rails.logger).to have_received(:error)
+        .with(/GenerateBoardPreviewJob failed for board #{board.id}/)
+    end
+  end
 end

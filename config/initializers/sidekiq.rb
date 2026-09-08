@@ -78,6 +78,12 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily (6am UTC) enforcer for time-boxed entitlements keyed on plan_expires_at. Scoped to 5-Year licenses (basic_5yr/pro_5yr): sends a renewal offer ~LICENSE_RENEWAL_NOTICE_LEAD_DAYS (default 60) before expiry (flags settings[\"renewal_notice_sent_at\"]), and past expiry drops the user to Free via Billing::PlanTransitions.apply_free_plan (data retained, over-limit boards read-only, over-limit communicators in fallback) + a license-ended email. partner_pro/clinician are intentionally excluded.",
     },
+    "public_board_preview_sweep" => {
+      "cron" => "15 1 * * *",
+      "class" => "PublicBoardPreviewSweepJob",
+      "queue" => "maintenance",
+      "description" => "Daily (1:15am UTC) cover sweep for the public catalogue. Renders a preview for any board in Board.public_boards that has tiles and no cover at all. Board#enqueue_preview_for_public_board fires on the publish itself, but every catalogue seeder saves the board published BEFORE adding tiles, so this is what picks those up — and what heals boards published before the hook existed (#871). Capped at PUBLIC_BOARD_PREVIEW_SWEEP_MAX_PER_RUN (default 25) Grover renders per run.",
+    },
     "prune_mail_deliveries" => {
       "cron" => "0 1 * * *",
       "class" => "PruneMailDeliveriesJob",

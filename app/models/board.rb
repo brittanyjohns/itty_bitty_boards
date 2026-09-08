@@ -237,6 +237,28 @@ class Board < ApplicationRecord
   # by the historical rename bug (`rake menu_boards:relink`) is still a menu.
   scope :public_non_menu_boards, -> { public_boards.non_menus }
   scope :public_menu_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true, parent_type: "Menu") }
+  # A catalogue board whose card renders with a hole: publicly listed, has tiles
+  # to photograph, and has no cover at all — no rendered preview, no uploaded
+  # one, no chosen `display_image_url`. This is the single definition shared by
+  # the publish hook (#enqueue_preview_for_public_board) and the nightly
+  # PublicBoardPreviewSweepJob, so the thing that heals the backlog and the
+  # thing that stops it recurring can never disagree about what "missing" means.
+  #
+  # `admin_published_boards` already drops builder_child pages, so no extra
+  # filter: those are represented by the folder tile that opens them and
+  # GenerateBoardPreviewJob refuses to render them in bulk anyway.
+  #
+  # Tiles are counted with a subquery rather than `board_images_count`: that
+  # counter cache goes stale (it is what made Board#clone_with_images skip its
+  # own preview enqueue for every cloned board), and a board wrongly judged
+  # empty here is exactly the board that stays coverless forever.
+  scope :missing_public_preview, -> {
+    public_boards
+      .where.missing(:preview_image_attachment)
+      .where.missing(:preset_display_image_attachment)
+      .where(display_image_url: [nil, ""])
+      .where(id: BoardImage.select(:board_id))
+  }
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
@@ -339,6 +361,7 @@ class Board < ApplicationRecord
   before_create :set_screen_sizes, :set_number_of_columns
   after_initialize :set_initial_layout, if: :layout_empty?
   after_update_commit :retranslate_on_language_change
+  after_commit :enqueue_preview_for_public_board, on: %i[create update]
   # Scrub the pointers destroy's dependent: options can't reach — integer/JSONB
   # references on users and child_accounts (editable_board_id,
   # dynamic_board_id/phrase_board_id) and scenarios. Off-request because the
@@ -486,6 +509,57 @@ class Board < ApplicationRecord
   def generate_previews
     generate_preview(generate_png: true, hide_header: true) # Generate PNG preview without header
     # generate_preview(generate_pdf: true) # PDF with header for sharing
+  end
+
+  # A board joins the PUBLIC CATALOGUE from a dozen places and not one of them
+  # rendered a cover. Preview rendering was only ever wired to AUTHORING paths —
+  # a layout save, AI word/art generation, an .obf/.obz import, a clone, a
+  # deliberate "Regenerate from tiles" click — so a catalogue board earned a
+  # cover only if somebody happened to edit it in one of those ways afterwards.
+  # The catalogue seeders (`words.rake`, `classroom_boards.rake`,
+  # `core_boards.rake`), `Boards::GlpTemplates.seed_board!`, and an admin
+  # flipping `predefined`/`published` through the internal API all skip every
+  # one of them, which is how 9 of 67 boards on /api/public_boards had no
+  # `preview_image_url` (#871). It was never a failed render: all nine carried
+  # `preview_status: nil`, so nothing had ever been enqueued to fail.
+  #
+  # Deliberately scoped to the catalogue rather than to `published` generally:
+  # publishing a user's own board is a far more frequent act, and each render is
+  # a headless-Chrome page. The nightly PublicBoardPreviewSweepJob is the net
+  # behind this hook, and both read `Board.missing_public_preview`.
+  def enqueue_preview_for_public_board
+    return unless saved_change_to_published? || saved_change_to_predefined? || saved_change_to_user_id?
+    # Row-local pre-filter first, so an ordinary board save costs no query at
+    # all. The scope check behind it carries the exclusions that aren't on this
+    # row — imported interior pages, Board Builder seed material, builder_child
+    # pages — so the hook and the sweep answer "is this in the catalogue" with
+    # the same SQL rather than two hand-copied lists.
+    return unless publicly_listed?
+    return unless Board.public_boards.exists?(id: id)
+    return if preview_image.attached? || preset_display_image.attached?
+    return if read_attribute(:display_image_url).present?
+
+    # No tiles YET is the normal state here, not an error: every catalogue
+    # seeder saves the board published before adding a single tile, so the hook
+    # fires first and there is nothing to photograph. Say so rather than
+    # returning silently — an unlogged no-op is what made this class of gap
+    # invisible in the first place — and leave it to the sweep, which sees the
+    # board once its tiles land.
+    if board_images.empty?
+      Rails.logger.info(
+        "[Board] board #{id} entered the public catalogue with no tiles — " \
+        "cover deferred to PublicBoardPreviewSweepJob"
+      )
+      return
+    end
+
+    run_generate_preview_job
+  end
+
+  # The row-local half of `Board.public_boards`. Not a substitute for the scope
+  # — see #enqueue_preview_for_public_board.
+  def publicly_listed?
+    published? && predefined? && user_id == User::DEFAULT_ADMIN_ID
   end
 
   # The board's display image (thumbnail) has ONE switch:
@@ -636,7 +710,17 @@ class Board < ApplicationRecord
     settings["preset_display_image_url"] = resolved_url if resolved_url.present?
     settings["preview_generated_at"] = Time.current.iso8601
     settings["preview_status"] = "ok"
-    save
+    saved = save
+    unless saved
+      # The PNG is attached by this point, so the cover itself is fine — but the
+      # status, the stamp a client polls on, and the denormalized snapshot URL
+      # all silently stay at their previous values. `save` returning false was
+      # the one outcome in this whole lifecycle that recorded nothing anywhere.
+      Rails.logger.error(
+        "Board#record_preview_generated! could not save board #{id}: #{errors.full_messages.join(", ")}"
+      )
+    end
+    saved
   end
 
   def mark_preview_failed!
