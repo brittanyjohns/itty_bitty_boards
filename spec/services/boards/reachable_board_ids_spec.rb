@@ -104,4 +104,145 @@ RSpec.describe Boards::ReachableBoardIds do
     expect(walk.ids).to contain_exactly(root.id, page.id)
     expect(walk.truncated?).to be(false)
   end
+
+  describe "admit:" do
+    it "is unchanged when admit is nil" do
+      root = board("Home")
+      page = board("Food")
+      link(root, page)
+
+      expect(described_class.new([root.id], admit: nil).ids).to eq([root.id, page.id])
+    end
+
+    it "never enters a board it refuses" do
+      root = board("Home")
+      allowed = board("Food")
+      refused = board("Someone Else's")
+      link(root, allowed)
+      link(root, refused)
+
+      walk = described_class.new([root.id], admit: ->(ids) { ids - [refused.id] })
+
+      expect(walk.ids).to contain_exactly(root.id, allowed.id)
+    end
+
+    it "never expands THROUGH a board it refuses" do
+      root = board("Home")
+      refused = board("Someone Else's")
+      beyond = board("Beyond")
+      link(root, refused)
+      link(refused, beyond)
+
+      walk = described_class.new([root.id], admit: ->(ids) { ids - [refused.id] })
+
+      expect(walk.ids).to eq([root.id])
+    end
+
+    it "filters the SEEDS too, so an unentitled seed is not a way in" do
+      refused = board("Public Library")
+      beyond = board("Beyond")
+      link(refused, beyond)
+
+      walk = described_class.new([refused.id], admit: ->(ids) { ids - [refused.id] })
+
+      expect(walk.ids).to be_empty
+    end
+
+    it "calls admit once per level, never once per board" do
+      root = board("Home")
+      pages = Array.new(4) { |i| board("Page #{i}") }
+      pages.each { |p| link(root, p) }
+
+      calls = []
+      described_class.new([root.id], admit: ->(ids) { calls << ids; ids }).ids
+
+      # One call for the seed level, one for the level holding all four pages.
+      expect(calls.size).to eq(2)
+      expect(calls.last).to match_array(pages.map(&:id))
+    end
+  end
+
+  describe "max_depth:" do
+    it "stops after the given number of levels and reports truncation" do
+      root = board("Home")
+      page = board("Food")
+      deep = board("Snacks")
+      link(root, page)
+      link(page, deep)
+
+      walk = described_class.new([root.id], max_depth: 1)
+
+      expect(walk.ids).to contain_exactly(root.id, page.id)
+      expect(walk.truncated?).to be(true)
+    end
+
+    it "is not truncated when the graph is shallower than the cap" do
+      root = board("Home")
+      page = board("Food")
+      link(root, page)
+
+      walk = described_class.new([root.id], max_depth: 5)
+
+      expect(walk.truncated?).to be(false)
+    end
+  end
+
+  describe "track_origins:" do
+    it "is empty unless asked for" do
+      root = board("Home")
+
+      expect(described_class.new([root.id]).origins).to be_empty
+    end
+
+    it "reports a seed as its own origin" do
+      root = board("Home")
+
+      walk = described_class.new([root.id], track_origins: true)
+
+      expect(walk.origins_for(root.id)).to contain_exactly(root.id)
+    end
+
+    it "attributes a page to every seed that reaches it" do
+      root_a = board("Core A")
+      root_b = board("Core B")
+      page = board("Food")
+      link(root_a, page)
+      link(root_b, page)
+
+      walk = described_class.new([root_a.id, root_b.id], track_origins: true)
+
+      expect(walk.origins_for(page.id)).to contain_exactly(root_a.id, root_b.id)
+    end
+
+    it "carries origins down a chain" do
+      root = board("Home")
+      page = board("Food")
+      deep = board("Snacks")
+      link(root, page)
+      link(page, deep)
+
+      walk = described_class.new([root.id], track_origins: true)
+
+      expect(walk.origins_for(deep.id)).to contain_exactly(root.id)
+    end
+
+    # BFS alone loses this: `shared` is first reached from root_a at depth 1,
+    # so it never re-walks its own links when root_b reaches it at depth 2, and
+    # `leaf` would never learn about root_b.
+    it "settles a diamond where a second seed arrives at a deeper level" do
+      root_a = board("Core A")
+      root_b = board("Core B")
+      hop = board("Hop")
+      shared = board("Shared")
+      leaf = board("Leaf")
+      link(root_a, shared)
+      link(shared, leaf)
+      link(root_b, hop)
+      link(hop, shared)
+
+      walk = described_class.new([root_a.id, root_b.id], track_origins: true)
+
+      expect(walk.origins_for(leaf.id)).to contain_exactly(root_a.id, root_b.id)
+    end
+  end
 end

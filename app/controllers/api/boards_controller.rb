@@ -293,9 +293,41 @@ class API::BoardsController < API::ApplicationController
     @boards = scope.to_a
     assigned_names = Board.communicator_names_for(@boards, current_user)
 
+    # One scope for the whole list — `shared?` reads an in-memory map, never a
+    # query per board. Seeds are the ids already loaded above, so nothing is
+    # re-queried.
+    share = Boards::QuickAddScope.new(
+      current_user,
+      seed_ids: @boards.map(&:id),
+      acting_communicator: list_communicator,
+    )
+
     render json: {
-      boards: @boards.map { |board| board.list_api_view(current_user, assigned_to: assigned_names[board.id]) },
+      boards: @boards.map { |board|
+        board.list_api_view(
+          current_user,
+          assigned_to: assigned_names[board.id],
+          shared: share.shared?(board.id),
+        )
+      },
     }
+  end
+
+  # Optional "shared beyond THIS communicator" scoping for the picker. Resolved
+  # through the caller's OWN communicators, so an id belonging to somebody else
+  # resolves to nil and is ignored — never a bare ChildAccount.find.
+  def list_communicator
+    return nil if params[:communicator_id].blank?
+
+    scope = ChildAccount.where(id: params[:communicator_id])
+    return scope.first if current_user.admin?
+
+    # Same rule as Board#visible_communicator_child_boards: owned or
+    # supervised, and nothing else. There is no User#child_accounts —
+    # `communicator_accounts` keys on owner_id alone and would miss a
+    # communicator the user owns outright.
+    scope.where("child_accounts.user_id = :id OR child_accounts.owner_id = :id",
+                id: current_user.id).first
   end
 
   def common_boards
@@ -1989,7 +2021,10 @@ class API::BoardsController < API::ApplicationController
     )
 
     [
-      "boards-list-v2",
+      # v3: the payload gained `shared_with_communicators` on top of v2's
+      # assignment fields, and the terms below had to grow again to see it
+      # change. Every client revalidates once.
+      "boards-list-v3",
       user.id,
       last_modified.to_i,
       scope.maximum(:id),
@@ -1999,7 +2034,39 @@ class API::BoardsController < API::ApplicationController
       assignments.maximum(:updated_at).to_f,
       assignments.count,
       ChildAccount.where("user_id = :viewer OR owner_id = :viewer", viewer: user.id).maximum(:updated_at).to_f,
+      # A SEPARATE term, not a duplicate of the two above. Those key on the
+      # caller's own communicators, which is all `in_use_by` can name. But
+      # `shared_with_communicators` also goes true when a STRANGER's
+      # communicator attaches a board of this user's — invisible to a scope
+      # keyed on the caller's accounts, and visible to one keyed on the
+      # caller's boards.
+      boards_list_share_fingerprint(user),
     ]
+  end
+
+  # Keyed on the caller's BOARDS, where the assignment terms above are keyed on
+  # the caller's COMMUNICATORS. That difference is the whole reason this exists:
+  # a stranger attaching one of this user's published boards flips
+  # `shared_with_communicators` while touching no communicator of theirs, and
+  # Board#recalculate_in_use! writes with update_column so it bumps no
+  # updated_at either. Without this the flag would sit frozen behind a 304 and
+  # read as a caching bug.
+  #
+  # Adding a folder tile is already covered — BoardImage belongs_to :board,
+  # touch: true. Known gap: a folder tile added on SOMEBODY ELSE'S board that
+  # newly makes one of this user's pages reachable elsewhere is not
+  # fingerprinted; covering it means fingerprinting an unbounded ancestor set.
+  # The badge is advisory and the write gate recomputes from scratch, so the
+  # gap is a stale badge and never a wrong permission.
+  def boards_list_share_fingerprint(user)
+    # One statement, not a maximum plus a count: this rides the hot 304 path.
+    # Full precision, matching the assignment terms above — an attach and a
+    # detach inside the same second have to invalidate too.
+    max, count = ChildBoard.joins(:board)
+                           .where(boards: { user_id: user.id })
+                           .reorder(nil)
+                           .pick(Arel.sql("MAX(child_boards.updated_at), COUNT(*)"))
+    [max.to_f, count.to_i]
   end
 
   def guest_boards_index_etag(last_modified, limit_param, tags: [])
@@ -2195,12 +2262,28 @@ class API::BoardsController < API::ApplicationController
 
     set_board if @board.nil?
     return if @board.nil? # set_board already rendered 404
-    return if current_account.boards.exists?(id: @board.id)
+    # Boards::QuickAddScope, not `current_account.boards` — assignment attaches
+    # the ROOT of a set and its folder pages carry no child_boards row, so the
+    # dashboard association answers "which boards were attached", never "which
+    # boards is this communicator actually looking at". The picker reads the
+    # same object, so a board it offers cannot 403 here.
+    #
+    # @board.id, never params[:id]: set_board also resolves slugs.
+    return if quick_add_scope.include?(@board.id)
 
     render json: {
       error: "board_not_available",
       message: "This board isn't on your dashboard.",
     }, status: :forbidden
+  end
+
+  # One scope per request, shared with the picker's definition. Building the
+  # whole thing on a write is deliberate: an id-only membership shortcut would
+  # be a second code path, and a second code path is exactly what this change
+  # exists to remove. It is a handful of id-queries against what add_image
+  # already spends on Image creation, serialization and the board broadcast.
+  def quick_add_scope
+    @quick_add_scope ||= Boards::QuickAddScope.new(current_account)
   end
 
   # ---- Marketplace protection -------------------------------------------

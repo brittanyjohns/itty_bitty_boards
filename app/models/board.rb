@@ -3210,7 +3210,10 @@ class Board < ApplicationRecord
   # `assigned_to` lets a caller serializing many boards hand in the answer from
   # `Board.communicator_names_for` instead of paying `in_use_by`'s per-board
   # queries. Omit it and a single board still resolves its own.
-  def list_api_view(viewing_user = nil, assigned_to: :unset)
+  #
+  # `shared` answers a DIFFERENT question and is not derivable from
+  # `assigned_to`: see the two fields below.
+  def list_api_view(viewing_user = nil, assigned_to: :unset, shared: false)
     assigned = assigned_to == :unset ? in_use_by(viewing_user) : assigned_to.presence
 
     {
@@ -3237,6 +3240,43 @@ class Board < ApplicationRecord
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
       user_id: user_id,
+      # NOT derivable from `in_use_by`, which is why both ship. `in_use_by`
+      # names the communicators the VIEWER OWNS, to tell two same-named boards
+      # apart; this says whether a word added here reaches ANY dashboard but
+      # the acting one — including a stranger's, which `in_use_by` deliberately
+      # hides. So a published board somebody else assigned reads
+      # `in_use_by: nil, shared_with_communicators: true`, and that is the case
+      # the warning exists for. A count would just be `in_use_by`'s names
+      # re-counted, and two fields that must agree eventually don't.
+      #
+      # Assignment ATTACHES rather than copies, and it attaches the ROOT of a
+      # set, so a page inherits its root's answer. Teams and published status
+      # are deliberately not triggers. Advisory only: nothing is refused for it.
+      shared_with_communicators: shared,
+    }
+  end
+
+  # The quick-add picker's card, for a COMMUNICATOR token.
+  #
+  # Neither api_view nor list_api_view will do. api_view publishes `in_use_by`
+  # (communicator names) and `communicator_account_data` (ids, names, avatars),
+  # which is exactly what a communicator must never learn about another family;
+  # list_api_view resolves can_edit/locked for a *User* viewer and pays
+  # tiles_awaiting_art_count per board. `shared` here is a BARE BOOLEAN — no
+  # count, no names, no owner. Someone else uses this board; never who.
+  def quick_add_card_view(scope)
+    {
+      id: id,
+      board_id: id,
+      name: name,
+      slug: slug,
+      bg_color: bg_color,
+      text_color: text_color,
+      display_image_url: display_image_url,
+      preview_image_url: preview_image_url,
+      sub_board: sub_board,
+      root_board_id: scope.root_ids_for(id).first,
+      shared: scope.shared?(id),
     }
   end
 

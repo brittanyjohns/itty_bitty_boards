@@ -98,24 +98,37 @@ RSpec.describe "API boards list assignment", type: :request do
     expect(board_row("Predefined Core")["in_use_by"]).to eq("Austin")
   end
 
-  it "resolves the whole list's assignments in one read of the join table" do
+  # The property this guards is CONSTANT COST, not a particular number: a fixed
+  # handful of batched reads rather than the pair per board `in_use_by` costs on
+  # its own. Stated as "the same for 5 boards as for 25" so it keeps holding as
+  # features are added — the absolute below moved once already, when quick add's
+  # share flag added its own batched read and ETag term.
+  it "resolves the whole list's assignments in a constant number of reads" do
+    def child_board_reads
+      # Warm schema/statement caches so the measured request isn't charged for
+      # loads a second one would get free.
+      get "/api/boards/list", headers: auth_headers(user)
+      statements = captured_sql { get "/api/boards/list", headers: auth_headers(user) }
+      expect(response).to have_http_status(:ok)
+      statements.count { |sql| sql.include?("child_boards") }
+    end
+
     5.times do |n|
       board = create(:board, user: user, name: "Board #{n}")
       create(:child_account, user: user, name: "Kid #{n}")
         .child_boards.create!(board: board, created_by_id: user.id)
     end
+    with_five = child_board_reads
 
-    # Warm schema/statement caches so the measured request isn't charged for
-    # loads a second one would get free.
-    get "/api/boards/list", headers: auth_headers(user)
+    20.times do |n|
+      board = create(:board, user: user, name: "Extra #{n}")
+      create(:child_account, user: user, name: "Extra Kid #{n}")
+        .child_boards.create!(board: board, created_by_id: user.id)
+    end
 
-    statements = captured_sql { get "/api/boards/list", headers: auth_headers(user) }
-
-    expect(response).to have_http_status(:ok)
-    child_board_reads = statements.select { |sql| sql.include?("child_boards") }
-    # One for the serialized names, plus the ETag's assignment terms — and not
-    # a pair per board, which is what `in_use_by` costs on its own.
-    expect(child_board_reads.size).to be <= 3
+    expect(child_board_reads).to eq(with_five)
+    # A ceiling as well, so a constant-but-absurd regression still fails.
+    expect(with_five).to be <= 6
   end
 
   # Board#recalculate_in_use! flips the flag with update_column, so assigning a
