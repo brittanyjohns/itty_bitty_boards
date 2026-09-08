@@ -11,6 +11,12 @@ module Boards
   # This closes the gap from the write side: favoriting publishes. The read
   # side has a matching filter in `Profile#communication_boards` so an
   # unpublished board can never render a card, whichever way it got there.
+  #
+  # "The board" means the whole tree a visitor can tap into, not one row. The
+  # cascade therefore runs on EVERY favorite, including one whose board is
+  # already published — a published root with unpublished pages is the exact
+  # broken state this class exists to prevent, and it is not a state a
+  # `published?` check can distinguish from a healthy one.
   class MySpeakPublisher
     def initialize(child_board)
       @child_board = child_board
@@ -20,27 +26,39 @@ module Boards
       return false unless child_board.favorite?
       return false unless board
       return false unless publishable_by_page_owner?
-      return false if board.published?
 
-      # `false -> true` is the safe direction for both of Board's publish
-      # callbacks: `freeze_published_slug` bails because `published_was` is
-      # false (so a blank slug can still be filled in on this same save), and
-      # `block_marketplace_protected_unpublish` only fires on
-      # `published_was && !published`.
-      board.generate_unique_slug if board.slug.blank?
-      board.update!(published: true)
+      published_root = publish_root!
 
       # Publishing a root without its set leaves every folder tile 404ing.
       # No confirmation and no `blocked_board_ids` check: publishing can't
       # break printed paper, so the cascade returns an empty blocked set for
       # `published: true`.
-      Boards::PublishCascade.new(board).apply!(published: true)
-      true
+      #
+      # Runs even when the root needed nothing: the pages BELOW it may still be
+      # private. Re-running on a healthy tree costs one bounded walk and writes
+      # nothing — `member_boards_to_change` only returns rows that differ.
+      cascaded = Boards::PublishCascade.new(board).apply!(published: true)
+
+      published_root || cascaded.positive?
     end
 
     private
 
     attr_reader :child_board
+
+    # True when this call is what published the root. `false -> true` is the
+    # safe direction for both of Board's publish callbacks:
+    # `freeze_published_slug` bails because `published_was` is false (so a
+    # blank slug can still be filled in on this same save), and
+    # `block_marketplace_protected_unpublish` only fires on
+    # `published_was && !published`.
+    def publish_root!
+      return false if board.published?
+
+      board.generate_unique_slug if board.slug.blank?
+      board.update!(published: true)
+      true
+    end
 
     def board
       @board ||= child_board.board

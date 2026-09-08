@@ -92,6 +92,33 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   users it was meant to count. `free_trial` is gone from those payloads for the
   same reason: it described the account owner's first 14 days, not anything
   about the communicator. Both still answer on the user, where they belong.
+- **Folder buttons on a shared board now open for visitors instead of showing
+  "not found".** Publishing a board — including starring one onto a
+  communicator's MySpeak page — only made that one page public. Every folder
+  button on it still pointed at a private page, so a visitor tapped "Food" and
+  hit a dead end, on a link that may already be printed on a card or in an IEP.
+  Publishing now covers the pages a board opens into, and the pages those open
+  into, and a folder page added to an already-shared board is shared from the
+  moment it is created. Pages belonging to somebody else — an SLP's board shared
+  onto the communicator's dashboard — are left alone; that is their decision to
+  make, not the account owner's. Unpublishing is unchanged and still only
+  affects the board you unpublished, since the same page can be reachable from
+  someone else's board. Boards already in this state are repaired by
+  `bin/rails myspeak:backfill_published`.
+- **Word suggestions on an existing board return words about that board again.**
+  Asking a board named "Food" (39 food tiles) for ten more words returned `no,
+  stop, all done, different, more, help, like, don't like, again, please` — ten
+  core words, no food. Two channels were still sending whole-board framing to an
+  incremental add. The objection/redirect rule was re-added whenever the board's
+  own tiles could not yet refuse, and being uncapped it became the whole brief;
+  it is gone from adds, and refusal stays guaranteed where a board is *created*.
+  The system persona still said "a board that can only name things has failed",
+  which is right for laying out a board and wrong for topping up a topic page —
+  there is now a separate incremental persona, selected on whether the board has
+  words so a from-scratch draft is unaffected. Suggestions that repeat a tile the
+  board already has are dropped. Typing a topic into **Prompt override** still
+  steers the suggestions, including deliberately off-topic ones like "core
+  words".
 
 - **Public boards that had never had a preview picture generated now get one.**
   Nine boards in the public library — including Feelings & Emotions, Requests &

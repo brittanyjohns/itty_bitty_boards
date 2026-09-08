@@ -19,12 +19,22 @@ rules, so the model was asked, in effect, for a topical vocabulary list. That
 is the exact failure `SYSTEM_PROMPT` exists to name: *"A board that can only
 name things has failed even if every word on it is correct."*
 
-Two personas, and the difference is load-bearing:
+Three personas, and the differences are load-bearing:
 
 - `SYSTEM_PROMPT` — for prompts that draft TILES (label + part of speech).
-- `WORD_LIST_SYSTEM_PROMPT` — for prompts that return LABELS ONLY. Their
-  callers derive the part of speech separately (`AacWordCategorizer`), so
-  demanding one would ask for a field nothing reads.
+- `WORD_LIST_SYSTEM_PROMPT` — for prompts that return LABELS ONLY, laying out a
+  WHOLE board. Their callers derive the part of speech separately
+  (`AacWordCategorizer`), so demanding one would ask for a field nothing reads.
+- `INCREMENTAL_WORD_LIST_SYSTEM_PROMPT` — labels only, for ADDING to a page that
+  already exists. Same SLP identity, without the whole-board judgement; see
+  "the persona is scoped too" below for why the rules split alone was not
+  enough.
+
+`Prompts::Aac.incremental_system_prompt(existing_words:)` **selects** between
+the last two rather than swapping. A board-less `/words` request builds a
+throwaway `Board` and reaches the same method while genuinely drafting a whole
+board, so "has this board any words?" is the test — the same split
+`boards#words` already uses to gate `with_core_floor`.
 
 `WORD_RULES` is opt-in per call, not baked into the persona. **A list is not
 always a vocabulary list.** Social-story steps are an ordered sequence, where
@@ -74,14 +84,49 @@ labelled" suppressed the place names the page exists for. The coverage rules are
 correct AAC guidance for a *core* board; a fringe page names things on purpose,
 and the core board is where refusal lives.
 
-`Prompts::Aac.incremental_word_rules(existing_words:)` is the answer, and the
-shape of it matters: the objection/redirect ask is **re-added, not deleted**,
-whenever `can_object_or_redirect?` says the board's own tiles cannot yet do it.
-A board that cannot refuse is an autonomy failure, so the principle survives —
-it is only stopped from spending the user's tiles on words the board already
-has. `OpenAiClient.incremental_word_system_prompt` builds the message and rides
-the `system_prompt:` seam on `aac_word_chat` that social-story steps already
-use.
+`Prompts::Aac.incremental_word_rules` is the answer, and it is craft rules and
+nothing else. The objection/redirect ask was originally **re-added** when
+`can_object_or_redirect?` said the board's own tiles could not yet refuse — and
+that re-add brought the same bug straight back on a board named **Food**, which
+returned `no, stop, all done, different, more, help, like, don't like, again,
+please`: ten words, zero food. `WORD_CRAFT_RULES` is entirely formatting and
+negative constraints, so the re-added ask was the only instruction in the system
+message saying *what to pick*, and being uncapped ("at least one of…") it became
+the whole brief.
+
+Refusal is now guaranteed where a board is **created** — `BOARD_COVERAGE_RULES`
+on the whole-board path, then `with_core_floor` in Ruby — and never re-asserted
+on a top-up. `can_object_or_redirect?` is kept but gates no prompt: it is the
+predicate a "this board has no way to refuse" nudge would read, which tells the
+user rather than silently spending their tiles.
+`OpenAiClient.incremental_word_system_prompt` builds the message and rides the
+`system_prompt:` seam on `aac_word_chat` that social-story steps already use.
+
+### ...and the persona is scoped to the job too
+
+Scoping the RULES was not enough on its own, which is why the Food page failed
+after "Places" was fixed. `WORD_LIST_SYSTEM_PROMPT` opens with a whole-board
+judgement — *"not writing a vocabulary list about a topic"*, *"a board that can
+only name things has failed"* — and that reached every incremental add. It is
+what produced `more`, `help`, `like` and `please`: four of the ten words, none
+of which appear in any rule that path sends. On a fringe topic page, naming
+things IS the job.
+
+`INCREMENTAL_WORD_LIST_SYSTEM_PROMPT` says so, and the instruction is
+topic-OBEDIENCE, never anti-core-vocabulary. **It must not name a kind of word
+as off-limits.** The editor's prompt-override box is the only way to put
+non-topical vocabulary on a topic page now that the objection ask is gone, and
+"core words" typed into it is a legitimate topic that a rule like *"core words
+belong on another page"* would refuse — over-correcting for Food into a new bug.
+The same rule shapes the user turn (`Board#get_word_suggestions_from_default_prompt`):
+the topic opens it and closes it, it restates `prompt` and never `name`, and the
+exclusion list is framed as level-and-style context rather than "stay on the
+board's subject", which would give the model a rival topic.
+
+`Prompts::Aac.reject_existing` then drops any suggestion naming a tile the board
+already has — exact normalised equality, not the word-boundary match the floors
+use, so a page holding "banana" can still be offered "banana bread". It may
+return fewer words than were asked for; validating the COUNT is issue #751.
 
 **The detector lists are NOT interpolated into the rule text.** Doing so would
 rewrap the prompt every whole-board caller sends for no gain, so

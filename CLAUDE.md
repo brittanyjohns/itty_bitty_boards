@@ -861,6 +861,27 @@ an explicit decision, not a drive-by edit.
   can't 422 an otherwise-valid update). Deliberate renames go through
   `Board#rename_slug!` — the internal API's `force_slug` or the
   `boards:rename_slug` rake task.
+- **Publishing cascades DOWN the tile graph; unpublishing does not.**
+  `Boards::PublishCascade` is the single authority, and its asymmetry is the
+  point. Publish reads three membership sources — the builder `BoardGroup`,
+  `SetCloner` children stamped `settings["assignment_root_id"]`, and every board
+  the root descends into through folder tiles
+  (`board_images.predictive_board_id`, walked by `Boards::ReachableBoardIds`
+  with `skip_back_tiles: true` and an `admit:` ownership filter). A hand-linked
+  page has neither a group row nor an assignment stamp, so before source 3 a
+  shared board's folder tiles all 404 while its card worked. Unpublish keeps
+  sources 1 and 2 ONLY: a linked page can be reached from several roots and
+  several communicators' pages, and its `/pb/<slug>` may already be printed —
+  unpublishing one parent is not a decision about a page somebody else's board
+  also opens. `admit:` is a security control, not an optimization: a folder
+  tile's target is unvalidated, so the walk refuses to FOLLOW a pointer at a
+  board the owner doesn't own rather than filtering afterwards (same shape as
+  `Boards::QuickAddScope#entitled_ids`). `apply!` writes with `update_all`, so
+  it backfills a blank `slug` in a second pass — a published board with no slug
+  has no `/pb/<slug>` at all. And because the cascade only runs on a TOGGLE, a
+  folder page created under an already-published parent is born published
+  (`Api::ImagesController#publish_with_parent`), or the invariant would break
+  the moment a tile is added.
 - **`Board#public_url` is nil until the board is published; the un-gated builder
   is `prospective_public_url`.** `/pb/<slug>` only resolves for a published
   board (`Board#viewable_by?`), and the frontend gates its entire share panel —
@@ -1064,17 +1085,25 @@ an explicit decision, not a drive-by edit.
   unpublished board — so favoriting alone served a working card that 404'd on
   tap, and that was the DEFAULT state (Board Builder roots and
   `SetCloner` clones are both born unpublished). Both halves are
-  required. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
+  required. **"The board" means the whole tree a visitor can tap into**, not one
+  row — a published root whose folder pages are private is the same 404, one tap
+  further in. WRITE: `Boards::MySpeakPublisher`, hooked on `ChildBoard`'s
   `favorite` transition so no call site can forget it, publishes the board and
-  cascades to its set. READ: `Profile#communication_boards` and
-  `Profile#user_boards` filter on `published`. Three rails on the write half —
+  cascades to everything below it. READ: `Profile#communication_boards` and
+  `Profile#user_boards` filter on `published`. Four rails on the write half —
   it is **one-way** (unfavoriting never unpublishes; `/pb/<slug>` may already be
   printed into an IEP), it publishes **only boards owned by the page's owner**
   (a parent's favorite tap is not an SLP's consent to publish their shared
-  board — such a board is left private and the read filter hides it), and a
+  board — such a board is left private and the read filter hides it), a
   Board Builder set is synced again in `BuildBoardSetJob` because at favorite
-  time the set is still empty. `child_boards.published` is a dead column that
-  nothing writes; read `board.published?`.
+  time the set is still empty, and **the cascade runs on every favorite, not
+  only when the root changes** — the old `return false if board.published?` sat
+  in FRONT of it, so favoriting could never repair a published root with private
+  pages, and that is a state the root alone cannot reveal.
+  `Api::V1::Onboarding::Myspeak#publish_starter!` must not re-add that skip.
+  `child_boards.published` is a dead column that nothing writes; read
+  `board.published?`. Repair sweep for pages broken before this:
+  `bin/rails myspeak:backfill_published` (dry-run; `APPLY=1` writes).
 - **The MySpeak wizard's starter board is the PARENT'S OWN board, and it is
   gated like any other board create.** Assignment attaches an EXISTING board and
   spends no slot; the wizard CREATES one, so it is a board create and pays for
@@ -1359,12 +1388,42 @@ an explicit decision, not a drive-by edit.
   "skip nouns that exist to be labelled") are right for a core board and wrong
   for an incremental add to a fringe page — a board called "Places" came back
   with four strings copied verbatim out of the rule while its place names were
-  suppressed. `Prompts::Aac.incremental_word_rules` sends craft rules always and
-  **re-adds** the objection/redirect ask only when `can_object_or_redirect?`
-  says the board's own tiles cannot yet do it: a board that cannot refuse is an
-  autonomy failure, so the principle is preserved, not dropped. `WORD_RULES`
-  stays byte-identical so the whole-board callers are untouched — never "tidy"
-  the split by rewrapping it. Details: `.claude-notes/ai-prompting.md`.
+  suppressed. `Prompts::Aac.incremental_word_rules` is craft rules and nothing
+  else. The objection/redirect ask used to be **re-added** when
+  `can_object_or_redirect?` said the board's own tiles could not yet refuse;
+  that came back as the SAME bug on a board named "Food", which returned ten
+  core words and no food. `WORD_CRAFT_RULES` is entirely formatting and negative
+  constraints, so the re-added ask was the only instruction in the whole system
+  message saying WHAT TO PICK — and being uncapped ("at least one of…"), it
+  became the entire brief. **Refusal is guaranteed where a board is CREATED**
+  (`BOARD_COVERAGE_RULES`, then `with_core_floor`), never re-asserted on a
+  top-up; `can_object_or_redirect?` survives as the predicate a "this board has
+  no way to refuse" nudge would read, which tells the user instead of silently
+  spending their tiles.
+  **The PERSONA is scoped to the job too, and scoping only the rules was why
+  #763 did not hold.** `WORD_LIST_SYSTEM_PROMPT` carries a whole-board judgement
+  — "not writing a vocabulary list about a topic", "a board that can only name
+  things has failed" — which is right for a caller laying out a board and wrong
+  for a top-up of a fringe page, where naming things IS the job. It explains the
+  half of the Food answer (`more`, `help`, `like`, `please`) that appears in no
+  rule that path sends. `INCREMENTAL_WORD_LIST_SYSTEM_PROMPT` is the sibling,
+  and `Prompts::Aac.incremental_system_prompt` SELECTS between them on whether
+  the board has words — never swaps unconditionally, because a board-less
+  `/words` request builds a throwaway `Board` and reaches the same method while
+  genuinely drafting a whole board.
+  **The prompt override is the escape hatch and nothing may fight it.** With the
+  objection ask gone, typing a topic into the override box is the only way to
+  put non-topical vocabulary on a topic page; it arrives as `prompt`
+  (`params[:prompt].presence || params[:name]`), so the user turn restates
+  `prompt` and never `name`, the exclusion list is framed as level-and-style
+  context rather than "stay on the board's subject", and the persona names no
+  kind of word as off-limits. A rule like "core words belong on another page"
+  would refuse `core words` typed into that box — over-correcting for Food into
+  a new bug. `WORD_RULES` stays byte-identical so the whole-board callers are
+  untouched — never "tidy" the split by rewrapping it. Suggestions repeating a
+  tile the board already has are dropped by `Prompts::Aac.reject_existing`
+  (exact normalised equality, so "banana bread" survives a page holding
+  "banana"). Details: `.claude-notes/ai-prompting.md`.
 - **An APPROVED word list is the board — nothing is added after the user taps
   Create.** `GenerateBoardJob` used to generate a SECOND list from the topic and
   merge it into the seed words, so a 24-word approval built a 26-tile board
