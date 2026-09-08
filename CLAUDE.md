@@ -1108,6 +1108,39 @@ an explicit decision, not a drive-by edit.
   `404 {"error": "Board not found"}` in both, never a 403: confirming the row
   exists is itself the leak. Being on the skip list is not evidence an action is
   safe — check `predictive_image_board`, which resolves the same way.
+- **Quick-add's read set and write set are ONE object, and reachability — not
+  attachment — defines both.** `Boards::QuickAddScope` is instantiated by the
+  picker (`GET /api/account/quick_add_targets`, `boards#list`) *and* by
+  `check_communicator_board_access!`, so a board the picker offers cannot 403
+  and one it withholds is always refused; never add a membership shortcut to the
+  gate. `ChildAccount#boards` cannot answer this: assignment ATTACHES the ROOT
+  of a set and its folder pages carry no `child_boards` row, so the association
+  says which boards were attached, never which board a communicator is looking
+  at — which is why a child standing on their Core 84 "Food" page could not pick
+  it. **The `admit:` entitlement filter is a security control, not an
+  optimization**: `API::BoardImagesController` permits `predictive_board_id`
+  while validating only the TILE's board, and board ids are sequential, so a
+  folder tile can point at anyone's board. Attachment made that inert;
+  reachability does not, so the walk refuses to FOLLOW a pointer it has no right
+  to rather than trusting it. Public/predefined boards are deliberately not
+  admitted — assignment attaches the real admin-owned row, and `add_image` has
+  no `predefined` guard though `associate_image` does. SHARING, by contrast, is
+  advisory and blocks nobody: boards on several dashboards are the normal setup
+  (siblings, a classroom set), and quick-add exists so a nonspeaking person can
+  add a word when they need it. A page inherits its root's sharing via
+  `track_origins`, audience queries must JOIN `child_accounts` (an archived
+  sibling would otherwise mark a board shared forever), and seeds read
+  `board_id` only — so `Board#in_use_by`, which unions `original_board_id`, can
+  legitimately name one more communicator — and on `boards#list` it does,
+  visibly, since #877 put `in_use_by` on that payload beside
+  `shared_with_communicators`. The two are NOT duplicates and neither derives
+  the other: `in_use_by` names the communicators the VIEWER OWNS (to tell two
+  same-named boards apart) while the boolean also covers a dashboard belonging
+  to a stranger, which `in_use_by` deliberately hides — so a published board
+  somebody else assigned reads `in_use_by: nil, shared_with_communicators:
+  true`. For the same reason the list ETag carries two independent term sets,
+  one keyed on the caller's communicators and one on the caller's boards.
+  Details: `.claude-notes/quick-add-board-visibility.md`.
 
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
@@ -1722,6 +1755,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/library-image-dedupe.md` | Library dedupe end-to-end: the scan-then-apply split, the never-a-user-image scope, POS/language grouping, the associations a merge must carry (predictive boards, user docs, soft-deleted docs), the `image_merges` ledger + kill switch, and the admin default-art/doc-removal endpoints |
 | `.claude-notes/image-generation.md` | AI tile art: `Images::PromptBuilder` (the single prompt source of truth, always-wrap rule), symbol vs illustrated style resolution, part-of-speech homograph disambiguation, transparency/quality API params + model fallback, refusal retry, variations via the edit endpoint, prompt provenance on docs |
 | `.claude-notes/board-printables-etsy.md` | Publishing a board printable to a marketplace: the drafts-only rule, Etsy's rotating refresh token + why Rails holds a separate grant, the ported Etsy v3 API quirks, listing-copy rules (and their Ruby↔TypeScript drift), Grover-rendered gallery images, the TPT paste sheet |
+| `.claude-notes/quick-add-board-visibility.md` | Quick-add's board picker: `Boards::QuickAddScope` as the single read/write answer, the reachability closure and why sub-pages need it, the `admit:` entitlement filter as a security control, advisory sharing + root inheritance, the communicator leak rule, and the `boards-list-v2` ETag |
 | `.claude-notes/word-packs.md` | Quick-add word packs: the static catalog, the "client names a key / server owns the vocabulary" rule, why a pack costs no OpenAI (authored part_of_speech + `max_generate: 0`), the OVERRIDES-wins colour rule, and the read-only catalog endpoint |
 | `.claude-notes/writing-suggestions.md` | Contextual writing suggestions (`POST /api/suggestions`): field registry + context allow-list, the no-safety-keys privacy invariant, OpenAI generator + fixtures, free/no-credit contract, user opt-out toggle |
 | `.claude-notes/kit-landing-pages-handoff.md` | Kit landing pages (`/kit/:slug`): the `KitPage` model, the public read/download contract, the `kit_<slug>` lead source and its dynamic Mailchimp tag, the `/admin/kit_pages` CRUD and its Etsy give-away guard |

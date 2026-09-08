@@ -646,6 +646,9 @@ Rails.application.routes.draw do
       # resources :notification_tokens, only: :create
     end
     namespace :account do
+      # The quick-add picker. Boards::QuickAddScope is shared with
+      # boards#add_image's gate, so this list and that gate cannot disagree.
+      resources :quick_add_targets, only: [:index]
       resources :boards do
         collection do
           get "initial_predictive_board"

@@ -23,6 +23,24 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   images or the rendered pages of an uploaded PDF. They sit in the same
   Don't show / On the page / After the email picker as those rendered pages, and
   "Regenerate" never touches them. An uploaded picture is never a download.
+- **Quick add offers every board in a set, not just the ones on the dashboard.**
+  Assigning a board attaches the ROOT of a set, so its folder pages had no
+  dashboard row and a communicator standing on the "Food" page of their core
+  board could not pick it — and the write gate would have refused it anyway.
+  Both halves now read one object (`Boards::QuickAddScope`), so anything the
+  picker offers is writable. New `GET /api/account/quick_add_targets` serves the
+  communicator's pickable set.
+
+- **Boards somebody else also uses are marked as shared.**
+  `GET /api/boards/list` gained `shared_with_communicators`, and the
+  communicator picker carries the same `shared` boolean, so the app can say a
+  word added here will reach another dashboard. It answers a different question
+  from `in_use_by` above and is not derivable from it: that one names the
+  communicators you own, to tell two same-named boards apart, while this also
+  covers a dashboard belonging to somebody else. A page inherits its set root's
+  answer, since that is how the other person opens it. Nothing is blocked —
+  boards on several dashboards are the normal setup, and quick add exists so a
+  nonspeaking person can add a word when they need it.
 
 - **Bulk regeneration takes instructions about how the pictures should look.**
   `POST /api/boards/:id/regenerate_images` accepts an optional `modifiers`
@@ -40,6 +58,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   credits back.
 
 ### Changed
+
+- **A communicator can no longer quick-add onto a public library board.**
+  Assigning a public board attaches the real admin-owned row, so a word added
+  there landed on the board every account sees. Adding to one is now refused,
+  matching what the account owner could already do.
 
 - **The Sizes, Extras & condiments and Ordering quick-add word sets are now
   offered on every board, not only on a restaurant menu.** `GET /api/word_packs`
