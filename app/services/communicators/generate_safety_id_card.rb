@@ -1,6 +1,17 @@
 # app/services/communicators/generate_safety_id_card.rb
 module Communicators
   class GenerateSafetyIdCard < BaseAssetGenerator
+    # Bump when the TEMPLATE or LAYOUT changes in a way that should reach cards
+    # already generated. `safety_info_signature` only moves when the PROFILE
+    # does (avatar + settings), so without this a rendering fix reaches new
+    # cards only and every existing attachment keeps its old bytes forever —
+    # the gap GenerateCarePlan::LAYOUT_VERSION names and this card had.
+    # 1: the card as it stood when the version was introduced.
+    # 2: an unanswered medical field is omitted and named in one muted line
+    #    rather than printed as a negative finding (#890). This is the bump
+    #    that reaches a card already laminated onto a backpack.
+    LAYOUT_VERSION = 2
+
     PNG_WIDTH = 1200
     PNG_HEIGHT = 1800
 
@@ -9,7 +20,7 @@ module Communicators
     end
 
     def call(regenerate: false)
-      signature = asset_signature(profile.safety_info_signature)
+      signature = asset_signature("#{profile.safety_info_signature}::v#{LAYOUT_VERSION}")
 
       unless regenerate
         if attached_and_fresh?(:safety_id_png, signature: signature) &&

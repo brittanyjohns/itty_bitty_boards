@@ -574,6 +574,14 @@ Things that will bite a future change:
   deliberately, since "nobody said how this person communicates" is not a
   medical assertion. This is the DEFAULT state of both documents, not an edge
   case — until #891 the MySpeak wizard collected none of the four fields.
+  **The fix only reaches an existing document because both signatures carry a
+  layout version.** `safety_info_signature` moves only when the PROFILE does,
+  so a rendering change reaches newly generated documents and nothing else;
+  `GenerateCarePlan::LAYOUT_VERSION` went to 7 and `GenerateSafetyIdCard` grew
+  its own (now 2) rather than keep the gap its sibling's comment named. A
+  rendering fix here without a bump is invisible on every card already
+  downloaded or printed. `GenerateDeviceTag` and `GenerateScanTag` still carry
+  that gap.
 - **`Communicators::CarePlanDocument` is a port of `resolveCareSections`**
   (frontend `src/data/careSections.ts`). The labels are not duplicated —
   `CareLabels` serves those — but the walk over stored settings genuinely

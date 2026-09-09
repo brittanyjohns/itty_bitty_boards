@@ -31,6 +31,32 @@ RSpec.describe Communicators::GenerateSafetyIdCard do
     captured
   end
 
+  describe "freshness" do
+    # A card already generated keeps its bytes until the signature moves, and
+    # safety_info_signature only moves when the PROFILE does — so without a
+    # layout version this whole fix would reach new cards only, and the card
+    # already laminated onto a backpack would keep printing the old claim.
+    it "re-renders when the layout version is bumped" do
+      profile.update!(settings: { "allergies" => "zzpeanutszz" })
+      described_class.call(profile.reload)
+
+      stub_const("#{described_class}::LAYOUT_VERSION", 99)
+
+      expect(HtmlToPng).to receive(:call).and_return("\x89PNG-stub")
+      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      described_class.call(profile.reload)
+    end
+
+    it "serves the cached card when nothing has changed" do
+      profile.update!(settings: { "allergies" => "zzpeanutszz" })
+      described_class.call(profile.reload)
+
+      expect(HtmlToPng).not_to receive(:call)
+      expect(Grover).not_to receive(:new)
+      described_class.call(profile.reload)
+    end
+  end
+
   describe "the medical grid" do
     # The default state, not an edge case: the MySpeak wizard collected none of
     # these until #891, so this is the card most communicators get.
