@@ -369,6 +369,28 @@ class API::BoardsController < API::ApplicationController
   def predictive_image_board
     board = find_board_for_predictive_page
 
+    # `predictive_image_board` is unauthenticated (skip_before_action
+    # :authenticate_token!) because Speak mode opens genuinely PUBLIC boards.
+    # `find_board_for_predictive_page` resolves by id or slug with no ownership
+    # or `published` scoping, and board ids are sequential, so without this
+    # guard the whole corpus is enumerable: the payload carries every tile,
+    # label and symbol plus a board name that routinely contains a child's
+    # first name. Same generic 404 `show` and `pdf` return, so we don't confirm
+    # the board exists.
+    #
+    # The guard runs on the RESOLVED board, so the `predictive_default`
+    # fallback still answers an id that matches nothing — but a board the
+    # caller named and may not see is refused rather than quietly answered with
+    # a different board's payload.
+    #
+    # `acting_user`, not `current_user`: a communicator token owns no boards of
+    # its own and resolves to the adult above it; it is nil for an anonymous
+    # caller, which `viewable_by?` refuses.
+    unless board && board.viewable_by?(acting_user)
+      render json: { error: "Board not found" }, status: :not_found
+      return
+    end
+
     voice = params[:voice].presence
     voice = "openai:alloy" if voice == "alloy"
     effective_voice = voice || board.voice

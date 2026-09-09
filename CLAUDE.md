@@ -1216,7 +1216,12 @@ an explicit decision, not a drive-by edit.
   symbol) of any private board. The refusal is the same generic
   `404 {"error": "Board not found"}` in both, never a 403: confirming the row
   exists is itself the leak. Being on the skip list is not evidence an action is
-  safe — check `predictive_image_board`, which resolves the same way.
+  safe — `predictive_image_board` resolves the same way (through
+  `find_board_for_predictive_page`) and had the same gap. It now carries the
+  guard too, applied to the RESOLVED board, so its `Board.predictive_default`
+  fallback still answers an id that matches nothing while a board the caller
+  named and may not see is refused rather than quietly answered with a
+  different board's payload.
 - **Quick-add's read set and write set are ONE object, and reachability — not
   attachment — defines both.** `Boards::QuickAddScope` is instantiated by the
   picker (`GET /api/account/quick_add_targets`, `boards#list`) *and* by
