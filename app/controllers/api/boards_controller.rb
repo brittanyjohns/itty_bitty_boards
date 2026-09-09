@@ -1687,13 +1687,6 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
-  def add_to_team
-    @team = Team.find(params[:team_id])
-    @board = Board.find(params[:id])
-    @team.boards << @board
-    render json: @team.show_api_view
-  end
-
   # Sizes the copy before anything is created, so the client can confirm with
   # real numbers ("we'll copy 6 boards, 6 of your 12 slots") rather than
   # spending slots the user never agreed to. Shares check_board_create_permissions

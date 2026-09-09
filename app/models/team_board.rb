@@ -14,4 +14,12 @@ class TeamBoard < ApplicationRecord
   belongs_to :board
   belongs_to :team
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_id", optional: true
+
+  # A board sits on a team at most once. Backstop for the unique index; the
+  # index is the enforcement, this is the friendly 422.
+  #
+  # This is not tidiness. `allow_edit` lives on this row, so a duplicated pair
+  # would let a grant be read from one row while a revoke removed the other —
+  # a revoke that silently does not revoke.
+  validates :board_id, uniqueness: { scope: :team_id }
 end

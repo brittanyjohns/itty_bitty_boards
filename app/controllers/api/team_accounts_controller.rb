@@ -1,15 +1,13 @@
 class API::TeamAccountsController < API::ApplicationController
-  before_action :set_team_account, only: %i[ show update destroy ]
-  after_action :verify_policy_scoped, only: :index
+  before_action :set_team_account, only: %i[ update destroy ]
+  before_action :authorize_manage_team_account!, only: %i[ update destroy ]
 
-  def index
-    @team_accounts = policy_scope(TeamAccount)
-    render json: @team_accounts.map { |team_account| team_account.index_api_view(current_user) }
-  end
-
-  def show
-    render json: @team_account.show_api_view(current_user)
-  end
+  # NOTE: `index` and `show` used to live here and could never have worked —
+  # `index` called `TeamAccount#index_api_view`, which does not exist, and
+  # `show` called `#show_api_view`, which takes no arguments and does `.map`
+  # on a single ChildAccount. Both raised on every call. A team's
+  # communicators are already served, correctly, by `Team#show_api_view`'s
+  # `accounts` array, which is what the frontend reads.
 
   def create
     @team = Team.find(params[:team_id])
@@ -67,6 +65,21 @@ class API::TeamAccountsController < API::ApplicationController
 
     team.created_by_id == current_user.id ||
       team.team_users.where(user_id: current_user.id, role: "admin").exists?
+  end
+
+  # Detaching a communicator from a team, or deactivating it, is a management
+  # act — and `TeamAccount#before_destroy` destroys the WHOLE TEAM when the
+  # last one goes, cascading team_users and firing every member's
+  # BoardSnapshotService. `set_team_account` scopes by the Pundit policy only,
+  # which admits every member of the team at any role, so a `restricted`
+  # read-only member could delete the team. Same rule as attaching.
+  def authorize_manage_team_account!
+    return if authorized_to_attach?(@team_account.team, @team_account.account)
+
+    render json: {
+      error: "not_authorized",
+      message: "You can only change communicators you own on teams you manage.",
+    }, status: :forbidden
   end
 
   # Use callbacks to share common setup or constraints between actions.

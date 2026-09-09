@@ -62,6 +62,84 @@ any non-owner. Full matrix in issue #166. Server-side rules:
   `account_owner_ids` and per-member `is_account_owner` so the frontend
   can hide destructive controls.
 
+### The team board library — who may put a board on a team
+
+**Sharing a board with a team makes it READABLE by every member.**
+`Board#viewable_by?` ends in `team_users.exists?(user_id:)`, reached through
+`has_many :team_users, through: :teams`, so a `team_boards` row is a read grant
+as well as a shelf entry. `POST /api/teams/:id/create_board` took any board id
+at all, and board ids are sequential — so any team member could pull a
+stranger's private board into a team they controlled and read it.
+
+`API::TeamsController#shareable_board?` is the allowlist, modelled on
+`Boards::AssignableSource` (the same question one level down, "which boards may
+be attached to this communicator"): a sysadmin may share anything; you may share
+**your own** board; anyone may share a **public** board (`published` or
+`predefined`), which reveals nothing `Board.public_boards` does not; and a board
+already on **a communicator's dashboard on this team** may be shared by any
+library writer — the supervisor's legitimate "put the family's board on the
+shelf so it stays re-addable" act, and the same set
+`register_dashboard_boards_on_team!` writes on hand-off. Deliberately NOT "any
+board the communicator's owner owns", which would let a supervisor enumerate a
+parent's private library. Refusal is a generic 403 `not_board_owner` that never
+says whether the id exists.
+
+**Un-sharing is the revocation half, so a board's OWNER may always remove their
+own board from a team**, whatever their role — `authorize_remove_board!` admits
+them alongside curate roles and team managers. Before this a parent who shared
+into a team where she is only a `member` could not take her child's board back
+out of it.
+
+**A board sits on a team at most once** (unique index on `(board_id, team_id)`).
+This is not tidiness: `team_boards.allow_edit` is where per-board edit rights
+will live, and a duplicated pair would let a grant be read from one row while a
+revoke removed the other. `Team#add_board!` is idempotent, never returns nil for
+a real board (it used to key its lookup on `(board, created_by_id)`, so
+re-sharing a board somebody else had shared returned nil and the caller's
+`.save` raised), never overwrites `created_by_id` — attribution belongs to the
+first sharer and `BoardSnapshotService` keys the SLP-leaves snapshot on it — and
+never touches `allow_edit`.
+
+**Board editing is not a team question.** `BoardPolicy#edit?`/`#update?` used to
+grant edit via `user.current_team_boards.include?(record)` with no role, no
+grant and no ownership. Nothing calls Pundit's `authorize` on a Board, so they
+were dead — but they contradicted the controllers, and are now deleted. Board
+write permission has one home: `Board#can_edit_for` (the flag) and
+`API::BoardsController#check_board_view_edit_permissions` (the gate).
+
+**Removed endpoints.** `PUT /api/boards/:id/add_to_team` was in no
+`before_action` list at all — any signed-in user could push any board onto any
+team. Its frontend callers (`addToTeam`/`removeFromTeam` in `src/data/boards.ts`)
+are exported and never imported, so the action and its route are gone rather
+than gated, along with three routes that pointed at actions which never existed:
+`PUT boards/:id/remove_from_team`, `POST teams/:id/add_board`, and
+`POST teams/set_current`. `API::TeamAccountsController#index`/`#show` are gone
+for the same reason — `index_api_view` does not exist and `show_api_view` called
+`.map` on a single record, so both raised on every call; a team's communicators
+are served by `Team#show_api_view`'s `accounts` array, which is what the
+frontend reads.
+
+**A team member's role is the inviter's decision.**
+`API::V1::AuthsController#reset_password_invite` accepted a `role` param from
+the INVITEE while they set their own password and wrote it straight to
+`TeamUser#update`, whose only guard is `inclusion: { in: ROLES }` — a set that
+contains `admin`. It also picked an arbitrary membership with a bare
+`find_by(user_id:)`. The param is now ignored; `TeamsController#invite` already
+validates against `INVITABLE_ROLES`, which excludes `admin` on purpose.
+
+**Detaching a communicator from a team takes the same rights as attaching one.**
+`API::TeamAccountsController#update`/`#destroy` authorized on
+`TeamAccountPolicy::Scope` alone, which admits every member at every role — so a
+`restricted` read-only member could deactivate a communicator or detach it, and
+`TeamAccount#before_destroy` destroys the WHOLE TEAM when the last one goes,
+cascading `team_users` and firing every member's `BoardSnapshotService`. Both now
+run `authorized_to_attach?`, the gate `create` already used.
+
+**Rails 8 trap seen while doing this:** a `before_action ... only:` naming an
+action the controller no longer defines raises `AbstractController::ActionNotFound`
+for **every** action on that controller, surfacing as a bare HTML 404. Removing
+an action means auditing every callback's `only:`/`except:` list.
+
 The SLP→family **hand-off** (loaner → claim) is the supported ownership
 transfer: `claim_by!` moves both `child_account.owner_id` and the own team's
 `created_by_id` to the new owner. A standalone **transfer ownership** endpoint

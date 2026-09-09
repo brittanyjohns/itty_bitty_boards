@@ -75,6 +75,32 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Sharing a board with a team is now limited to boards you are entitled to
+  share.** Putting a board on a team makes it readable by every member of that
+  team, and the endpoint accepted any board id at all — so any team member could
+  pull a stranger's private board into a team they controlled and read it. Board
+  ids are sequential and a board name routinely carries a child's first name. A
+  board may now be shared by its owner, by a system admin, if it is already
+  public, or if it is already on a communicator's dashboard on that team — the
+  same shape `Boards::AssignableSource` uses for the sibling question. A board's
+  owner can also now un-share their own board whatever their role, which they
+  could not do before.
+
+- **An invited team member can no longer choose their own role.** Setting a
+  password from an invitation accepted a `role` parameter and wrote it straight
+  to the membership, and the only guard was a list that includes `admin` — so an
+  invitee could arrive as a team administrator. The role is the inviter's
+  decision and was already recorded when the invite was sent.
+
+- **Read-only team members can no longer detach a communicator or delete a
+  team.** Changing or removing a communicator on a team was authorised only by
+  the read scope, which admits every member at every role — and removing the
+  last communicator deletes the whole team, its membership, and its shared
+  boards. It now takes the same rights as adding one.
+
+- **A board can only be on a team once.** Nothing prevented duplicate rows, so
+  re-sharing a board somebody else had already shared crashed the request. Made
+  structural, with existing duplicates merged.
 - **Translated tiles no longer show the translation instruction as their label.**
   A tile label is usually a single word, and the request that translated it put
   the instruction and the word in the same message — so the model translated

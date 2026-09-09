@@ -222,12 +222,27 @@ class API::TeamsController < API::ApplicationController
   end
 
   def create_board
-    @board = Board.find(params[:board_id])
+    @board = Board.find_by(id: params[:board_id])
+
+    # Sharing a board with a team makes it READABLE by every member —
+    # `Board#viewable_by?` ends in `team_users.exists?`, reached through
+    # `has_many :team_users, through: :teams`. Without this check any team
+    # member could pull any board in the corpus into a team they control and
+    # read it, and board ids are sequential. Same generic refusal shape as
+    # `Boards::AssignableSource`: never say whether the id exists.
+    unless shareable_board?(@board)
+      return render_team_permission_error(
+        "not_board_owner",
+        "You can only share boards you own.",
+      )
+    end
+
     @team_board = @team.add_board!(@board, current_user.id)
-    if @team_board.save
+    if @team_board&.persisted?
       render json: @team.show_api_view(current_user)
     else
-      render json: @team_board.errors, status: :unprocessable_content
+      render json: { error: "board_not_shared", message: "That board could not be shared." },
+             status: :unprocessable_content
     end
   end
 
@@ -324,8 +339,40 @@ class API::TeamsController < API::ApplicationController
     @team ||= Team.with_artifacts.find(params[:id])
     return if can_manage_team?
     return if @team.team_users.where(user_id: current_user.id, role: User::CURATE_ROLES).exists?
+    # A board's OWNER may always un-share their own board, whatever their role
+    # on the team. Un-sharing is the revocation half of sharing, and a parent
+    # who shared into a team where she is only a `member` could not otherwise
+    # take her child's board back out of it.
+    return if own_board?(params[:board_id])
     render_team_permission_error("not_authorized",
                                  "Only a supervisor or the team owner can remove boards from this team.")
+  end
+
+  # Which boards this caller may put on this team. Modelled on
+  # `Boards::AssignableSource`, the allowlist for the sibling question ("which
+  # boards may be attached to this communicator"):
+  #
+  #   * a sysadmin may share anything;
+  #   * your own board — the ordinary case, and the whole point of a library;
+  #   * a public board (`published` or `predefined`) — sharing one reveals
+  #     nothing that `Board.public_boards` does not already;
+  #   * a board already on a communicator's dashboard on THIS team — the
+  #     supervisor's legitimate "put the family's board on the shelf so it is
+  #     re-addable" act, and the same set `register_dashboard_boards_on_team!`
+  #     writes on hand-off. Bounded to boards the team can already see, so it
+  #     adds no exposure; deliberately NOT "any board the owner owns", which
+  #     would let a supervisor enumerate a parent's private library.
+  def shareable_board?(board)
+    return false if board.nil?
+    return true if current_user.admin?
+    return true if board.user_id == current_user.id
+    return true if board.published? || board.predefined?
+    @team.account_boards.exists?(id: board.id)
+  end
+
+  def own_board?(board_id)
+    return false if board_id.blank?
+    Board.exists?(id: board_id, user_id: current_user.id)
   end
 
   # Any team member allowed to WRITE the team library (admin, supervisor,

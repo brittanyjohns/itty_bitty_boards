@@ -19,9 +19,9 @@ RSpec.describe "API::Teams#create_board membership gate", type: :request do
   end
   let(:board) { create(:board, user: owner) }
 
-  def post_create_board(user)
+  def post_create_board(user, board_to_share = board)
     post "/api/teams/#{team.id}/create_board",
-         params: { board_id: board.id },
+         params: { board_id: board_to_share.id },
          headers: auth_headers(user)
   end
 
@@ -30,17 +30,17 @@ RSpec.describe "API::Teams#create_board membership gate", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "lets a supervisor add a board" do
+  it "lets a supervisor add a board they own" do
     user = create(:user, created_at: 2.months.ago)
     team.upsert_member!(user, "supervisor")
-    post_create_board(user)
+    post_create_board(user, create(:board, user: user))
     expect(response).to have_http_status(:ok)
   end
 
-  it "lets a plain member add a board to the team library" do
+  it "lets a plain member add a board they own to the team library" do
     user = create(:user, created_at: 2.months.ago)
     team.upsert_member!(user, "member")
-    post_create_board(user)
+    post_create_board(user, create(:board, user: user))
     expect(response).to have_http_status(:ok)
   end
 

@@ -60,20 +60,29 @@ class Team < ApplicationRecord
     team_account
   end
 
+  # Share `board` with this team. Idempotent, and never returns nil for a real
+  # board — the old implementation looked an existing row up by
+  # `(board, created_by_id)`, so re-sharing a board somebody ELSE had already
+  # shared returned nil and the caller's `.save` raised NoMethodError.
+  #
+  # Two things it deliberately does not do on an existing row:
+  #   * overwrite `created_by_id` — attribution belongs to the first sharer,
+  #     and `BoardSnapshotService` keys the SLP-leaves snapshot on it;
+  #   * touch `allow_edit` — re-sharing must not silently grant or revoke.
   def add_board!(board, user_id)
-    team_board = nil
-    if board && !boards.include?(board)
-      team_board = team_boards.new(board: board, created_by_id: user_id)
-      team_board.save
-    else
-      team_board = team_boards.find_by(board: board, created_by_id: user_id)
-    end
-    team_board
+    return nil unless board
+    team_boards.create!(board: board, created_by_id: user_id)
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    team_boards.find_by(board_id: board.id)
   end
 
+  # `destroy_all` rather than `find_by(...).destroy`: this is the REVOCATION
+  # path, and on data predating the unique index a board could sit on a team
+  # twice — removing one row and leaving the other is a revoke that does not
+  # revoke.
   def remove_board!(board)
-    team_board = team_boards.find_by(board: board)
-    team_board.destroy if team_board
+    return nil unless board
+    team_boards.where(board_id: board.id).destroy_all
   end
 
   # User ids of the owners of any child_account on this team. These users
