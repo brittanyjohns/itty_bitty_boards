@@ -624,6 +624,12 @@ class Image < ApplicationRecord
     current_language = language_from_filename(audio_url)
     translation = OpenAiClient.new(open_ai_opts).translate_text(label, current_language, language)
     Rails.logger.debug "Translation: #{translation}"
+    # A rejected translation comes back nil (OpenAiClient.valid_translation?),
+    # and an absence is not a value: writing `{ label: nil }` records a failure
+    # as data, leaving an entry every reader of `language_settings` then has to
+    # defend against. Leave the key unwritten so a later run can fill it in.
+    return nil if translation.blank?
+
     lang_settings = language_settings || {}
     lang_settings[language] = { label: translation, display_label: translation }
     self.language_settings = lang_settings
@@ -672,8 +678,12 @@ class Image < ApplicationRecord
     end
   end
 
+  # `audio_url` is nil until this image has been spoken at least once, and
+  # `TranslateImageJob` enqueues audio AFTER translating — so the nil case is
+  # the NORMAL one for a freshly created image, and a raise here took the whole
+  # translation down with it. Blank already resolves to English below.
   def language_from_filename(filename)
-    file_language = filename.split("_")[2]
+    file_language = filename.to_s.split("_")[2]
     if file_language.blank?
       file_language = "en"
     else

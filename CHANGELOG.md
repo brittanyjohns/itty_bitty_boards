@@ -101,6 +101,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **A board can only be on a team once.** Nothing prevented duplicate rows, so
   re-sharing a board somebody else had already shared crashed the request. Made
   structural, with existing duplicates merged.
+- **Translated tiles no longer show the translation instruction as their label.**
+  A tile label is usually a single word, and the request that translated it put
+  the instruction and the word in the same message — so the model translated
+  both and handed back "Haz responde con el objeto JSON en el siguiente
+  formato...", which was saved as the tile's text and shown on a public board.
+  The instruction and the word are now separate, and a translation that comes
+  back looking like the instruction (or wildly too long for the word it came
+  from) is thrown away instead of saved, so the tile keeps its English label
+  until a good translation arrives.
 
 - **A communicator handed over by a clinician keeps its login on the Free plan.**
   Private passcode sign-in was quietly tied to the parent's account being less
