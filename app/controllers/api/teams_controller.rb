@@ -4,7 +4,7 @@ class API::TeamsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[ accept_invite ]
   before_action :set_team, only: %i[ show edit update destroy remove_board invite ]
   before_action :authorize_team_read!, only: %i[ show ]
-  before_action :authorize_team_manage!, only: %i[ update destroy invite remove_member ]
+  before_action :authorize_team_manage!, only: %i[ update destroy invite remove_member member_role ]
   before_action :authorize_remove_board!, only: %i[ remove_board ]
   before_action :authorize_team_library_writer!, only: %i[ create_board ]
   # after_action :verify_policy_scoped, only: :index
@@ -93,6 +93,65 @@ class API::TeamsController < API::ApplicationController
     render json: @team.show_api_view(current_user), status: :created
   rescue ActiveRecord::RecordInvalid => e
     render json: { errors: e.record.errors }, status: :unprocessable_content
+  end
+
+  # PATCH /api/teams/:id/member_role — change an existing member's role.
+  #
+  # Correcting a role used to mean removing the person and re-inviting them:
+  # a destructive round trip for a correction, and not even a clean no-op,
+  # since `TeamUser#snapshot_shared_boards_to_family` fires on the destroy.
+  # This updates the row in place, so nothing is snapshotted and no invite is
+  # re-sent (issue #889).
+  #
+  # Identifies the member by `user_id` or `email` — `remove_member` takes an
+  # email, and the members payload carries both.
+  def member_role
+    @team = Team.find(params[:id])
+
+    @user = if params[:user_id].present?
+              User.find_by(id: params[:user_id])
+            else
+              User.find_by(email: params[:email])
+            end
+    return render json: { error: "User not found" }, status: :not_found unless @user
+
+    @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
+    return render json: { error: "Not a team member" }, status: :not_found unless @team_user
+
+    role = params[:role].to_s
+
+    # `admin` is the team creator's role and is only ever set server-side.
+    if role == "admin"
+      return render_team_permission_error("cannot_assign_admin",
+                                          "The admin role belongs to the team owner and can't be assigned.")
+    end
+
+    unless TeamUser::ASSIGNABLE_ROLES.include?(role)
+      return render_team_permission_error("invalid_role",
+                                          "Pick one of: supervisor, member, restricted.",
+                                          :unprocessable_entity)
+    end
+
+    # Same owner-pin rule `remove_member` enforces (issue #166): the owner of a
+    # communicator on this team can only be re-roled by themselves or a system
+    # admin, so an SLP supervisor can't demote the parent after the hand-off.
+    if @team.account_owner?(@user) && @user != current_user && !current_user.admin?
+      return render_team_permission_error("cannot_change_owner_role",
+                                          "You cannot change the role of the communicator's owner.")
+    end
+
+    # The team CREATOR is deliberately not pinned here, unlike in `leave`.
+    # After the SLP→parent claim hand-off the creator is the SLP and the owner
+    # is the parent, and reducing the departing SLP to Read-Only is exactly the
+    # correction this endpoint exists for. Nobody is locked out by it:
+    # `can_manage_team?` reads `created_by_id`, not the role.
+    unless @team_user.update(role: role)
+      return render json: { error: "invalid_role",
+                            message: @team_user.errors.full_messages.join(", ") },
+                    status: :unprocessable_entity
+    end
+
+    render json: @team.reload.show_api_view(current_user)
   end
 
   def remove_member

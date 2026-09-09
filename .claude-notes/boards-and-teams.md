@@ -51,6 +51,22 @@ any non-owner. Full matrix in issue #166. Server-side rules:
   would orphan the team. Destroying the `TeamUser` fires the same
   `before_destroy` board-snapshot safety net as `remove_member`, so the
   departing member's shared boards stay with the family.
+- `PATCH /api/teams/:id/member_role` (issue #889) changes an existing member's
+  role in place. Correcting a role used to mean remove-and-re-invite, which is
+  destructive and not even a clean no-op —
+  `TeamUser#snapshot_shared_boards_to_family` fires on the destroy. Same manage
+  gate as `remove_member` (`authorize_team_manage!`: team creator, communicator
+  account owner, or sysadmin) — if you may remove someone you may certainly
+  re-role them. Identifies the member by `user_id` or `email`. Coded refusals:
+  **403 `not_authorized`**, **403 `cannot_assign_admin`** (`admin` is the team
+  creator's row and is only ever set server-side — `TeamUser::ASSIGNABLE_ROLES`
+  is `supervisor`/`member`/`restricted`, never widen it to `ROLES`), **403
+  `cannot_change_owner_role`** (the same owner-pin rule `remove_member`
+  enforces), **422 `invalid_role`**, **404** for a non-member. The team CREATOR
+  is deliberately *not* pinned, unlike in `leave`: after the claim hand-off the
+  creator is the departing SLP and the owner is the parent, and reducing that
+  SLP to Read-Only is exactly the correction this exists for — nobody is locked
+  out, since `can_manage_team?` reads `created_by_id`, not the role.
 - `POST /api/teams/:id/invite`, when it would change an *existing*
   membership's role, returns **HTTP 403 `cannot_change_owner_role`** if
   the target is owner-pinned (and the caller isn't that user). It also
@@ -397,6 +413,65 @@ UI affordances.
 Full permissions matrix and the rationale for the split lives in
 `../speakanyway/marketing/.claude-notes/handoff-workflow.md`.
 
+
+## Team curation — a Supervisor edits the boards on a communicator they curate
+
+Issue #889. Board editing was owner-or-sysadmin only: `Board#can_edit_for` never
+consulted team role, so the school SLP a parent invited *specifically* to add
+vocabulary was offered only "Copy & customize" — forking a school copy away from
+the home copy, the divergence the team feature exists to prevent.
+
+- **`Boards::TeamCuration` is the single answer** to "which boards has a team put
+  in this user's care". Seeds are the boards attached to the communicators on
+  teams where the user holds a `User::CURATE_ROLES` role (`admin`/`supervisor`),
+  then a `Boards::ReachableBoardIds` walk over folder tiles.
+- **Reachability, not attachment.** Assignment attaches the ROOT of a set and its
+  folder pages carry no `child_boards` row, so an attachment-only answer would
+  let an SLP edit a Core 84 root and refuse her its Food page — the same
+  half-working shape `Boards::QuickAddScope` and `Boards::PublishCascade` each
+  had to grow a walk to avoid.
+- **The `admit:` filter is a security control**, not an optimization, exactly as
+  in `QuickAddScope#entitled_ids`: `predictive_board_id` is unvalidated on the
+  generic tile-update path and board ids are sequential, so a tile on a curated
+  board can point at a stranger's board. The walk refuses to FOLLOW such a
+  pointer rather than filtering after the fact. Admitted owners are the curated
+  communicators' `user_id`/`owner_id` (the lending SLP still owns boards on a
+  claimed dashboard); templates and the viewer's own boards are excluded.
+- **Scope is the shared dashboard, never "every board the owner has."** Team
+  membership must not reach a board the family never put on a communicator.
+- **Support (`member`) and Read-Only (`restricted`) stay excluded** — see
+  `ChildAccount#viewable_by?` ("a Support member watching how the week went does
+  not get to change the boards"). The softer path for them is issue #494.
+- **A supervisor is a permission grant, never a plan-lock bypass.** `can_edit_for`
+  ends in `Board#owner_plan_allows_edit?`, so a board that reads read-only to
+  the parent reads read-only to the SLP standing beside them. That is the same
+  single definition `BoardPlanLock` refuses on — since #892 the plan gate
+  measures the board's OWNER for *every* caller, so a curator needs no special
+  case there, and a non-owner's refusal is `board_locked_owner_plan`, carrying
+  neither the owner's plan tier nor another of their board ids.
+- **`destroy` is deliberately absent from `TEAM_CURATION_ACTIONS`.** A supervisor
+  may change what a family's board says, never make it stop existing. Same list
+  drives `check_board_view_edit_permissions` and `check_board_editable!`, so the
+  authorization answer and the plan-lock answer can't be scoped differently.
+- **`Board#viewable_by?` was widened too.** Its `team_users` check is the team
+  LIBRARY relationship; a board on a curated *dashboard* has no such row, so
+  without this a supervisor could write to a board she was 404'd on reading.
+  Editable-but-invisible is not a state to ship.
+- **`api_view_with_predictive_images` now derives `can_edit` from
+  `can_edit_for`** instead of re-deriving owner-or-admin plus the plan gate
+  inline. That inline copy is what let the editor's own read disagree with the
+  save it was about to attempt.
+- **Revocation is automatic** — the answer is derived from live membership, so
+  removing or demoting the supervisor ends it. Nothing is snapshotted on the way
+  out: `BoardSnapshotService` covers boards a departing member *shared*, and a
+  board she merely *edited* is the family's own row and stays put.
+- Memoized per `User` (`User#team_curation`, cleared by `reset_team_curation!`),
+  so serializing a whole board list costs the walk once rather than a query per
+  card, and a viewer on no team pays one cheap lookup.
+
+Known gap, not addressed here: a Support/Read-Only member still 404s on a
+dashboard board that isn't also in the team library, and there is no attribution
+recording *who* edited a board.
 
 ## `Image#label` vs `Image#display_label`
 

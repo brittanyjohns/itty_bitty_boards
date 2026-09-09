@@ -30,6 +30,12 @@ class TeamUser < ApplicationRecord
   # role and is only ever set server-side (never via invite).
   LIBRARY_ROLES = %w[admin supervisor member].freeze
 
+  # Roles a team owner may ASSIGN, via invite or
+  # `PATCH /api/teams/:id/member_role` (issue #889). `admin` is the team
+  # creator's own role and is only ever set server-side, so it is absent here
+  # on purpose — never widen this to `ROLES`.
+  ASSIGNABLE_ROLES = %w[supervisor member restricted].freeze
+
   belongs_to :user
   belongs_to :team
 
