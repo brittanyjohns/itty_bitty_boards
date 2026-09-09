@@ -96,6 +96,35 @@ RSpec.describe CareTextRepair do
         .to eq(%w[aac_device gestures])
     end
 
+    # The repair has to apply the IDENTICAL rule to the sanitizer, or a row it
+    # touches for one reason loses formatting the save path would have kept.
+    it "keeps the line breaks in a short_text value it repairs" do
+      out = repaired(
+        "transportation" => {
+          "values" => { "bus_info" => "Bus 14 &amp; a harness\nFront-right seat" },
+        },
+      )
+
+      expect(out.dig("sections", "transportation", "values", "bus_info"))
+        .to eq("Bus 14 & a harness\nFront-right seat")
+    end
+
+    it "does not rewrite a multi-line short_text value that is already clean" do
+      expect(
+        repaired(
+          "transportation" => { "values" => { "bus_info" => "Bus 14\nFront-right seat" } },
+        ),
+      ).to be_nil
+    end
+
+    it "still squishes a newline out of a one-line item it repairs" do
+      out = repaired(
+        "meals" => { "items" => [{ "label" => "Cups &amp; lids\nonly", "value" => "Green" }] },
+      )
+
+      expect(out.dig("sections", "meals", "items", 0, "label")).to eq("Cups & lids only")
+    end
+
     it "ignores a blob with no sections" do
       expect(described_class.apply("order" => %w[sensory])).to be_nil
     end

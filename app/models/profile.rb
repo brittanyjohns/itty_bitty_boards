@@ -1632,7 +1632,10 @@ class Profile < ApplicationRecord
           value = raw_value.to_s
           value if accepted.include?(value)
         when :short_text
-          care_text(raw_value, CARE_SHORT_TEXT_MAX)
+          # The one multi-line control in the editor — a parent types a list
+          # here, so the line breaks are content and must survive the save.
+          care_text(raw_value, CARE_SHORT_TEXT_MAX,
+                    multiline: CareText.multiline?(field[:type]))
         end
 
       clean_values[field[:key]] = cleaned if cleaned.present?
@@ -1739,8 +1742,8 @@ class Profile < ApplicationRecord
   # rather than escaped — there is no field here where a tag is meaningful.
   # CareText is the rule itself; it is shared with the repair task so the two
   # can't disagree about what a cleaned value looks like.
-  def care_text(value, limit)
-    CareText.clean(value, limit)
+  def care_text(value, limit, multiline: false)
+    CareText.clean(value, limit, multiline: multiline)
   end
 
   # Enabled unless the owner explicitly turned the section off. A section that

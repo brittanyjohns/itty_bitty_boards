@@ -307,7 +307,11 @@
       /* Middle overflow tier on the half size: comma-joined text instead of
          chips, roughly half the height per row. */
       .row .text { font-size: 8.5pt; font-weight: 600; line-height: 1.3; color: #332F2B; }
-      .say { font-size: 8.5pt; font-weight: 600; line-height: 1.3; color: #332F2B; }
+      /* short_text is the parent's own words and the only multi-line care
+         field, so its stored line breaks have to print as breaks — pre-line,
+         not pre: horizontal whitespace is already normalized by CareText and
+         the line still has to wrap inside the panel. */
+      .say { font-size: 8.5pt; font-weight: 600; line-height: 1.3; color: #332F2B; white-space: pre-line; }
 
       .s-comm .ico { background: var(--s-comm-t); } .s-comm .ico svg { stroke: var(--s-comm); }
       .s-comm h3 { color: var(--s-comm); } .s-comm .chip { background: var(--s-comm-t); color: var(--s-comm-chip); }
