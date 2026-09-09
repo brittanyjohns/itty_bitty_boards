@@ -1,44 +1,30 @@
 require "rails_helper"
 
 RSpec.describe BoardPolicy do
-  describe "#update?" do
-    context "a free user over their board limit" do
-      let(:user) { create(:free_user) }
-      let!(:designated) { create(:board, user: user) }
-      # Enough boards to cross EDITABLE_BOARD_FLOOR — below it nothing locks,
-      # since the floor decouples the editable set from board_limit.
-      let!(:filler) do
-        Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: user) }
-      end
-      let!(:other_board) do
-        create(:board, user: user).tap { |b| b.update_column(:updated_at, 30.days.ago) }
-      end
+  # `#edit?` and `#update?` used to live on this policy and granted edit via
+  # `user.current_team_boards.include?(record)` — no team role, no per-board
+  # grant, no ownership. Nothing calls Pundit's `authorize` on a Board (only
+  # `policy_scope`), so they were dead, but they said the opposite of what the
+  # controllers enforce and would have handed every member of every team write
+  # access to every board on it the day someone wired them up.
+  #
+  # Board write permission has one home: `Board#can_edit_for` (the published
+  # flag) and `API::BoardsController#check_board_view_edit_permissions` (the
+  # gate). Covered by spec/requests/api/boards_write_permission_spec.rb and
+  # spec/models/board_read_only_spec.rb.
+  it "never grants edit through team membership" do
+    owner = create(:user)
+    member = create(:user)
+    account = create(:child_account, user: owner, owner: owner, status: ChildAccount::ACTIVE)
+    team = account.ensure_team!(creator: owner)
+    team.upsert_member!(member, "supervisor")
 
-      it "denies editing a non-designated owned board" do
-        user.update!(editable_board_id: designated.id)
-        policy = described_class.new(User.find(user.id), other_board)
-        expect(policy.update?).to be false
-      end
+    board = create(:board, user: owner)
+    team.add_board!(board, owner.id)
 
-      it "permits editing the designated board" do
-        user.update!(editable_board_id: other_board.id)
-        policy = described_class.new(User.find(user.id), other_board)
-        expect(policy.update?).to be true
-      end
-    end
-
-    it "permits an admin to edit any board" do
-      admin = create(:admin_user)
-      board = create(:board, user: create(:user))
-      expect(described_class.new(admin, board).update?).to be true
-    end
-
-    it "permits a paid user to edit all of their boards" do
-      paid = create(:user, plan_type: "pro")
-      create(:board, user: paid)
-      board = create(:board, user: paid)
-      expect(described_class.new(paid, board).update?).to be true
-    end
+    policy = described_class.new(User.find(member.id), board)
+    expect(policy.update?).to be false
+    expect(policy.edit?).to be false
   end
 
   describe BoardPolicy::Scope do

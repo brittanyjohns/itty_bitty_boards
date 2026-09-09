@@ -3489,7 +3489,41 @@ class Board < ApplicationRecord
     return false unless user_id == viewing_user.id
     return false if viewing_user.admin?
 
+    # Asks the CALLER, deliberately, even though the caller is the owner here:
+    # `viewing_user` is a freshly-loaded record, while `self.user` may be the
+    # in-memory instance the board was built with (`create(:board, user: user)`
+    # assigns the association), whose plan attributes and memoized
+    # `countable_board_count` predate anything this request changed —
+    # `make_editable` being the obvious case. Same question as
+    # `owner_plan_allows_edit?`, asked of better data.
     !viewing_user.board_editable?(self)
+  end
+
+  # Whether this board's read-only plan lock is OFF — asked of the board's
+  # OWNER, never of whoever happens to be looking.
+  #
+  # `User#board_editable?` opens with `return true if board.user_id != id`: it
+  # measures "is this board of MINE locked", so asking it about somebody else's
+  # board answers true unconditionally. That is correct for the question it
+  # asks and wrong for this one. Every caller that can be reached by a
+  # non-owner — quick-add on a shared dashboard board today, a team editor once
+  # per-board grants land — has to measure the owner, or a locked board becomes
+  # writable through anyone whose own plan is fine.
+  #
+  # A board with no owner has no plan to measure and is not locked.
+  #
+  # Memoized per instance: `board_editable?` memoizes `countable_board_count`
+  # on the User, and `board.user` is a fresh instance per Board, so an
+  # un-memoized call would count the owner's boards once per question.
+  def owner_plan_allows_edit?
+    return @owner_plan_allows_edit if defined?(@owner_plan_allows_edit)
+
+    # Loaded from the database rather than through the `user` association: an
+    # association can hold the instance the board was BUILT with, whose plan
+    # attributes are whatever they were at build time. This is a security gate
+    # and it must read current plan state.
+    owner = user_id && User.find_by(id: user_id)
+    @owner_plan_allows_edit = owner.blank? || owner.board_editable?(self)
   end
 
   # The lock_reason string the frontend reads to render its read-only banner.

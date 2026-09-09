@@ -71,7 +71,7 @@ class TeamsController < ApplicationController
   def add_board
     # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
-    @team.add_board!(@board)
+    @team.add_board!(@board, current_user&.id)
     redirect_to team_url(@team), notice: "Board added to team"
   end
 

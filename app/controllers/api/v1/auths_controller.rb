@@ -410,14 +410,18 @@ module API
         end
         user = User.accept_invitation!(invitation_token: params[:invitation_token], password: params[:password], password_confirmation: params[:password_confirmation])
         name = params[:name] unless params[:name].blank?
-        role = params[:role] unless params[:role].blank?
         if user && user.errors.empty?
           user.update(name: name) unless name.blank?
-          team_user = TeamUser.find_by(user_id: user.id)
-          if team_user
-            team_user.update(role: role) unless role.blank?
-          end
         end
+        # `params[:role]` is deliberately ignored. This request is made by the
+        # INVITEE while setting their own password, and the role write here
+        # took that param straight to `TeamUser#update` — whose only guard is
+        # `inclusion: { in: ROLES }`, a set that contains "admin". It also
+        # picked an arbitrary first membership with a bare `find_by(user_id:)`.
+        #
+        # The role is the INVITER's decision and was already recorded by
+        # `API::TeamsController#invite`, which validates against
+        # `INVITABLE_ROLES` — a set that excludes "admin" on purpose.
         if user
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)

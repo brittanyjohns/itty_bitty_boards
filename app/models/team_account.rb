@@ -20,12 +20,4 @@ class TeamAccount < ApplicationRecord
   def destroy_team
     team.destroy
   end
-
-  def show_api_view
-    {
-      id: id,
-      team: team.show_api_view,
-      account: account.map { |a| { id: a.id, username: a.username, parent_id: a.parent_id } },
-    }
-  end
 end

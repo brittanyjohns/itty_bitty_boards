@@ -302,16 +302,12 @@ Rails.application.routes.draw do
     post "public_word_click", to: "audits#public_word_click"
     resources :beta_requests
     resources :teams do
-      collection do
-        post "set_current"
-      end
       member do
         post "invite"
         delete "remove_member"
         delete "leave"
         get "accept_invite"
         patch "accept_invite_patch"
-        post "add_board"
         delete "remove_board"
         post "create_board"
         get "remaining_boards"
@@ -324,7 +320,8 @@ Rails.application.routes.draw do
         post "unread", to: "messages#mark_as_unread"
       end
     end
-    resources :team_accounts
+    # index/show removed: both called serializers that raised on every call.
+    resources :team_accounts, only: %i[create update destroy]
     resources :images do
       member do
         get "public_audio"
@@ -416,10 +413,8 @@ Rails.application.routes.draw do
         post "clone"
         get "clone_plan"
         post "create_board_group"
-        put "add_to_team"
         put "add_to_groups"
         post "assign_accounts"
-        put "remove_from_team"
         get "predictive_image_board"
         get "additional_words"
         get "get_description"
