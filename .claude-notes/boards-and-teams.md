@@ -443,10 +443,12 @@ the home copy, the divergence the team feature exists to prevent.
   `ChildAccount#viewable_by?` ("a Support member watching how the week went does
   not get to change the boards"). The softer path for them is issue #494.
 - **A supervisor is a permission grant, never a plan-lock bypass.** `can_edit_for`
-  ends in `owner_can_edit_own_board?`, so a board that reads read-only to the
-  parent reads read-only to the SLP standing beside them.
-  `check_board_editable!` mirrors it and answers a **generic** `board_locked`
-  that never echoes the owner's plan or limits.
+  ends in `Board#owner_plan_allows_edit?`, so a board that reads read-only to
+  the parent reads read-only to the SLP standing beside them. That is the same
+  single definition `BoardPlanLock` refuses on — since #892 the plan gate
+  measures the board's OWNER for *every* caller, so a curator needs no special
+  case there, and a non-owner's refusal is `board_locked_owner_plan`, carrying
+  neither the owner's plan tier nor another of their board ids.
 - **`destroy` is deliberately absent from `TEAM_CURATION_ACTIONS`.** A supervisor
   may change what a family's board says, never make it stop existing. Same list
   drives `check_board_view_edit_permissions` and `check_board_editable!`, so the

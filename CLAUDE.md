@@ -1187,9 +1187,11 @@ an explicit decision, not a drive-by edit.
   unvalidated and board ids are sequential, so a curated board's folder tile can
   point at a stranger's). Four rails. `member`/`restricted` stay excluded — see
   #494 for the softer path. A supervisor is a permission grant and never a
-  PLAN-LOCK bypass, so `can_edit_for` ends in `owner_can_edit_own_board?` and
-  `check_board_editable!` answers a generic `board_locked` that never echoes the
-  owner's plan. `destroy` is deliberately absent from `TEAM_CURATION_ACTIONS` —
+  PLAN-LOCK bypass, so `can_edit_for` ends in `Board#owner_plan_allows_edit?`
+  — the same single definition `BoardPlanLock` refuses on, which since #892
+  measures the OWNER for every caller and hands a non-owner
+  `board_locked_owner_plan` rather than the owner's plan tier. `destroy` is
+  deliberately absent from `TEAM_CURATION_ACTIONS` —
   she may change what a family's board says, never make it stop existing — and
   that one list drives BOTH the authorization gate and the plan gate, so they
   cannot be scoped differently. And `Board#viewable_by?` had to widen alongside

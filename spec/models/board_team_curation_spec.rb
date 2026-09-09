@@ -95,10 +95,10 @@ RSpec.describe "Board team curation", type: :model do
     end
 
     context "when the board is read-only under its OWNER's plan" do
-      before do
-        allow(root_board).to receive(:user).and_return(parent)
-        allow(parent).to receive(:board_editable?).with(root_board).and_return(false)
-      end
+      # `owner_plan_allows_edit?` (#892) is the single definition of the lock
+      # and loads the owner fresh from the database, so stub the predicate
+      # rather than the owner's plan attributes.
+      before { allow(root_board).to receive(:owner_plan_allows_edit?).and_return(false) }
 
       it "is not a lock bypass for the supervisor" do
         expect(root_board.can_edit_for(slp)).to be false
