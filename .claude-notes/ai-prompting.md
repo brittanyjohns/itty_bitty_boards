@@ -212,6 +212,34 @@ nothing downstream re-points, and a spec asserts they still match.
 - **Never restate the part-of-speech list in prose.** Interpolate
   `ColorHelper::PARTS_OF_SPEECH`; see the invariant in `CLAUDE.md`.
 
+## Instruction and content never share a message
+
+`OpenAiClient#translate_text` built one blob — `"Translate the following text
+from en to es:\n do\n      Respond with the JSON object..."` — and sent it as a
+single `user` message. A tile label is overwhelmingly ONE core word, so the
+model read the whole block as the thing to translate and answered with the
+translated *instruction*; `Image#translate_to` wrote that to
+`language_settings`, and `BoardImage#set_labels` takes a non-English entry there
+VERBATIM as authored text, so it rendered as the tile's own label on a public
+board (#885). Two rails, and the second is the one that contains the blast
+radius:
+
+- **The instruction is a `system` message; the content is a `user` message,
+  delimited** (`<text>#{text}</text>`) and nowhere else. Short content is the
+  dangerous case, not the safe one — the shorter the text, the more the
+  instruction looks like the payload.
+- **Validate the output before returning it.** `OpenAiClient.valid_translation?`
+  rejects a value echoing the response-format instruction, one that is multi-line
+  when its source was not, or one wildly disproportionate to the source
+  (`TRANSLATION_LENGTH_MULTIPLIER`, floored at `TRANSLATION_LENGTH_FLOOR` so
+  "do" -> "hacer" survives). A rejection returns **nil**, and `translate_to`
+  leaves the key unwritten rather than storing a failure as data — an absence
+  can be retried, a stored blank cannot be told from a translation.
+
+Generalizes past translation: any prompt interpolating user text into an
+instruction has the same shape, and any answer written straight to a
+user-visible field needs the second half as well as the first.
+
 ## Sentinels
 
 `get_next_words` used to answer with the literal string `NO NEXT WORDS` when a

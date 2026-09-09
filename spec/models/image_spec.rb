@@ -450,4 +450,34 @@ RSpec.describe Image, type: :model do
       image.update_all_boards_image_belongs_to(new_url, false, owner.id)
     end
   end
+
+  # Regression coverage for #885: a rejected translation comes back nil and must
+  # not be recorded as a stored translation.
+  describe "#translate_to" do
+    let(:image) { FactoryBot.create(:image, label: "do") }
+
+    before do
+      allow_any_instance_of(OpenAiClient).to receive(:translate_text).and_return(translation)
+    end
+
+    context "when the translation was rejected" do
+      let(:translation) { nil }
+
+      it "returns nil and leaves language_settings untouched" do
+        expect(image.translate_to("es")).to be_nil
+        expect(image.language_settings.to_h).not_to have_key("es")
+      end
+    end
+
+    context "when the translation is valid" do
+      let(:translation) { "hacer" }
+
+      it "stores it as the label and display label for that language" do
+        expect(image.translate_to("es")).to eq("hacer")
+        # jsonb round-trips to string keys, which is how every reader indexes it.
+        expect(image.language_settings["es"].to_h.stringify_keys)
+          .to include("label" => "hacer", "display_label" => "hacer")
+      end
+    end
+  end
 end
