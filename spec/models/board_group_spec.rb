@@ -155,4 +155,50 @@ RSpec.describe BoardGroup, type: :model do
       expect(manual.api_view[:builder]).to be(false)
     end
   end
+
+  # A shared board-set link resolves through find_by(slug:), so a duplicate slug
+  # sends a campaign link to the wrong set. The old collision check read a
+  # not-yet-assigned local, so it never fired.
+  describe "#set_slug" do
+    let(:slug_user) { FactoryBot.create(:user) }
+
+    it "slugifies the name" do
+      group = BoardGroup.create!(name: "Morning Routine", user: slug_user, layout: {})
+
+      expect(group.reload.slug).to eq("morning-routine")
+    end
+
+    it "gives two sets with the same name distinct slugs" do
+      first  = BoardGroup.create!(name: "Morning Routine", user: slug_user, layout: {})
+      second = BoardGroup.create!(name: "Morning Routine", user: slug_user, layout: {})
+
+      expect(second.reload.slug).not_to eq(first.reload.slug)
+      expect(second.slug).to start_with("morning-routine-")
+    end
+
+    it "resolves each duplicate-named set's slug back to its own record" do
+      first  = BoardGroup.create!(name: "Morning Routine", user: slug_user, layout: {})
+      second = BoardGroup.create!(name: "Morning Routine", user: slug_user, layout: {})
+
+      expect(BoardGroup.find_by(slug: first.reload.slug)).to eq(first)
+      expect(BoardGroup.find_by(slug: second.reload.slug)).to eq(second)
+    end
+
+    it "falls back to a random slug when the name parameterizes to blank" do
+      group = BoardGroup.create!(name: "!!!", user: slug_user, layout: {})
+
+      expect(group.reload.slug).to be_present
+      expect(group.slug).to start_with("board-set-")
+    end
+
+    it "leaves an existing slug alone" do
+      group = BoardGroup.create!(name: "Morning Routine", user: slug_user, layout: {})
+      original = group.reload.slug
+
+      group.update!(name: "Renamed Later")
+
+      expect(group.reload.slug).to eq(original)
+    end
+  end
+
 end

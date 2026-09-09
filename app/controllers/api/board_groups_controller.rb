@@ -1,11 +1,11 @@
 class API::BoardGroupsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ preset index show show_by_slug ]
+  skip_before_action :authenticate_token!, only: %i[ preset index show show_by_slug graph ]
 
   def index
     @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
-    @board_groups = current_user&.board_groups.where(predefined: [false, nil]) if current_user
+    @board_groups = current_user ? current_user.board_groups.where(predefined: [false, nil]) : BoardGroup.none
     @predefined = BoardGroup.predefined
-    @all = @board_groups + @predefined
+    @all = @board_groups.to_a + @predefined.to_a
     render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view), featured: @featured_board_groups.map(&:api_view), all: @all.map(&:api_view) }
   end
 
@@ -17,8 +17,7 @@ class API::BoardGroupsController < API::ApplicationController
     end
     @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
     @user_board_groups = current_user.board_groups.where(predefined: [false, nil]).alphabetical.page params[:page] if current_user
-    @welcome_board = @welcome_group&.boards&.first
-    render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups&.map(&:api_view), welcome_board: @welcome_board&.api_view, user_board_groups: @user_board_groups&.map(&:api_view) }
+    render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups&.map(&:api_view), user_board_groups: @user_board_groups&.map(&:api_view) }
   end
 
   def show
@@ -285,7 +284,23 @@ class API::BoardGroupsController < API::ApplicationController
   # when disallowed.
   def authorize_board_group_read!(board_group)
     return true if current_user&.admin?
+    # Curated sets are already public: `show` serves them unauthenticated, and
+    # `predefined` is an admin-only curation flag (stripped from board_group_params
+    # for everyone else). The map exposes no structure the set view doesn't, so
+    # professionals can audit a curated set without an account. Private user sets
+    # stay owner-only.
+    return true if board_group.predefined?
     return true if board_group.user_id == current_user&.id
+
+    # 401, not 403, when there is no credential at all: this action skips
+    # authenticate_token! so anonymous callers can reach a curated set, which
+    # means an owner opening their own map link signed out lands here too.
+    # Answering 403 would tell them signing in cannot help -- and the frontend
+    # keys its sign-in redirect off 401 specifically.
+    unless current_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return false
+    end
 
     render json: { error: "You don't have permission to view this board set." }, status: :forbidden
     false

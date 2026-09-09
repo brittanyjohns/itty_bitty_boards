@@ -247,4 +247,84 @@ RSpec.describe "API::BoardGroups", type: :request do
       end
     end
   end
+
+  # The map is the professional-facing demo surface. It used to be owner-or-admin
+  # only, which meant a curated set -- the one an SLP actually lands on -- had no
+  # reachable map at all. Curated sets are already public via `show`, so the graph
+  # follows; private sets stay owner-only.
+  describe "GET /api/board_groups/:id/graph" do
+    it "serves a predefined set's graph to an anonymous caller" do
+      get "/api/board_groups/#{predefined_group.id}/graph"
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to include("id" => predefined_group.id)
+    end
+
+    it "serves a predefined set's graph to a signed-in non-owner" do
+      get "/api/board_groups/#{predefined_group.id}/graph", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "still refuses another user's private set (403)" do
+      get "/api/board_groups/#{other_group.id}/graph", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    # 401 rather than 403: the action skips token auth so curated sets are
+    # reachable, so an owner opening their own map link while signed out lands
+    # here — and 403 would tell them signing in cannot help.
+    it "asks an anonymous caller on a private set to sign in (401)" do
+      get "/api/board_groups/#{other_group.id}/graph"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "serves the owner their own private set" do
+      get "/api/board_groups/#{own_group.id}/graph", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "404s an unknown set" do
+      get "/api/board_groups/0/graph"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  # /board-sets is a public marketing destination, so its read endpoints must
+  # survive an anonymous request. `index` used to raise NoMethodError (nil + Relation).
+  describe "public read endpoints" do
+    it "serves index to an anonymous caller with an empty user list" do
+      predefined_group
+
+      get "/api/board_groups"
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["user"]).to eq([])
+      expect(body["predefined"].map { |g| g["id"] }).to include(predefined_group.id)
+    end
+
+    it "serves index to a signed-in user with their own non-predefined sets" do
+      own_group
+
+      get "/api/board_groups", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["user"].map { |g| g["id"] }).to include(own_group.id)
+    end
+
+    it "serves preset to an anonymous caller" do
+      predefined_group
+
+      get "/api/board_groups/preset"
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to have_key("predefined_board_groups")
+    end
+  end
+
 end
