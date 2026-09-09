@@ -304,6 +304,7 @@ Rails.application.routes.draw do
     resources :teams do
       member do
         post "invite"
+        patch "member_role"
         delete "remove_member"
         delete "leave"
         get "accept_invite"
