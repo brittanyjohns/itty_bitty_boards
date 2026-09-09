@@ -272,10 +272,13 @@ RSpec.describe "API::BoardGroups", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "still refuses an anonymous caller on a private set (403)" do
+    # 401 rather than 403: the action skips token auth so curated sets are
+    # reachable, so an owner opening their own map link while signed out lands
+    # here — and 403 would tell them signing in cannot help.
+    it "asks an anonymous caller on a private set to sign in (401)" do
       get "/api/board_groups/#{other_group.id}/graph"
 
-      expect(response).to have_http_status(:forbidden)
+      expect(response).to have_http_status(:unauthorized)
     end
 
     it "serves the owner their own private set" do

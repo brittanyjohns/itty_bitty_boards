@@ -292,6 +292,16 @@ class API::BoardGroupsController < API::ApplicationController
     return true if board_group.predefined?
     return true if board_group.user_id == current_user&.id
 
+    # 401, not 403, when there is no credential at all: this action skips
+    # authenticate_token! so anonymous callers can reach a curated set, which
+    # means an owner opening their own map link signed out lands here too.
+    # Answering 403 would tell them signing in cannot help -- and the frontend
+    # keys its sign-in redirect off 401 specifically.
+    unless current_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return false
+    end
+
     render json: { error: "You don't have permission to view this board set." }, status: :forbidden
     false
   end

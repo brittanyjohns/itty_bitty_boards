@@ -13,7 +13,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   a 403 for every visitor, and anonymous callers were turned away at token auth
   before the check even ran. Curated sets are already served publicly by `show`
   and `predefined` is an admin-only curation flag, so their graph exposes nothing
-  the set view doesn't. Private user sets are still owner-only.
+  the set view doesn't. Private user sets are still owner-only — and because
+  the action now skips token auth, an anonymous caller on one gets 401 rather
+  than 403, so an owner opening their own map link while signed out is asked to
+  sign in instead of told it would not help.
 
 - **Two board sets with the same name no longer collide on one slug.** The
   duplicate check in `BoardGroup#set_slug` compared against a local variable Ruby
