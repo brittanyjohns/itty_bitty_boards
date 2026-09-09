@@ -100,6 +100,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Speak mode no longer serves a private board to anyone who guesses its id.**
+  `GET /api/boards/:id/predictive_image_board` is unauthenticated (Speak mode
+  opens genuinely public boards) and resolved its board with no ownership or
+  `published` scoping, so an anonymous caller could walk sequential ids and read
+  any board's full tile payload — labels, symbols, and a board name that
+  routinely carries a child's first name. It now applies the same
+  `Board#viewable_by?` guard `show` and `pdf` carry, answering the same generic
+  `404 {"error": "Board not found"}`. The `predictive_default` fallback for an
+  id that matches no board is unchanged (#852).
 - **Printed safety documents no longer answer an unfilled medical field with
   "None listed".** The Safety ID card printed a large bold *None listed* under
   each of Allergies, Medical Conditions, Medications and Other Conditions when
