@@ -627,11 +627,19 @@ class Profile < ApplicationRecord
   # records the access and (throttled) alerts the parent (issue #384). Keeping
   # them off the open page puts the data behind the notification wall, not just
   # behind the UI modal.
-  SAFETY_SENSITIVE_KEYS = %w[
+  # The medical subset, named because more than one writer needs exactly these
+  # four and no more: the profile form, the MySpeak onboarding wizard, and the
+  # printed documents' omit-a-blank-field rule. `other_conditions_notes` and the
+  # contacts are sensitive too, but they are not fields a blank value makes a
+  # medical claim about.
+  MEDICAL_SETTING_KEYS = %w[
     allergies
     medical_conditions
     medications
     other_conditions
+  ].freeze
+
+  SAFETY_SENSITIVE_KEYS = (MEDICAL_SETTING_KEYS + %w[
     other_conditions_notes
     emergency_notes
     emergency_contacts
@@ -640,7 +648,7 @@ class Profile < ApplicationRecord
     ice_contact_3
     ice_contact_4
     ice_contact_5
-  ].freeze
+  ]).freeze
 
   # Kept for any external reference; the full set of keys the safety page can
   # surface across the open page + the gated reveal.

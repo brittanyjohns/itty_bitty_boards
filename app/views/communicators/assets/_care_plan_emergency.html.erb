@@ -1,7 +1,12 @@
 <%# The emergency block: a white card with a red left rail (the gradient-fill
     red box is gone). Shared by the sheet and half sizes. Reads @emergency_fields
-    / @blank_emergency_field_names / @emergency_contacts directly, same as the
-    glance partial. %>
+    / @blank_emergency_fields_note / @emergency_contacts directly, same as the
+    glance partial.
+
+    The muted "not provided" line arrives pre-joined from
+    CarePlanDocument#blank_emergency_fields_note — the Safety ID card prints the
+    same sentence, so the wording lives in one place rather than in each
+    template. %>
 <section class="emergency">
   <div class="sec-head">
     <h2><%= t("care.document.emergency.heading") %></h2><span class="line"></span>
@@ -17,17 +22,8 @@
       </div>
     <% end %>
 
-    <% if @blank_emergency_field_names.any? %>
-      <div class="not-provided">
-        <%= t(
-              "care.document.emergency.not_provided",
-              fields: @blank_emergency_field_names.to_sentence(
-                words_connector: t("care.document.emergency.blank_names_connectors.words_connector"),
-                two_words_connector: t("care.document.emergency.blank_names_connectors.two_words_connector"),
-                last_word_connector: t("care.document.emergency.blank_names_connectors.last_word_connector"),
-              ),
-            ) %>
-      </div>
+    <% if @blank_emergency_fields_note.present? %>
+      <div class="not-provided"><%= @blank_emergency_fields_note %></div>
     <% end %>
   </div>
 

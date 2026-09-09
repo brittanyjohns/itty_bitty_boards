@@ -42,7 +42,8 @@ module Communicators
     # Bump when the TEMPLATE or LAYOUT changes in a way that should reach
     # documents already generated. safety_info_signature only moves when the
     # PROFILE changes, so without this a redesign leaves every cached PDF stale
-    # forever — a gap the existing card generators still have.
+    # forever. GenerateSafetyIdCard has its own LAYOUT_VERSION for the same
+    # reason; GenerateDeviceTag and GenerateScanTag still carry the gap.
     # 2: condensed layout — merged header band, two-column emergency grid,
     #    omitted blank emergency fields, two-column care sections.
     # 3: the band's "SpeakAnyWay" eyebrow is gone — the communicator's name is
@@ -56,7 +57,11 @@ module Communicators
     #    fold size shrinks-and-clips a face any more.
     # 6: the line under the name is the caller's `subheader`, not a sentence
     #    derived from the communication section.
-    LAYOUT_VERSION = 6
+    # 7: the glance strip's allergy cell says "Not filled in" instead of "None
+    #    listed", so it agrees with the emergency grid on its own page about a
+    #    field nobody answered (#890). A cached sheet would otherwise keep
+    #    printing the old claim in its one red cell.
+    LAYOUT_VERSION = 7
 
     SIZES = %w[sheet half wallet].freeze
 
@@ -348,7 +353,7 @@ module Communicators
         qr_data_url: qr_data_url_for(public_url),
         emergency: emergency,
         emergency_fields: emergency ? document.emergency_fields : [],
-        blank_emergency_field_names: emergency ? document.blank_emergency_field_names : [],
+        blank_emergency_fields_note: emergency ? document.blank_emergency_fields_note : nil,
         emergency_contacts: emergency ? document.emergency_contacts : [],
         care_sections: document.care_sections,
         # The line under the name. Shown on both variants — it is not emergency

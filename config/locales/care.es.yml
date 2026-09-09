@@ -166,6 +166,7 @@ es:
         allergies: Alergias
         how_i_talk: Cómo me comunico
         none_listed: No indicado
+        not_provided: Sin completar
         plus_one: más %{value}
         plus_many: más %{count}
       subheader:

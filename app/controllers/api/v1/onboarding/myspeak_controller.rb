@@ -99,6 +99,14 @@ module API
           board_id       = params[:board_id]
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
+          # The four Profile::SAFETY_SENSITIVE_KEYS medical fields. Same
+          # privacy class as emergency_notes — withheld from page-open, revealed
+          # only by the gated safety_view POST — and the same columns the
+          # profile form writes, so the wizard invents no second vocabulary for
+          # them. Each is written only when present, so a client that sends none
+          # behaves exactly as it did before.
+          medical        = Profile::MEDICAL_SETTING_KEYS.index_with { |key| params[key].to_s.strip }
+          care           = care_param
 
           profile = nil
           child = nil
@@ -128,6 +136,8 @@ module API
                   pronouns: pronouns,
                   contacts: contacts,
                   emergency_notes: resolved_emergency_notes,
+                  medical: medical,
+                  care: care,
                 ),
               ),
             )
@@ -310,12 +320,24 @@ module API
           [child, Profile.new(profileable: child, username: unique)]
         end
 
-        def build_settings(pronouns:, contacts:, emergency_notes: nil)
+        def build_settings(pronouns:, contacts:, emergency_notes: nil, medical: {}, care: nil)
           settings = {}
           settings["pronouns"] = pronouns if pronouns.present?
           # Sensitive: withheld from page-open, revealed only by the gated
           # safety_view POST (Profile::SAFETY_SENSITIVE_KEYS).
           settings["emergency_notes"] = emergency_notes if emergency_notes.present?
+
+          medical.each do |key, value|
+            settings[key] = value if value.present?
+          end
+
+          # Written raw on purpose: Profile#sanitize_care_settings is a
+          # before_save over the whole blob, so the shape check, the section
+          # allowlist, the custom-section cap and the option scrub all happen on
+          # the save below — exactly as they do for the profile form. Anything
+          # written AROUND that sanitizer is dropped by the profile's next save
+          # for any reason, so the wizard must not clean this up itself.
+          settings["care"] = care if care.present?
 
           slot = 1
           contacts.each do |c|
@@ -335,6 +357,21 @@ module API
           end
 
           settings
+        end
+
+        # A care blob straight off the wire, as a plain deep hash. No
+        # validation here for the reason build_settings gives — the model's
+        # before_save is the only sanitizer, and a second one that disagreed
+        # with it would be worse than none. Anything that isn't a hash is
+        # dropped rather than handed on, since sanitize_care_settings would
+        # delete the key anyway.
+        def care_param
+          raw = params[:care]
+          return nil unless raw.respond_to?(:to_unsafe_h) || raw.is_a?(Hash)
+
+          hash = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
+          hash = hash.deep_stringify_keys
+          hash.presence
         end
 
         def attach_photo(profile, data_url, slug)

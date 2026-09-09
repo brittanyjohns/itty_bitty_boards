@@ -20,11 +20,30 @@ Frontend lives in `itty-bitty-frontend` at
 | `emergency_notes`   | `Profile#settings["emergency_notes"]` — PRIVATE, behind the gated safety reveal           |
 | `care_notes`        | Legacy clients only. Framed as safety info, so it routes to the PRIVATE `emergency_notes`, never the public bio |
 | `contacts[]`        | `Profile#settings["ice_contact_1..5"]` jsonb, **blank entries filtered out**              |
+| `allergies`, `medical_conditions`, `medications`, `other_conditions` | `Profile#settings[key]` — the `Profile::MEDICAL_SETTING_KEYS` four, PRIVATE like `emergency_notes`. Written only when present |
+| `care`              | `Profile#settings["care"]` verbatim; `Profile#sanitize_care_settings` (a `before_save`) is the only sanitizer |
 | `communicator_id`   | Optional. Names which communicator to adopt when several are adoptable (see Adoption)     |
 
 `pronouns` was added to `Profile::SAFETY_PUBLIC_KEYS` so it actually
 shows on the public `/my/<slug>` safety view — without that it would
 have been stored but invisible.
+
+**The medical fields and `care` are the same columns the profile form writes**
+(#891). They are additive in both directions — a client that sends none behaves
+byte-identically to before — but they were the whole gap: the wizard is what the
+"FASTEST WAY" card steers a parent down, so completing it end to end used to
+guarantee four empty medical fields and no care sections. That is why
+`has_care_info?` was always false (the "Care & routines" card the shipped
+`start-with-myspeak` help doc describes could never appear), and why the printed
+documents' blank-field rule is the DEFAULT case rather than an edge case
+(brittanyjohns/itty_bitty_boards#890).
+
+`care` is written **raw**. `sanitize_care_settings` is a `before_save` over the
+whole blob, so the shape check, the section allowlist, the custom-section cap and
+the option scrub all run on the wizard's own `profile.save!` — exactly as they do
+for the profile form. A second sanitizer here that disagreed with it would be
+worse than none, and anything written *around* it is dropped by the profile's
+next save for any reason.
 
 ## Endpoint contract
 

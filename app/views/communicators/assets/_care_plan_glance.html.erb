@@ -7,6 +7,14 @@
     the allergies field on purpose. Printing it twice was the first mockup's
     bug.
 
+    An unanswered allergy prints "Not filled in", never "None listed". The
+    emergency grid below OMITS a blank field and names it in one muted line
+    (CarePlanDocument::OMIT_BLANK_EMERGENCY_FIELDS), so the old fallback made
+    one sheet say both things about the same field — and in the sheet's only
+    red cell, "None listed" reads as a completed negative finding rather than
+    an unanswered box. `how_i_talk` below keeps `none_listed` on purpose:
+    "nobody said how this person communicates" is not a medical assertion.
+
     TWO cells, not three: a "Call first" cell used to sit alongside these, and
     it repeated the first contact's phone number a few millimetres above the
     contact cards in the emergency block directly below it. Both sizes that
@@ -17,7 +25,11 @@
 <section class="glance">
   <div class="cell danger">
     <div class="k"><%= t("care.document.glance.allergies") %></div>
-    <div class="v"><%= @allergies || t("care.document.glance.none_listed") %></div>
+    <% if @allergies.present? %>
+      <div class="v"><%= @allergies %></div>
+    <% else %>
+      <div class="v muted"><%= t("care.document.glance.not_provided") %></div>
+    <% end %>
   </div>
   <div class="cell">
     <div class="k"><%= t("care.document.glance.how_i_talk") %></div>

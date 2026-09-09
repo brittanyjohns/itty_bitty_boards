@@ -154,6 +154,103 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
+    # #891: the wizard is the path the "FASTEST WAY" card steers a parent down,
+    # and it collected none of these — so every communicator created through it
+    # had four empty medical fields and no care sections, which is the DEFAULT
+    # state of the printed documents and the public page, not an edge case.
+    context "medical and care fields" do
+      let(:medical) do
+        {
+          allergies: "Peanuts — EpiPen in backpack front pocket",
+          medical_conditions: "Asthma",
+          medications: "Melatonin at bedtime",
+          other_conditions: "Wears glasses",
+        }
+      end
+
+      it "persists the four medical fields behind the gated reveal" do
+        post "/api/v1/onboarding/myspeak", params: base_payload.merge(medical).to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        settings = user.communicator_accounts.last.profile.settings
+
+        expect(settings["allergies"]).to include("EpiPen")
+        expect(settings["medical_conditions"]).to eq("Asthma")
+        expect(settings["medications"]).to eq("Melatonin at bedtime")
+        expect(settings["other_conditions"]).to eq("Wears glasses")
+      end
+
+      # Same privacy class as emergency_notes — never on page-open, only through
+      # the gated safety_view POST.
+      it "keeps them off the open page" do
+        post "/api/v1/onboarding/myspeak", params: base_payload.merge(medical).to_json, headers: headers
+
+        profile = user.communicator_accounts.last.profile
+
+        expect(profile.public_settings(kind: :safety)).not_to include("allergies")
+        expect(profile.safety_sensitive_settings["allergies"]).to include("EpiPen")
+      end
+
+      # An older frontend sends none of these and must behave exactly as before.
+      it "writes no medical key at all when none are sent" do
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        settings = user.communicator_accounts.last.profile.settings
+
+        Profile::MEDICAL_SETTING_KEYS.each { |key| expect(settings).not_to have_key(key) }
+      end
+
+      it "writes no medical key for a blank value" do
+        payload = base_payload.merge(allergies: "  ", medications: "Melatonin")
+        post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+
+        settings = user.communicator_accounts.last.profile.settings
+
+        expect(settings).not_to have_key("allergies")
+        expect(settings["medications"]).to eq("Melatonin")
+      end
+
+      # The acceptance criterion: care has to go through the model's
+      # before_save sanitizer, or the next unrelated save of the profile drops
+      # it. Saving again for an unrelated reason is the actual test.
+      it "sanitizes care and survives a later unrelated save" do
+        care = {
+          order: %w[communication meals],
+          sections: {
+            communication: { enabled: true, values: { methods: %w[aac_device eye_gaze] } },
+            meals: { values: { textures: ["thickened_liquids"] } },
+          },
+        }
+        post "/api/v1/onboarding/myspeak", params: base_payload.merge(care: care).to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        expect(profile.has_care_info?).to be(true)
+
+        profile.update!(bio: "unrelated edit")
+
+        stored = profile.reload.settings["care"]
+        expect(stored["sections"]["communication"]["values"]["methods"]).to eq(%w[aac_device eye_gaze])
+        expect(stored["order"]).to eq(%w[communication meals])
+      end
+
+      it "drops a care blob the sanitizer recognizes nothing in" do
+        payload = base_payload.merge(care: { sections: { "not-a-section" => { values: {} } } })
+        post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        expect(profile.settings).not_to have_key("care")
+        expect(profile.has_care_info?).to be(false)
+      end
+
+      it "writes no care key when none is sent" do
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        expect(user.communicator_accounts.last.profile.settings).not_to have_key("care")
+      end
+    end
+
     context "paid user" do
       let(:user) do
         u = FactoryBot.create(:user)
