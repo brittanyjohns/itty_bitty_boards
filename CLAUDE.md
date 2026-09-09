@@ -166,7 +166,9 @@ one-off handoff/scratch files stay untracked and local.
 - `bin/rails db:migrate` — run database migrations
 - `bin/rails db:seed` — seed the database
 - `bundle exec sidekiq` — start Sidekiq worker
-- `bundle exec rspec` — run tests
+- `bundle exec rspec <paths>` — run tests. Always pass paths; the bare
+  `bundle exec rspec` is the ~7,500-example full suite (see **Testing →
+  Scope your test runs**)
 - `bin/rails 'mail:test[you@example.com]'` — diagnose mail delivery: prints
   the resolved ActionMailer config and sends a test email, surfacing the real
   SMTP error
@@ -1913,6 +1915,35 @@ permissions matrix lives in
 - Do not hardcode any environment-specific values (use ENV variables)
 
 ## Testing
+
+### Scope your test runs
+
+**Do not run the full RSpec suite by default.** It is ~7,500 examples and has
+repeatedly stalled sessions on long polling for no added signal. Run only the
+spec files and directories covering the code you changed:
+
+```bash
+bundle exec rspec spec/models/board_spec.rb spec/requests/api/boards_spec.rb
+bin/rspec --only-failures        # rerun just what failed
+```
+
+Run the full suite only when Brittany explicitly asks for it (e.g. "full
+suite"). CI runs it on every PR regardless, so a targeted local run plus green
+CI is the normal path to done.
+
+Two exceptions worth the extra breadth, both narrow greps rather than full runs:
+
+- **Renaming or removing anything shared** (a factory, a shared example, a
+  support helper, a constant): `rg -l '<name>' spec/` and run what it returns.
+- **Security or permission changes**: grep the whole spec dir for related status
+  assertions before declaring the fix complete — `rg '401|403|forbidden|unauthorized' spec/`.
+  A CI failure has already been caused by an assertion in
+  `spec/requests/api/mass_assignment_spec.rb` that an initial narrow grep missed.
+
+Every bug fix gets a regression test **verified to fail against the pre-fix
+code** before the fix is applied. Stash or revert the fix, watch the new test
+go red, restore, watch it go green. A test that passes both ways is not a
+regression test.
 
 - Prefer FactoryBot.build over create where possible
 - Add focused tests for changed behavior
