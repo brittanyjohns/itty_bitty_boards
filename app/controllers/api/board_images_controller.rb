@@ -1,4 +1,5 @@
 class API::BoardImagesController < API::ApplicationController
+  include BoardPlanLock
   include BoardCreationLimit
 
   respond_to :json
@@ -676,20 +677,20 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
-  # Block edits to a board image when its board is read-only for this user
-  # (a downgraded user over their board limit). Playing audio and viewing are
+  # Block edits to a board image when its board is read-only (its OWNER is a
+  # downgraded user over their board limit). Playing audio and viewing are
   # never gated — only content mutations. HTTP 403, not 402 (credits).
+  #
+  # Shares BoardPlanLock with API::BoardsController: this was the second
+  # hand-rolled copy of the same payload, and it measured `current_user` rather
+  # than the board's owner. It also read `current_user.board_limit` after a
+  # `current_user&.` guard had already admitted nil, so a caller with no
+  # resolvable user hit NoMethodError instead of a 401.
   def check_board_image_editable!
     board = board_for_editable_check
     return if board.nil?
-    return if current_user&.board_editable?(board)
 
-    render json: {
-      error: "board_locked",
-      message: "This board is read-only on your current plan. Upgrade, or make it your editable board, to make changes.",
-      board_limit: current_user.board_limit,
-      editable_board_id: current_user.effective_editable_board_id,
-    }, status: :forbidden
+    refuse_when_board_locked!(board, current_user)
   end
 
   def board_for_editable_check

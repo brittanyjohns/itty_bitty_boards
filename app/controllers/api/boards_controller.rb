@@ -1,4 +1,5 @@
 class API::BoardsController < API::ApplicationController
+  include BoardPlanLock
   include BoardCreationLimit
 
   # The bulk image-edit instruction. Longer than PromptBuilder's modifiers cap
@@ -2217,30 +2218,22 @@ class API::BoardsController < API::ApplicationController
   # Boards over a downgraded user's plan limit are read-only: still fully
   # usable (view/tap/audio) but not editable. Blocks content-mutating actions
   # on a locked board with HTTP 403 (402 is reserved for credit exhaustion).
+  #
+  # The plan measured is the BOARD OWNER's, not the caller's — see BoardPlanLock.
+  # This gate is reachable by a non-owner (#add_image on a communicator token,
+  # for a board shared onto that dashboard by someone else), and asking
+  # `acting_user.board_editable?` there answered true unconditionally, because
+  # `User#board_editable?` short-circuits on a board you do not own.
+  #
+  # `acting_user`, not `current_user`: #add_image reaches here on a communicator
+  # token, where current_user is nil. The plan belongs to the adult who owns the
+  # account either way, and reading `current_user` here raised NoMethodError
+  # building the refusal body.
   def check_board_editable!
     set_board if @board.nil?
     return if @board.nil? # set_board already rendered 404
 
-    # `acting_user`, not `current_user`: #add_image reaches here on a
-    # communicator token, where current_user is nil. The plan limit belongs to
-    # the adult who owns the account either way, and reading `current_user`
-    # here raised NoMethodError building the body below.
-    user = acting_user
-    return if user&.board_editable?(@board)
-
-    # No resolvable user means there is no plan to measure against — refuse
-    # rather than fall through to a body full of nils.
-    unless user
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-
-    render json: {
-      error: "board_locked",
-      message: "This board is read-only on your current plan. Upgrade, or make it your editable board, to make changes.",
-      board_limit: user.board_limit,
-      editable_board_id: user.effective_editable_board_id,
-    }, status: :forbidden
+    refuse_when_board_locked!(@board, acting_user)
   end
 
   # A communicator may only add a tile to a board that is actually on their own

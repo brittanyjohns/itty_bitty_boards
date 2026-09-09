@@ -140,6 +140,45 @@ action the controller no longer defines raises `AbstractController::ActionNotFou
 for **every** action on that controller, surfacing as a bare HTML 404. Removing
 an action means auditing every callback's `only:`/`except:` list.
 
+### The board read-only lock belongs to the BOARD, not the viewer
+
+`User#board_editable?` opens with `return true if board.user_id != id`. That is
+correct for the question it asks — *is this board of MINE locked* — and wrong
+for every gate a non-owner can reach, because it answers "not locked"
+unconditionally about somebody else's board.
+
+**`Board#owner_plan_allows_edit?` is the single definition of "is this board
+plan-locked", and it asks the OWNER.** It takes no viewer argument, by design.
+`BoardPlanLock` (`app/controllers/concerns/board_plan_lock.rb`) is the one
+refusal, shared by `API::BoardsController#check_board_editable!` and
+`API::BoardImagesController#check_board_image_editable!` — this payload had been
+hand-rolled in both, and the second measured `current_user` while reading
+`current_user.board_limit` after a `current_user&.` guard had already admitted
+nil, so a caller with no resolvable user hit `NoMethodError` rather than a 401.
+
+**The refusal is two-shaped.** The owner (or a sysadmin) gets today's
+`board_locked` body with `board_limit` and `editable_board_id` — the upgrade
+path. Anyone else gets **`board_locked_owner_plan`** with neither: those are the
+owner's plan tier and the id of another of their boards, private data that is
+useless to a caller who cannot act on it anyway. A client must not show an
+Upgrade button for that reason, since it would charge the wrong person.
+
+The path this fixed: quick add. `check_communicator_board_access!` admits a
+communicator to any board reachable on their dashboard, including one an SLP
+shared through a team — so `check_board_editable!` was reached by a non-owner
+and let the write through.
+
+**`Board#owner_plan_allows_edit?` loads the owner from the database rather than
+through the `user` association.** `create(:board, user: owner)` assigns the
+association, so `board.user` can be the instance the board was BUILT with,
+carrying whatever plan attributes it had then plus a memoized
+`countable_board_count`. This is a security gate and has to read current state.
+`Board#locked_for?` deliberately does NOT route through it — it is only ever
+asked about the owner and is handed a freshly-loaded record, which is strictly
+better data; `make_editable` changes the plan state mid-request and a stale
+association would report the board still locked.
+
+
 The SLP→family **hand-off** (loaner → claim) is the supported ownership
 transfer: `claim_by!` moves both `child_account.owner_id` and the own team's
 `created_by_id` to the new owner. A standalone **transfer ownership** endpoint
