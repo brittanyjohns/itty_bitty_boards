@@ -14,43 +14,54 @@ RSpec.describe Communicators::GenerateSafetyIdCard do
                     slug: "card-#{SecureRandom.hex(2)}")
   end
 
+  # Nothing in this file may reach a real renderer: CI has neither Chrome nor
+  # puppeteer. Every example that generates a card goes through this or
+  # #render_html first.
+  def stub_renderers(&capture)
+    allow(HtmlToPng).to receive(:call) do |html:, **_opts|
+      capture&.call(html)
+      "\x89PNG-stub"
+    end
+    allow(Grover).to receive(:new) do |html, **_opts|
+      capture&.call(html)
+      instance_double(Grover, to_pdf: "%PDF-stub")
+    end
+  end
+
   # The PNG and the PDF are rendered from ONE html string, so the first capture
   # is the document either way.
   def render_html
     captured = nil
-    allow(HtmlToPng).to receive(:call) do |html:, **_opts|
-      captured ||= html
-      "\x89PNG-stub"
-    end
-    allow(Grover).to receive(:new) do |html, **_opts|
-      captured ||= html
-      instance_double(Grover, to_pdf: "%PDF-stub")
-    end
+    stub_renderers { |html| captured ||= html }
 
     described_class.call(profile.reload, regenerate: true)
     captured
   end
 
   describe "freshness" do
+    # The FIRST render has to be stubbed too, not just the one being asserted
+    # on — there is no Chrome and no puppeteer in CI, so an unstubbed call here
+    # reaches the real Grover and dies on a machine that has no browser. It
+    # passes on a laptop that happens to have one, which is the whole trap.
+    before do
+      stub_renderers
+      profile.update!(settings: { "allergies" => "zzpeanutszz" })
+      described_class.call(profile.reload)
+    end
+
     # A card already generated keeps its bytes until the signature moves, and
     # safety_info_signature only moves when the PROFILE does — so without a
     # layout version this whole fix would reach new cards only, and the card
     # already laminated onto a backpack would keep printing the old claim.
     it "re-renders when the layout version is bumped" do
-      profile.update!(settings: { "allergies" => "zzpeanutszz" })
-      described_class.call(profile.reload)
-
       stub_const("#{described_class}::LAYOUT_VERSION", 99)
 
-      expect(HtmlToPng).to receive(:call).and_return("\x89PNG-stub")
-      expect(Grover).to receive(:new).and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
+      expect(HtmlToPng).to receive(:call).once.and_return("\x89PNG-stub")
+      expect(Grover).to receive(:new).once.and_return(instance_double(Grover, to_pdf: "%PDF-stub"))
       described_class.call(profile.reload)
     end
 
     it "serves the cached card when nothing has changed" do
-      profile.update!(settings: { "allergies" => "zzpeanutszz" })
-      described_class.call(profile.reload)
-
       expect(HtmlToPng).not_to receive(:call)
       expect(Grover).not_to receive(:new)
       described_class.call(profile.reload)
