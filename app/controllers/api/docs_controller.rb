@@ -157,7 +157,7 @@ class API::DocsController < API::ApplicationController
     # on ANY board by passing its id (#469-class IDOR). Mirrors the guard in
     # Api::ImagesController#check_update_board_image.
     @board = Board.find_by(id: params[:board_id])
-    @board = nil unless @board && current_user.can_edit?(@board)
+    @board = nil unless @board && @board.editable_by?(current_user)
 
     ActiveRecord::Base.transaction do
       current_user.user_docs.where(image_id: @image.id).destroy_all

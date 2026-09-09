@@ -889,7 +889,7 @@ class ChildAccount < ApplicationRecord
           board_owner_id: b.user_id,
           board_owner_name: b.user&.display_name,
           most_used: cb.board_id == cached_most_used_board&.id,
-          can_edit: viewing_user&.id == b.user_id,
+          can_edit: b.can_edit_for(viewing_user),
           # Removing a board from the dashboard is a curation action gated on
           # *communicator* ownership, not board ownership — so a hand-off owner
           # can clear inherited boards they don't own. (Removal is
@@ -1400,7 +1400,7 @@ class ChildAccount < ApplicationRecord
           board_owner_id: b.user_id,
           board_owner_name: b.user&.display_name,
           most_used: cb.board_id == cached_most_used_board&.id,
-          can_edit: viewing_user&.id == b.user_id,
+          can_edit: b.can_edit_for(viewing_user),
           # Removing a board from the dashboard is a curation action gated on
           # *communicator* ownership, not board ownership — so a hand-off owner
           # can clear inherited boards they don't own. (Removal is

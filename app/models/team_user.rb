@@ -30,6 +30,25 @@ class TeamUser < ApplicationRecord
   # role and is only ever set server-side (never via invite).
   LIBRARY_ROLES = %w[admin supervisor member].freeze
 
+  # Roles that a per-board EDIT grant (`team_boards.allow_edit`) can reach.
+  #
+  # A grant says WHICH board; the role says WHO on the team it reaches. Both
+  # are required — the board's owner authorizes the board, and the role bounds
+  # it, so a member invited later inherits nothing.
+  #
+  # `member` ("Support") is deliberately out even with a grant. It is already
+  # denied the WEAKER act — putting an existing board on a communicator's
+  # dashboard (`User::CURATE_ROLES`) — and editing the board a child is
+  # mid-sentence in is strictly stronger than choosing which board appears on
+  # their dashboard. Granting the stronger power to the role denied the weaker
+  # one makes the ladder the invite screen promises incoherent. `restricted`
+  # ("Read-Only") is out by definition.
+  #
+  # It mirrors `User::CURATE_ROLES` today and is deliberately NOT aliased to
+  # it: they answer different questions (edit a shared board vs. curate a
+  # dashboard) and may move apart.
+  BOARD_EDIT_ROLES = %w[admin supervisor].freeze
+
   belongs_to :user
   belongs_to :team
 

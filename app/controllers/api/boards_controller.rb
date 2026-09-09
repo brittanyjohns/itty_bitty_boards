@@ -24,14 +24,31 @@ class API::BoardsController < API::ApplicationController
   # PLAN lock, not permission), so without this a signed-in user could add tiles
   # to anyone's board.
   #
-  # This list mirrors check_board_editable!'s minus #add_image, which is the one
-  # board write a COMMUNICATOR may make and carries its own scoping
-  # (check_communicator_board_access!) — running an owner-or-admin check there
-  # would 401 every communicator token. Every other mutating action is
-  # owner-or-admin, including the AI ones: #regenerate_images and #edit_images
-  # spend the CALLER's credits to overwrite the TARGET board's tile art, so an
-  # ungated action let any signed-in user pay to mutate somebody else's board.
-  before_action :check_board_view_edit_permissions, only: %i[ save_layout rearrange_images update destroy regenerate_images edit_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_word_pack associate_image associate_images remove_image generate_preview_image ]
+  # TWO lists, and every mutating action is on EXACTLY ONE of them. Their union
+  # is check_board_editable!'s list plus #add_image, which is the one board
+  # write a COMMUNICATOR may make and carries its own scoping
+  # (check_communicator_board_access!) — running a user check there would 401
+  # every communicator token. `spec/requests/api/boards_team_edit_spec.rb`
+  # asserts that arithmetic rather than trusting this comment.
+  #
+  # OWNER-OR-ADMIN ONLY. The line: whole-board sweeps, AI spend, the board's
+  # cover, and deletion are the owner's, and a per-board team edit grant does
+  # NOT reach them.
+  #   * #regenerate_images / #edit_images spend the CALLER's credits to
+  #     overwrite the TARGET board's tile art with model output the owner never
+  #     saw, with no undo — the credits being the editor's does not make
+  #     repainting a child's core board theirs to do;
+  #   * #update_to_default_docs is the app's pull-not-push valve, and only the
+  #     owner gets to pull;
+  #   * #set_colors / #recategorize_images / #format_with_ai sweep every tile;
+  #   * the three cover actions change the board's card in the OWNER's board
+  #     list and on their public page;
+  #   * #destroy, obviously.
+  before_action :check_board_view_edit_permissions, only: %i[ destroy regenerate_images edit_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai generate_preview_image ]
+  # OWNER, ADMIN, OR A PER-BOARD TEAM GRANT. Per-tile and layout writes — what
+  # an SLP invited onto a child's team is there to do. Same 404/403 shaping as
+  # the list above, via the one helper.
+  before_action :check_board_team_write_permissions, only: %i[ save_layout rearrange_images update associate_image associate_images remove_image add_word_pack ]
   before_action :check_board_create_permissions, only: %i[ create clone clone_plan create_from_template import_obf ]
   before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images edit_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image add_word_pack associate_image associate_images remove_image generate_preview_image ]
   # Declared AFTER check_board_editable! so the plan gate still answers first —
@@ -505,8 +522,27 @@ class API::BoardsController < API::ApplicationController
   def update
     @board = Board.find(params[:id])
     @board_user = @board.user
-    unless current_user.can_edit?(@board)
+    # Defence in depth — check_board_team_write_permissions already ran. Note
+    # it is `Board#editable_by?` and NOT `User#can_edit?`: the latter is
+    # polymorphic over Image/Doc/Board and governs the shared library, so
+    # teaching it about teams would hand away Image and Doc rights too.
+    unless @board.editable_by?(current_user)
       render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    # A team-grant editor may change CONTENT. These are acts of ownership and
+    # stay with the owner: `published` is the parent's decision about whether a
+    # board carrying her child's name is on the public internet, `name` is her
+    # label, and slug/predefined re-key a live URL. Refused by name rather than
+    # stripped — silently dropping them tells the editor the publish toggle
+    # worked.
+    if (refused = owner_only_board_changes).any?
+      render json: {
+        error: "board_owner_only_change",
+        message: "Only the board's owner can change #{refused.to_sentence}.",
+        fields: refused,
+      }, status: :forbidden
       return
     end
 
@@ -635,7 +671,11 @@ class API::BoardsController < API::ApplicationController
         @board.generate_unique_slug(board_params["slug"])
       end
 
-      @board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
+      # Only on your OWN board. Without the ownership check a vendor SLP with a
+      # per-board grant silently re-brands a parent's board on every save.
+      if current_user.vendor_id.present? && @board.user_id == current_user.id
+        @board.vendor_id = current_user.vendor_id
+      end
 
       board_type = params[:board_type] || board_params[:board_type]
       settings = !board_params[:settings].blank? ? board_params[:settings] : params[:settings] || {}
@@ -1326,6 +1366,7 @@ class API::BoardsController < API::ApplicationController
     end
     if img_saved
       board_image = @board.add_image(@image.id) if @board
+      stamp_tile_attribution!(board_image)
 
       # Surface the uploaded doc on this board, even when the user doesn't own
       # the underlying image. Mirrors DocsController#mark_as_current, which
@@ -2186,27 +2227,67 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
-  # Whether current_user may WRITE to this board. Owner or admin, and nothing
-  # else: Board#can_edit_for — the `can_edit` flag the payload publishes, which
-  # is what the editor gates its affordances on — gives the same answer, so a
-  # team member is refused only what the UI already told them they cannot do.
-  # Team membership grants VIEWING (Board#viewable_by?), never editing.
+  # Record WHO added a tile, when the person adding it is not the board's
+  # owner. There is no board-write audit anywhere in the app (`Event` is
+  # unused; only WordEvent/AnalyticsEvent exist) and `board_images` has no
+  # `created_by`, so without this a parent whose SLP has a per-board edit grant
+  # cannot tell which tiles arrived from school. jsonb, additive, no migration
+  # — and it is the only trace the owner gets on a feature whose premise is
+  # "someone else edits your child's board".
   #
-  # The refusal has two shapes and which one applies is a question about
-  # visibility, not about the write:
-  #   - can't see the board -> 404 "Board not found", byte-identical to #show /
-  #     #pdf / #download_obf. Board ids are sequential and a board name
-  #     routinely carries a child's first name, so answering 403 here would
-  #     make the private corpus enumerable by incrementing an integer.
-  #   - can see it but doesn't own it (published, or shared with their team)
-  #     -> 403. Nothing is left to leak, and 403 is the permission answer per
-  #     the HTTP-semantics invariant.
-  # Generic strings in both cases — never name the owner or the board.
+  # Fail-soft: a tile that was successfully added must not 500 over its own
+  # provenance stamp.
+  def stamp_tile_attribution!(board_image)
+    return if board_image.blank?
+
+    actor = acting_user
+    return if actor.nil? || actor.id == board_image.board&.user_id
+
+    board_image.data ||= {}
+    board_image.data["added_by_id"] = actor.id
+    board_image.data["added_by_at"] = Time.current.iso8601
+    board_image.save
+  rescue StandardError => e
+    Rails.logger.warn "[boards#add_image] tile attribution failed for board_image #{board_image&.id}: #{e.message}"
+  end
+
+  # OWNER-OR-ADMIN write gate. Deletion, AI spend, whole-board sweeps and the
+  # board cover; a per-board team edit grant does NOT reach these.
   def check_board_view_edit_permissions
     set_board if @board.nil?
     return if @board.nil? # set_board already rendered 404
     return if current_user && (@board.user_id == current_user.id || current_user.admin?)
 
+    refuse_board_write!
+  end
+
+  # OWNER, ADMIN, OR A PER-BOARD TEAM GRANT. Per-tile and layout writes.
+  #
+  # Routes through `Board#editable_by?`, which is also the first half of
+  # `Board#can_edit_for` — the `can_edit` flag the payload publishes and the
+  # editor gates its affordances on. One predicate, so the flag and the gate
+  # cannot disagree about who may write.
+  def check_board_team_write_permissions
+    set_board if @board.nil?
+    return if @board.nil? # set_board already rendered 404
+    return if @board.editable_by?(current_user)
+
+    refuse_board_write!
+  end
+
+  # The refusal has two shapes, and which one applies is a question about
+  # VISIBILITY, not about the write:
+  #   - can't see the board -> 404 "Board not found", byte-identical to #show /
+  #     #pdf / #download_obf. Board ids are sequential and a board name
+  #     routinely carries a child's first name, so answering 403 here would
+  #     make the private corpus enumerable by incrementing an integer.
+  #   - can see it but may not write it (published, or shared with their team)
+  #     -> 403. Nothing is left to leak, and 403 is the permission answer per
+  #     the HTTP-semantics invariant. Never 401, which is authentication and
+  #     would trip a client's session-expired handling.
+  # Generic strings in both cases — never name the owner or the board. Shared
+  # by both gates so the rule stays one piece of code.
+  def refuse_board_write!
     unless @board.viewable_by?(current_user)
       render json: { error: "Board not found" }, status: :not_found
       return
@@ -2251,7 +2332,10 @@ class API::BoardsController < API::ApplicationController
     # board on MY dashboard", not "do I own it" — a communicator owns nothing.
     # Deferring to "the existing gates" without this left add_image with only
     # check_board_editable!, which passes for a board you don't own.
-    return check_board_view_edit_permissions if current_user
+    # add_image is a per-tile write, so a user token answers to the TEAM-WRITE
+    # gate — the same one #associate_image uses. Routing it at the owner-only
+    # list would refuse an SLP the one thing a grant exists to allow.
+    return check_board_team_write_permissions if current_user
 
     # authenticate_signed_in! guarantees one of the two credentials exists, so
     # reaching here means a communicator token.
@@ -2356,12 +2440,57 @@ class API::BoardsController < API::ApplicationController
     protection = @board.marketplace_protection
     return unless protection.protected?
 
+    # A team-grant editor gets NO confirm path. Clicking through "changing this
+    # means the paper a buyer holds stops matching" is a commercial decision
+    # about somebody else's product, and it belongs to the seller. Answered
+    # after the `confirm_marketplace_edit` short-circuit above deliberately
+    # would be wrong, so it is checked here: `confirm=true` from a non-owner
+    # must do nothing at all.
+    unless @board.user_id == current_user&.id || current_user&.admin?
+      render json: {
+        error: "board_marketplace_protected",
+        message: "This board is sold as a printable, so only its owner can change it.",
+        board: { id: @board.id, name: @board.name },
+      }, status: :conflict
+      return
+    end
+
     render json: {
       error: "board_marketplace_edit_confirmation_required",
       message: "\"#{@board.name}\" is sold as a printable. Changing it means the paper a buyer holds and the board online stop matching.",
       board: { id: @board.id, name: @board.name },
       marketplace: protection.summary,
     }, status: :conflict
+  end
+
+  # Params on #update that are acts of OWNERSHIP rather than content edits.
+  # Returns the human names of any a non-owner is trying to change, so the
+  # refusal can say which — a generic "Unauthorized" on a save that also
+  # carried legitimate colour changes is unactionable.
+  #
+  # `slug` / `regenerate_slug` / `predefined` are already stripped from
+  # `board_params` for non-admins, so they are listed for the message only.
+  OWNER_ONLY_UPDATE_FIELDS = {
+    "published" => "whether the board is published",
+    "name" => "the board's name",
+    "favorite" => "the board's favorite flag",
+    "voice" => "the board's voice",
+    "slug" => "the board's link",
+    "regenerate_slug" => "the board's link",
+    "predefined" => "whether the board is in the public library",
+  }.freeze
+
+  def owner_only_board_changes
+    return [] if @board.user_id == current_user&.id || current_user&.admin?
+
+    submitted = params[:board].is_a?(ActionController::Parameters) ? params[:board] : params
+    OWNER_ONLY_UPDATE_FIELDS.filter_map do |key, label|
+      next unless submitted.key?(key)
+      # A "change" to the value it already holds is a no-op the client sent
+      # back with the rest of the form; only refuse an actual difference.
+      next if key == "name" && submitted[key].to_s == @board.name.to_s
+      label
+    end.uniq
   end
 
   # Every gated action except #update is structural by definition. #update is
