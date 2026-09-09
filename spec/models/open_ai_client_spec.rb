@@ -448,4 +448,86 @@ RSpec.describe OpenAiClient do
       expect(OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS).to eq(60)
     end
   end
+
+  # Regression coverage for #885: the translation prompt used to glue the
+  # instruction onto the user's text, so a one-word tile label came back as the
+  # translated INSTRUCTION and was written straight to the tile's label on a
+  # public board.
+  describe "translation" do
+    subject(:client) { described_class.new({}) }
+
+    # The exact value #885 found on image 14589 — leading "Haz" (Spanish for the
+    # word actually being translated) followed by the translated instruction and
+    # the literal source indentation of the old prompt.
+    let(:polluted) do
+      "Haz\n      responde con el objeto JSON en el siguiente formato: {\"translation\": \"texto traducido\"}"
+    end
+
+    describe "#translation_messages" do
+      it "keeps the instruction out of the message carrying the user's text" do
+        messages = client.translation_messages("do", "en", "es")
+
+        system_message, user_message = messages
+        expect(system_message[:role]).to eq("system")
+        expect(user_message[:role]).to eq("user")
+        expect(user_message[:content]).to eq("<text>do</text>")
+        expect(user_message[:content]).not_to include("translation")
+      end
+
+      it "names both languages in the instruction" do
+        content = client.translation_messages("do", "en", "es").first[:content]
+
+        expect(content).to include("from en to es")
+      end
+    end
+
+    describe ".valid_translation?" do
+      it "rejects a translation that echoes the response-format instruction" do
+        expect(described_class.valid_translation?(polluted, "do")).to be(false)
+      end
+
+      it "rejects a translation wildly disproportionate to a short source" do
+        expect(described_class.valid_translation?("a" * 60, "do")).to be(false)
+      end
+
+      it "rejects a multi-line translation of a single-line source" do
+        expect(described_class.valid_translation?("hacer\nhaz", "do")).to be(false)
+      end
+
+      it "rejects a blank translation" do
+        expect(described_class.valid_translation?("  ", "do")).to be(false)
+      end
+
+      it "accepts an ordinary translation that is longer than its source" do
+        expect(described_class.valid_translation?("hacer", "do")).to be(true)
+      end
+
+      it "accepts a translation of a longer phrase" do
+        source = "I want to go outside"
+        expect(described_class.valid_translation?("Quiero salir afuera", source)).to be(true)
+      end
+    end
+
+    describe "#translation_from" do
+      it "never returns the instruction for a one-word label" do
+        result = client.translation_from({ content: { translation: polluted }.to_json }, "do")
+
+        expect(result).to be_nil
+      end
+
+      it "returns a valid translation" do
+        result = client.translation_from({ content: { translation: "hacer" }.to_json }, "do")
+
+        expect(result).to eq("hacer")
+      end
+
+      it "returns nil for a missing response" do
+        expect(client.translation_from(nil, "do")).to be_nil
+      end
+
+      it "returns nil for unparseable content" do
+        expect(client.translation_from({ content: "not json" }, "do")).to be_nil
+      end
+    end
+  end
 end

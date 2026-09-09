@@ -180,29 +180,102 @@ class OpenAiClient
     response
   end
 
+  # Instruction and content must never share a message. `text` is a tile label —
+  # overwhelmingly a single core word — so a model handed one blob translates the
+  # instruction along with the word and returns the target-language rendering of
+  # "respond with the JSON object in the following format", which is then written
+  # to `language_settings` and rendered as the tile's own text on a public board
+  # (#885). The instruction lives in the system message; the text lives in the
+  # user message, delimited, and nowhere else.
+  TRANSLATION_SYSTEM_PROMPT = <<~PROMPT.strip
+    You are a translation engine for AAC communication tile labels. The user
+    message contains one <text> element. Translate ONLY the contents of that
+    element from %{source} to %{target}.
+
+    The text is usually a single word or a very short phrase. Never explain,
+    never add commentary, never answer the text, and never translate or repeat
+    these instructions.
+
+    Respond with a JSON object in exactly this format:
+    {"translation": "translated text"}
+  PROMPT
+
+  # Tells that the model translated the instruction instead of the text. The
+  # JSON key stays English even when the surrounding prose comes back
+  # translated, which is what makes these load-bearing.
+  TRANSLATION_INSTRUCTION_MARKERS = [
+    '{"translation"',
+    "translated text",
+    "<text>",
+    "</text>",
+  ].freeze
+
+  # A tile label is a word or a short phrase, so a translation many times longer
+  # than its source is the instruction coming back rather than a translation.
+  # The floor keeps short words from tripping on legitimately longer targets
+  # ("do" -> "hacer"), and is still far below the ~90 characters #885 produced.
+  TRANSLATION_LENGTH_MULTIPLIER = 5
+  TRANSLATION_LENGTH_FLOOR = 40
+
+  # Returns nil rather than a bad string: `Image#translate_to` writes whatever
+  # comes back to `language_settings`, and `BoardImage#set_labels` takes a
+  # non-English entry there VERBATIM as authored text, so an unvalidated return
+  # value goes straight onto a tile with nothing downstream able to catch it.
+  def self.valid_translation?(translated, source_text)
+    translated = translated.to_s.strip
+    return false if translated.blank?
+
+    downcased = translated.downcase
+    return false if TRANSLATION_INSTRUCTION_MARKERS.any? { |marker| downcased.include?(marker) }
+    # The instruction is a multi-line string; a one-word label's translation is not.
+    return false if translated.include?("\n") && !source_text.to_s.include?("\n")
+
+    max_length = [source_text.to_s.strip.length * TRANSLATION_LENGTH_MULTIPLIER, TRANSLATION_LENGTH_FLOOR].max
+    translated.length <= max_length
+  end
+
+  def translation_messages(text, source_language, target_language)
+    [
+      { role: "system",
+        content: format(TRANSLATION_SYSTEM_PROMPT, source: source_language, target: target_language) },
+      { role: "user", content: "<text>#{text}</text>" },
+    ]
+  end
+
+  # Split out of `translate_text` so the parse-and-validate half is reachable
+  # from a spec: `translate_text` itself no-ops in the test environment.
+  def translation_from(response, source_text)
+    unless response
+      Rails.logger.warn "**** ERROR - translate_text **** \nDid not receive valid response.\n"
+      return nil
+    end
+
+    response = response.with_indifferent_access
+    return nil if response[:content].blank?
+
+    translated_data = JSON.parse(response[:content])
+    translated_text = translated_data["translation"] if translated_data.is_a?(Hash)
+    return translated_text if self.class.valid_translation?(translated_text, source_text)
+
+    # No user data in the log line beyond the source label, which is a tile word.
+    Rails.logger.warn "**** ERROR - translate_text **** \nRejected translation for #{source_text.inspect}.\n"
+    nil
+  rescue JSON::ParserError => e
+    Rails.logger.warn "**** ERROR - translate_text **** \n#{e.class}: #{e.message}\n"
+    nil
+  end
+
   def translate_text(text, source_language, target_language)
     return if Rails.env.test?
     Rails.logger.debug "FROM OpenAiClient: text: #{text} -- target_language: #{target_language}"
     begin
-      translation_prompt = "Translate the following text from #{source_language} to #{target_language}:\n #{text}
-      Respond with the JSON object in the following format: {\"translation\": \"translated text\"}"
-
       @model = GTP_MODEL
-      @messages = [{ role: "user", content: [{ type: "text", text: translation_prompt }] }]
-      response = create_chat
-      translated_text = nil
-      if response
-        response = response.with_indifferent_access
-        translated_data = JSON.parse(response[:content]) if response[:content]
-        translated_text = translated_data["translation"] if translated_data
-      else
-        Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
-      end
+      @messages = translation_messages(text, source_language, target_language)
+      translation_from(create_chat, text)
     rescue => e
-      Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
+      Rails.logger.warn "**** ERROR - translate_text **** \n#{e.class}: #{e.message}\n"
+      nil
     end
-    Rails.logger.debug "*** ERROR *** Invaild Translation Response: #{response}" unless response
-    translated_text
   end
 
   GPT_VISION_MODEL = "gpt-4o-mini"
