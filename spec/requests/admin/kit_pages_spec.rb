@@ -379,6 +379,21 @@ RSpec.describe "Admin kit pages", type: :request do
         expect(page.reload.eyebrow).to be_nil
       end
 
+      # The `edit` form is a PATCH form, so a browser's autofill click carries
+      # `_method=patch` and Rack::MethodOverride rewrites the verb before routing.
+      # Every other example here posts bare, which is what let a POST-only member
+      # route ship as a 404 on the edit screen.
+      it "autofills from the edit form's PATCH submission" do
+        page = create(:kit_page, slug: "at-school", title: "Old title", eyebrow: nil)
+
+        post autofill_admin_dashboard_kit_page_path(page),
+             params: blank_params(slug: "at-school", title: "Old title", _method: "patch")
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Free classroom kit")
+        expect(page.reload.eyebrow).to be_nil
+      end
+
       it "redirects when the page is gone" do
         post autofill_admin_dashboard_kit_page_path(id: 0), params: blank_params
 

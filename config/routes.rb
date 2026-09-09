@@ -128,8 +128,12 @@ Rails.application.routes.draw do
         post :publish
         post :unpublish
         # Autofill is on both the collection and a member because the same form
-        # partial serves `new` and `edit`.
-        post :autofill
+        # partial serves `new` and `edit`. The `edit` form is a PATCH form, so
+        # its hidden `_method=patch` still rides along when the autofill button
+        # retargets the submit with `formaction` -- HTML can't change the method
+        # from a button -- and Rack::MethodOverride rewrites the verb. Accept
+        # both rather than making the view fight the middleware.
+        match :autofill, via: %i[post patch]
         # An uploaded document is the page's download when present, in place of
         # a board printable.
         post :upload_document
