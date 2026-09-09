@@ -5,6 +5,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A curated board set's map is reachable without owning it.** `GET
+  /api/board_groups/:id/graph` was owner-or-admin only, so the bird's-eye map of
+  a predefined set — the one an SLP or district evaluator actually lands on — was
+  a 403 for every visitor, and anonymous callers were turned away at token auth
+  before the check even ran. Curated sets are already served publicly by `show`
+  and `predefined` is an admin-only curation flag, so their graph exposes nothing
+  the set view doesn't. Private user sets are still owner-only.
+
+- **Two board sets with the same name no longer collide on one slug.** The
+  duplicate check in `BoardGroup#set_slug` compared against a local variable Ruby
+  had hoisted but not yet assigned, so it always read `nil` and never fired.
+  Because a shared set link resolves through `find_by(slug:)`, two sets named
+  "Morning Routine" meant one public link that opened whichever record came back
+  first. Names that parameterize to blank now get a generated slug instead of an
+  empty one, which the unique index would have rejected on the second row.
+
+- **`GET /api/board_groups` no longer 500s for signed-out visitors.** The action
+  skips token auth but summed `nil + ActiveRecord::Relation` when there was no
+  current user. It now returns an empty `user` list alongside the predefined
+  ones. `preset` also stopped advertising a `welcome_board` key that was always
+  `null` — the ivar behind it was never assigned.
+
 ### Added
 
 - **MySpeak setup can record allergies, medical details and care routines.**

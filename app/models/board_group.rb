@@ -96,15 +96,24 @@ class BoardGroup < ApplicationRecord
 
   def set_slug
     return unless name.present? && slug.blank?
-    existing_board = BoardGroup.find_by(slug: slug)
-    slug = name.parameterize
-    if existing_board
-      Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
-      random = SecureRandom.hex(8)
-      slug = "#{slug}-#{random}"
+
+    # The collision check must use a local that is NOT named `slug`. Ruby hoists
+    # a local at parse time, so the old `BoardGroup.find_by(slug: slug)` read the
+    # not-yet-assigned local (always nil) rather than any real slug -- meaning two
+    # sets with the same name were handed identical slugs. `show` resolves
+    # find_by(slug:) to the first match, so a shared link could open the wrong set.
+    candidate = name.parameterize
+    # A name of only punctuation parameterizes to "". Blank is worse than a random
+    # slug here: the column is uniquely indexed, so a second blank would raise.
+    candidate = "board-set-#{SecureRandom.hex(8)}" if candidate.blank?
+    if BoardGroup.where.not(id: id).exists?(slug: candidate)
+      Rails.logger.warn "Board group slug '#{candidate}' already taken. Generating a unique slug."
+      candidate = "#{candidate}-#{SecureRandom.hex(8)}"
     end
-    self.slug = slug
-    save
+
+    # update_column, not save: this runs inside after_save, and the old `save`
+    # only avoided infinite recursion because of the slug.blank? guard above.
+    update_column(:slug, candidate)
   end
 
   def set_number_of_columns
