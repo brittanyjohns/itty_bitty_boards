@@ -229,6 +229,25 @@ the free-text bio.
   this existed; the repair reuses `CareText` rather than a bare
   `CGI.unescapeHTML`, because unescaping a legacy escaped tag without stripping
   would write live markup back into the column.
+- **A `short_text` field is MULTI-LINE; every other care surface is not.**
+  `CareText.clean` used to end in `String#squish`, which collapses `\n` along
+  with everything else — invisible while the editor rendered these fields as
+  single-line inputs, and silent data loss the moment the frontend made them
+  textareas: a parent's list ("he bolts when scared / rides Bus 14 /
+  front-right seat") landed in the column as one paragraph, which is the shape
+  a substitute teacher or a paramedic has to read in a hurry. `clean` now takes
+  `multiline:`, and **which fields are multi-line is answered by
+  `CareText.multiline?`** (`short_text` and nothing else) so the sanitizer and
+  `CareTextRepair` cannot disagree — the same reason the cleaning rule lives in
+  one module at all. Section titles, detail-row labels/values and custom chips
+  are one-line controls and still squish. Multi-line cleaning still collapses
+  horizontal whitespace, drops whitespace around a break, and caps a blank-line
+  run at one blank line; it is still idempotent, truncation included. The
+  printed care plan renders the field with `white-space: pre-line`
+  (`.say` in `app/views/layouts/pdf_care_plan.html.erb`) — a cleaner that
+  preserves breaks and a template that collapses them is the same bug one layer
+  down. Rows flattened before this cannot be recovered; the newlines are gone
+  from the column.
 - **The registry is SERVED, not duplicated** — `GET /api/care_sections`
   (`API::CareSectionsController`, unauthenticated like `preset_colors`; it is a
   static schema with no user data in it). `Profile.care_registry_view` emits the

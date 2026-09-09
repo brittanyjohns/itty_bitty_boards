@@ -136,6 +136,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `Board#viewable_by?` guard `show` and `pdf` carry, answering the same generic
   `404 {"error": "Board not found"}`. The `predictive_default` fallback for an
   id that matches no board is unchanged (#852).
+- **Care notes typed as a list stay a list.** Every free-text care field was
+  cleaned with a rule that collapsed line breaks, so "he bolts when scared /
+  he rides Bus 14 / front-right seat" was saved — and printed on the Care &
+  Emergency Plan — as one paragraph. The per-section notes field now keeps the
+  lines a parent typed, in the API, on the public MySpeak page and in the
+  printed plan, while runaway spacing and blank-line runs are still tidied up.
+  One-line fields (section titles, detail rows, custom chips) are unchanged.
+  Notes saved before this fix cannot be un-flattened.
+
 - **Printed safety documents no longer answer an unfilled medical field with
   "None listed".** The Safety ID card printed a large bold *None listed* under
   each of Allergies, Medical Conditions, Medications and Other Conditions when

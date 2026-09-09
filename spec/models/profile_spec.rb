@@ -702,6 +702,48 @@ RSpec.describe Profile, type: :model do
         end
       end
 
+      # The short_text field is the editor's only multi-line control — a parent
+      # types a list into it, and a list flattened to one paragraph is exactly
+      # the shape a substitute teacher or a paramedic has to read in a hurry.
+      describe "line breaks in a short_text field" do
+        it "keeps the lines a parent typed" do
+          text = "He bolts when scared.\nHe rides Bus 14.\nFront-right seat."
+
+          result = care("transportation" => { "values" => { "bus_info" => text } })
+
+          expect(result["sections"]["transportation"]["values"]["bus_info"]).to eq(text)
+        end
+
+        it "still normalizes runaway whitespace around those lines" do
+          result = care(
+            "sensory" => { "values" => { "calming" => "  Dim  lights \n\n\n\n  Deep pressure  " } },
+          )
+
+          expect(result["sections"]["sensory"]["values"]["calming"])
+            .to eq("Dim lights\n\nDeep pressure")
+        end
+
+        it "is stable across re-saves rather than growing or collapsing" do
+          text = "Dim lights\n\nDeep pressure"
+          care("sensory" => { "values" => { "calming" => text } })
+
+          profile.update!(updated_at: Time.current)
+
+          expect(profile.reload.settings.dig("care", "sections", "sensory", "values", "calming"))
+            .to eq(text)
+        end
+
+        it "still squishes a newline out of a one-line control" do
+          result = care(
+            "meals" => { "items" => [{ "label" => "Cups\nand lids", "value" => "Green\nonly" }] },
+          )
+
+          expect(result["sections"]["meals"]["items"].first).to eq(
+            "label" => "Cups and lids", "value" => "Green only",
+          )
+        end
+      end
+
       it "truncates over-long free text and caps multi-select length" do
         result = care(
           "meals" => {

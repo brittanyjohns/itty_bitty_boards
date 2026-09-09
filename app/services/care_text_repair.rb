@@ -50,7 +50,8 @@ module CareTextRepair
           spec[:fields].each do |field|
             next unless field[:type] == :short_text
 
-            touched |= rewrite(values, field[:key], Profile::CARE_SHORT_TEXT_MAX)
+            touched |= rewrite(values, field[:key], Profile::CARE_SHORT_TEXT_MAX,
+                               multiline: CareText.multiline?(field[:type]))
           end
         end
       else
@@ -87,13 +88,13 @@ module CareTextRepair
   # hold is left absent rather than written as nil, and a value that cleans to
   # nothing keeps whatever the section already stored — dropping a row is
   # sanitize_care_settings' job, not this task's.
-  def rewrite(hash, key, limit)
+  def rewrite(hash, key, limit, multiline: false)
     return false unless hash.key?(key)
 
     current = hash[key]
     return false unless current.is_a?(String)
 
-    cleaned = CareText.clean(current, limit).to_s
+    cleaned = CareText.clean(current, limit, multiline: multiline).to_s
     return false if cleaned == current || cleaned.blank?
 
     hash[key] = cleaned
