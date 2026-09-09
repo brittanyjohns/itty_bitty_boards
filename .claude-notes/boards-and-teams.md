@@ -100,6 +100,19 @@ board the communicator's owner owns", which would let a supervisor enumerate a
 parent's private library. Refusal is a generic 403 `not_board_owner` that never
 says whether the id exists.
 
+**A new namesake team is seeded with the communicator's dashboard boards.**
+`ChildAccount#ensure_team!` calls `register_dashboard_boards_on_team!` on the
+creation branch only (issue #887). The MySpeak wizard attaches the starter board
+and creates the team in the same transaction, so without this every team in the
+product opened at "SHARED BOARDS 0" and the invited helper joined with nothing
+to work on. It is safe at that instant because the team is the creator alone —
+it shares nothing they could not already read. **Re-running `ensure_team!` on an
+existing team must never backfill**: by then the team may have members, and a
+`team_boards` row is a read grant, so sharing is the owner's decision and not a
+side effect of some later call. One visible consequence: a Support/Read-Only
+member can now SEE the communicator's board, so a write attempt is refused with
+the see-but-don't-own 403 rather than the can't-see-it 404.
+
 **Un-sharing is the revocation half, so a board's OWNER may always remove their
 own board from a team**, whatever their role — `authorize_remove_board!` admits
 them alongside curate roles and team managers. Before this a parent who shared

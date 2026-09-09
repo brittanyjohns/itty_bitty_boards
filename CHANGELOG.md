@@ -144,6 +144,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   printed plan, while runaway spacing and blank-line runs are still tidied up.
   One-line fields (section titles, detail rows, custom chips) are unchanged.
   Notes saved before this fix cannot be un-flattened.
+- **A communicator's team now starts with their boards on it.** Every
+  communicator gets a namesake team at creation, but the boards on their
+  dashboard were never added to it — so the team page read "Shared boards 0"
+  forever and an invited helper (a school SLP, say) joined with nothing to work
+  on. A newly created team is now seeded with whatever is already on that
+  communicator's dashboard. Only at creation, when the team is the owner alone:
+  an existing team is never backfilled, so sharing a board with people who have
+  already been invited stays the owner's deliberate choice.
 
 - **Printed safety documents no longer answer an unfilled medical field with
   "None listed".** The Safety ID card printed a large bold *None listed* under

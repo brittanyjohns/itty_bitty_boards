@@ -667,6 +667,16 @@ class ChildAccount < ApplicationRecord
   # `name:` lets callers override the default "<communicator>'s Team"
   # (e.g. the API controllers use "<communicator>'s Communication
   # Team"). Passing nil falls back to the default.
+  #
+  # A NEW team is seeded with whatever is already on the communicator's
+  # dashboard (issue #887): the namesake team is created moments after the
+  # wizard attaches the starter board, so without this every team in the
+  # product opened at "SHARED BOARDS 0" and an invited helper joined with
+  # nothing to work on. Seeding happens ONLY on creation — the team is the
+  # creator alone at that instant, so it shares nothing they could not
+  # already read. Re-running `ensure_team!` on an existing team must never
+  # backfill: by then the team may have members, and sharing a board with
+  # them is the owner's decision, not a side effect.
   def ensure_team!(creator:, name: nil)
     existing = primary_team
     if existing.present?
@@ -679,6 +689,7 @@ class ChildAccount < ApplicationRecord
     TeamAccount.create!(team: team, account: self)
     team.upsert_member!(creator, "admin") if creator
     pin_primary_team!(team)
+    register_dashboard_boards_on_team!(team)
     team
   end
 
