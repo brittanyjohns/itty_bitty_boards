@@ -50,15 +50,17 @@ RSpec.describe "API::Boards team curation", type: :request do
       expect(sub_board.reload.description).to eq("Fringe page edit")
     end
 
-    # A caller who can't SEE the board gets the same generic 404 that #show
-    # gives, never 403 — board ids are sequential and a board name routinely
-    # carries a child's first name.
+    # A Support member may READ this board — since #887 the namesake team is
+    # seeded with the communicator's dashboard boards, and a `team_boards` row
+    # is a read grant — so the refusal is the see-but-don't-own 403, not a 404.
+    # The generic 404 is still what a caller who can't see the board gets; the
+    # next example covers it.
     it "refuses a Support member and changes nothing" do
       put "/api/boards/#{board.id}",
           params: { board: { description: "Support tried" } },
           headers: auth_headers(support)
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:forbidden)
       expect(board.reload.description).not_to eq("Support tried")
     end
 

@@ -395,6 +395,25 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         )
       end
 
+      # Issue #887 — the namesake team was created with the communicator
+      # attached and no boards, so an invited helper joined a team reading
+      # "SHARED BOARDS 0" and had nothing to work on.
+      it "shares the starter board with the communicator's new team" do
+        starter # force creation
+
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+
+        child = user.communicator_accounts.last
+        cb = child.child_boards.last
+        team = child.primary_team
+
+        expect(team).to be_present
+        expect(team.boards).to include(cb.board)
+      end
+
       # A starter with folder tiles brings its pages along — one slot per board
       # — so the parent can find and edit every page of what she picked. They
       # used to clone as invisible templates, which made a 6-board set cost

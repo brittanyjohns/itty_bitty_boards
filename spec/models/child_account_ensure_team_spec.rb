@@ -43,4 +43,30 @@ RSpec.describe ChildAccount, "#ensure_team!", type: :model do
       expect(first.team_users.count).to eq(tu_count_before)
     end
   end
+
+  # Issue #887 — a namesake team created for a communicator that already has
+  # boards on its dashboard started with `boards == []`, so every invited
+  # helper joined a team with nothing shared to work on.
+  context "when the communicator already has dashboard boards" do
+    let(:board) { create(:board, user: creator) }
+
+    before { ChildBoard.create!(child_account: account, board: board, created_by_id: creator.id) }
+
+    it "seeds the new team with the communicator's dashboard boards" do
+      team = account.ensure_team!(creator: creator)
+
+      expect(team.boards).to include(board)
+      expect(team.team_boards.find_by(board_id: board.id).created_by_id).to eq(creator.id)
+    end
+
+    it "does not retroactively share boards attached after the team existed" do
+      team = account.ensure_team!(creator: creator)
+      later = create(:board, user: creator)
+      ChildBoard.create!(child_account: account, board: later, created_by_id: creator.id)
+
+      account.ensure_team!(creator: creator)
+
+      expect(team.reload.boards).not_to include(later)
+    end
+  end
 end
