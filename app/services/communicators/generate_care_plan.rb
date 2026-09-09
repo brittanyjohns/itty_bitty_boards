@@ -348,7 +348,7 @@ module Communicators
         qr_data_url: qr_data_url_for(public_url),
         emergency: emergency,
         emergency_fields: emergency ? document.emergency_fields : [],
-        blank_emergency_field_names: emergency ? document.blank_emergency_field_names : [],
+        blank_emergency_fields_note: emergency ? document.blank_emergency_fields_note : nil,
         emergency_contacts: emergency ? document.emergency_contacts : [],
         care_sections: document.care_sections,
         # The line under the name. Shown on both variants — it is not emergency

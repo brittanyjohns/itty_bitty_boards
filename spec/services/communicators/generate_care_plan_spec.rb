@@ -295,12 +295,30 @@ RSpec.describe Communicators::GenerateCarePlan do
       end
     end
 
-    it "falls back to a neutral cell when a value is unanswered" do
+    # The strip and the emergency grid below it print the same field, so they
+    # have to agree about a blank one. "None listed" in the sheet's only red
+    # cell reads as a recorded negative finding while the grid was already
+    # omitting the field as unanswered (#890).
+    it "says the allergy field was not filled in rather than calling it none" do
       profile.update!(settings: { "care" => {} }.merge(emergency.except("allergies")))
 
       html = render_html(variant: :full)
+      glance = html[/<section class="glance">.*?<\/section>/m]
 
-      expect(html).to include("None listed")
+      expect(glance).to include("Not filled in")
+      expect(glance).not_to include(%(<div class="v">None listed</div>))
+      expect(html).to include("No allergies or other conditions were provided.")
+    end
+
+    # Deliberately untouched: an unknown communication method is not a medical
+    # claim, and "None listed" is a fine answer for it.
+    it "keeps the how-i-talk cell's None listed fallback" do
+      profile.update!(settings: { "care" => {} }.merge(emergency))
+
+      html = render_html(variant: :full)
+      glance = html[/<section class="glance">.*?<\/section>/m]
+
+      expect(glance).to include("None listed")
     end
 
     it "does not render at all for the care-only variant" do

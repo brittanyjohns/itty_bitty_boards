@@ -34,6 +34,13 @@ module Communicators
       emergency_notes
     ].freeze
 
+    # The medical subset — everything a blank value makes a claim about. The
+    # Safety ID card asks for these and not `emergency_notes`, because the card
+    # prints the note in its own block with an instruction fallback ("Please
+    # call my emergency contacts."), so naming "notes" in that card's
+    # not-filled-in line would report something the card did print.
+    MEDICAL_EMERGENCY_FIELDS = (EMERGENCY_FIELDS - %w[emergency_notes]).freeze
+
     # When false, blank emergency fields print as "None listed" on their own row
     # — see the note in .claude-notes/care-plan-pdf-density-handoff.md before
     # flipping this.
@@ -85,23 +92,48 @@ module Communicators
     # The emergency fields worth printing. Blank ones are dropped under
     # OMIT_BLANK_EMERGENCY_FIELDS and named collectively by
     # #blank_emergency_field_names instead.
-    def emergency_fields
-      fields = all_emergency_fields
+    #
+    # `only` narrows the set to the keys a given document actually renders —
+    # the Safety ID card passes MEDICAL_EMERGENCY_FIELDS. It is an allowlist
+    # over EMERGENCY_FIELDS, so the printed order never changes with it.
+    def emergency_fields(only: EMERGENCY_FIELDS)
+      fields = all_emergency_fields.select { |field| only.include?(field.key) }
       return fields unless OMIT_BLANK_EMERGENCY_FIELDS
 
       fields.select { |field| field.values.any? }
     end
 
     # Short, lowercase names for the emergency fields nobody answered, in
-    # EMERGENCY_FIELDS order — the template joins them into the one muted line
-    # that replaces ten "None listed" rows. Empty when nothing is being omitted,
-    # so the template needs no second condition.
-    def blank_emergency_field_names
+    # EMERGENCY_FIELDS order — #blank_emergency_fields_note joins them into the
+    # one muted line that replaces ten "None listed" rows. Empty when nothing is
+    # being omitted, so a template needs no second condition.
+    def blank_emergency_field_names(only: EMERGENCY_FIELDS)
       return [] unless OMIT_BLANK_EMERGENCY_FIELDS
 
-      all_emergency_fields.reject { |field| field.values.any? }.map do |field|
-        I18n.t("care.document.emergency.blank_names.#{field.key}", locale: locale)
-      end
+      all_emergency_fields
+        .select { |field| only.include?(field.key) }
+        .reject { |field| field.values.any? }
+        .map { |field| I18n.t("care.document.emergency.blank_names.#{field.key}", locale: locale) }
+    end
+
+    # The whole muted line, joined and translated, or nil when nothing was
+    # omitted. Every document that omits a blank emergency field prints THIS —
+    # the care plan's emergency grid and the Safety ID card's medical grid —
+    # so the sentence, its connectors ("or", not "and": none of these were
+    # answered) and the decision to print it at all live in one place.
+    def blank_emergency_fields_note(only: EMERGENCY_FIELDS)
+      names = blank_emergency_field_names(only: only)
+      return nil if names.empty?
+
+      I18n.t(
+        "care.document.emergency.not_provided",
+        locale: locale,
+        fields: names.to_sentence(
+          words_connector: I18n.t("care.document.emergency.blank_names_connectors.words_connector", locale: locale),
+          two_words_connector: I18n.t("care.document.emergency.blank_names_connectors.two_words_connector", locale: locale),
+          last_word_connector: I18n.t("care.document.emergency.blank_names_connectors.last_word_connector", locale: locale),
+        ),
+      )
     end
 
     def emergency_contacts

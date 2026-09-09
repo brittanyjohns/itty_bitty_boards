@@ -551,6 +551,29 @@ Things that will bite a future change:
   `#blank_emergency_field_names` — so "nobody answered this" stays
   distinguishable from "there is nothing here" at a tenth of the height ten
   per-field rows used to cost.
+- **Every printed document answers a blank medical field the same way, and
+  `CarePlanDocument` is the only thing that answers it.** The rule above is not
+  the care plan's rule, it is the documents' rule, and the Safety ID card was
+  contradicting it in three places at once: two independent copies of a
+  `|| "None listed"` fallback (the generator's locals and the template's four
+  blocks), plus the care plan's OWN glance strip, where the one red `.cell` fell
+  back to "None listed" a few millimetres above an emergency grid that had
+  already omitted the same field (#890). On the card the string rendered at
+  25px bold under a coloured heading, on the one artefact that ends up
+  laminated on a backpack — which does not read as "unanswered", it reads as a
+  recorded negative finding. Every caller now reads
+  `#emergency_fields(only:)` and `#blank_emergency_fields_note(only:)`; the
+  note arrives pre-joined so the sentence and its "or" connectors live in one
+  place rather than in each template. `only:` exists because the card prints
+  the free-text note in its own block with an instruction fallback ("Please
+  call my emergency contacts."), so `MEDICAL_EMERGENCY_FIELDS` scopes the
+  card's not-filled-in line to the four fields a blank value makes a claim
+  about — naming "notes" there would report something the card did print. The
+  glance strip's allergy cell says "Not filled in"
+  (`care.document.glance.not_provided`); `how_i_talk` keeps `none_listed`
+  deliberately, since "nobody said how this person communicates" is not a
+  medical assertion. This is the DEFAULT state of both documents, not an edge
+  case — until #891 the MySpeak wizard collected none of the four fields.
 - **`Communicators::CarePlanDocument` is a port of `resolveCareSections`**
   (frontend `src/data/careSections.ts`). The labels are not duplicated —
   `CareLabels` serves those — but the walk over stored settings genuinely

@@ -286,6 +286,35 @@ RSpec.describe Communicators::CarePlanDocument do
       expect(doc.blank_emergency_field_names).to be_empty
     end
 
+    # The Safety ID card renders these four and prints the free-text note in
+    # its own block, so it asks for the medical subset only (#890).
+    it "narrows both readers to the requested keys" do
+      doc = with_care({ "sections" => {} }, emergency)
+      only = described_class::MEDICAL_EMERGENCY_FIELDS
+
+      expect(doc.emergency_fields(only: only).map(&:key)).to eq(%w[allergies medications])
+      expect(doc.blank_emergency_field_names(only: only))
+        .to eq(["conditions", "other conditions"])
+    end
+
+    # One sentence, one place. Both documents print THIS rather than each
+    # joining the names with connectors of its own.
+    it "joins the blank field names into the muted line" do
+      doc = with_care({ "sections" => {} }, emergency)
+
+      expect(doc.blank_emergency_fields_note)
+        .to eq("No conditions, other conditions, or notes were provided.")
+      expect(doc.blank_emergency_fields_note(only: described_class::MEDICAL_EMERGENCY_FIELDS))
+        .to eq("No conditions or other conditions were provided.")
+    end
+
+    it "has no muted line when every requested field is answered" do
+      answered = described_class::EMERGENCY_FIELDS.index_with { "something" }
+      doc = with_care({ "sections" => {} }, answered)
+
+      expect(doc.blank_emergency_fields_note).to be_nil
+    end
+
     it "exposes contacts through Profile#safety_contacts" do
       doc = with_care({ "sections" => {} }, emergency)
 

@@ -288,119 +288,61 @@
         </div>
 
         <!-- Medical grid -->
-        <div style="
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:18px;
-        ">
+        <%# A blank medical field is OMITTED rather than given a fallback
+            string — the same rule CarePlanDocument settled for the care plan,
+            and the reason no fallback survives in here. This card is read in
+            seconds by a stranger and ends up laminated on a backpack, so a
+            25px bold negative under a coloured heading reads as a recorded
+            finding rather than an unanswered box. The muted line below is what
+            keeps a responder able to tell those two apart. %>
+        <% if @medical_fields.any? %>
           <div style="
-            padding:22px;
-            border-radius:26px;
-            background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            border:1px solid #e2e8f0;
-            min-height:190px;
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:18px;
           ">
-            <div style="
-              font-size:16px;
-              font-weight:900;
-              letter-spacing:0.08em;
-              text-transform:uppercase;
-              color:#7c3aed;
-              margin-bottom:10px;
-            ">
-              Allergies
-            </div>
-            <div style="
-              font-size:25px;
-              line-height:1.38;
-              color:#1e293b;
-              font-weight:600;
-            ">
-              <%= @allergies.presence || "None listed" %>
-            </div>
+            <% @medical_fields.each do |field| %>
+              <div style="
+                padding:22px;
+                border-radius:26px;
+                background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+                border:1px solid #e2e8f0;
+                min-height:190px;
+              ">
+                <div style="
+                  font-size:16px;
+                  font-weight:900;
+                  letter-spacing:0.08em;
+                  text-transform:uppercase;
+                  color:<%= field[:accent] %>;
+                  margin-bottom:10px;
+                ">
+                  <%= field[:label] %>
+                </div>
+                <div style="
+                  font-size:25px;
+                  line-height:1.38;
+                  color:#1e293b;
+                  font-weight:600;
+                ">
+                  <%= field[:value] %>
+                </div>
+              </div>
+            <% end %>
           </div>
+        <% end %>
 
+        <% if @blank_medical_fields_note.present? %>
+          <%# No margin: the left column is a flex column with its own 20px gap. %>
           <div style="
-            padding:22px;
-            border-radius:26px;
-            background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            border:1px solid #e2e8f0;
-            min-height:190px;
+            font-size:20px;
+            line-height:1.4;
+            color:#64748b;
+            font-style:italic;
           ">
-            <div style="
-              font-size:16px;
-              font-weight:900;
-              letter-spacing:0.08em;
-              text-transform:uppercase;
-              color:#2563eb;
-              margin-bottom:10px;
-            ">
-              Medical Conditions
-            </div>
-            <div style="
-              font-size:25px;
-              line-height:1.38;
-              color:#1e293b;
-              font-weight:600;
-            ">
-              <%= @medical_conditions.presence || "None listed" %>
-            </div>
+            <%= @blank_medical_fields_note %>
           </div>
-
-          <div style="
-            padding:22px;
-            border-radius:26px;
-            background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            border:1px solid #e2e8f0;
-            min-height:190px;
-          ">
-            <div style="
-              font-size:16px;
-              font-weight:900;
-              letter-spacing:0.08em;
-              text-transform:uppercase;
-              color:#0f766e;
-              margin-bottom:10px;
-            ">
-              Medications
-            </div>
-            <div style="
-              font-size:25px;
-              line-height:1.38;
-              color:#1e293b;
-              font-weight:600;
-            ">
-              <%= @medications.presence || "None listed" %>
-            </div>
-          </div>
-
-          <div style="
-            padding:22px;
-            border-radius:26px;
-            background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            border:1px solid #e2e8f0;
-            min-height:190px;
-          ">
-            <div style="
-              font-size:16px;
-              font-weight:900;
-              letter-spacing:0.08em;
-              text-transform:uppercase;
-              color:#ea580c;
-              margin-bottom:10px;
-            ">
-              Other Conditions
-            </div>
-            <div style="
-              font-size:25px;
-              line-height:1.38;
-              color:#1e293b;
-              font-weight:600;
-            ">
-              <%= @other_conditions.presence || "None listed" %>
-            </div>
-          </div>
-        </div>
+        <% end %>
       </div>
 
       <!-- RIGHT COLUMN -->

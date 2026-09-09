@@ -49,6 +49,16 @@ module Communicators
 
     private
 
+    # The medical grid's per-block accent, keyed by field. The block's heading
+    # is `text-transform:uppercase`, so the label can come from the shared
+    # document (sentence case) without changing how the card reads.
+    FIELD_ACCENTS = {
+      "allergies" => "#7c3aed",
+      "medical_conditions" => "#2563eb",
+      "medications" => "#0f766e",
+      "other_conditions" => "#ea580c",
+    }.freeze
+
     def template_locals
       settings = profile.settings || {}
       {
@@ -59,13 +69,37 @@ module Communicators
         qr_data_url: qr_data_url_for(effective_qr_url(profile.permanent_url)),
         logo: logo_base64,
         display_name: profile.safety_display_name,
+        # Not a medical field: an unanswered note falls back to an INSTRUCTION,
+        # which asserts nothing about the person. That is why `emergency_notes`
+        # is excluded from the omit-and-name rule below — the card did print
+        # something here, so naming "notes" as unanswered would be wrong.
         emergency_notes: settings["emergency_notes"].presence || "Please call my emergency contacts.",
-        allergies: settings["allergies"].presence || "None listed",
-        medical_conditions: settings["medical_conditions"].presence || "None listed",
-        medications: settings["medications"].presence || "None listed",
-        other_conditions: settings["other_conditions"].presence || "None listed",
+        medical_fields: medical_fields,
+        blank_medical_fields_note: document.blank_emergency_fields_note(
+          only: CarePlanDocument::MEDICAL_EMERGENCY_FIELDS,
+        ),
         contacts: profile.safety_contacts,
       }
+    end
+
+    # An unanswered medical field is OMITTED and named in one muted line, the
+    # rule CarePlanDocument already settled for the care plan. It used to print
+    # "None listed" at 25px under its own coloured heading, which on a card a
+    # stranger reads in seconds does not say "unanswered" — it says a negative
+    # finding was recorded. Every communicator created through the MySpeak
+    # wizard has all four of these empty, so that was the DEFAULT card.
+    def medical_fields
+      document.emergency_fields(only: CarePlanDocument::MEDICAL_EMERGENCY_FIELDS).map do |field|
+        {
+          label: field.label,
+          value: field.values.first,
+          accent: FIELD_ACCENTS.fetch(field.key, "#7c3aed"),
+        }
+      end
+    end
+
+    def document
+      @document ||= CarePlanDocument.new(profile)
     end
   end
 end

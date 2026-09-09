@@ -165,7 +165,12 @@ en:
       glance:
         allergies: Allergies
         how_i_talk: How I talk
+        # `none_listed` is the how_i_talk cell's fallback and stays there — an
+        # unknown communication method is not a claim about anyone's health.
+        # The allergy cell uses `not_provided`, so it agrees with the emergency
+        # grid below it, which omits a blank field rather than calling it none.
         none_listed: None listed
+        not_provided: Not filled in
         plus_one: plus %{value}
         plus_many: plus %{count} more
       subheader:

@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **MySpeak setup can record allergies, medical details and care routines.**
+  The fast setup wizard collected an emergency note and contacts and nothing
+  else, so finishing it produced a page with four empty medical fields and no
+  "Care & routines" card — the block a teacher or a substitute reads first.
+  `POST /api/v1/onboarding/myspeak` now accepts `allergies`,
+  `medical_conditions`, `medications`, `other_conditions` and `care`, storing
+  them exactly where the profile form does. The medical fields stay private,
+  behind the same gated Emergency info reveal as the emergency note.
 - **`GET /api/boards/list` says which communicator each board is assigned to.**
   The listing that feeds the board picker now carries `in_use` and `in_use_by`,
   so the picker can tell a source board from the copy living on a communicator
@@ -75,6 +83,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Printed safety documents no longer answer an unfilled medical field with
+  "None listed".** The Safety ID card printed a large bold *None listed* under
+  each of Allergies, Medical Conditions, Medications and Other Conditions when
+  nobody had filled them in — on the one document that ends up laminated on a
+  backpack, that reads as a finding rather than an unanswered box, and it
+  could sit directly above an emergency note naming the very allergy it
+  denied. An unanswered field is now left off the card entirely, with one
+  muted line naming what went unanswered so a responder can still tell "no
+  allergies" from "nobody said". The care plan's at-a-glance allergy cell says
+  *Not filled in* for the same reason, matching the emergency grid on its own
+  page. "How I talk" is unchanged.
 - **Translated tiles no longer show the translation instruction as their label.**
   A tile label is usually a single word, and the request that translated it put
   the instruction and the word in the same message — so the model translated
