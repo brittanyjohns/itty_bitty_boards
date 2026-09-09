@@ -75,6 +75,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A read-only board stays read-only no matter who is editing it.** Boards over
+  a downgraded account's limit go read-only, but the check measured the person
+  making the request rather than the person who owns the board — and that check
+  always says yes about a board you do not own. So a locked board could still be
+  changed through a communicator's quick-add when the board had been shared onto
+  their dashboard by someone else. The lock now follows the board's owner. When
+  the person refused is not the owner, the message says the owner has to lift it
+  and no longer quotes the owner's plan limit back at them.
+
 - **Sharing a board with a team is now limited to boards you are entitled to
   share.** Putting a board on a team makes it readable by every member of that
   team, and the endpoint accepted any board id at all — so any team member could
@@ -101,6 +110,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **A board can only be on a team once.** Nothing prevented duplicate rows, so
   re-sharing a board somebody else had already shared crashed the request. Made
   structural, with existing duplicates merged.
+
 - **Translated tiles no longer show the translation instruction as their label.**
   A tile label is usually a single word, and the request that translated it put
   the instruction and the word in the same message — so the model translated

@@ -1134,7 +1134,19 @@ an explicit decision, not a drive-by edit.
   `User#board_editable?` opens with `return true if board.nil? || board.user_id
   != id`: it measures the read-only lock a downgrade imposes on YOUR boards and
   deliberately says nothing about a board you don't own, so an action guarded
-  only by it is guarded by nothing. `regenerate_images` sat in exactly that
+  only by it is guarded by nothing. The corollary on the LOCK side: **the plan
+  measured is always the BOARD OWNER's**, via `Board#owner_plan_allows_edit?`,
+  which takes no viewer argument and loads the owner from the database (an
+  association can hold the instance the board was BUILT with). Asking the caller
+  is what let a communicator quick-add onto a locked board an SLP had shared to
+  their dashboard. `BoardPlanLock` is the single refusal, shared with
+  `API::BoardImagesController`, and it is two-shaped: the owner gets
+  `board_locked` with `board_limit`/`editable_board_id` (the upgrade path),
+  anyone else gets `board_locked_owner_plan` with NEITHER — those are the
+  owner's plan tier and the id of another of their boards, and an Upgrade button
+  there would charge the wrong person. `Board#locked_for?` deliberately does not
+  route through it: it is only ever asked about the owner, with a freshly-loaded
+  record, and `make_editable` changes plan state mid-request. `regenerate_images` sat in exactly that
   state — any signed-in caller could name another user's `board_image_ids` and
   spend their OWN AI credits to have `GenerateImagesJob` overwrite that board's
   tile art. The two `only:` lists are therefore kept in sync, with `add_image`
