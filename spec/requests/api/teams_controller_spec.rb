@@ -185,13 +185,29 @@ RSpec.describe "API::Teams permissions", type: :request do
            headers: auth_headers(user)
     end
 
-    it "lets library writers (member/supervisor/admin/account owner/sysadmin) add a board" do
-      # Distinct board per writer — `add_board!` keys idempotency on the
-      # adder, so reusing one board across users isn't a real-world flow.
-      [member, supervisor, team_creator, account_owner, sysadmin].each do |u|
-        create_board(u, create(:board, user: team_creator))
+    it "lets library writers (member/supervisor/admin/account owner/sysadmin) add a board they own" do
+      # Each writer shares their OWN board — that is the real-world flow, and
+      # sharing a board makes it readable to the whole team, so `create_board`
+      # now refuses a board the caller has no claim to.
+      [member, supervisor, team_creator, account_owner].each do |u|
+        create_board(u, create(:board, user: u))
         expect(response).to have_http_status(:ok), "expected #{u.email} to add a board"
       end
+
+      # A sysadmin may share anything, including somebody else's board.
+      create_board(sysadmin, create(:board, user: team_creator))
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "blocks a library writer sharing a board they have no claim to (403)" do
+      stranger_board = create(:board, user: create(:user), published: false)
+
+      expect {
+        create_board(supervisor, stranger_board)
+      }.not_to change { team.team_boards.count }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(JSON.parse(response.body)["error"]).to eq("not_board_owner")
     end
 
     it "blocks a restricted (Read-Only) member from writing the library (403)" do
