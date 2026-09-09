@@ -1265,6 +1265,20 @@ class User < ApplicationRecord
   # library but cannot push them onto the communicator.
   CURATE_ROLES = %w[admin supervisor].freeze
 
+  # Which boards may this user edit because a team put a communicator in their
+  # care (issue #889)? Memoized on the instance so serializing a board LIST
+  # costs the reachability walk once rather than a query per card — `User`
+  # objects are per-request, so a membership change is picked up by the next
+  # request. Call `reset_team_curation!` if you change membership and then
+  # re-ask in the same object's lifetime.
+  def team_curation
+    @team_curation ||= Boards::TeamCuration.new(self)
+  end
+
+  def reset_team_curation!
+    @team_curation = nil
+  end
+
   def can_add_boards_to_account?(account_ids)
     return false unless account_ids
     account_id = account_ids.first

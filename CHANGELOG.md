@@ -15,6 +15,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `medical_conditions`, `medications`, `other_conditions` and `care`, storing
   them exactly where the profile form does. The medical fields stay private,
   behind the same gated Emergency info reveal as the emergency note.
+- **A Supervisor can now edit the boards on a communicator they curate.** The
+  school SLP a parent invites so she can add vocabulary was previously offered
+  only "Copy & customize", which forks a school copy away from the home copy —
+  the divergence the team feature exists to prevent. A curate-role member
+  (`admin`/`supervisor`) may now edit any board reachable from a communicator on
+  their team, folder pages included. Support and Read-Only members still cannot,
+  a supervisor still cannot DELETE a family's board, the owner's read-only plan
+  lock still applies, and removing or demoting the supervisor revokes it
+  immediately — the family keeps the board either way.
+
+- **`PATCH /api/teams/:id/member_role` changes a member's role in place.**
+  Correcting a role used to mean removing the person and re-inviting them.
+  Owner-gated, refuses the `admin` role and the communicator owner's row, and
+  answers stable error codes (`not_authorized`, `cannot_assign_admin`,
+  `cannot_change_owner_role`, `invalid_role`) so the client can branch on the
+  code rather than the prose.
+
 - **`GET /api/boards/list` says which communicator each board is assigned to.**
   The listing that feeds the board picker now carries `in_use` and `in_use_by`,
   so the picker can tell a source board from the copy living on a communicator

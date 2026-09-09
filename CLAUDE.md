@@ -1168,10 +1168,38 @@ an explicit decision, not a drive-by edit.
   there would confirm a private board exists, and a board name routinely
   carries a child's first name), while a board they can see but don't own is
   403 — never 401, which is authentication and would trip a client's
-  session-expired handling. Team membership grants VIEWING only:
-  `Board#can_edit_for`, the `can_edit` flag the payload publishes, is
-  owner-or-admin, so widening the gate would let a caller do what the UI told
-  them they could not.
+  session-expired handling. `Board#can_edit_for` — the `can_edit` flag the
+  payload publishes — is the ONE answer both gates and every serializer read,
+  so widening one without the other lets a caller do what the UI told them they
+  could not, or 403s a save the editor offered.
+- **A CURATE-role team member may edit a board on a communicator they curate,
+  and `Boards::TeamCuration` is the only thing that decides which boards those
+  are.** Team role used to be invisible to board editing, so the school SLP a
+  parent invited *specifically* to add vocabulary was offered only "Copy &
+  customize" — a school copy forked away from the home copy, which is the
+  divergence the team feature exists to prevent. Scope is the shared DASHBOARD,
+  never every board the owner has, and it follows REACHABILITY rather than
+  attachment: assignment attaches the ROOT of a set and its folder pages carry
+  no `child_boards` row, so an attachment-only answer edits a Core 84 root and
+  refuses its Food page — the identical half-working shape `QuickAddScope` and
+  `PublishCascade` each had to grow a walk to avoid. The walk's `admit:` filter
+  is a security control, not an optimization (`predictive_board_id` is
+  unvalidated and board ids are sequential, so a curated board's folder tile can
+  point at a stranger's). Four rails. `member`/`restricted` stay excluded — see
+  #494 for the softer path. A supervisor is a permission grant and never a
+  PLAN-LOCK bypass, so `can_edit_for` ends in `Board#owner_plan_allows_edit?`
+  — the same single definition `BoardPlanLock` refuses on, which since #892
+  measures the OWNER for every caller and hands a non-owner
+  `board_locked_owner_plan` rather than the owner's plan tier. `destroy` is
+  deliberately absent from `TEAM_CURATION_ACTIONS` —
+  she may change what a family's board says, never make it stop existing — and
+  that one list drives BOTH the authorization gate and the plan gate, so they
+  cannot be scoped differently. And `Board#viewable_by?` had to widen alongside
+  it: its `team_users` check is the team LIBRARY relationship, which a
+  dashboard board has no row in, and editable-but-invisible is not a state to
+  ship. Revocation is automatic because the answer is derived from live
+  membership; nothing is snapshotted, since a board she merely EDITED is the
+  family's own row. Details: `.claude-notes/boards-and-teams.md`.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row

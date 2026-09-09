@@ -7,6 +7,19 @@ class API::BoardsController < API::ApplicationController
   # inside a composed envelope.
   MAX_EDIT_PROMPT_LENGTH = 400
 
+  # The board writes a curate-role TEAM member may make on a board they don't
+  # own (issue #889). Content only — this is `check_board_editable!`'s list
+  # minus `add_image` (communicator-scoped, gated separately) and minus
+  # `destroy`, which is not on it either: a supervisor may change what a
+  # family's board says, never delete it.
+  TEAM_CURATION_ACTIONS = %w[
+    save_layout rearrange_images update regenerate_images edit_images
+    recategorize_images update_to_default_docs set_colors
+    update_preset_display_image set_display_image format_with_ai
+    add_word_pack associate_image associate_images remove_image
+    generate_preview_image
+  ].freeze
+
   # add_image is the one board write a COMMUNICATOR may make: Quick add, where a
   # nonspeaking user drops a word onto a board on their own dashboard. It is
   # skipped from the user-only `authenticate_token!` and re-gated below by
@@ -505,7 +518,14 @@ class API::BoardsController < API::ApplicationController
   def update
     @board = Board.find(params[:id])
     @board_user = @board.user
-    unless current_user.can_edit?(@board)
+    # `User#can_edit?` is the generic owner-or-admin predicate shared with
+    # images and docs, so the team-curation grant (issue #889) is added HERE
+    # rather than widened there — a supervisor curating a communicator must not
+    # thereby gain edit rights on the shared library rows a board points at.
+    # `check_board_view_edit_permissions` has already run and reaches the same
+    # answer through `Board#team_curatable_by?`; this inline check survives for
+    # the `predefined` guard `can_edit?` adds.
+    unless current_user.can_edit?(@board) || @board.team_curatable_by?(current_user)
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
@@ -2186,11 +2206,16 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
-  # Whether current_user may WRITE to this board. Owner or admin, and nothing
-  # else: Board#can_edit_for — the `can_edit` flag the payload publishes, which
-  # is what the editor gates its affordances on — gives the same answer, so a
-  # team member is refused only what the UI already told them they cannot do.
-  # Team membership grants VIEWING (Board#viewable_by?), never editing.
+  # Whether current_user may WRITE to this board. Owner, admin, or — for the
+  # CONTENT actions in TEAM_CURATION_ACTIONS only — a curate-role team member
+  # on a communicator this board is on (issue #889). Board#can_edit_for, the
+  # `can_edit` flag the payload publishes and the editor gates its affordances
+  # on, gives the same answer, so a member is refused only what the UI already
+  # told them they cannot do.
+  #
+  # `destroy` is deliberately NOT in that list: a supervisor may change what a
+  # family's board says, never make it stop existing. The family keeps the
+  # board when the SLP leaves, and it has to keep it while she is still there.
   #
   # The refusal has two shapes and which one applies is a question about
   # visibility, not about the write:
@@ -2206,6 +2231,7 @@ class API::BoardsController < API::ApplicationController
     set_board if @board.nil?
     return if @board.nil? # set_board already rendered 404
     return if current_user && (@board.user_id == current_user.id || current_user.admin?)
+    return if team_curation_write_allowed?
 
     unless @board.viewable_by?(current_user)
       render json: { error: "Board not found" }, status: :not_found
@@ -2213,6 +2239,18 @@ class API::BoardsController < API::ApplicationController
     end
 
     render json: { error: "Unauthorized" }, status: :forbidden
+  end
+
+  # Is THIS request one a curate-role team member is allowed to make on a board
+  # they don't own? Authorization only — the plan lock is `BoardPlanLock`'s,
+  # and since #892 it measures the board OWNER for every caller, so a curator
+  # needs no special case there.
+  def team_curation_write_allowed?
+    return false unless current_user
+    return false unless TEAM_CURATION_ACTIONS.include?(action_name)
+    return false if @board.nil?
+
+    @board.team_curatable_by?(current_user)
   end
 
   # Boards over a downgraded user's plan limit are read-only: still fully

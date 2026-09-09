@@ -821,8 +821,14 @@ class Board < ApplicationRecord
     return false if user.nil?
     return true if user.admin?
     return true if user_id == user.id
+    return true if team_users.exists?(user_id: user.id)
 
-    team_users.exists?(user_id: user.id)
+    # `team_users` here is the team LIBRARY relationship — a board somebody
+    # added to the team's shelf. A board sitting on a curated communicator's
+    # DASHBOARD has no such row, so without this a supervisor could edit a
+    # board she was 404'd on reading (issue #889). Editable-but-invisible is
+    # not a state to ship; what she may write, she may see.
+    team_curatable_by?(user)
   end
 
   def in_a_public_group?
@@ -2825,15 +2831,16 @@ class Board < ApplicationRecord
     @child_accounts = @visible_child_boards.map(&:child_account).compact.uniq
 
     @root_board = root_board
-    same_user = viewing_user && user_id == viewing_user.id
-    can_edit = same_user || viewing_user&.admin?
+    # ONE derivation. This used to re-derive owner-or-admin plus the plan gate
+    # inline, which is what let the editor's own read disagree with the save it
+    # was about to attempt: `Board#can_edit_for` is what every other payload
+    # publishes and what `check_board_view_edit_permissions` gates on, and it
+    # is where the team-curation grant lives (issue #889).
+    can_edit = can_edit_for(viewing_user)
     if current_account
       #  For future implementation - can add more granular permissions for communicators
       can_edit = current_account.settings["can_edit_boards"] == true
     end
-    # Plan gating: a free user over their board limit can edit only their one
-    # designated board (User#board_editable?). Non-User viewers untouched.
-    can_edit &&= viewing_user.board_editable?(self) if can_edit && viewing_user.is_a?(User)
     {
       id: id,
       board_type: board_type,
@@ -3467,15 +3474,40 @@ class Board < ApplicationRecord
     end
   end
 
-  # Whether viewing_user may edit this board's content. Owner/admin gate plus
-  # the plan-based read-only rule (User#board_editable?). Non-User viewers
-  # (e.g. ChildAccount) are not plan-gated here.
+  # Whether viewing_user may edit this board's content. Owner/admin gate, the
+  # team-curation grant (issue #889), plus the plan-based read-only rule
+  # (User#board_editable?). Non-User viewers (e.g. ChildAccount) are not
+  # plan-gated here.
   def can_edit_for(viewing_user)
     return false unless viewing_user
-    return false unless user_id == viewing_user.id || viewing_user.try(:admin?)
-    return true unless viewing_user.is_a?(User)
 
-    viewing_user.board_editable?(self)
+    if user_id == viewing_user.id || viewing_user.try(:admin?)
+      return true unless viewing_user.is_a?(User)
+      return viewing_user.board_editable?(self)
+    end
+
+    return false unless team_curatable_by?(viewing_user)
+
+    # The OWNER's plan lock still governs their own board. A supervisor is a
+    # permission grant, never a lock bypass: a board that reads read-only to
+    # the parent must not read editable to the SLP standing beside them.
+    # `owner_plan_allows_edit?` (#892) is the single definition and loads the
+    # owner fresh — this is a permission answer and must read current state.
+    owner_plan_allows_edit?
+  end
+
+  # PERMISSION only — "has a team put this board in this user's care?" — with
+  # no plan gate, so `check_board_view_edit_permissions` (authorization) and
+  # `check_board_editable!` (the plan lock) stay two separate answers.
+  #
+  # A curate-role member (`User::CURATE_ROLES`) may edit a board reachable from
+  # a communicator they curate. `member` ("Support") is deliberately excluded —
+  # see `ChildAccount#viewable_by?`; the softer path for them is issue #494.
+  def team_curatable_by?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+    return false if user_id.nil? || user_id == viewing_user.id
+
+    viewing_user.team_curation.include?(id)
   end
 
   # True ONLY when this board is read-only for viewing_user because of the
