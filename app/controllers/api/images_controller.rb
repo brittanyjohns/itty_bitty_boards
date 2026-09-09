@@ -692,7 +692,7 @@ class API::ImagesController < API::ApplicationController
       @user = @image.user
       current_user.user_docs.where(image_id: @image.id).destroy_all
       @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
-      @board = nil unless @board && current_user.can_edit?(@board)
+      @board = nil unless @board && @board.editable_by?(current_user)
       if params[:update_all]
         # Clearing is a library fan-out too, and obeys the same rule: the
         # actor's and admin's boards only, and never a tile whose picture was
@@ -926,7 +926,7 @@ class API::ImagesController < API::ApplicationController
     saved_image_url ||= @doc.tile_url
     if params[:boardId].present?
       @board = Board.find(params[:boardId])
-      if @board.user_id == current_user.id
+      if @board.editable_by?(current_user)
         @board_image = @board.board_images.find_by(image_id: @image.id)
         if @board_image
           @board_image.update!(display_image_url: @doc.tile_url)

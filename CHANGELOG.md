@@ -75,6 +75,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A communicator belonging to an administrator no longer reports that it can
+  edit every board.** The check compared the communicator's id against the
+  board's owner id without checking it was looking at a person, and a
+  communicator inherits its owner's administrator status — so the app told those
+  accounts they could edit boards they could not.
+
 - **A read-only board stays read-only no matter who is editing it.** Boards over
   a downgraded account's limit go read-only, but the check measured the person
   making the request rather than the person who owns the board — and that check

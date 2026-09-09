@@ -2826,14 +2826,15 @@ class Board < ApplicationRecord
 
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
-    can_edit = same_user || viewing_user&.admin?
+    # This is the payload the board EDITOR reads, so it has to agree with the
+    # write gate exactly — a hand-rolled copy here means a dead editor, or one
+    # whose saves 403. `can_edit_for` is permission (owner / admin / per-board
+    # team grant) AND the owner's plan lock.
+    can_edit = can_edit_for(viewing_user)
     if current_account
       #  For future implementation - can add more granular permissions for communicators
       can_edit = current_account.settings["can_edit_boards"] == true
     end
-    # Plan gating: a free user over their board limit can edit only their one
-    # designated board (User#board_editable?). Non-User viewers untouched.
-    can_edit &&= viewing_user.board_editable?(self) if can_edit && viewing_user.is_a?(User)
     {
       id: id,
       board_type: board_type,
@@ -3467,15 +3468,66 @@ class Board < ApplicationRecord
     end
   end
 
-  # Whether viewing_user may edit this board's content. Owner/admin gate plus
-  # the plan-based read-only rule (User#board_editable?). Non-User viewers
-  # (e.g. ChildAccount) are not plan-gated here.
+  # PERMISSION to write this board's content. No plan lock — that is
+  # `owner_plan_allows_edit?`, and the two are separate because the controller
+  # renders two different refusals (403 Unauthorized vs. 403 board_locked with
+  # a remediation path). THE definition of who may write here.
+  #
+  # `is_a?(User)` first, and not as a fallthrough: the old shape compared
+  # `user_id == viewing_user.id` before checking the class, so a ChildAccount
+  # whose id happened to equal a `boards.user_id` read as the owner — and
+  # `ChildAccount#admin?` delegates to `user.admin?`, so every communicator
+  # belonging to a sysadmin reported `can_edit: true` on every board. A
+  # communicator's edit rights come from a different question entirely
+  # (`current_account.settings["can_edit_boards"]`, in api_view_with_images).
+  def editable_by?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+    return true if viewing_user.admin?
+    return true if user_id == viewing_user.id
+
+    team_edit_granted_to?(viewing_user)
+  end
+
+  # A per-board edit GRANT: `team_boards.allow_edit` on a team where this user
+  # holds a `TeamUser::BOARD_EDIT_ROLES` role. Grant and role must be on the
+  # SAME team — a supervisor on team A does not inherit team B's grant.
+  #
+  # Team membership alone still grants only VIEWING (`viewable_by?`). Only the
+  # board's owner can make a grant, so this can never widen on its own.
+  #
+  # Nothing in the public catalogue is grantable: `predefined` boards and
+  # anything the seed admin owns are shared library rows, not one person's to
+  # hand out.
+  def team_edit_granted_to?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+    return false if predefined?
+    return false if user_id.nil? || user_id == User::DEFAULT_ADMIN_ID
+
+    TeamBoard
+      .where(board_id: id, allow_edit: true)
+      .where(team_id: TeamUser.where(user_id: viewing_user.id,
+                                     role: TeamUser::BOARD_EDIT_ROLES).select(:team_id))
+      .exists?
+  end
+
+  # Who may make or revoke a grant on this board: its owner, or a sysadmin.
+  # Never the team's owner — write access to somebody else's board is not
+  # theirs to give. Backs both the endpoint and the `can_grant_edit` flag, so
+  # the button and the gate cannot disagree.
+  def edit_grant_manageable_by?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+
+    viewing_user.id == user_id || viewing_user.admin?
+  end
+
+  # Whether viewing_user may edit this board's content RIGHT NOW: permission
+  # AND the owner's plan lock. This is the `can_edit` every payload publishes,
+  # and it shares both halves with the gates, so the flag and the answer the
+  # server gives cannot drift.
   def can_edit_for(viewing_user)
     return false unless viewing_user
-    return false unless user_id == viewing_user.id || viewing_user.try(:admin?)
-    return true unless viewing_user.is_a?(User)
 
-    viewing_user.board_editable?(self)
+    editable_by?(viewing_user) && owner_plan_allows_edit?
   end
 
   # True ONLY when this board is read-only for viewing_user because of the

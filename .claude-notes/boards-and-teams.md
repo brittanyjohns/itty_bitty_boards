@@ -179,6 +179,85 @@ better data; `make_editable` changes the plan state mid-request and a stale
 association would report the board still locked.
 
 
+### Per-board edit grants — a team grants VIEWING, a grant grants WRITING
+
+Team ROLE never confers edit on a board you don't own. A per-board GRANT does:
+`team_boards.allow_edit`, set only by the board's OWNER (or a sysadmin) — never
+by the team's owner, since write access to somebody else's board is not theirs
+to give (`Board#edit_grant_manageable_by?`).
+
+**`Board#editable_by?` is the one permission answer** — owner, sysadmin, or
+`allow_edit` AND a `TeamUser::BOARD_EDIT_ROLES` role **on the same team**
+(`Board#team_edit_granted_to?`). `Board#can_edit_for` — the `can_edit` every
+payload publishes — is `editable_by?` AND `owner_plan_allows_edit?`, and both
+write gates route through the same two methods, so the flag and the answer the
+server gives cannot drift. Grant and role must be on the SAME team: a supervisor
+on team A does not inherit team B's grant. Nothing in the public catalogue is
+grantable (`predefined`, or owned by `DEFAULT_ADMIN_ID`).
+
+**`BOARD_EDIT_ROLES` is `admin`/`supervisor`.** `member` ("Support") is out even
+with a grant: it is already denied the WEAKER act — putting an existing board on
+a dashboard (`User::CURATE_ROLES`) — and editing the board a child is
+mid-sentence in is strictly stronger, so granting it would invert the ladder the
+invite screen promises. `restricted` is out by definition. The constant mirrors
+`CURATE_ROLES` today and is deliberately NOT aliased to it: different questions.
+A role downgrade silently revokes edit without touching `team_boards`, which is
+why the role is part of the predicate rather than baked in at grant time.
+
+**Two `before_action` lists, and every gated action is on exactly one.**
+`check_board_view_edit_permissions` is OWNER-OR-ADMIN: `destroy`, the AI spend
+(`regenerate_images`, `edit_images`), the whole-board sweeps (`set_colors`,
+`recategorize_images`, `format_with_ai`, `update_to_default_docs`) and the three
+cover actions. `check_board_team_write_permissions` is owner/admin/grant:
+`save_layout`, `rearrange_images`, `update`, `associate_image(s)`,
+`remove_image`, `add_word_pack` — plus `add_image`, which
+`check_communicator_board_access!` delegates to for a user token. Both share
+`refuse_board_write!`, so the 404-if-invisible / 403-if-visible rule stays one
+piece of code. `spec/requests/api/boards_team_edit_spec.rb` asserts the split
+arithmetically rather than trusting the comment; note `destroy` is on the
+permission list but NOT the plan list, because a read-only board can still be
+deleted.
+
+**`#update` is field-scoped for a non-owner.** `published`, a changed `name`,
+`favorite`, `voice`, `slug`/`regenerate_slug`/`predefined` are acts of
+ownership: refused by name (403 `board_owner_only_change`, listing the fields)
+rather than stripped, because silently dropping them tells the editor the
+publish toggle worked. The `vendor_id` stamp is guarded on ownership too, or a
+vendor SLP re-brands a parent's board on every save. And a non-owner gets NO
+marketplace confirm path — clicking through "the paper a buyer holds stops
+matching" is the seller's commercial decision.
+
+**The grant reaches the real tile-edit path.** Adding a word is
+`boards#add_image`; renaming, recolouring or deleting it is
+`API::BoardImagesController`, whose `owned_board_image` was scoped to
+`boards.user_id`. It now loads the row and asks `Board#editable_by?` — two
+steps rather than a scope, because a second SQL implementation of the same
+authorization rule is the drift this design exists to prevent. Same for
+`docs#mark_as_current` and the two `images_controller` board branches.
+
+**`User#can_edit?` stays ownership-only.** It is polymorphic over
+Image/Doc/Board and governs the shared library — teaching it about teams would
+hand away Image and Doc rights. `Images::TileArtFanout` stays ownership-scoped
+for the same reason: a grant lets you edit ONE board, never fan a library change
+across its owner's account. And `allow_edit` is deliberately NOT consulted by
+`Boards::AssignableSource#team_scope` or `Boards::QuickAddScope` — those are
+attach/quick-add allowlists, and a read-only shared board must still reach a
+dashboard.
+
+**Attribution.** There is no board-write audit anywhere and `board_images` has
+no `created_by`, so a tile added by someone other than the board's owner is
+stamped `data["added_by_id"]` / `["added_by_at"]` and the id is published on the
+tile payload. It is the only trace the owner gets on a feature whose premise is
+"someone else edits your child's board". Fail-soft: a successfully added tile
+must not 500 over its own provenance stamp.
+
+**Cross-type trap fixed here.** `can_edit_for` used to compare
+`user_id == viewing_user.id` before checking the class, and `ChildAccount#admin?`
+delegates to `user.admin?` — so every communicator belonging to a sysadmin read
+`can_edit: true` on every board. `editable_by?` requires `is_a?(User)` first; a
+communicator's edit rights come from `current_account.settings["can_edit_boards"]`
+in `api_view_with_images`, which is untouched.
+
 The SLP→family **hand-off** (loaner → claim) is the supported ownership
 transfer: `claim_by!` moves both `child_account.owner_id` and the own team's
 `created_by_id` to the new owner. A standalone **transfer ownership** endpoint

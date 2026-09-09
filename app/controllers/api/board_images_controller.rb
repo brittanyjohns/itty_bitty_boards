@@ -722,12 +722,23 @@ class API::BoardImagesController < API::ApplicationController
     render json: { error: "Board image not found" }, status: :not_found
   end
 
-  # A board image owned by the current user (its board's user_id matches).
-  # Raises ActiveRecord::RecordNotFound (=> 404) for a non-owner. Admins bypass.
+  # A board image the current user may mutate: their own board, an admin, or a
+  # board carrying a per-board team edit grant they can reach
+  # (`Board#editable_by?`). Raises ActiveRecord::RecordNotFound (=> 404)
+  # otherwise, which is the same answer a nonexistent id gets — board ids are
+  # sequential and a board name routinely carries a child's first name.
+  #
+  # Two-step rather than a scope: `Board#editable_by?` is THE definition of who
+  # may write a board, and a second SQL implementation of the same
+  # authorization rule is exactly the drift the one-predicate rule exists to
+  # prevent. This is the real tile-edit path — adding a word is
+  # `boards#add_image`, but renaming, recolouring or deleting it is here — so a
+  # grant that did not reach it would deliver half the feature.
   def owned_board_image(id = params[:id])
-    return BoardImage.find(id) if current_user.admin?
+    board_image = BoardImage.find(id)
+    raise ActiveRecord::RecordNotFound unless board_image.board&.editable_by?(current_user)
 
-    BoardImage.joins(:board).where(boards: { user_id: current_user.id }).find(id)
+    board_image
   end
 
   # Only allow a list of trusted parameters through.

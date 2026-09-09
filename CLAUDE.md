@@ -1168,10 +1168,29 @@ an explicit decision, not a drive-by edit.
   there would confirm a private board exists, and a board name routinely
   carries a child's first name), while a board they can see but don't own is
   403 — never 401, which is authentication and would trip a client's
-  session-expired handling. Team membership grants VIEWING only:
-  `Board#can_edit_for`, the `can_edit` flag the payload publishes, is
-  owner-or-admin, so widening the gate would let a caller do what the UI told
-  them they could not.
+  session-expired handling. **Team ROLE never confers edit on a board you don't
+  own; a per-board GRANT from the board's owner does.** `team_boards.allow_edit`
+  is that grant, settable only by the board's owner or a sysadmin
+  (`Board#edit_grant_manageable_by?`) — never by the team's owner, since write
+  on somebody else's board is not theirs to give. `Board#editable_by?` is the
+  one permission answer (owner, sysadmin, or `allow_edit` AND a
+  `TeamUser::BOARD_EDIT_ROLES` role **on the same team**), and
+  `Board#can_edit_for` — the `can_edit` every payload publishes — is
+  `editable_by?` AND `owner_plan_allows_edit?`, so the flag and the gate cannot
+  disagree. `member`/"Support" is excluded even with a grant: it is already
+  denied the WEAKER act (curating a dashboard), so granting it the stronger one
+  inverts the role ladder. The grant is narrow — per-tile and layout writes on
+  `check_board_team_write_permissions`; deletion, AI spend, whole-board sweeps
+  and the board cover stay owner-or-admin on `check_board_view_edit_permissions`,
+  every gated action on exactly one list (pinned by
+  `spec/requests/api/boards_team_edit_spec.rb`). `#update` refuses
+  `published`/`name`/`favorite`/`voice` from a non-owner by name rather than
+  stripping them, guards the `vendor_id` stamp on ownership, and offers a
+  non-owner no marketplace confirm path. `User#can_edit?` stays ownership-only
+  (it is polymorphic over Image/Doc/Board and governs the shared library), and
+  `allow_edit` is NOT consulted by `Boards::AssignableSource` or
+  `Boards::QuickAddScope` — those are attach allowlists, and a read-only shared
+  board must still reach a dashboard.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row
