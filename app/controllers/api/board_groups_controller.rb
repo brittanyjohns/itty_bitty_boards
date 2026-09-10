@@ -52,7 +52,11 @@ class API::BoardGroupsController < API::ApplicationController
     end
     return unless authorize_board_group_read!(board_group)
 
-    render json: Boards::SetGraphBuilder.new(board_group, viewing_user: current_user).call
+    # can_edit rides along so the map can offer a way to FIX an empty set only
+    # to someone who could act on it -- a signed-out visitor on a curated set
+    # reads the same explanation with no button that would 403.
+    graph = Boards::SetGraphBuilder.new(board_group, viewing_user: current_user).call
+    render json: graph.merge(can_edit: board_group_editable?(board_group))
   end
 
   def export_package
@@ -268,6 +272,15 @@ class API::BoardGroupsController < API::ApplicationController
   # their own, non-predefined sets (predefined sets stay admin-curated even
   # if somehow owned). Renders 403 and returns false when the caller isn't
   # allowed; returns true otherwise so callers can `return unless ...`.
+  # The same rule authorize_board_group! enforces, as a question rather than a
+  # gate: admins curate anything, everyone else only their own non-predefined
+  # sets.
+  def board_group_editable?(board_group)
+    return true if current_user&.admin?
+
+    !board_group.predefined? && board_group.user_id == current_user&.id
+  end
+
   def authorize_board_group!(board_group)
     return true if current_user&.admin?
 

@@ -96,4 +96,85 @@ RSpec.describe "API::BoardGroups graph", type: :request do
       expect(tile).to be_present
     end
   end
+
+  # The set page labels its button "View map" or "Create map" from `has_map`,
+  # so the flag has to agree with the edges the graph actually draws. Every
+  # predefined set on production is a flat bag of boards with zero edges.
+  describe "has_map" do
+    def flag_for(group)
+      get "/api/board_groups/#{group.id}", headers: auth_headers(user)
+      JSON.parse(response.body)["has_map"]
+    end
+
+    def edge_count_for(group)
+      get "/api/board_groups/#{group.id}/graph", headers: auth_headers(user)
+      JSON.parse(response.body)["edges"].length
+    end
+
+    it "is true for a linked set, and agrees with the graph" do
+      set = build_group_for(user)
+
+      expect(flag_for(set[:group])).to be(true)
+      expect(edge_count_for(set[:group])).to be > 0
+    end
+
+    it "is false for a flat set of unlinked boards, and agrees with the graph" do
+      group = FactoryBot.create(:board_group, user: user, layout: {})
+      2.times do |i|
+        board = FactoryBot.create(:board, user: user, name: "Flat #{i}")
+        FactoryBot.create(:board_image, board: board,
+                                        image: FactoryBot.create(:image, label: "word#{i}"))
+        group.add_board(board)
+      end
+
+      expect(flag_for(group)).to be(false)
+      expect(edge_count_for(group)).to eq(0)
+    end
+
+    it "is false when a board links OUT of the set" do
+      group = FactoryBot.create(:board_group, user: user, layout: {})
+      inside = FactoryBot.create(:board, user: user, name: "Inside")
+      outside = FactoryBot.create(:board, user: user, name: "Outside")
+      FactoryBot.create(:board_image, board: inside,
+                                      image: FactoryBot.create(:image, label: "out"),
+                                      predictive_board_id: outside.id)
+      group.add_board(inside)
+
+      expect(flag_for(group)).to be(false)
+      expect(edge_count_for(group)).to eq(0)
+    end
+
+    it "is false for a set with no boards and no root" do
+      group = FactoryBot.create(:board_group, user: user, layout: {})
+
+      expect(flag_for(group)).to be(false)
+    end
+  end
+
+  describe "can_edit on the graph payload" do
+    it "is true for the owner" do
+      set = build_group_for(user)
+      get "/api/board_groups/#{set[:group].id}/graph", headers: auth_headers(user)
+
+      expect(JSON.parse(response.body)["can_edit"]).to be(true)
+    end
+
+    it "is false for an anonymous visitor on a curated set" do
+      set = build_group_for(admin)
+      set[:group].update!(predefined: true)
+
+      get "/api/board_groups/#{set[:group].id}/graph"
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["can_edit"]).to be(false)
+    end
+
+    it "is true for an admin on someone else's set" do
+      set = build_group_for(user)
+      get "/api/board_groups/#{set[:group].id}/graph", headers: auth_headers(admin)
+
+      expect(JSON.parse(response.body)["can_edit"]).to be(true)
+    end
+  end
+
 end

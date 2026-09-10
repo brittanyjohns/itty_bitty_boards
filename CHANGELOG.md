@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **A board set says whether it has a map at all.** `GET
+  /api/board_groups/:id` carries `has_map`, true only when a tile in the set
+  points at another board *in the same set* — mirroring
+  `Boards::SetGraphBuilder#build_edges` exactly, so the flag can't disagree
+  with the picture. Every predefined set on production is a flat bag of boards
+  with zero edges (Daily Core Starter Set: 4 boards, 0 links; Preschool
+  Classroom Boards: 6 and 0), so the app was offering to show a map of nothing.
+  A set with no member boards reports `true` when it has a root board: the
+  graph falls back to a walk from there, and claiming "no map" about a real one
+  is the worse mistake.
+
+- **`GET /api/board_groups/:id/graph` carries `can_edit`.** The map can then
+  offer a way to fix an empty set only to someone who could act on it, rather
+  than showing a signed-out visitor a button that would 403.
+
 ### Fixed
 
 - **The trial-ending reminder names the plan you're actually trialing.** The

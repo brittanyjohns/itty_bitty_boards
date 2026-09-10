@@ -94,6 +94,25 @@ class BoardGroup < ApplicationRecord
     Board.where(id: member_board_ids).destroy_all
   end
 
+  # Would the map actually draw a connection? Mirrors
+  # Boards::SetGraphBuilder#build_edges EXACTLY -- an edge is any tile whose
+  # predictive_board_id points at another board IN THIS SET (door_tile? is not
+  # consulted there, and a self-link counts, because it produces an edge). The
+  # button on the set page reads this to decide between "View map" and "Create
+  # map", so a flag that disagreed with the graph would put the lie back.
+  #
+  # Every predefined set on production is a flat bag of boards with zero edges,
+  # which is what this exists to tell the user before they open an empty canvas.
+  def mapped?
+    ids = board_group_boards.pluck(:board_id)
+    # With no members the graph builder falls back to a BFS from the root, which
+    # there is no cheap way to answer. Bias to "yes": mislabelling a real map as
+    # "Create map" is the worse failure.
+    return root_board_id.present? if ids.empty?
+
+    BoardImage.where(board_id: ids, predictive_board_id: ids).exists?
+  end
+
   def set_slug
     return unless name.present? && slug.blank?
 
@@ -340,6 +359,7 @@ class BoardGroup < ApplicationRecord
       medium_screen_columns: medium_screen_columns,
       large_screen_columns: large_screen_columns,
       root_board_id: root_board_id,
+      has_map: mapped?,
       settings: settings,
       margin_settings: margin_settings,
       slug: slug,
