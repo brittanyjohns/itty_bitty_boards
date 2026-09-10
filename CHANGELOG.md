@@ -3,9 +3,50 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.11.0] — 2026-09-10
+
+### Added
+
+- **MySpeak setup can record allergies, medical details and care routines.**
+  The fast setup wizard collected an emergency note and contacts and nothing
+  else, so finishing it produced a page with four empty medical fields and no
+  "Care & routines" card — the block a teacher or a substitute reads first.
+  `POST /api/v1/onboarding/myspeak` now accepts `allergies`,
+  `medical_conditions`, `medications`, `other_conditions` and `care`, storing
+  them exactly where the profile form does. The medical fields stay private,
+  behind the same gated Emergency info reveal as the emergency note.
+
+- **A Supervisor can now edit the boards on a communicator they curate.** The
+  school SLP a parent invites so she can add vocabulary was previously offered
+  only "Copy & customize", which forks a school copy away from the home copy —
+  the divergence the team feature exists to prevent. A curate-role member
+  (`admin`/`supervisor`) may now edit any board reachable from a communicator on
+  their team, folder pages included. Support and Read-Only members still cannot,
+  a supervisor still cannot DELETE a family's board, the owner's read-only plan
+  lock still applies, and removing or demoting the supervisor revokes it
+  immediately — the family keeps the board either way.
+
+- **`PATCH /api/teams/:id/member_role` changes a member's role in place.**
+  Correcting a role used to mean removing the person and re-inviting them.
+  Owner-gated, refuses the `admin` role and the communicator owner's row, and
+  answers stable error codes (`not_authorized`, `cannot_assign_admin`,
+  `cannot_change_owner_role`, `invalid_role`) so the client can branch on the
+  code rather than the prose.
 
 ### Fixed
+
+- **A communicator's page — and their passcode — are now only shown to people
+  connected to them.** `GET /api/child_accounts/:id` rendered the full
+  communicator record to any signed-in caller, and `api_view` serialized the
+  login passcode, claim token and claim URL no matter who was asking. The read
+  is now gated by `ChildAccount#viewable_by?` (owner, admin, or a member of a
+  team the communicator is on), answering everyone else with the same generic
+  404 `boards#show` uses so the id is not confirmed; and `passcode`,
+  `claim_token` and `claim_url` are emitted only when `editable_by?`, so a team
+  member still reads the record but no longer receives the credentials. The
+  keys stay present as `nil`, so the payload shape is unchanged for clients.
+  Consistent with the owner-protection work on the mutating endpoints and the
+  read gate the communicator stats routes already used. (#903)
 
 - **A communicator who cannot sign in no longer looks like a typo.** The
   sign-in endpoint answers every failure with the same generic "invalid
@@ -54,32 +95,101 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   ones. `preset` also stopped advertising a `welcome_board` key that was always
   `null` — the ivar behind it was never assigned.
 
+- **Speak mode no longer serves a private board to anyone who guesses its id.**
+  `GET /api/boards/:id/predictive_image_board` is unauthenticated (Speak mode
+  opens genuinely public boards) and resolved its board with no ownership or
+  `published` scoping, so an anonymous caller could walk sequential ids and read
+  any board's full tile payload — labels, symbols, and a board name that
+  routinely carries a child's first name. It now applies the same
+  `Board#viewable_by?` guard `show` and `pdf` carry, answering the same generic
+  `404 {"error": "Board not found"}`. The `predictive_default` fallback for an
+  id that matches no board is unchanged (#852).
+
+- **Care notes typed as a list stay a list.** Every free-text care field was
+  cleaned with a rule that collapsed line breaks, so "he bolts when scared /
+  he rides Bus 14 / front-right seat" was saved — and printed on the Care &
+  Emergency Plan — as one paragraph. The per-section notes field now keeps the
+  lines a parent typed, in the API, on the public MySpeak page and in the
+  printed plan, while runaway spacing and blank-line runs are still tidied up.
+  One-line fields (section titles, detail rows, custom chips) are unchanged.
+  Notes saved before this fix cannot be un-flattened.
+
+- **A communicator's team now starts with their boards on it.** Every
+  communicator gets a namesake team at creation, but the boards on their
+  dashboard were never added to it — so the team page read "Shared boards 0"
+  forever and an invited helper (a school SLP, say) joined with nothing to work
+  on. A newly created team is now seeded with whatever is already on that
+  communicator's dashboard. Only at creation, when the team is the owner alone:
+  an existing team is never backfilled, so sharing a board with people who have
+  already been invited stays the owner's deliberate choice.
+
+- **Printed safety documents no longer answer an unfilled medical field with
+  "None listed".** The Safety ID card printed a large bold *None listed* under
+  each of Allergies, Medical Conditions, Medications and Other Conditions when
+  nobody had filled them in — on the one document that ends up laminated on a
+  backpack, that reads as a finding rather than an unanswered box, and it
+  could sit directly above an emergency note naming the very allergy it
+  denied. An unanswered field is now left off the card entirely, with one
+  muted line naming what went unanswered so a responder can still tell "no
+  allergies" from "nobody said". The care plan's at-a-glance allergy cell says
+  *Not filled in* for the same reason, matching the emergency grid on its own
+  page. "How I talk" is unchanged.
+
+- **A read-only board stays read-only no matter who is editing it.** Boards over
+  a downgraded account's limit go read-only, but the check measured the person
+  making the request rather than the person who owns the board — and that check
+  always says yes about a board you do not own. So a locked board could still be
+  changed through a communicator's quick-add when the board had been shared onto
+  their dashboard by someone else. The lock now follows the board's owner. When
+  the person refused is not the owner, the message says the owner has to lift it
+  and no longer quotes the owner's plan limit back at them.
+
+- **Sharing a board with a team is now limited to boards you are entitled to
+  share.** Putting a board on a team makes it readable by every member of that
+  team, and the endpoint accepted any board id at all — so any team member could
+  pull a stranger's private board into a team they controlled and read it. Board
+  ids are sequential and a board name routinely carries a child's first name. A
+  board may now be shared by its owner, by a system admin, if it is already
+  public, or if it is already on a communicator's dashboard on that team — the
+  same shape `Boards::AssignableSource` uses for the sibling question. A board's
+  owner can also now un-share their own board whatever their role, which they
+  could not do before.
+
+- **An invited team member can no longer choose their own role.** Setting a
+  password from an invitation accepted a `role` parameter and wrote it straight
+  to the membership, and the only guard was a list that includes `admin` — so an
+  invitee could arrive as a team administrator. The role is the inviter's
+  decision and was already recorded when the invite was sent.
+
+- **Read-only team members can no longer detach a communicator or delete a
+  team.** Changing or removing a communicator on a team was authorised only by
+  the read scope, which admits every member at every role — and removing the
+  last communicator deletes the whole team, its membership, and its shared
+  boards. It now takes the same rights as adding one.
+
+- **A board can only be on a team once.** Nothing prevented duplicate rows, so
+  re-sharing a board somebody else had already shared crashed the request. Made
+  structural, with existing duplicates merged.
+
+- **Translated tiles no longer show the translation instruction as their label.**
+  A tile label is usually a single word, and the request that translated it put
+  the instruction and the word in the same message — so the model translated
+  both and handed back "Haz responde con el objeto JSON en el siguiente
+  formato...", which was saved as the tile's text and shown on a public board.
+  The instruction and the word are now separate, and a translation that comes
+  back looking like the instruction (or wildly too long for the word it came
+  from) is thrown away instead of saved, so the tile keeps its English label
+  until a good translation arrives.
+
+- **The admin kit page's "Autofill the page" button works on an existing page
+  again.** It answered 404: the button retargets the surrounding PATCH form
+  with `formaction`, the hidden `_method=patch` rode along, and the POST-only
+  member route didn't match. The route accepts both verbs now. Admin-only.
+  (#884)
+
+## [1.10.0] — 2026-09-08
+
 ### Added
-
-- **MySpeak setup can record allergies, medical details and care routines.**
-  The fast setup wizard collected an emergency note and contacts and nothing
-  else, so finishing it produced a page with four empty medical fields and no
-  "Care & routines" card — the block a teacher or a substitute reads first.
-  `POST /api/v1/onboarding/myspeak` now accepts `allergies`,
-  `medical_conditions`, `medications`, `other_conditions` and `care`, storing
-  them exactly where the profile form does. The medical fields stay private,
-  behind the same gated Emergency info reveal as the emergency note.
-- **A Supervisor can now edit the boards on a communicator they curate.** The
-  school SLP a parent invites so she can add vocabulary was previously offered
-  only "Copy & customize", which forks a school copy away from the home copy —
-  the divergence the team feature exists to prevent. A curate-role member
-  (`admin`/`supervisor`) may now edit any board reachable from a communicator on
-  their team, folder pages included. Support and Read-Only members still cannot,
-  a supervisor still cannot DELETE a family's board, the owner's read-only plan
-  lock still applies, and removing or demoting the supervisor revokes it
-  immediately — the family keeps the board either way.
-
-- **`PATCH /api/teams/:id/member_role` changes a member's role in place.**
-  Correcting a role used to mean removing the person and re-inviting them.
-  Owner-gated, refuses the `admin` role and the communicator owner's row, and
-  answers stable error codes (`not_authorized`, `cannot_assign_admin`,
-  `cannot_change_owner_role`, `invalid_role`) so the client can branch on the
-  code rather than the prose.
 
 - **`GET /api/boards/list` says which communicator each board is assigned to.**
   The listing that feeds the board picker now carries `in_use` and `in_use_by`,
@@ -97,6 +207,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   images or the rendered pages of an uploaded PDF. They sit in the same
   Don't show / On the page / After the email picker as those rendered pages, and
   "Regenerate" never touches them. An uploaded picture is never a download.
+
 - **Quick add offers every board in a set, not just the ones on the dashboard.**
   Assigning a board attaches the ROOT of a set, so its folder pages had no
   dashboard row and a communicator standing on the "Food" page of their core
@@ -147,90 +258,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   boards put them out of reach of the people they were written for. They still
   cost no AI credits.
 
+- **A board now lists only the communicators you're entitled to see.** The
+  "Currently in use by" information on a board is yours: you still see your own
+  communicators on your own boards, an admin still sees everything, and nobody
+  else sees any. This also makes the public board library markedly faster to
+  load, since working that out was most of what the library was doing.
+
 ### Fixed
-
-- **Speak mode no longer serves a private board to anyone who guesses its id.**
-  `GET /api/boards/:id/predictive_image_board` is unauthenticated (Speak mode
-  opens genuinely public boards) and resolved its board with no ownership or
-  `published` scoping, so an anonymous caller could walk sequential ids and read
-  any board's full tile payload — labels, symbols, and a board name that
-  routinely carries a child's first name. It now applies the same
-  `Board#viewable_by?` guard `show` and `pdf` carry, answering the same generic
-  `404 {"error": "Board not found"}`. The `predictive_default` fallback for an
-  id that matches no board is unchanged (#852).
-- **Care notes typed as a list stay a list.** Every free-text care field was
-  cleaned with a rule that collapsed line breaks, so "he bolts when scared /
-  he rides Bus 14 / front-right seat" was saved — and printed on the Care &
-  Emergency Plan — as one paragraph. The per-section notes field now keeps the
-  lines a parent typed, in the API, on the public MySpeak page and in the
-  printed plan, while runaway spacing and blank-line runs are still tidied up.
-  One-line fields (section titles, detail rows, custom chips) are unchanged.
-  Notes saved before this fix cannot be un-flattened.
-- **A communicator's team now starts with their boards on it.** Every
-  communicator gets a namesake team at creation, but the boards on their
-  dashboard were never added to it — so the team page read "Shared boards 0"
-  forever and an invited helper (a school SLP, say) joined with nothing to work
-  on. A newly created team is now seeded with whatever is already on that
-  communicator's dashboard. Only at creation, when the team is the owner alone:
-  an existing team is never backfilled, so sharing a board with people who have
-  already been invited stays the owner's deliberate choice.
-
-- **Printed safety documents no longer answer an unfilled medical field with
-  "None listed".** The Safety ID card printed a large bold *None listed* under
-  each of Allergies, Medical Conditions, Medications and Other Conditions when
-  nobody had filled them in — on the one document that ends up laminated on a
-  backpack, that reads as a finding rather than an unanswered box, and it
-  could sit directly above an emergency note naming the very allergy it
-  denied. An unanswered field is now left off the card entirely, with one
-  muted line naming what went unanswered so a responder can still tell "no
-  allergies" from "nobody said". The care plan's at-a-glance allergy cell says
-  *Not filled in* for the same reason, matching the emergency grid on its own
-  page. "How I talk" is unchanged.
-- **A read-only board stays read-only no matter who is editing it.** Boards over
-  a downgraded account's limit go read-only, but the check measured the person
-  making the request rather than the person who owns the board — and that check
-  always says yes about a board you do not own. So a locked board could still be
-  changed through a communicator's quick-add when the board had been shared onto
-  their dashboard by someone else. The lock now follows the board's owner. When
-  the person refused is not the owner, the message says the owner has to lift it
-  and no longer quotes the owner's plan limit back at them.
-
-- **Sharing a board with a team is now limited to boards you are entitled to
-  share.** Putting a board on a team makes it readable by every member of that
-  team, and the endpoint accepted any board id at all — so any team member could
-  pull a stranger's private board into a team they controlled and read it. Board
-  ids are sequential and a board name routinely carries a child's first name. A
-  board may now be shared by its owner, by a system admin, if it is already
-  public, or if it is already on a communicator's dashboard on that team — the
-  same shape `Boards::AssignableSource` uses for the sibling question. A board's
-  owner can also now un-share their own board whatever their role, which they
-  could not do before.
-
-- **An invited team member can no longer choose their own role.** Setting a
-  password from an invitation accepted a `role` parameter and wrote it straight
-  to the membership, and the only guard was a list that includes `admin` — so an
-  invitee could arrive as a team administrator. The role is the inviter's
-  decision and was already recorded when the invite was sent.
-
-- **Read-only team members can no longer detach a communicator or delete a
-  team.** Changing or removing a communicator on a team was authorised only by
-  the read scope, which admits every member at every role — and removing the
-  last communicator deletes the whole team, its membership, and its shared
-  boards. It now takes the same rights as adding one.
-
-- **A board can only be on a team once.** Nothing prevented duplicate rows, so
-  re-sharing a board somebody else had already shared crashed the request. Made
-  structural, with existing duplicates merged.
-
-- **Translated tiles no longer show the translation instruction as their label.**
-  A tile label is usually a single word, and the request that translated it put
-  the instruction and the word in the same message — so the model translated
-  both and handed back "Haz responde con el objeto JSON en el siguiente
-  formato...", which was saved as the tile's text and shown on a public board.
-  The instruction and the word are now separate, and a translation that comes
-  back looking like the instruction (or wildly too long for the word it came
-  from) is thrown away instead of saved, so the tile keeps its English label
-  until a good translation arrives.
 
 - **A communicator handed over by a clinician keeps its login on the Free plan.**
   Private passcode sign-in was quietly tied to the parent's account being less
@@ -249,6 +283,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   users it was meant to count. `free_trial` is gone from those payloads for the
   same reason: it described the account owner's first 14 days, not anything
   about the communicator. Both still answer on the user, where they belong.
+
 - **Folder buttons on a shared board now open for visitors instead of showing
   "not found".** Publishing a board — including starring one onto a
   communicator's MySpeak page — only made that one page public. Every folder
@@ -262,6 +297,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   affects the board you unpublished, since the same page can be reachable from
   someone else's board. Boards already in this state are repaired by
   `bin/rails myspeak:backfill_published`.
+
 - **Word suggestions on an existing board return words about that board again.**
   Asking a board named "Food" (39 food tiles) for ten more words returned `no,
   stop, all done, different, more, help, like, don't like, again, please` — ten
@@ -314,6 +350,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   dashboard. Signed in as yourself, it was still possible to drop a tile onto
   any board. Communicators are unaffected — adding to a board on their own
   dashboard works exactly as before.
+
 - **Asking to edit a board you can't see no longer reveals that it exists.**
   Refusing with "not authorized" told you a board was there and simply wasn't
   yours, which is enough to walk the whole library by guessing numbers — and
@@ -329,13 +366,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   communicator was anything to do with you. The owner, an admin, and team
   members of any role can read them; everyone else is refused. Loading the tab
   is also considerably faster.
-### Changed
 
-- **A board now lists only the communicators you're entitled to see.** The
-  "Currently in use by" information on a board is yours: you still see your own
-  communicators on your own boards, an admin still sees everything, and nobody
-  else sees any. This also makes the public board library markedly faster to
-  load, since working that out was most of what the library was doing.
+## [1.9.0] — 2026-09-05
 
 ### Added
 
@@ -348,6 +380,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   sheet is part of what the email buys. Visitors can tap any picture to see it
   full size, which a dense page needs. Nothing changes on a page you haven't
   curated — it keeps showing exactly what it shows today until you pick.
+
 - **Quick-add sets of words to a board.** Adding pronouns, action words,
   greetings or numbers meant typing every one of them into a box. You can now
   pick a ready-made set, uncheck anything you don't want, and add the rest in
@@ -356,22 +389,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   each word arrives already the right colour. Words that don't have a picture in
   the library yet are flagged before you add them — the tile still lands, you
   just add art to it afterwards if you want to.
+
 - **Published menu boards now show up in the public board gallery.** A menu you
   published and we flagged as a featured board was public — anyone with the link
   could open it — but it never appeared in the shared board library, so the only
   way to find one was to already have the link. Menus stay out of the starting
   points we suggest for a communicator: those are for vocabulary.
-- **You can check a communicator username before you commit to it.** Communicator
-  usernames are shared across the whole app, so the obvious one for your child's
-  name is usually already somebody's — and you only found that out from an error
-  at the very end of setup. The form can now ask up front and offer alternatives
-  that are actually free. Nothing is renamed behind your back: you see the
-  options and choose.
-- **An "under 4" age band for communicators.** Early intervention routinely
-  starts AAC at 2, and the youngest option was 4–6 — so a parent of a toddler
-  either left the field blank or picked a band that wasn't true. The new band
-  gets the same child voice and the same core-vocabulary-first AI guidance as
-  the other young bands.
 
 ### Fixed
 
@@ -401,17 +424,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   name is very often a child's first name. Private boards now come back "not
   found" to anyone who isn't the owner, a teammate or an admin. Downloading the
   free public boards without signing in still works exactly as before.
+
 - **A board you generate now contains exactly the words you approved.** You
   reviewed a 24-word list, tapped Create board, and got 26 tiles — the two
   extras being near-duplicates of words already on it. The app was quietly
   generating a second list after you approved the first. It no longer does:
   what you confirm is what gets built.
+
 - **Generated boards always offer a way to say yes.** A circle-time board came
   back able to say `no`, `stop` and `all done` and with no way to accept
   anything. Every generated board now carries a small core set — yes, no, more,
   help, stop, I want — and they appear in the word list *before* you approve
   it, so you can still edit them. A small board takes only as many as it has
   room for, and nothing is added twice if the board already says it.
+
 - **A tile with a phrase on it borrows a picture instead of showing text.**
   `I feel tired` used to render as a blank-looking square of its own words
   while `I feel happy` and `I feel sad`, built the same way, got real symbols —
@@ -419,110 +445,35 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   of its own now falls back to its main word's picture. Where there is no
   sensible one to borrow, the tile is left as it was rather than given a wrong
   picture.
+
 - **The board form and the communicator form now offer the same age bands.**
   They offered different lists — `2–3` and `15+` on one, `Under 4`, `15–18` and
   `adult` on the other — and picking `2–3` or `15+` on the board form did
   nothing at all, because nothing downstream recognised them. There is one
   list now, and every option on it actually reaches the word suggestions and
   the voice default.
-- **A MySpeak page with no starred boards now offers a short starting point
-  instead of the whole library.** Before anyone had starred a board, a
-  communicator's public page — the one handed to a teacher on the first day of
-  school — listed roughly 75 public boards in no order, with duplicates and
-  with boards that made no sense in that context. It now shows a curated,
-  ordered, de-duplicated handful, led by the MySpeak starter boards. Nothing is
-  hidden from anyone who had starred boards of their own; that list is
-  unchanged.
-- **Your own communicators no longer come back marked as if you can't edit
-  them.** The communicator list and the single-communicator view disagreed: the
-  list decided edit rights from whether the *owner* was a SpeakAnyWay admin, so
-  every ordinary account's own communicators were flagged read-only there while
-  the detail view correctly said otherwise. Both now answer the same question —
-  can the person looking at this curate its boards — so owners, supervisors and
-  admins get the same answer wherever it's asked.
-- **Setup errors now land on the field that caused them.** When creating or
-  editing a communicator failed, the app returned one flattened sentence with no
-  indication of which input was wrong. The response now also carries the message
-  keyed by field, so a taken username shows on the username box.
-- **A communicator's default voice now follows their age.** The communicator
-  form asks how old the communicator is and stores the answer, but nothing read
-  it — so every communicator, a 17-year-old included, was handed Kevin, a voice
-  whose own description said it was for kids. Communicators aged 11 and up now
-  default to an adult voice, and no voice in the picker is described as being
-  for children any more. A voice you picked yourself is never changed.
-- **Applying to SpeakAnyWay for Clinicians no longer requires inventing a
-  license number.** The form hard-required one, which stopped nobody — the
-  literal string "N/A" filed a real application — while blocking the applicants
-  the page recruits by name: AT specialists (RESNA ATP is optional) and anyone
-  applying under "Other". A license or certification number is now required only
-  for SLPs and OTs, placeholders like "N/A" are refused there, and everyone else
-  can tell us how to verify them in their own words instead.
-- **Your AI credits and your image tokens are two different numbers, and the app
-  now says so.** The user payload carried only the legacy image-token count, so
-  an "AI credits" meter reading it showed 10 against copy promising 25. Both
-  numbers were right about their own quantity; the payload now carries the
-  credit balance and the allowance it's measured against, from the same source
-  the credits page uses. Nobody's Free allowance changed — it was 25 all along.
 
-### Changed
-
-- Accounts created through the clinician application page are now recorded as
-  coming from it, so that page can finally be measured.
-- `age_band`, `aac_level`, `vocab_type` and `glp_stage` can be set as ordinary
-  top-level fields on the communicator API, matching every other attribute.
-
-- **"You've reached your board limit" with an empty Boards page.** Your boards
-  page and your plan's board count were two different lists. The page hid folder
-  pages, menus, and — because of a SQL quirk — any board created outside the
-  main "New board" flow, while every one of those still counted against your
-  limit. A Free account could therefore be told "1 of 1 boards" while its Boards
-  page showed nothing, with no way to find or delete the board responsible. Now
-  the boards page lists exactly what you're charged for: folder pages and menus
-  appear alongside your other boards, badged so you can tell them apart, and the
-  header shows "N of LIMIT used". Every board in that list can be deleted, so
-  you can always get back under the cap. This also fixes the delete button
-  going missing on boards you own once you're over your limit.
-- **Turning a tile into a folder, bulk-creating a board, and finishing a
-  scenario now respect your board limit** instead of quietly creating boards
-  past it.
-- **Claim links no longer break when the therapist reopens the Lend panel.**
-  Viewing a claim link used to mint a new one and silently kill the link the
-  family was already holding. Re-lending the communicator still issues a fresh
-  link on purpose — that's how you revoke one.
-- **The hand-off invite email.** It addressed a named communicator as "Make
-  Ellie communicator yours", called every communicator someone's child, never
-  said how long the link lasts, and had no plain-text version. It also now says
-  where the inherited boards actually live, which is the thing families ask
-  about right after claiming. In production the email now refuses to send rather
-  than deliver a `localhost` link if the front-end URL is misconfigured.
+## [1.8.0] — 2026-09-03
 
 ### Added
+
+- **You can check a communicator username before you commit to it.** Communicator
+  usernames are shared across the whole app, so the obvious one for your child's
+  name is usually already somebody's — and you only found that out from an error
+  at the very end of setup. The form can now ask up front and offer alternatives
+  that are actually free. Nothing is renamed behind your back: you see the
+  options and choose.
+
+- **An "under 4" age band for communicators.** Early intervention routinely
+  starts AAC at 2, and the youngest option was 4–6 — so a parent of a toddler
+  either left the field blank or picked a band that wasn't true. The new band
+  gets the same child voice and the same core-vocabulary-first AI guidance as
+  the other young bands.
 
 - **Share a menu publicly and it stops using a board slot.** Menu boards are
   charged like any other board while private, but publishing one makes it free
   for as long as it stays public — so you can add a public menu even when you're
   at your limit. Unpublishing charges it again.
-
-### Changed
-
-- **Adding a board to a communicator now puts *that* board on their dashboard,
-  instead of quietly making a copy of it.** Before, every board you added to a
-  communicator became a separate hidden copy — you couldn't find it in your
-  board list, and editing the board you *could* see never changed the one your
-  communicator was using. Now there's just one board. Add it to Ava and Ben,
-  edit it once, and both of them get the change immediately. Adding a board
-  costs no board slots, so this works on every plan, and boards from the public
-  library and from your team can be added the same way. If you want a
-  communicator to have their own separate version, use **Copy** on the board
-  first and add the copy — same as before, but now it's a choice you make rather
-  than something that happens behind your back.
-- **Each communicator keeps their own voice on a shared board.** Ava can hear
-  one voice and Ben another on the very same board, and changing one
-  communicator's voice no longer rewrites boards anyone else is using.
-- **Removing a board from a dashboard never deletes it.** It stays in your
-  board list.
-
-### Added
 
 - **A scan tag: the QR code and one line, nothing else.** The device tag is a
   full card built for the back of a tablet; the scan tag is a square with just
@@ -532,38 +483,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   that is only the code. It's built automatically like the device tag and
   appears beside it under Print & share, and its code keeps working after you
   get a new public link.
-### Fixed
-
-- **A copied or assigned board looks like the board it came from.** Tiles whose
-  picture was set per-tile — a text image (the tile's word rendered as the
-  picture), a picture picked from the tile's gallery, a custom upload — came
-  back showing the shared library symbol instead, so copying a board or
-  assigning it to a communicator quietly undid that work. Those pictures now
-  travel with the copy, as does a tile's font size. Tiles with "Hide pictures"
-  on were already handled and still are. Boards copied before this fix are
-  unchanged; re-apply the text image on those tiles to fix them.
-- **Importing an OBF/OBZ board no longer gives a picture-less button the
-  previous button's picture.**
-
-### Changed
-
-- **The communicator slot count and the "you're out of slots" refusal now agree.**
-  Two different numbers were being reported for one thing: with a communicator
-  out on loan, one part of the app said slots were free while another said the
-  cap was reached — and creating a communicator was refused, after the user had
-  already typed a student's name and a password twice. There is now one answer
-  (limit, used, available, on loan, cap reached) computed from the same rule the
-  refusal uses, so the count on screen always matches what actually happens. A
-  loaned communicator still counts against the plan's slots; the slot comes back
-  when the family claims it, exactly as the plan describes.
-
-### Added
 
 - **A "Mail" page in the admin dashboard.** Every outgoing email now leaves a
   record — sent, failed, or blocked (staging blocks all mail) — with the
   Message-ID needed to trace a message at the mail provider. Failures in the
   last week are badged in the admin navigation, so a bounced welcome or
   approval email is visible instead of silent. Records are kept 90 days.
+
 - **A board now reports whether its symbols are ready, separately from whether
   it's generated.** A freshly generated board was announced as "ready" the
   moment its words and layout existed — which is before any tile pictures have
@@ -587,16 +513,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   family, and getting the slot back when they claim it now works end to end on
   a Clinician account. Nothing changed for Free or Basic, and the slot count is
   unchanged: a clinician still lends within their 2 slots.
+
 - **Hitting the communicator cap now says which cap and how many.** The 422 was
   a bare "Maximum number of communicator accounts reached." with no number and
   no next step. It now also carries a machine-readable code and the plan's
   limit and current count, so the app can show "2 of 2" and offer a way
   forward. The existing message text is unchanged.
+
 - **Transactional emails are now traceable.** Every message the app hands to
   the mail server is logged with its recipient and Message-ID, and a delivery
   failure is logged with a distinct tag instead of a generic background-job
   error. This does not change whether mail is delivered — it makes a missing
   email diagnosable, which it previously was not from inside the app.
+
 - **Emails no longer all say "Welcome to SpeakAnyWay!" in the title.** The
   shared mail layout hardcoded that title on every message, including admin
   alerts, so some mail clients showed an admin notification about a new
@@ -611,6 +540,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   also removes a blocking AI call per menu item once a menu ran past its
   picture budget. Existing menu boards keep their current colours until they
   are regenerated.
+
 - **The current-user payload now says whether a clinician application is
   pending.** `User#api_view` gained `clinician_application_status` — the status
   of the user's most recent `ClinicianApplication`, or `nil` if they never
@@ -677,6 +607,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `boards_created`, `boards_in_set` and `limited_by` beside the existing
   `flattened_tiles`, so the app can say what actually happened and offer the
   upgrade path only when more slots would in fact have helped.
+
 - **A MySpeak starter board brings its pages with it, and they are boards the
   parent can find.** The starter was already cloned into the parent's account,
   but only its root counted or appeared in the board list — its linked pages
@@ -694,18 +625,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   room for is still a set they may not want, and spending nine board slots to
   get one board shouldn't be the only option. Nothing is withheld on that path,
   so the response reports no `limited_by` and the app offers no upgrade for it.
-
-### Fixed
-
-- **A MySpeak page no longer shows a board that opens to nothing.** Adding a
-  board that was already favorited on that communicator saved nothing, so the
-  step that publishes it never ran — the card appeared on the public page and
-  404'd when a visitor tapped it.
-- **A board a parent already owns can no longer be added past a communicator's
-  board cap.** The per-communicator limit was checked only when the wizard
-  cloned a starter, so picking one of her own boards walked straight past it.
-
-### Added
 
 - **Board Builder templates are visible and manageable from the admin
   dashboard.** The seed material every built board set is cloned from — the Core
@@ -726,6 +645,69 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   change can be committed and made permanent.
 
 ### Changed
+
+- Accounts created through the clinician application page are now recorded as
+  coming from it, so that page can finally be measured.
+
+- `age_band`, `aac_level`, `vocab_type` and `glp_stage` can be set as ordinary
+  top-level fields on the communicator API, matching every other attribute.
+
+- **"You've reached your board limit" with an empty Boards page.** Your boards
+  page and your plan's board count were two different lists. The page hid folder
+  pages, menus, and — because of a SQL quirk — any board created outside the
+  main "New board" flow, while every one of those still counted against your
+  limit. A Free account could therefore be told "1 of 1 boards" while its Boards
+  page showed nothing, with no way to find or delete the board responsible. Now
+  the boards page lists exactly what you're charged for: folder pages and menus
+  appear alongside your other boards, badged so you can tell them apart, and the
+  header shows "N of LIMIT used". Every board in that list can be deleted, so
+  you can always get back under the cap. This also fixes the delete button
+  going missing on boards you own once you're over your limit.
+
+- **Turning a tile into a folder, bulk-creating a board, and finishing a
+  scenario now respect your board limit** instead of quietly creating boards
+  past it.
+
+- **Claim links no longer break when the therapist reopens the Lend panel.**
+  Viewing a claim link used to mint a new one and silently kill the link the
+  family was already holding. Re-lending the communicator still issues a fresh
+  link on purpose — that's how you revoke one.
+
+- **The hand-off invite email.** It addressed a named communicator as "Make
+  Ellie communicator yours", called every communicator someone's child, never
+  said how long the link lasts, and had no plain-text version. It also now says
+  where the inherited boards actually live, which is the thing families ask
+  about right after claiming. In production the email now refuses to send rather
+  than deliver a `localhost` link if the front-end URL is misconfigured.
+
+- **Adding a board to a communicator now puts *that* board on their dashboard,
+  instead of quietly making a copy of it.** Before, every board you added to a
+  communicator became a separate hidden copy — you couldn't find it in your
+  board list, and editing the board you *could* see never changed the one your
+  communicator was using. Now there's just one board. Add it to Ava and Ben,
+  edit it once, and both of them get the change immediately. Adding a board
+  costs no board slots, so this works on every plan, and boards from the public
+  library and from your team can be added the same way. If you want a
+  communicator to have their own separate version, use **Copy** on the board
+  first and add the copy — same as before, but now it's a choice you make rather
+  than something that happens behind your back.
+
+- **Each communicator keeps their own voice on a shared board.** Ava can hear
+  one voice and Ben another on the very same board, and changing one
+  communicator's voice no longer rewrites boards anyone else is using.
+
+- **Removing a board from a dashboard never deletes it.** It stays in your
+  board list.
+
+- **The communicator slot count and the "you're out of slots" refusal now agree.**
+  Two different numbers were being reported for one thing: with a communicator
+  out on loan, one part of the app said slots were free while another said the
+  cap was reached — and creating a communicator was refused, after the user had
+  already typed a student's name and a password twice. There is now one answer
+  (limit, used, available, on loan, cap reached) computed from the same rule the
+  refusal uses, so the count on screen always matches what actually happens. A
+  loaned communicator still counts against the plan's slots; the slot comes back
+  when the family claims it, exactly as the plan describes.
 
 - **The "your trial is wrapping up" reminder now says what actually happens to
   your boards.** Three days out, the reminder knew your trial was ending but not
@@ -783,6 +765,71 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A MySpeak page with no starred boards now offers a short starting point
+  instead of the whole library.** Before anyone had starred a board, a
+  communicator's public page — the one handed to a teacher on the first day of
+  school — listed roughly 75 public boards in no order, with duplicates and
+  with boards that made no sense in that context. It now shows a curated,
+  ordered, de-duplicated handful, led by the MySpeak starter boards. Nothing is
+  hidden from anyone who had starred boards of their own; that list is
+  unchanged.
+
+- **Your own communicators no longer come back marked as if you can't edit
+  them.** The communicator list and the single-communicator view disagreed: the
+  list decided edit rights from whether the *owner* was a SpeakAnyWay admin, so
+  every ordinary account's own communicators were flagged read-only there while
+  the detail view correctly said otherwise. Both now answer the same question —
+  can the person looking at this curate its boards — so owners, supervisors and
+  admins get the same answer wherever it's asked.
+
+- **Setup errors now land on the field that caused them.** When creating or
+  editing a communicator failed, the app returned one flattened sentence with no
+  indication of which input was wrong. The response now also carries the message
+  keyed by field, so a taken username shows on the username box.
+
+- **A communicator's default voice now follows their age.** The communicator
+  form asks how old the communicator is and stores the answer, but nothing read
+  it — so every communicator, a 17-year-old included, was handed Kevin, a voice
+  whose own description said it was for kids. Communicators aged 11 and up now
+  default to an adult voice, and no voice in the picker is described as being
+  for children any more. A voice you picked yourself is never changed.
+
+- **Applying to SpeakAnyWay for Clinicians no longer requires inventing a
+  license number.** The form hard-required one, which stopped nobody — the
+  literal string "N/A" filed a real application — while blocking the applicants
+  the page recruits by name: AT specialists (RESNA ATP is optional) and anyone
+  applying under "Other". A license or certification number is now required only
+  for SLPs and OTs, placeholders like "N/A" are refused there, and everyone else
+  can tell us how to verify them in their own words instead.
+
+- **Your AI credits and your image tokens are two different numbers, and the app
+  now says so.** The user payload carried only the legacy image-token count, so
+  an "AI credits" meter reading it showed 10 against copy promising 25. Both
+  numbers were right about their own quantity; the payload now carries the
+  credit balance and the allowance it's measured against, from the same source
+  the credits page uses. Nobody's Free allowance changed — it was 25 all along.
+
+- **A copied or assigned board looks like the board it came from.** Tiles whose
+  picture was set per-tile — a text image (the tile's word rendered as the
+  picture), a picture picked from the tile's gallery, a custom upload — came
+  back showing the shared library symbol instead, so copying a board or
+  assigning it to a communicator quietly undid that work. Those pictures now
+  travel with the copy, as does a tile's font size. Tiles with "Hide pictures"
+  on were already handled and still are. Boards copied before this fix are
+  unchanged; re-apply the text image on those tiles to fix them.
+
+- **Importing an OBF/OBZ board no longer gives a picture-less button the
+  previous button's picture.**
+
+- **A MySpeak page no longer shows a board that opens to nothing.** Adding a
+  board that was already favorited on that communicator saved nothing, so the
+  step that publishes it never ran — the card appeared on the public page and
+  404'd when a visitor tapped it.
+
+- **A board a parent already owns can no longer be added past a communicator's
+  board cap.** The per-communicator limit was checked only when the wizard
+  cloned a starter, so picking one of her own boards walked straight past it.
+
 - **Setting up a MySpeak page no longer quietly makes a second copy of a
   board.** If you'd already used your board slot, the MySpeak setup wizard
   cloned another board anyway — and that copy didn't show up in your board list,
@@ -805,6 +852,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   told the board was theirs to edit. Both fields are now served, using the same
   ownership and read-only rules the rest of the app already applies.
 
+## [1.7.0] — 2026-08-27
+
+### Added
+
+- **A kit landing page can now hand over an editable Canva template.** Alongside
+  (or instead of) a PDF, `/admin/kit_pages` takes Canva template links — paste
+  the "Share → Template link" and a visitor gets their own copy of the design to
+  edit, rather than a finished page to print. That is what makes a MySpeak ID
+  card possible as a free download: the visitor adds their own name and photo,
+  and uses Canva's QR Code app with their MySpeak link to put a working code on
+  the card. The link is revealed after the email, exactly like the PDF, and a
+  page may offer templates with no PDF at all. Both link shapes Canva hands out
+  work — the full `canva.com/design/…` URL and the `canva.link/…` short link.
+
+- **Your MySpeak link is now shown where you print things.** The Print & share
+  section of a communicator's screen has a copy button for the permanent link —
+  the address that keeps working even if you get a new public link, so it's the
+  one to put on anything you print. The QR code screen now uses that same
+  permanent address, so a code printed from it survives a link change.
+
+### Fixed
+
 - **An admin edit no longer silently turns off your display settings.** Changing
   anything on a user from the admin screen — a plan type, a limit — used to
   write "off" to the display preferences the form didn't send, so the picture
@@ -817,6 +886,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   whether pictures showed above the board depended on which screen had created
   them. Communicators now start with the same defaults their owner's account
   has.
+
 - **A 5-Year license can no longer be sold as a monthly subscription.** The
   subscription checkout endpoint now refuses `basic_5yr` / `pro_5yr` outright
   and points at the license endpoint, instead of relying on the key happening to
@@ -832,6 +902,296 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Folder tiles that point at your *own* boards are untouched, and copying still
   uses one board slot.
 
+## [1.6.0] — 2026-08-26
+
+### Added
+
+- **You can now get a new link for a MySpeak page, and printed tags keep
+  working.** If a page's link has been shared with someone who shouldn't still
+  have it, "Get a new link" replaces it — and the old one stops working
+  entirely, which is the point. Until now the link could never be changed, so a
+  link that got out stayed out. The QR on a device tag, safety card, or care
+  plan is unaffected: those now point at a separate permanent address that is
+  assigned once and never changes, so revoking a link never means reprinting
+  anything. Existing pages get their permanent address from
+  `rake profiles:backfill_permanent_slugs` (previews by default).
+
+- **A kit landing page can now give away a PDF you upload, not just a board
+  printable.** `/admin/kit_pages` has a Document card: drop in one or more PDFs
+  and they become the page's download, so a parent handout or a workshop packet
+  can be a lead magnet without first being generated as a printable. Each file
+  takes an optional label, which is the text on its download button when a page
+  hands over more than one. While anything is uploaded there it is *the*
+  download — the printable dropdown is ignored until you remove it. The first
+  couple of pages of the PDF are rendered automatically as the pictures shown
+  on the landing page.
+
+- **Admins can now set the library's default picture for a word, and remove a
+  picture from the library for good.** Both were previously only possible as a
+  side effect of a user-shaped action. On the image edit screen there is now a
+  "Library default picture" panel: pick which picture a word falls back to for
+  everyone who hasn't chosen their own, or delete one outright — hidden ones
+  included. Changing the default never repaints a picture someone already
+  chose; it changes what empty tiles fall back to and what new tiles start with.
+
+- **A safe way to condense duplicate library images.** The seeded library
+  carries several rows for the same word, and when only one of them has art the
+  others show up blank. `rake library_images:scan` now reports the duplicates
+  and stores a reviewable plan without changing anything;
+  `rake library_images:apply[ID]` merges them in the background, keeping every
+  picture, every board, and every saved preference.
+
+- **Every care plan now has a preview picture.** Each document is generated
+  with a PNG thumbnail of itself, served alongside the download URL on the
+  communicator payload, so the Print & share tab can show what a plan looks
+  like at the size you picked rather than just a Download button. The
+  thumbnail is rendered from the same HTML as the PDF and shares its freshness
+  signature, so it can never show a document you no longer have; on the full
+  sheet, which flows to as many pages as it needs, the picture is page one.
+
+- **Care & routines: add your own chip to any preset row.** The preset lists
+  ("AAC device", "Toilet training") are deliberately short, so a parent whose
+  answer isn't on the list can now type their own and it becomes a chip on the
+  same row — shown on the care card and printed on the care plan like any other.
+
+- **Communication, Personal care and Moving around gained an "Anything else
+  worth knowing" field**, so every care section now has one place for a
+  sentence. Meals, Sensory and Getting around already had theirs.
+
+- **The Care & Emergency Plan can be downloaded as a half-page fold card or a
+  wallet fold strip, not just the full Letter sheet.** `POST
+  /api/profiles/:id/care_plan` takes a new `size` param (`sheet` default,
+  `half`, or `wallet`); `half` is one Letter page folded once, `wallet` is
+  four cut-and-fold strips per Letter page, and both print single-sided. The
+  care-only variant is offered at `sheet` and `half` but not `wallet` — a
+  wallet card with no emergency block isn't worth the paper. Both fold sizes
+  put one subject on each face: who this is and who to call on the front,
+  day-to-day support on the back, so nothing is printed twice and neither
+  face folds down half-empty.
+
+- **A tile can be pointed at an existing board as it is created.**
+  `POST /api/boards/:id/add_image` now accepts an optional `predictive_board_id`
+  and links the tile it creates in the same request, so the frontend's new
+  "Link a board" tab never leaves a half-made unlinked tile behind. The id is
+  resolved against the caller's own boards plus the public library — anything
+  else is ignored and the tile arrives unlinked rather than erroring — and a
+  self-link is dropped, since the API already renders those as ordinary tiles.
+  The tile is marked `mute_name`, which is what makes it count as a folder tile
+  in the board-set map, and falls back to the linked board's cover picture when
+  its own image has no art.
+
+- **Care plan downloads can be narrowed to the sections you want.** The care
+  plan endpoint takes a `sections` allowlist, so a sheet for a bus driver
+  doesn't have to carry the meals and personal-care pages. Sending no
+  `sections` still prints everything, as before.
+
+- **A board printable can be sold as several Etsy listings.** One printable now
+  carries a list of listings instead of a single one, so the same document can
+  go up as a standalone listing and as a bundle side by side. Each listing gets
+  its own title, tags and price, its own choice of gallery slides, its own
+  subset of the download PDFs, and its own listing video — anything left blank
+  falls back to the printable's. Add one from the printable's Etsy card, edit
+  its copy, then create its draft; drafts still never go live from here.
+
+- **The admin Users table shows where each account signed up.** A new **Source**
+  column badges every user as iOS, Android, web, or unknown (accounts created
+  before signup source was recorded), sortable like the other columns and
+  filterable from the same dropdown as plans and demo accounts. The user detail
+  page gains **Signup source** and **Signup method** alongside the existing
+  signup ref.
+
+- **The admin nav is shorter.** Board Builds, Board Printables, and Kit Pages
+  now sit together under a single **Content** menu instead of each taking a slot
+  in a bar that had run out of room.
+
+- **Kit landing pages write themselves.** Creating a `/kit/<slug>` lead-magnet
+  page used to mean typing a slug, headline, subhead, call to action and a raw
+  JSON blob by hand. Pick the printable it gives away, press **Autofill the
+  page**, and all of it is written from that printable. It only fills what's
+  blank, so anything already typed survives, and nothing is saved until the
+  usual Save.
+
+- **Kit landing pages show the printable.** The mockup images already rendered
+  for a printable's marketplace gallery — the printed sheet on a desk, the
+  flip-book, the pages open on a tablet — now appear on its free landing page.
+  The download itself still stays behind the email form.
+
+- **Turn a whole selection into text tiles at once.** The board editor's bulk
+  actions can now render every selected tile's own word as its picture, in one
+  step, instead of opening each tile in turn. Free — no AI credits. Tiles with
+  no word are left alone, as is any tile already showing that exact picture.
+
+- **Free-kit landing pages can be built without a deploy.** A new admin screen
+  (`/admin/kit_pages`) creates a lead-magnet page served at `/kit/<slug>`: its
+  headline, blurb, "what's inside" list and call to action are edited in the
+  admin, and the download is one of your existing board printables. A visitor
+  enters an email and gets the PDF; the email lands in Mailchimp under a tag
+  named for the page, so each campaign is its own segment. Pages start as
+  drafts and go live when you publish them. `/classroom` and `/ctg` are
+  untouched — they're printed on QR codes and keep working exactly as before.
+  Picking a printable that's for sale on Etsy is refused until you tick a
+  separate "give this away for free anyway" box, which records who chose it.
+
+- **A printable's topic can be edited after it's created, and the listing copy
+  rebuilt from it.** The topic is the only part of a listing that describes the
+  product — without one, the generic tag pools fill all 13 of Etsy's slots and
+  every listing ships the same tags. It used to be settable only when the
+  printable was created. It now sits on the listing form, with a
+  "Regenerate from topic" action that rebuilds the title, summary, description
+  and tags (keeping the price). Nothing is sent to any marketplace.
+
+- **A listing video can be sent to a listing that already exists.** Publishing
+  carries the video with it, so a listing created before its video was rendered
+  could never get one without relisting. The video card now offers "Send video
+  to the listing" for a printable already attached to one. It only ADDS a video
+  — Etsy allows one per listing and the app can't read a listing back to check,
+  so the control retires itself once a clip has gone and points at the Etsy
+  seller UI for a swap.
+
+- **Two admin backfill tasks for listings made before the current gallery and
+  video.** `rake printables:render_listing_videos` queues a flip-through for
+  every printable with no video or a stale one (`PUBLISHED_ONLY=1` narrows to
+  listed ones), and `rake 'printables:export_listing[<id>]'` writes a
+  printable's copy and gallery images to disk with a `listing.json` for the
+  `speakanyway-printables` Etsy CLI, so a live listing's tags and photos can be
+  replaced without relisting it.
+
+- **A published printable can be relisted.** The app only ever creates Etsy
+  listings — it has no way to update one — so re-rendering a gallery or a video
+  could never reach a draft that already existed. "Detach & relist" on the Etsy
+  card releases the link so Publish makes a fresh draft with the current images
+  and video. Nothing is sent to Etsy; the old draft is yours to delete. The
+  boards the printable protects stay protected.
+
+- **The credits endpoint now reports your actual monthly allowance.**
+  `GET /api/me/credits` returns a `plan_allowance` field alongside the existing
+  balances, taken from the amount you were really granted this period rather
+  than a per-plan constant — so a plan whose allowance was set individually
+  reports the number you were given. The app uses it as the denominator for
+  "N of 400 left" on the dashboard.
+
+- **Etsy listings now carry a video.** A printable's listing gets a
+  flip-through: an intro card, each printed page in turn with the "back button
+  on every page" marker, and a closing frame with the QR beside the same board
+  open in the app. Rendered from the admin ahead of publishing, 1080×1080 and
+  5–15 seconds so Etsy accepts it, and uploaded with the draft. A hand-made
+  clip can be uploaded instead for the listings worth filming.
+
+- **Three new gallery slides, and a hero that shows a bundle is a bundle.** The
+  gallery goes from six images to nine. The new second image is the one that
+  says what these products actually are — a flip book of linked pages, where
+  folder tiles open a page and every page has a way back. There is also a
+  print-and-bind slide and a full page index, and the hero now carries a bundle
+  count and fans up to five pages instead of three.
+
+- **Listings are staged on photographs of real tablets** rather than a drawn
+  one, with the board warped onto the glass in perspective.
+
+- **Imported boards keep their tile sizes.** OBF/OBZ import used to force every
+  tile to a single cell, so a board whose file described wide tiles — a
+  point-to-talk board with a 13-column alphabet strip under word tiles spanning
+  three or four columns — arrived as a uniform grid with gaps, and every tile
+  had to be resized by hand. Import now reads the size the file describes,
+  either from a button repeated across the cells it covers or from explicit
+  `ext_speakanyway_w` / `ext_speakanyway_h` fields. Files that say nothing about
+  size import exactly as before.
+
+- **A communicator's public MySpeak page now says whether they can sign in.**
+  The public payload carries a `sign_in_available` boolean so the page can offer
+  a "Sign in as {name}" shortcut to the person it belongs to, instead of leaving
+  them to find the communicator sign-in screen on their own. It is false for
+  sandbox communicators, for anyone in fallback mode after a downgrade, for Free
+  plans, and for accounts with no passcode set — all cases where signing in would
+  dead-end — so the shortcut simply doesn't appear. No passcode, email, or token
+  is exposed.
+
+- **Boards that are sold as printables are now protected from accidental
+  changes.** Once a printable reaches Etsy, the boards it was built from — the
+  whole set, not just the first page — can no longer be deleted, unpublished or
+  renamed, and editing their tiles asks for a confirmation first. Printed copies
+  carry a QR code pointing at each page, and paper can't be re-issued, so a
+  rename or an unpublish would quietly 404 a sheet already in someone's hands.
+  The admin shows which boards are frozen and by which listing, and has a
+  deliberate "Release protection" button for when a product really is retired.
+
+- **Printables now tell buyers how to keep their own copy.** The about page and
+  the how-to-use page explain that a shared board can change or move over time,
+  and that making a free account and saving your own copy keeps the exact set of
+  words in this print. Nothing about the boards themselves changed.
+
+### Changed
+
+- **Board Builder pages are full pages now.** Every category page in the Core 60
+  and Core 84 starter sets — People, Feelings, Food, Drinks, Play, Places, Body,
+  School, Time, Describe — was carrying about twenty words in a sixty- or
+  eighty-four-cell grid, so it opened mostly empty next to a home board that
+  fills every cell. Core 60 pages now hold 40 words, Core 84 pages 60, and the
+  eleven interest pages (Animals, Sports, Music, Bathroom, Clothing and the
+  rest) 40 apiece, laid out in whole rows from the top. The Core 84 page for a
+  category is a superset of the Core 60 one and keeps each word in the same
+  block, so moving up a set widens the vocabulary instead of moving it around.
+  The "More" page stays deliberately roomier — it is where extra pages a build
+  adds are tucked away.
+
+- **The care plan PDF leads with the communicator's name.** The "SpeakAnyWay"
+  eyebrow above it is gone — on a sheet whose job is to introduce one person,
+  the brand was the first thing a reader saw. The mark still signs the footnote
+  on every page.
+
+- **Word suggestions now get the same AAC brief the Board Builder gets.** The
+  rules that decide whether a word earns a place on a board — favour words that
+  finish many different sentences, every board needs a way to object and a way
+  to redirect, no filler runs of colours or days of the week, no near-duplicates
+  — were written for the admin board builder and only ever reached it. Every
+  suggestion a parent or therapist can trigger ("suggest words for this board",
+  "add more words", the scenario builder, interest pages) was asking for a
+  topical vocabulary list instead, which is the thing those rules exist to
+  prevent: a board full of correct words you cannot say anything with. All of
+  them now share one brief, and the reply shape is pinned rather than described,
+  so a malformed answer is refused instead of silently half-read.
+
+- **Etsy listing galleries now lead with a photo of the printable in use.**
+  A board printable's gallery gains four photoreal mockups — the printed sheet
+  staged in two rooms (a classroom easel, a kid table with crayons, a fridge
+  door, a therapy clipboard, a binder) and the board running in the app on two
+  tablets. The room and the tablet are picked from the board, so no two
+  listings look alike. Rank 1 — the image that competes in Etsy's search grid —
+  is now one of those photos rather than flat board art. Two slides made room
+  for them: "how it works" duplicated the assemble steps, and the separate
+  low-ink slide is now a single pale page inset into "what's included". The
+  gallery fills Etsy's ten-photo cap exactly, and nothing needs adding by hand
+  in the seller UI any more. Existing printables show a "rendered with an older
+  gallery" badge in the admin until regenerated.
+
+- **The trim-ready pages print bigger.** That variant exists so the board fills
+  the sheet, but it was still reserving 20mm for a QR code — about 15% of the
+  board's printed area on a landscape page, for a code small enough that phones
+  struggled with it anyway. The band is now one thin line naming the board's
+  web address, and the board takes the space back. The scannable code is
+  unchanged on the full-colour and low-ink pages and on the cover.
+
+- **Etsy listing QRs are tagged for attribution.** The QR in a printable's
+  gallery images and listing video now carries `utm_source=etsy` campaign tags,
+  so traffic from a listing is identifiable in analytics. The QR **printed into
+  the PDF** deliberately stays untagged — the longer URL makes a denser code
+  than the printed size can carry, and a code that won't scan costs more than
+  the attribution is worth.
+
+- **The listing video's closing frame reads on two lines.** "Free audio
+  companion. / No app, no sign-in." no longer wraps mid-phrase.
+
+- **A board made from a menu photo now fits its own grid.** Menu boards were
+  always built eight tiles wide no matter what the photo held, so a six-item
+  café menu arrived as one long strip and a forty-item diner menu as a wide
+  block with a ragged last row. The grid is now sized from the number of items
+  actually found on the menu, squaring up whenever the count allows it — nine
+  items land 3×3, sixteen land 4×4, twenty-five land 5×5 — and a very long menu
+  gets taller rather than squeezing tiles too small to hit on a tablet. The
+  board also now reports the same width it is drawn at; the two had drifted
+  apart (laid out at eight columns, described as six).
+
+### Fixed
+
 - **Boards from the Board Builder are named correctly again.** Building a set
   could name the board — and its board set — after an unrelated admin board
   (for example "Classroom — Core Words Poster") instead of "Core 60" or
@@ -846,56 +1206,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   rather than chosen. Merging now settles on one, and
   `rake library_images:reconcile_defaults APPLY=1` repairs images merged before
   the fix without changing any picture that is currently showing.
-
-### Added
-
-- **A kit landing page can now hand over an editable Canva template.** Alongside
-  (or instead of) a PDF, `/admin/kit_pages` takes Canva template links — paste
-  the "Share → Template link" and a visitor gets their own copy of the design to
-  edit, rather than a finished page to print. That is what makes a MySpeak ID
-  card possible as a free download: the visitor adds their own name and photo,
-  and uses Canva's QR Code app with their MySpeak link to put a working code on
-  the card. The link is revealed after the email, exactly like the PDF, and a
-  page may offer templates with no PDF at all. Both link shapes Canva hands out
-  work — the full `canva.com/design/…` URL and the `canva.link/…` short link.
-- **Your MySpeak link is now shown where you print things.** The Print & share
-  section of a communicator's screen has a copy button for the permanent link —
-  the address that keeps working even if you get a new public link, so it's the
-  one to put on anything you print. The QR code screen now uses that same
-  permanent address, so a code printed from it survives a link change.
-- **You can now get a new link for a MySpeak page, and printed tags keep
-  working.** If a page's link has been shared with someone who shouldn't still
-  have it, "Get a new link" replaces it — and the old one stops working
-  entirely, which is the point. Until now the link could never be changed, so a
-  link that got out stayed out. The QR on a device tag, safety card, or care
-  plan is unaffected: those now point at a separate permanent address that is
-  assigned once and never changes, so revoking a link never means reprinting
-  anything. Existing pages get their permanent address from
-  `rake profiles:backfill_permanent_slugs` (previews by default).
-- **A kit landing page can now give away a PDF you upload, not just a board
-  printable.** `/admin/kit_pages` has a Document card: drop in one or more PDFs
-  and they become the page's download, so a parent handout or a workshop packet
-  can be a lead magnet without first being generated as a printable. Each file
-  takes an optional label, which is the text on its download button when a page
-  hands over more than one. While anything is uploaded there it is *the*
-  download — the printable dropdown is ignored until you remove it. The first
-  couple of pages of the PDF are rendered automatically as the pictures shown
-  on the landing page.
-- **Admins can now set the library's default picture for a word, and remove a
-  picture from the library for good.** Both were previously only possible as a
-  side effect of a user-shaped action. On the image edit screen there is now a
-  "Library default picture" panel: pick which picture a word falls back to for
-  everyone who hasn't chosen their own, or delete one outright — hidden ones
-  included. Changing the default never repaints a picture someone already
-  chose; it changes what empty tiles fall back to and what new tiles start with.
-- **A safe way to condense duplicate library images.** The seeded library
-  carries several rows for the same word, and when only one of them has art the
-  others show up blank. `rake library_images:scan` now reports the duplicates
-  and stores a reviewable plan without changing anything;
-  `rake library_images:apply[ID]` merges them in the background, keeping every
-  picture, every board, and every saved preference.
-
-### Fixed
 
 - **The admin page for a board printable no longer errors once one of its
   listings has an Etsy draft.** The "Send video" button on a listing card asked
@@ -952,6 +1262,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the unused part of what they already paid — Stripe issues no credit — so the
   page warns before the switch. As a backstop, a Partner is no longer demoted by
   their own subscription's updates even if the Stripe change didn't land.
+
 - **A communicator added from the dashboard now gets an unguessable MySpeak
   page address, the same as one made in the MySpeak wizard.** Adding "River
   Stone" produced the public page `/my/river-stone` — derivable from the
@@ -978,6 +1289,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   returns `editable_board_not_available` (422) when it didn't, and a
   higher-limit plan pins the designated board ahead of its recency-ordered
   slots.
+
 - **MySpeak pages are free on every plan again.** Adding a communicator quietly
   created their MySpeak page for you — and that page was counted against a
   separate one-per-account limit, so on the Free plan your very first
@@ -986,12 +1298,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   created. Every communicator gets a MySpeak page on every plan now, exactly as
   the rest of the app says; how many communicators you can have is the only
   limit. Your own public page is separate and unaffected.
+
 - **Deleting a picture from an image no longer deletes it permanently by
   mistake.** "Remove" was documented as a hide you could undo, but every remove
   destroyed the file for good.
+
 - **A picture you saved from an image search no longer changes what everyone
   else's new tiles start with.** Saving art onto a shared library word moved the
   library-wide default even when you weren't the one who owns it.
+
 - **Word suggestions now match what the board is actually about.** Asking a
   board to suggest more words used to give very different results depending on
   whether you had touched the "prompt override" box — a board called "Places"
@@ -1003,12 +1318,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   supposed to be full of nouns. Words like "stop" and "all done" are still
   suggested for a board that hasn't got a way to say no yet — just not for one
   that already has.
+
 - **Free kit downloads now actually download.** The Download button on a
   `/kit/...` landing page used to open the PDF in the browser's viewer instead
   of saving it — a long wait on a blank tab for a big printable, and then you
   still had to find the viewer's own save button. Each file is now served with
   a second, signed link that tells the browser to save it, alongside the
   original link for anyone who'd rather preview it first.
+
 - **"Format with AI" lays boards out cleanly again.** It no longer makes two
   tiles double-width — every tile is one cell, so a board stops ending on a
   ragged half-empty row, and a board set to "no scrolling" keeps fitting the
@@ -1016,6 +1333,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Modified Fitzgerald category now, so the colours read as blocks (pronouns and
   quick words first, nouns last) rather than as confetti, and word pairs like
   up/down and hot/cold stay side by side.
+
 - **"Format with AI" no longer scatters a board set's navigation row.** On a
   board built with the Board Builder — or imported as an OBF/OBZ set —
   formatting the board used to move the bottom navigation strip, including the
@@ -1024,50 +1342,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   category lives; formatting one page broke that. The navigation row now stays
   exactly where it is and the words are rearranged around it, on tablets and
   phones too.
-
-### Added
-
-- **Every care plan now has a preview picture.** Each document is generated
-  with a PNG thumbnail of itself, served alongside the download URL on the
-  communicator payload, so the Print & share tab can show what a plan looks
-  like at the size you picked rather than just a Download button. The
-  thumbnail is rendered from the same HTML as the PDF and shares its freshness
-  signature, so it can never show a document you no longer have; on the full
-  sheet, which flows to as many pages as it needs, the picture is page one.
-- **Care & routines: add your own chip to any preset row.** The preset lists
-  ("AAC device", "Toilet training") are deliberately short, so a parent whose
-  answer isn't on the list can now type their own and it becomes a chip on the
-  same row — shown on the care card and printed on the care plan like any other.
-- **Communication, Personal care and Moving around gained an "Anything else
-  worth knowing" field**, so every care section now has one place for a
-  sentence. Meals, Sensory and Getting around already had theirs.
-
-- **The Care & Emergency Plan can be downloaded as a half-page fold card or a
-  wallet fold strip, not just the full Letter sheet.** `POST
-  /api/profiles/:id/care_plan` takes a new `size` param (`sheet` default,
-  `half`, or `wallet`); `half` is one Letter page folded once, `wallet` is
-  four cut-and-fold strips per Letter page, and both print single-sided. The
-  care-only variant is offered at `sheet` and `half` but not `wallet` — a
-  wallet card with no emergency block isn't worth the paper. Both fold sizes
-  put one subject on each face: who this is and who to call on the front,
-  day-to-day support on the back, so nothing is printed twice and neither
-  face folds down half-empty.
-
-### Changed
-
-- **Board Builder pages are full pages now.** Every category page in the Core 60
-  and Core 84 starter sets — People, Feelings, Food, Drinks, Play, Places, Body,
-  School, Time, Describe — was carrying about twenty words in a sixty- or
-  eighty-four-cell grid, so it opened mostly empty next to a home board that
-  fills every cell. Core 60 pages now hold 40 words, Core 84 pages 60, and the
-  eleven interest pages (Animals, Sports, Music, Bathroom, Clothing and the
-  rest) 40 apiece, laid out in whole rows from the top. The Core 84 page for a
-  category is a superset of the Core 60 one and keeps each word in the same
-  block, so moving up a set widens the vocabulary instead of moving it around.
-  The "More" page stays deliberately roomier — it is where extra pages a build
-  adds are tucked away.
-
-### Fixed
 
 - **Board Builder pages no longer show "this" and "that" twice.** The strip
   along the bottom of every page carries those two words at its ends, and the
@@ -1084,6 +1358,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   endpoint can still build one; nothing is built unprompted any more. A side
   effect: saving a communicator's page (an avatar, a theme change) now runs two
   headless-Chrome renders instead of four, so it finishes noticeably sooner.
+
 - **The per-section "Anything else worth knowing" detail lines are no longer
   offered on the built-in care sections** — custom chips cover the short
   answers, the new sentence field covers the rest, and "Your own sections" is
@@ -1135,47 +1410,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the head term. Applies to newly generated copy only — existing listings are
   untouched until regenerated.
 
-### Added
-
-- **A tile can be pointed at an existing board as it is created.**
-  `POST /api/boards/:id/add_image` now accepts an optional `predictive_board_id`
-  and links the tile it creates in the same request, so the frontend's new
-  "Link a board" tab never leaves a half-made unlinked tile behind. The id is
-  resolved against the caller's own boards plus the public library — anything
-  else is ignored and the tile arrives unlinked rather than erroring — and a
-  self-link is dropped, since the API already renders those as ordinary tiles.
-  The tile is marked `mute_name`, which is what makes it count as a folder tile
-  in the board-set map, and falls back to the linked board's cover picture when
-  its own image has no art.
-
-- **Care plan downloads can be narrowed to the sections you want.** The care
-  plan endpoint takes a `sections` allowlist, so a sheet for a bus driver
-  doesn't have to carry the meals and personal-care pages. Sending no
-  `sections` still prints everything, as before.
-
-### Changed
-
-- **The care plan PDF leads with the communicator's name.** The "SpeakAnyWay"
-  eyebrow above it is gone — on a sheet whose job is to introduce one person,
-  the brand was the first thing a reader saw. The mark still signs the footnote
-  on every page.
-
-### Changed
-
-- **Word suggestions now get the same AAC brief the Board Builder gets.** The
-  rules that decide whether a word earns a place on a board — favour words that
-  finish many different sentences, every board needs a way to object and a way
-  to redirect, no filler runs of colours or days of the week, no near-duplicates
-  — were written for the admin board builder and only ever reached it. Every
-  suggestion a parent or therapist can trigger ("suggest words for this board",
-  "add more words", the scenario builder, interest pages) was asking for a
-  topical vocabulary list instead, which is the thing those rules exist to
-  prevent: a board full of correct words you cannot say anything with. All of
-  them now share one brief, and the reply shape is pinned rather than described,
-  so a malformed answer is refused instead of silently half-read.
-
-### Fixed
-
 - **AI board layout can produce the AAC colours again.** "Format with AI"
   asked the model for parts of speech from a list that did not match the app's
   own — it offered "interjection", "phrase" and "other", and left out
@@ -1185,11 +1419,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   (what / where) tile, which is most of the point of the Modified Fitzgerald
   Key. The prompt now asks for the app's real categories and anything outside
   them is discarded rather than quietly painted grey.
+
 - **Choosing a layout with AI no longer changes other people's boards.** The
   part of speech the model guessed was written back to the shared picture
   library, so one person's layout run could recolour the same word on
   unrelated accounts' boards. The tile keeps its own answer; the shared row is
   left alone.
+
 - **Scenario word lists are no longer cut short.** The request for a list of
   words capped the reply at a length that truncated it mid-list, and read the
   result as plain text, so a conversational opening line ("Sure! Here are 12
@@ -1213,7 +1449,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **The same listing video can go to two listings.** Etsy allows one video per
   listing, but the "already sent" record was kept per printable, so a second
   listing was refused a clip it had never received. It is now kept per listing.
-
 
 - **Deleting a demo account from the admin dashboard works again.** Selecting
   demo accounts and pressing **Delete selected** reported "Skipped 1 selected
@@ -1243,50 +1478,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   sit under it as sub-boards instead of burying the rest of the list. Existing
   imports are settled by `bin/rails obf_import:classify_sets`.
 
-### Added
-
-- **A board printable can be sold as several Etsy listings.** One printable now
-  carries a list of listings instead of a single one, so the same document can
-  go up as a standalone listing and as a bundle side by side. Each listing gets
-  its own title, tags and price, its own choice of gallery slides, its own
-  subset of the download PDFs, and its own listing video — anything left blank
-  falls back to the printable's. Add one from the printable's Etsy card, edit
-  its copy, then create its draft; drafts still never go live from here.
-
-
-- **The admin Users table shows where each account signed up.** A new **Source**
-  column badges every user as iOS, Android, web, or unknown (accounts created
-  before signup source was recorded), sortable like the other columns and
-  filterable from the same dropdown as plans and demo accounts. The user detail
-  page gains **Signup source** and **Signup method** alongside the existing
-  signup ref.
-
-- **The admin nav is shorter.** Board Builds, Board Printables, and Kit Pages
-  now sit together under a single **Content** menu instead of each taking a slot
-  in a bar that had run out of room.
-
-- **Kit landing pages write themselves.** Creating a `/kit/<slug>` lead-magnet
-  page used to mean typing a slug, headline, subhead, call to action and a raw
-  JSON blob by hand. Pick the printable it gives away, press **Autofill the
-  page**, and all of it is written from that printable. It only fills what's
-  blank, so anything already typed survives, and nothing is saved until the
-  usual Save.
-- **Kit landing pages show the printable.** The mockup images already rendered
-  for a printable's marketplace gallery — the printed sheet on a desk, the
-  flip-book, the pages open on a tablet — now appear on its free landing page.
-  The download itself still stays behind the email form.
-- **Turn a whole selection into text tiles at once.** The board editor's bulk
-  actions can now render every selected tile's own word as its picture, in one
-  step, instead of opening each tile in turn. Free — no AI credits. Tiles with
-  no word are left alone, as is any tile already showing that exact picture.
-
-### Fixed
-
 - **Renaming a board no longer changes its share link.** A board's URL
   (`/pb/<slug>`) used to be re-derived from the name on every rename, so
   renaming an unpublished board quietly broke any link already shared for it.
   The URL is now set when the board is created and stays put. Admins can still
   change it by hand, or ask for a fresh one from the current name.
+
 - **Copied boards get a clean URL.** Duplicating a board names it "<name> Copy",
   and that "Copy" was ending up in the board's URL. Copy markers are now
   stripped from both ends of the name — "Copy of Snack Time" and "Snack Time
@@ -1298,12 +1495,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   as the raw text `&amp;`, so the public MySpeak page and the printed care plan
   both showed that instead of the character. Existing entries can be repaired
   with `rake care:unescape_text DRY_RUN=false`.
+
 - **Pasting a word list makes exactly those tiles.** Building a board from a
   pasted word list quietly appended extra AI-generated words to the end, and
   "Start with an empty board" came back full of them. Both happened because the
   board's own name was being used as an AI topic whenever no topic was typed.
   Words are now generated only when you ask for them — a situation in the story
   field, or the "Generate words" button.
+
 - **No more duplicate tiles from mixed capitalization.** A word list containing
   both "Dog" and "dog" produced two tiles showing the same picture.
 
@@ -1312,130 +1511,49 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   menu it was made from, so the "View Menu" button vanished from the board page
   and never came back. Saving a board no longer touches where it came from.
   Boards already disconnected can be reconnected with `rake menu_boards:relink`.
-### Changed
 
-- **Etsy listing galleries now lead with a photo of the printable in use.**
-  A board printable's gallery gains four photoreal mockups — the printed sheet
-  staged in two rooms (a classroom easel, a kid table with crayons, a fridge
-  door, a therapy clipboard, a binder) and the board running in the app on two
-  tablets. The room and the tablet are picked from the board, so no two
-  listings look alike. Rank 1 — the image that competes in Etsy's search grid —
-  is now one of those photos rather than flat board art. Two slides made room
-  for them: "how it works" duplicated the assemble steps, and the separate
-  low-ink slide is now a single pale page inset into "what's included". The
-  gallery fills Etsy's ten-photo cap exactly, and nothing needs adding by hand
-  in the seller UI any more. Existing printables show a "rendered with an older
-  gallery" badge in the admin until regenerated.
-- **The trim-ready pages print bigger.** That variant exists so the board fills
-  the sheet, but it was still reserving 20mm for a QR code — about 15% of the
-  board's printed area on a landscape page, for a code small enough that phones
-  struggled with it anyway. The band is now one thin line naming the board's
-  web address, and the board takes the space back. The scannable code is
-  unchanged on the full-colour and low-ink pages and on the cover.
-- **Etsy listing QRs are tagged for attribution.** The QR in a printable's
-  gallery images and listing video now carries `utm_source=etsy` campaign tags,
-  so traffic from a listing is identifiable in analytics. The QR **printed into
-  the PDF** deliberately stays untagged — the longer URL makes a denser code
-  than the printed size can carry, and a code that won't scan costs more than
-  the attribution is worth.
-- **The listing video's closing frame reads on two lines.** "Free audio
-  companion. / No app, no sign-in." no longer wraps mid-phrase.
+- **The communicator page loads quickly again.** Opening a communicator could
+  hang for over 12 seconds for anyone with a large board library — the page
+  rebuilt a picture-and-word preview for every board the owner had, one
+  database round trip at a time, so the wait grew with the size of the library
+  rather than with anything on screen. The page now gathers those previews in a
+  fixed number of queries, so it opens at the same speed whether the owner has
+  ten boards or a thousand. The "recently used" strip is also fixed: on a board
+  shared with other people it could show activity that wasn't this
+  communicator's.
+
+- **Boards on a communicator's MySpeak page now actually open.** A board put on
+  a communicator's public page showed up in the grid, but tapping it gave a
+  "board not found" page unless the board had separately been published — and
+  boards made by the Board Builder, or picked during MySpeak setup, start out
+  unpublished, so this was the normal case rather than a rare one. Adding a
+  board to a communicator now publishes it, along with every page in its set, so
+  folder tiles work too. Removing a board from the page never unpublishes it, so
+  a link already printed on a QR tag or in an IEP keeps working. A board someone
+  else owns — an SLP's shared board — is left alone rather than being published
+  on their behalf; it simply doesn't appear on the public page. Any board that
+  isn't published is now hidden from the grid instead of showing a card that
+  leads nowhere.
+
+- **A printable's listing video is no longer destroyed by "Regenerate".** The
+  code that decides which attachments are buyer downloads treated anything that
+  wasn't a gallery image as a PDF, so a video counted as one — and the cleanup
+  that removes superseded PDFs deleted it silently on every regeneration. It
+  could also have been handed to a buyer as a download.
+
+- **Boards assigned to a communicator now get their own cover picture.** A board
+  put on a communicator is copied rather than shared, and the copy's cover was
+  never drawn — so a communicator's dashboard, and the board grid on their public
+  MySpeak page, showed a grid of grey "Board thumbnail" placeholders instead of
+  pictures. Someone opening a MySpeak page from a QR tag had no way to tell the
+  boards apart at a glance. New copies render their cover on assignment, and
+  `rake board_covers:render_missing` draws the missing ones for boards assigned
+  before this fix. A copy also no longer borrows the original board's cover
+  picture, which could show the wrong board under the right name.
+
+## [1.5.1] — 2026-08-16
 
 ### Added
-
-- **Free-kit landing pages can be built without a deploy.** A new admin screen
-  (`/admin/kit_pages`) creates a lead-magnet page served at `/kit/<slug>`: its
-  headline, blurb, "what's inside" list and call to action are edited in the
-  admin, and the download is one of your existing board printables. A visitor
-  enters an email and gets the PDF; the email lands in Mailchimp under a tag
-  named for the page, so each campaign is its own segment. Pages start as
-  drafts and go live when you publish them. `/classroom` and `/ctg` are
-  untouched — they're printed on QR codes and keep working exactly as before.
-  Picking a printable that's for sale on Etsy is refused until you tick a
-  separate "give this away for free anyway" box, which records who chose it.
-
-- **A printable's topic can be edited after it's created, and the listing copy
-  rebuilt from it.** The topic is the only part of a listing that describes the
-  product — without one, the generic tag pools fill all 13 of Etsy's slots and
-  every listing ships the same tags. It used to be settable only when the
-  printable was created. It now sits on the listing form, with a
-  "Regenerate from topic" action that rebuilds the title, summary, description
-  and tags (keeping the price). Nothing is sent to any marketplace.
-
-- **A listing video can be sent to a listing that already exists.** Publishing
-  carries the video with it, so a listing created before its video was rendered
-  could never get one without relisting. The video card now offers "Send video
-  to the listing" for a printable already attached to one. It only ADDS a video
-  — Etsy allows one per listing and the app can't read a listing back to check,
-  so the control retires itself once a clip has gone and points at the Etsy
-  seller UI for a swap.
-
-- **Two admin backfill tasks for listings made before the current gallery and
-  video.** `rake printables:render_listing_videos` queues a flip-through for
-  every printable with no video or a stale one (`PUBLISHED_ONLY=1` narrows to
-  listed ones), and `rake 'printables:export_listing[<id>]'` writes a
-  printable's copy and gallery images to disk with a `listing.json` for the
-  `speakanyway-printables` Etsy CLI, so a live listing's tags and photos can be
-  replaced without relisting it.
-
-- **A published printable can be relisted.** The app only ever creates Etsy
-  listings — it has no way to update one — so re-rendering a gallery or a video
-  could never reach a draft that already existed. "Detach & relist" on the Etsy
-  card releases the link so Publish makes a fresh draft with the current images
-  and video. Nothing is sent to Etsy; the old draft is yours to delete. The
-  boards the printable protects stay protected.
-
-- **The credits endpoint now reports your actual monthly allowance.**
-  `GET /api/me/credits` returns a `plan_allowance` field alongside the existing
-  balances, taken from the amount you were really granted this period rather
-  than a per-plan constant — so a plan whose allowance was set individually
-  reports the number you were given. The app uses it as the denominator for
-  "N of 400 left" on the dashboard.
-- **Etsy listings now carry a video.** A printable's listing gets a
-  flip-through: an intro card, each printed page in turn with the "back button
-  on every page" marker, and a closing frame with the QR beside the same board
-  open in the app. Rendered from the admin ahead of publishing, 1080×1080 and
-  5–15 seconds so Etsy accepts it, and uploaded with the draft. A hand-made
-  clip can be uploaded instead for the listings worth filming.
-- **Three new gallery slides, and a hero that shows a bundle is a bundle.** The
-  gallery goes from six images to nine. The new second image is the one that
-  says what these products actually are — a flip book of linked pages, where
-  folder tiles open a page and every page has a way back. There is also a
-  print-and-bind slide and a full page index, and the hero now carries a bundle
-  count and fans up to five pages instead of three.
-- **Listings are staged on photographs of real tablets** rather than a drawn
-  one, with the board warped onto the glass in perspective.
-
-- **Imported boards keep their tile sizes.** OBF/OBZ import used to force every
-  tile to a single cell, so a board whose file described wide tiles — a
-  point-to-talk board with a 13-column alphabet strip under word tiles spanning
-  three or four columns — arrived as a uniform grid with gaps, and every tile
-  had to be resized by hand. Import now reads the size the file describes,
-  either from a button repeated across the cells it covers or from explicit
-  `ext_speakanyway_w` / `ext_speakanyway_h` fields. Files that say nothing about
-  size import exactly as before.
-- **A communicator's public MySpeak page now says whether they can sign in.**
-  The public payload carries a `sign_in_available` boolean so the page can offer
-  a "Sign in as {name}" shortcut to the person it belongs to, instead of leaving
-  them to find the communicator sign-in screen on their own. It is false for
-  sandbox communicators, for anyone in fallback mode after a downgrade, for Free
-  plans, and for accounts with no passcode set — all cases where signing in would
-  dead-end — so the shortcut simply doesn't appear. No passcode, email, or token
-  is exposed.
-
-- **Boards that are sold as printables are now protected from accidental
-  changes.** Once a printable reaches Etsy, the boards it was built from — the
-  whole set, not just the first page — can no longer be deleted, unpublished or
-  renamed, and editing their tiles asks for a confirmation first. Printed copies
-  carry a QR code pointing at each page, and paper can't be re-issued, so a
-  rename or an unpublish would quietly 404 a sheet already in someone's hands.
-  The admin shows which boards are frozen and by which listing, and has a
-  deliberate "Release protection" button for when a product really is retired.
-
-- **Printables now tell buyers how to keep their own copy.** The about page and
-  the how-to-use page explain that a shared board can change or move over time,
-  and that making a free account and saving your own copy keeps the exact set of
-  words in this print. Nothing about the boards themselves changed.
 
 - **Generated marketplace copy now describes the printable it belongs to.**
   Every listing used to open with the same sentence and carry the same 13 tags,
@@ -1467,15 +1585,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
-- **A board made from a menu photo now fits its own grid.** Menu boards were
-  always built eight tiles wide no matter what the photo held, so a six-item
-  café menu arrived as one long strip and a forty-item diner menu as a wide
-  block with a ragged last row. The grid is now sized from the number of items
-  actually found on the menu, squaring up whenever the count allows it — nine
-  items land 3×3, sixteen land 4×4, twenty-five land 5×5 — and a very long menu
-  gets taller rather than squeezing tiles too small to hit on a tablet. The
-  board also now reports the same width it is drawn at; the two had drifted
-  apart (laid out at eight columns, described as six).
 - **AI board drafts now come back laid out, not just filled in.** The order the
   AI answers in is the order the tiles land on the grid, so a scrambled word list
   was a scrambled board: a verb, a noun, a pronoun, another noun, and the
@@ -1503,6 +1612,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   "I", and folder tiles, which stay capitalized on purpose so a page you open
   reads differently from a word you speak. Words you type yourself are never
   changed.
+
 - **Better suggestions from "Draft the whole set with AI".** The main board now
   starts from the same core-word spine a single board gets, every board aims for
   a balance of verbs and function words rather than a wall of nouns, and pages
@@ -1513,44 +1623,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Drafting also runs on a stronger model. (Admin only.)
 
 ### Fixed
-
-- **The communicator page loads quickly again.** Opening a communicator could
-  hang for over 12 seconds for anyone with a large board library — the page
-  rebuilt a picture-and-word preview for every board the owner had, one
-  database round trip at a time, so the wait grew with the size of the library
-  rather than with anything on screen. The page now gathers those previews in a
-  fixed number of queries, so it opens at the same speed whether the owner has
-  ten boards or a thousand. The "recently used" strip is also fixed: on a board
-  shared with other people it could show activity that wasn't this
-  communicator's.
-
-- **Boards on a communicator's MySpeak page now actually open.** A board put on
-  a communicator's public page showed up in the grid, but tapping it gave a
-  "board not found" page unless the board had separately been published — and
-  boards made by the Board Builder, or picked during MySpeak setup, start out
-  unpublished, so this was the normal case rather than a rare one. Adding a
-  board to a communicator now publishes it, along with every page in its set, so
-  folder tiles work too. Removing a board from the page never unpublishes it, so
-  a link already printed on a QR tag or in an IEP keeps working. A board someone
-  else owns — an SLP's shared board — is left alone rather than being published
-  on their behalf; it simply doesn't appear on the public page. Any board that
-  isn't published is now hidden from the grid instead of showing a card that
-  leads nowhere.
-
-- **A printable's listing video is no longer destroyed by "Regenerate".** The
-  code that decides which attachments are buyer downloads treated anything that
-  wasn't a gallery image as a PDF, so a video counted as one — and the cleanup
-  that removes superseded PDFs deleted it silently on every regeneration. It
-  could also have been handed to a buyer as a download.
-- **Boards assigned to a communicator now get their own cover picture.** A board
-  put on a communicator is copied rather than shared, and the copy's cover was
-  never drawn — so a communicator's dashboard, and the board grid on their public
-  MySpeak page, showed a grid of grey "Board thumbnail" placeholders instead of
-  pictures. Someone opening a MySpeak page from a QR tag had no way to tell the
-  boards apart at a glance. New copies render their cover on assignment, and
-  `rake board_covers:render_missing` draws the missing ones for boards assigned
-  before this fix. A copy also no longer borrows the original board's cover
-  picture, which could show the wrong board under the right name.
 
 - **Tiles no longer end up silently missing their own audio.** When a board's
   voice was set while its tiles were still being written, the job that fills in
@@ -1602,6 +1674,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   cached there. Each run now writes to its own path, so the download is the
   version you just generated. The file keeps its name, and the previous copy is
   cleaned up once the new one is safely in place. (Admin only.)
+
 - **Boards built from the admin dashboard now get their covers.** Every page of
   a built set queued its cover render before the set had finished saving, so the
   render went looking for a board that wasn't there yet and failed — one dead job
@@ -1616,6 +1689,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   now sends no temperature to a model that only accepts the default, asks for
   minimal reasoning effort, and allows longer for the answer — a word list comes
   back in about 9 seconds and a four-page set in under a minute. (Admin only.)
+
 - **A printable's main listing photo now leads with the board itself, not one of
   its extra pages.** The three pages in the hero image fan out with the middle
   one in front, and that middle card is what shows in an Etsy search grid — but
@@ -1623,6 +1697,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the listing was whatever came next in the set: a keyboard page, or a
   half-empty one. The main board now sits in the middle, in front. Existing
   listings pick it up the next time their images are regenerated. (Admin only.)
+
 - **Building a board set no longer occasionally creates the whole set twice.**
   If a build hit an error in the moment after its boards were written but before
   it recorded them, the automatic retry built a complete second copy — root and
@@ -1632,58 +1707,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   them, so a retry can never duplicate them, and a double click on "Build this
   board" no longer starts two builds. Sets already stranded can be found and
   cleaned up with `rake admin_board_builds:orphans`. (Admin only.)
-- **A printable's listing copy now counts the board pages a buyer prints, not
-  the front matter around them.** Every printable PDF is wrapped in a cover, a
-  how-to-use page, a license and a credits page, and the page count quoted in
-  the Etsy description and on the "In your download" panel of the gallery images
-  counted all of them — so a one-board printable, whose three board pages are
-  the whole product, was sold as a "7-page board PDF". It now reads "3-page
-  board PDF", and a set counts each board once per colour/low-ink/trim-ready
-  file. Existing printables report the corrected count without being
-  regenerated; the admin listing and TPT's "Number of pages" field still show
-  the real merged page total.
 
-- **A page's back tile now really does land where the tile that opens it sits.**
-  On admin-built boards the alignment quietly did nothing whenever the parent's
-  folder tile sat at the far right of its own last row — the most common place
-  for it — because the page it opens usually has a shorter last row, and the
-  mirrored cell was slid along that row to the final tile: exactly the
-  bottom-right corner the back tile was already written into. It now backs up a
-  row and keeps the column, so the way home sits directly under the column you
-  tapped to get there.
-
-- **Only a communicator's owner can generate their Safety ID card or device
-  tag.** The endpoints that build those printables checked that you were signed
-  in but never checked *whose* communicator you were asking about — so any
-  signed-in account could request another family's Safety ID card and be handed
-  a working link to it, allergies, medications, emergency contacts and all. They
-  now answer the same way the rest of the emergency info does: owner (or a
-  SpeakAnyWay admin) only, and everyone else is refused before anything is
-  generated. Note for SLPs and other team members: generating these two
-  printables was never meant to be yours to do, and now isn't — ask the family
-  to download and share them.
-
-### Changed
-
-- **Care & routine notes: better questions, and you can pick more than one
-  answer.** Every care choice is now multi-select — support is layered, and
-  being forced to pick the single truest option meant a card that was only
-  half right. The "how much help do you need" and "how long to respond" ratings
-  are gone, replaced by things a helper can act on ("wait and pause", "keep my
-  device close", "food cut up"); `echolalia` is no longer offered as a
-  communication method; and the per-section "Good to know" box is gone, since
-  the detail lines added last release sat right beside it asking the same
-  question.
-
-### Fixed
-
-- **Signing up with an email that already has an account no longer dead-ends.**
-  The signup endpoint now tells the app *why* it refused (`error_code:
-  "email_taken"`) instead of only handing back a validation sentence, so the
-  form can offer to sign the person in rather than printing "Email has already
-  been taken" at them. Same contract the email-only checkout signup already
-  used. A soft-deleted account's email also returned a server error instead of
-  this message — it now takes the same path.
+## [1.5.0] — 2026-08-13
 
 ### Added
 
@@ -1726,6 +1751,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   about the trip to school. Sensory covers sound, touch, light, and what helps
   when it's too much; Moving around covers equipment and the kind of support
   someone needs.
+
 - **Tiles can now be shown without their picture.** The board editor's bulk
   "Hide pictures" toggle sends `payload[:hide_pictures]` to
   `PUT /api/board_images/update`, which blanks `display_image_url` on each
@@ -1827,7 +1853,42 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   live: Etsy listings are created as drafts and published by hand, after a human
   has looked at the category, the photos, and the return policy.
 
+- **You pick the page names when the admin board builder drafts a whole set.**
+  "Draft the whole set with AI" now keeps every page key and name already typed
+  on the form and only names the pages left blank — previously it replaced the
+  pages wholesale, so a chosen title survived only by being retyped afterwards.
+  Naming more pages than the page count asks for raises the count instead of
+  dropping them. A new "Suggest page names" button fills in the page titles on
+  their own — no words — so the shape of the set can be read and edited before
+  any word list is drafted under it.
+
+- **The admin board builder can draft one page at a time from its title.** Each
+  page block gets a "Draft this page with AI" button that fills only that page's
+  word list, worked out from the page's own name with the board's topic as
+  context — the main board and every other page stay exactly as typed. Previously
+  the only way to get AI words onto a page was "Draft the whole set", which
+  replaced everything. Drafted pages come back with a "back" tile already
+  pointing home, and there's no four-page limit the way the whole-set draft has.
+
+- **Deleting a board can now take its subboards with it.** A board whose
+  buttons open other boards asks before deleting, and offers an optional
+  "Also delete its N subboards" that removes the whole linked set in one go.
+  Subboards that something else still uses — another board's button, a
+  communicator's dashboard, a team share — are kept and named in the warning.
+  The option is off by default: confirming without it deletes only the board
+  you asked for.
+
 ### Changed
+
+- **Care & routine notes: better questions, and you can pick more than one
+  answer.** Every care choice is now multi-select — support is layered, and
+  being forced to pick the single truest option meant a card that was only
+  half right. The "how much help do you need" and "how long to respond" ratings
+  are gone, replaced by things a helper can act on ("wait and pause", "keep my
+  device close", "food cut up"); `echolalia` is no longer offered as a
+  communication method; and the per-section "Good to know" box is gone, since
+  the detail lines added last release sat right beside it asking the same
+  question.
 
 - **A page's "back" button now sits where the button that opened it sat.** When
   a built board set puts a folder tile in a given spot on the main board, the
@@ -1881,7 +1942,78 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   these tiles "silent" so it's clear before the board is built. Boards already
   built are repaired by `rake admin_board_builder:mute_folder_tiles`.
 
+- **Recorded tile audio is converted to mp3 before it can be tapped.** A
+  recording made in Chrome arrived as webm, which Safari on iPad won't play —
+  so a parent's recorded voice was silent on the device the communicator
+  actually uses. Uploads are now normalized in the background, and formats we
+  can't convert are refused up front rather than stored. Audio uploads are
+  also size- and type-checked, like video already was.
+
+- **Picking which audio file a tile plays is resolved server-side.** The API
+  takes the id of one of the tile's own audio files instead of a URL supplied
+  by the client.
+
+### Removed
+
+- **The old `/users` and `/users/admin` HTML pages are gone.** They pointed at
+  route helpers that no longer exist, so every visit — admin included — was a
+  500. Everything they showed lives in the `/admin` dashboard. `/users/:id`
+  (profile view/edit) stays and now renders again.
+
+- **Admin-built boards land published and print-ready.** A board built from the
+  admin Board Builder is now live at its `/pb/<slug>` page the moment it
+  finishes, and appears in the board list on the admin printables page without
+  a search. They stay out of the public catalogue on purpose — publishing makes
+  a board shareable and printable, not featured. Unpublish (still set-wide)
+  reverses it, and a published board still has to be unpublished before it can
+  be deleted.
+
+- **Board builder word-count validation now allows a small margin.** A word
+  list within 2 tiles of the page's tile count is accepted instead of
+  requiring an exact match — the message and the live word-count hint on the
+  form now say "within 2" rather than "exactly." A gap larger than that still
+  blocks preview/build with the same "Add N" / "Remove N" guidance.
+
 ### Fixed
+
+- **A printable's listing copy now counts the board pages a buyer prints, not
+  the front matter around them.** Every printable PDF is wrapped in a cover, a
+  how-to-use page, a license and a credits page, and the page count quoted in
+  the Etsy description and on the "In your download" panel of the gallery images
+  counted all of them — so a one-board printable, whose three board pages are
+  the whole product, was sold as a "7-page board PDF". It now reads "3-page
+  board PDF", and a set counts each board once per colour/low-ink/trim-ready
+  file. Existing printables report the corrected count without being
+  regenerated; the admin listing and TPT's "Number of pages" field still show
+  the real merged page total.
+
+- **A page's back tile now really does land where the tile that opens it sits.**
+  On admin-built boards the alignment quietly did nothing whenever the parent's
+  folder tile sat at the far right of its own last row — the most common place
+  for it — because the page it opens usually has a shorter last row, and the
+  mirrored cell was slid along that row to the final tile: exactly the
+  bottom-right corner the back tile was already written into. It now backs up a
+  row and keeps the column, so the way home sits directly under the column you
+  tapped to get there.
+
+- **Only a communicator's owner can generate their Safety ID card or device
+  tag.** The endpoints that build those printables checked that you were signed
+  in but never checked *whose* communicator you were asking about — so any
+  signed-in account could request another family's Safety ID card and be handed
+  a working link to it, allergies, medications, emergency contacts and all. They
+  now answer the same way the rest of the emergency info does: owner (or a
+  SpeakAnyWay admin) only, and everyone else is refused before anything is
+  generated. Note for SLPs and other team members: generating these two
+  printables was never meant to be yours to do, and now isn't — ask the family
+  to download and share them.
+
+- **Signing up with an email that already has an account no longer dead-ends.**
+  The signup endpoint now tells the app *why* it refused (`error_code:
+  "email_taken"`) instead of only handing back a validation sentence, so the
+  form can offer to sign the person in rather than printing "Email has already
+  been taken" at them. Same contract the email-only checkout signup already
+  used. A soft-deleted account's email also returned a server error instead of
+  this message — it now takes the same path.
 
 - **Printed boards now match what's on screen.** A tile you've cleared the
   picture off — the colour swatches on Core Safety, for instance, which show
@@ -1931,6 +2063,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the set's home board as something it could delete along with the page. Back
   tiles are now recognised as going back, so the dialog only ever offers the
   pages a board genuinely owns.
+
 - **MySpeak pages load fast again.** Opening a communicator's public page —
   the page a printed QR code lands on — was taking around eleven seconds. Every
   visit was rebuilding the entire public board library from scratch, in the
@@ -1970,6 +2103,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   one of its own tiles — and the set itself picks up a cover from its first
   board, so it looks right the moment it's created. Existing sets are fixed by
   a one-off backfill.
+
 - **Etsy was cropping the edges off every printable's listing photos.** The
   gallery slides are square, on the assumption that Etsy letterboxes anything
   that isn't — but the listing page frames a photo 4:5 and crops 10% off each
@@ -1996,6 +2130,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **The founder photo sat off-centre in its circle on the about slide.** The
   crop had no effect at all — the source photo is square, so there was nothing
   to shift inside a square frame.
+
 - **New boards kept coming out Title Cased, even after the casing backfill had
   been run.** Tiles are meant to default to lowercase ("happy", "all done"), but
   a freshly built board still rendered "Happy" and "All Done" — and re-running
@@ -2070,67 +2205,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   page is repaired rather than rejected. As a backstop, a plan with an
   unreachable page no longer passes validation.
 
-### Added
-
-- **You pick the page names when the admin board builder drafts a whole set.**
-  "Draft the whole set with AI" now keeps every page key and name already typed
-  on the form and only names the pages left blank — previously it replaced the
-  pages wholesale, so a chosen title survived only by being retyped afterwards.
-  Naming more pages than the page count asks for raises the count instead of
-  dropping them. A new "Suggest page names" button fills in the page titles on
-  their own — no words — so the shape of the set can be read and edited before
-  any word list is drafted under it.
-
-- **The admin board builder can draft one page at a time from its title.** Each
-  page block gets a "Draft this page with AI" button that fills only that page's
-  word list, worked out from the page's own name with the board's topic as
-  context — the main board and every other page stay exactly as typed. Previously
-  the only way to get AI words onto a page was "Draft the whole set", which
-  replaced everything. Drafted pages come back with a "back" tile already
-  pointing home, and there's no four-page limit the way the whole-set draft has.
-
-- **Deleting a board can now take its subboards with it.** A board whose
-  buttons open other boards asks before deleting, and offers an optional
-  "Also delete its N subboards" that removes the whole linked set in one go.
-  Subboards that something else still uses — another board's button, a
-  communicator's dashboard, a team share — are kept and named in the warning.
-  The option is off by default: confirming without it deletes only the board
-  you asked for.
-
-### Changed
-
-- **Recorded tile audio is converted to mp3 before it can be tapped.** A
-  recording made in Chrome arrived as webm, which Safari on iPad won't play —
-  so a parent's recorded voice was silent on the device the communicator
-  actually uses. Uploads are now normalized in the background, and formats we
-  can't convert are refused up front rather than stored. Audio uploads are
-  also size- and type-checked, like video already was.
-- **Picking which audio file a tile plays is resolved server-side.** The API
-  takes the id of one of the tile's own audio files instead of a URL supplied
-  by the client.
-
-### Removed
-
-- **The old `/users` and `/users/admin` HTML pages are gone.** They pointed at
-  route helpers that no longer exist, so every visit — admin included — was a
-  500. Everything they showed lives in the `/admin` dashboard. `/users/:id`
-  (profile view/edit) stays and now renders again.
-- **Admin-built boards land published and print-ready.** A board built from the
-  admin Board Builder is now live at its `/pb/<slug>` page the moment it
-  finishes, and appears in the board list on the admin printables page without
-  a search. They stay out of the public catalogue on purpose — publishing makes
-  a board shareable and printable, not featured. Unpublish (still set-wide)
-  reverses it, and a published board still has to be unpublished before it can
-  be deleted.
-
-- **Board builder word-count validation now allows a small margin.** A word
-  list within 2 tiles of the page's tile count is accepted instead of
-  requiring an exact match — the message and the live word-count hint on the
-  form now say "within 2" rather than "exactly." A gap larger than that still
-  blocks preview/build with the same "Add N" / "Remove N" guidance.
-
-### Fixed
-
 - **One account could edit another account's profile.** The legacy HTML pages
   under `/users` — the old admin area, kept alongside the `/admin` dashboard —
   had lost their permission checks: any signed-in person could rename or change
@@ -2138,6 +2212,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   another account's uploaded document. Those pages are now restricted to the
   account's owner and to admins, matching the `/admin` dashboard. The `/admin`
   dashboard itself was already gated and exposed nothing.
+
 - **A built board set keeps its clean, single-screen home board.** Extra
   category pages the builder added — Bathroom, Animals, My Favorites — used to
   land on a row of their own below the core words, so a Core 60 board came out
@@ -2153,11 +2228,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   custom flag either, leaving the tile permanently out of the board's voice.
   Recording, choosing a voice, and resetting now all move the tile cleanly
   between custom and synthesized audio, and the board updates live.
+
 - **Audio could resolve to another account's file.** Audio lookups matched on
   filename across the whole library, and filenames are built from the word and
   the voice, so the same word in two accounts collided.
+
 - **Recorded clips showed a garbled voice name** (e.g. "you-custom") in the
   tile's audio list; they now read as a recording.
+
 - **Uploading audio from the image editor failed outright** with a server
   error, and saved the file without its extension.
 
@@ -2177,11 +2255,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   and the pronoun "I" are all still safe), and it's judged per word, so one
   styled word no longer exempts a whole label. Category tiles keep their capital
   on purpose — "Food" is a page you open, not a word you speak.
+
 - **New words no longer pollute the image library with a stuck capital.** The
   fold now happens in the one place authored casing becomes an image's display
   text, so every path that creates a word — the board editor, word lists, AI
   drafts, imports — gets it, instead of the handful that had been patched
   one at a time.
+
 - **Boards built before the fix can be corrected.** `bin/rails
   labels:fold_casing_report` shows exactly what would change and writes nothing;
   `labels:fold_casing APPLY=1` applies it. Scopeable to a single board or user,
