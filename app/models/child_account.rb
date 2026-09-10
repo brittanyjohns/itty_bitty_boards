@@ -1295,10 +1295,17 @@ class ChildAccount < ApplicationRecord
     available_word_samples = Board.word_samples_for(cached_available_boards)
     teams_word_samples = Board.word_samples_for(cached_teams_boards.map(&:board).compact)
 
+    # The passcode is the communicator's login secret and the claim token/url
+    # is a one-shot account-takeover credential. A team member (e.g. a Support
+    # reader) is a legitimate viewer of the record but must NOT see these —
+    # only the owner or an admin. Keys stay present (nil) so the payload shape
+    # is stable for clients.
+    show_credentials = editable_by?(viewing_user)
+
     {
       id: id,
       username: username,
-      passcode: passcode,
+      passcode: show_credentials ? passcode : nil,
       last_sign_in_at: last_sign_in_at,
       created_at: created_at,
       sign_in_count: sign_in_count,
@@ -1309,8 +1316,8 @@ class ChildAccount < ApplicationRecord
       layout: layout,
       status: status,
       archived_at: archived_at,
-      claim_token: claim_token,
-      claim_url: claim_link_url,
+      claim_token: show_credentials ? claim_token : nil,
+      claim_url: show_credentials ? claim_link_url : nil,
       loaned_at: loaner_started_at,
       claimed_at: claimed_at,
       loan_expires_at: loan_expires_at,
