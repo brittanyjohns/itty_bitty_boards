@@ -29,6 +29,9 @@ RSpec.describe MailchimpTrialWrapJob, type: :job do
             "TRIAL_END" => "June 20", "BOARDS" => "2", "COMMS" => "1",
             # Not on a no-card Stripe trial in this example, so nothing locks.
             "LOCKING" => "0",
+            # Not trialing a consumer tier either, so the copy gets the
+            # generic label rather than a blank.
+            "PLAN" => "your plan",
           },
         ).ordered
         expect(mailchimp).to receive(:trigger_journey).with(
@@ -53,9 +56,21 @@ RSpec.describe MailchimpTrialWrapJob, type: :job do
         expect(expected).to be > 0
 
         expect(mailchimp).to receive(:update_merge_fields).with(
-          user, hash_including("LOCKING" => expected.to_s)
+          user, hash_including("LOCKING" => expected.to_s, "PLAN" => "Pro")
         )
         allow(mailchimp).to receive(:trigger_journey)
+
+        job.perform(user.id, nil)
+      end
+
+      it "names the plan being trialed so the copy isn't hard-coded to one tier" do
+        # The journey copy used to say "continue on Basic ($8/mo)" to every
+        # trialist, Pro included. PLAN lets Mailchimp pick the right sentence.
+        user.update!(plan_type: "basic", plan_status: "trialing")
+
+        expect(mailchimp).to receive(:update_merge_fields).with(
+          user, hash_including("PLAN" => "Basic")
+        )
 
         job.perform(user.id, nil)
       end
