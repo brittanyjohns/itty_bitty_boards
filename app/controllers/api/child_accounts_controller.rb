@@ -6,6 +6,10 @@ class API::ChildAccountsController < API::ApplicationController
   # and admins can assign, matching `can_edit` in the serializer).
   before_action :authorize_communicator_edit!, only: %i[ update send_setup_email ]
   before_action :authorize_communicator_curate!, only: %i[ assign_boards ]
+  # Reading a communicator exposes its login passcode, claim token and
+  # safety/medical fields, so `show` is restricted to the owner, an admin,
+  # or a member of a team the communicator is on — never any signed-in user.
+  before_action :authorize_communicator_read!, only: %i[ show ]
   # Claim preview is the parent's "this is what you're about to claim"
   # page — they may not be signed in yet, so it runs token-only.
   skip_before_action :authenticate_token!, only: %i[ claim_preview ]
@@ -799,6 +803,17 @@ class API::ChildAccountsController < API::ApplicationController
     render json: account_error_payload("not_authorized").merge(
       message: "Only the owner can edit this communicator.",
     ), status: :forbidden
+  end
+
+  # Read gate for `show`. `viewable_by?` admits the owner, an admin and any
+  # team member (a Support reader is a legitimate viewer); everyone else gets
+  # the same generic 404 as boards#show, so we don't confirm the id exists.
+  # Deliberately NOT account_error_payload — that serializes the record we're
+  # trying to protect.
+  def authorize_communicator_read!
+    return if @child_account.viewable_by?(current_user)
+
+    render json: { error: "Communicator not found" }, status: :not_found
   end
 
   # Curation gate for board assignment: the account owner, a team
