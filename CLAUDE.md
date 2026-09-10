@@ -388,6 +388,29 @@ an explicit decision, not a drive-by edit.
   `fallback_mode?`, set only by `User#reconcile_communicator_fallback!` when a
   communicator goes over the slot limit. A sandbox never signs in (it has no
   passcode); everything past those two guards holds a real login slot.
+- **The sign-in REFUSAL stays generic; the EXPLANATION is owner-only.**
+  `ChildAuthsController#create` answers every failure with the same
+  `devise.failure.invalid`, and it must — an endpoint that distinguished "no
+  such username" from "wrong passcode" would confirm whether a username exists
+  to anyone who asked. The cost is that a communicator who *cannot* sign in is
+  indistinguishable from a typo, from the outside and from the logs: 21 days of
+  production traffic contained no successful communicator sign-in by any real
+  user, and a read-only query found 5 non-sandbox, unarchived communicators
+  with a blank passcode — real accounts holding real slots that had never been
+  able to sign in and never would. So the diagnosis goes to the OWNER, who is
+  already authenticated and already sees the passcode:
+  `ChildAccount#sign_in_unavailable_reason` (`archived` / `sandbox` /
+  `no_passcode` / `no_owner` / `fallback_mode`) ships on `api_view` behind the
+  same `editable_by?` gate #903 put on the passcode itself. It asks
+  `sign_in_available?` FIRST and returns nil when that is true, so the reason
+  can never disagree with the flag it explains — the ordering below it only
+  picks which true thing to say. **Never move any of this into the 401.**
+  `rake communicators:sign_in_audit` reports the broken rows and deliberately
+  repairs nothing: minting a passcode there hands a working login to whoever
+  ran the task, and the caregiver never learns it exists. Archived is the
+  subtlest member of the set — the row can hold a perfectly valid passcode, but
+  `default_scope` hides it from `valid_credentials?`, so correct credentials
+  come back as "invalid".
 - **`can_edit` on a communicator payload is one question — "can this VIEWER
   curate boards here" — and `ChildAccount#curatable_by?` is the only answer.**
   It was answered twice and differently: `index_api_view` asked whether the

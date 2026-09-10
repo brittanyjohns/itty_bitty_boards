@@ -215,3 +215,61 @@ def handoff_repair_own_team(child_account)
 
   child_account.teams.find { |team| team.account_ids == [child_account.id] }
 end
+
+namespace :communicators do
+  # Read-only. Reports communicators whose private passcode sign-in cannot work,
+  # so a caregiver can be told rather than left guessing.
+  #
+  # This exists because ChildAuthsController#create answers every failure with
+  # the same generic "invalid credentials" — it has to, or it would confirm
+  # whether a username exists to anyone who asked. That makes a broken account
+  # look exactly like a typo, from the outside AND from the logs. When this was
+  # first run against production it found 5 non-sandbox, unarchived
+  # communicators with a blank passcode: real accounts, holding real slots,
+  # that had never been able to sign in and never would.
+  #
+  # Deliberately does NOT fix anything. Minting a passcode here would hand a
+  # working login to whoever ran the task, and the caregiver would not know it
+  # existed. The repair belongs in the owner's UI, where it can be shown to them.
+  desc "Report communicators whose passcode sign-in cannot work (read-only)"
+  task sign_in_audit: :environment do
+    scope = ChildAccount.unscoped.order(:id)
+
+    rows = scope.filter_map do |account|
+      reason = account.sign_in_unavailable_reason
+      next if reason.nil?
+      # A sandbox is SUPPOSED to have no login — it is a no-login demo account,
+      # not a broken one. Reporting all 70 of them would bury the 5 that matter.
+      next if reason == "sandbox"
+
+      {
+        id: account.id,
+        username: account.username,
+        status: account.status,
+        reason: reason,
+        owner_id: account.user_id,
+        last_sign_in_at: account.last_sign_in_at,
+      }
+    end
+
+    total = scope.count
+    sandboxes = scope.count { |a| a.sign_in_unavailable_reason == "sandbox" }
+
+    puts "[communicators:sign_in_audit] #{total} communicators; " \
+         "#{sandboxes} sandboxes (no login by design, not listed)"
+
+    if rows.empty?
+      puts "[communicators:sign_in_audit] nothing broken — every non-sandbox communicator can sign in"
+      next
+    end
+
+    puts "[communicators:sign_in_audit] #{rows.size} cannot sign in and should be able to:"
+    rows.group_by { |r| r[:reason] }.each do |reason, group|
+      puts "  #{reason} (#{group.size}):"
+      group.each do |r|
+        seen = r[:last_sign_in_at] ? "last signed in #{r[:last_sign_in_at]}" : "never signed in"
+        puts "    id=#{r[:id]} username=#{r[:username].inspect} status=#{r[:status]} owner=#{r[:owner_id]} #{seen}"
+      end
+    end
+  end
+end

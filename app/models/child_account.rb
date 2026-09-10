@@ -1051,6 +1051,31 @@ class ChildAccount < ApplicationRecord
     can_sign_in?
   end
 
+  # WHY private sign-in is unavailable, for the owner's UI. `nil` when it works.
+  #
+  # Five states are indistinguishable at ChildAuthsController#create, because
+  # the refusal there is deliberately generic — a login endpoint that explained
+  # itself would confirm whether a username exists to anyone who asked. So the
+  # owner, who is already authenticated and already sees the passcode, is the
+  # only one who can be told. Production carries 5 non-sandbox, unarchived
+  # communicators with a blank passcode (`rake communicators:sign_in_audit`):
+  # they 401 as "invalid credentials" forever, and nothing anywhere said so.
+  #
+  # `sign_in_available?` is asked FIRST rather than re-deriving the answer, so
+  # the reason can never disagree with the flag it explains — the same reason
+  # `communicator_slots` computes one answer instead of two. The ordering below
+  # only picks WHICH true thing to say when several apply.
+  def sign_in_unavailable_reason
+    return nil if sign_in_available?
+    return "archived" if archived?
+    return "sandbox" if sandbox?
+    return "no_passcode" if passcode.blank?
+    return "no_owner" if user.nil?
+    return "fallback_mode" if fallback_mode?
+
+    "unavailable"
+  end
+
   def admin?
     user.admin?
   end
@@ -1306,6 +1331,10 @@ class ChildAccount < ApplicationRecord
       id: id,
       username: username,
       passcode: show_credentials ? passcode : nil,
+      # Does the passcode login actually work, and if not, why? The reason is
+      # owner-only: it describes the login, like the passcode above it.
+      sign_in_available: sign_in_available?,
+      sign_in_unavailable_reason: show_credentials ? sign_in_unavailable_reason : nil,
       last_sign_in_at: last_sign_in_at,
       created_at: created_at,
       sign_in_count: sign_in_count,
