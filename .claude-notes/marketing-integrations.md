@@ -89,10 +89,15 @@ GitHub build). Two distinct uses:
       `settings["trial_ends_at"]` and enqueues this same job.
       **Personalized:** the job first pushes merge fields `TRIAL_END` (formatted
       date) / `BOARDS` (`countable_board_count`) / `COMMS`
-      (`communicator_accounts.count`) via `MailchimpService#update_merge_fields`,
-      then triggers — so the copy can say "you made N boards, M communicators;
-      keep them by continuing." Requires those 3 merge fields to exist in the
-      Mailchimp audience (tag names ≤10 chars: `TRIAL_END`, `BOARDS`, `COMMS`).
+      (`communicator_accounts.count`) / `LOCKING` (`boards_locking_at_trial_end`)
+      / `PLAN` (`trial_plan_label`, "Basic"/"Pro", or "your plan" when the tier
+      has no consumer label) via `MailchimpService#update_merge_fields`, then
+      triggers — so the copy can say "you made N boards, M communicators; keep
+      them by continuing on *|PLAN|*" and switch the price sentence with a
+      conditional merge block instead of hard-coding one tier. Requires those 5
+      merge fields to exist in the Mailchimp audience (tag names ≤10 chars:
+      `TRIAL_END`, `BOARDS`, `COMMS`, `LOCKING`, `PLAN`). Prod journey is
+      344 / step 933 (set 2026-09-10).
     - `partner_pilot_wrap` — the **partner** variant of `trial_wrap`. Same
       `MailchimpTrialWrapJob`, same `trial_will_end` seam, same merge fields —
       but when `user.partner_pro?` the job triggers this key instead, so

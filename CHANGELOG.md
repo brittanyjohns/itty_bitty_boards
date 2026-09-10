@@ -3,6 +3,18 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **The trial-ending reminder names the plan you're actually trialing.** The
+  Mailchimp `trial_wrap` journey copy said "continue on Basic ($8/mo)" to every
+  trialist, Pro included, because the job never told Mailchimp the plan.
+  `MailchimpTrialWrapJob` now pushes a `PLAN` merge field ("Basic" / "Pro", or
+  "your plan" for tiers without a consumer label) alongside the existing four,
+  so the journey can say the right tier and switch the price with a
+  conditional block. Requires the `PLAN` merge tag on the audience.
+
 ## [1.11.0] — 2026-09-10
 
 ### Added

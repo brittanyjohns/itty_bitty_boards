@@ -10,7 +10,14 @@
 # webhook path covers.
 #
 # Merge-field tags (create these in the Mailchimp audience, ≤10 chars each):
-#   TRIAL_END · BOARDS · COMMS · LOCKING
+#   TRIAL_END · BOARDS · COMMS · LOCKING · PLAN
+#
+# PLAN is the consumer label of the tier being trialed ("Basic" / "Pro", from
+# User#trial_plan_label) so the journey copy can say which plan they keep and
+# switch the price sentence with a conditional merge block, instead of the
+# hard-coded "continue on Basic ($8/mo)" every trialist used to get. Falls
+# back to "your plan" for tiers without a consumer label so the sentence
+# still reads.
 #
 # LOCKING is how many boards become read-only if the trial ends with no card
 # (see User#boards_locking_at_trial_end). It is "0" whenever nothing locks — a
@@ -56,6 +63,7 @@ class MailchimpTrialWrapJob
       "BOARDS" => user.countable_board_count.to_s,
       "COMMS" => user.communicator_accounts.count.to_s,
       "LOCKING" => user.boards_locking_at_trial_end.to_s,
+      "PLAN" => plan_label(user),
     })
     mailchimp.trigger_journey(user, journey_id: journey[:journey_id], step_id: journey[:step_id])
   rescue => e
@@ -63,6 +71,12 @@ class MailchimpTrialWrapJob
   end
 
   private
+
+  GENERIC_PLAN_LABEL = "your plan".freeze
+
+  def plan_label(user)
+    user.trial_plan_label.presence || GENERIC_PLAN_LABEL
+  end
 
   # Stripe sends trial_end as epoch seconds. Render as e.g. "June 20".
   # Falls back to "soon" so the copy reads cleanly if the date is missing.
