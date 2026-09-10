@@ -7,6 +7,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **A communicator who cannot sign in no longer looks like a typo.** The
+  sign-in endpoint answers every failure with the same generic "invalid
+  credentials" and has to — distinguishing "no such username" from "wrong
+  passcode" would let anyone confirm whether an account exists. The cost was
+  that a genuinely broken communicator was indistinguishable from a mistyped
+  passcode, to the caregiver and in the logs. A read-only audit of production
+  found **5 non-sandbox, unarchived communicators with no passcode at all**:
+  real accounts, holding real slots, that had never been able to sign in and
+  never would, with nothing anywhere saying so. Archived accounts are the same
+  trap from the other side — the row can hold a perfectly valid passcode, but
+  `default_scope` hides it from the credential lookup, so the *correct*
+  passcode comes back as "invalid".
+  The refusal itself is unchanged. Instead the owner — already authenticated,
+  already able to see the passcode — now gets `sign_in_available` and, behind
+  the same `editable_by?` gate #903 put on the passcode, a
+  `sign_in_unavailable_reason` of `archived`, `sandbox`, `no_passcode`,
+  `no_owner` or `fallback_mode`. It is derived from `sign_in_available?` rather
+  than re-computed beside it, so the reason cannot disagree with the flag.
+  `rake communicators:sign_in_audit` lists the affected accounts and
+  deliberately repairs nothing: minting a passcode there would hand a working
+  login to whoever ran the task without the caregiver ever knowing it existed.
+
 - **A curated board set's map is reachable without owning it.** `GET
   /api/board_groups/:id/graph` was owner-or-admin only, so the bird's-eye map of
   a predefined set — the one an SLP or district evaluator actually lands on — was
