@@ -101,6 +101,17 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response.body).to include("Pilot ended")
     end
 
+    it "filters Clinician accounts" do
+      clinician = create(:user, email: "clinician@example.com", plan_type: "clinician")
+
+      get admin_dashboard_users_path(filter: "clinician")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(clinician.email)
+      expect(response.body).not_to include("alice@example.com")
+      expect(response.body).not_to include("bob@example.com")
+    end
+
     it "badges a trialing account with its end date" do
       trialist = create(:user, email: "trialing@example.com", plan_type: "pro",
                                plan_status: "trialing", stripe_subscription_id: "sub_trial")
