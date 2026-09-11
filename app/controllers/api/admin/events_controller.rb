@@ -1,5 +1,5 @@
 class API::Admin::EventsController < API::Admin::ApplicationController
-  before_action :set_event, only: %i[show edit update destroy]
+  before_action :set_event, only: %i[show edit update destroy pick_winner download_entries]
 
   # GET /events or /events.json
   def index
@@ -9,22 +9,20 @@ class API::Admin::EventsController < API::Admin::ApplicationController
 
   # GET /events/1 or /events/1.json
   def show
-    render json: @event.api_view
+    render json: @event.admin_view
   end
 
   def pick_winner
-    @event = Event.find(params[:id])
     @event.contest_entries.update_all(winner: false)
     @contest_entries = @event.contest_entries
     @contest_entry = @contest_entries.sample
 
     @contest_entry.update(winner: true)
     @event.reload
-    render json: @event.api_view
+    render json: @event.admin_view
   end
 
   def download_entries
-    @event = Event.find(params[:id])
     @contest_entries = @event.contest_entries.order(name: :asc)
     send_data @contest_entries.to_csv, filename: "#{@event.name.parameterize}-entries-#{DateTime.now.strftime("%d%m%Y%H%M")}.csv", type: "text/csv"
   end
@@ -64,8 +62,12 @@ class API::Admin::EventsController < API::Admin::ApplicationController
   private
 
   # Use callbacks to share common setup or constraints between actions.
+  # The frontend admin page is routed by slug, so :id may be either a slug or
+  # a numeric id. Never raises — an unknown value renders 404. #908
   def set_event
-    @event = Event.includes(:contest_entries).find(params[:id])
+    scope = Event.includes(:contest_entries)
+    @event = scope.find_by(slug: params[:id]) || scope.find_by(id: params[:id])
+    render json: { error: "not_found" }, status: :not_found unless @event
   end
 
   # Only allow a list of trusted parameters through.
