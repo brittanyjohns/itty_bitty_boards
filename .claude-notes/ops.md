@@ -85,6 +85,22 @@ left unthrottled.
     per **user** (`RACK_ATTACK_AI_LIMIT`, 30 per `RACK_ATTACK_AI_PERIOD`, 60s).
     These gate on credit balance only; this adds a request-frequency ceiling.
     `/api/internal/*` is excluded (server-to-server, `INTERNAL_API_KEY`-gated).
+  - **Public lead capture / contest entry** (#912) — `POST /api/download_leads`
+    and `POST /api/events/:slug/save_entry`, the two unauthenticated write
+    endpoints. Two rules over the same paths:
+    - `leads/ip`, per **IP** (`RACK_ATTACK_LEADS_LIMIT`, 60 per
+      `RACK_ATTACK_LEADS_PERIOD`, 600s). **Deliberately generous**: at a
+      conference booth most visitors submit from the venue/hotel Wi-Fi behind
+      ONE shared public IP, so a tight per-IP cap blocks real attendees rather
+      than scripts. Both the limit and the period are ENV vars so the rule can
+      be loosened from Hatchbox mid-show without a deploy.
+    - `leads/email`, per **normalized email**
+      (`RACK_ATTACK_LEADS_EMAIL_LIMIT`, 5 per `RACK_ATTACK_LEADS_EMAIL_PERIOD`,
+      3600s) — the rule that actually catches abuse, one address hammered.
+      `wrap_parameters` is OFF in this app, so the email is read from the
+      **wrapped** body key (`download_lead[email]` / `contest_entry[email]`),
+      stripped and downcased; a malformed or missing body yields nil (that
+      request simply isn't counted here) and never raises.
   - **Public profile enumeration** (pre-existing) — `public_profile/ip` and
     `check_slug/ip`, now ENV-tunable via `RACK_ATTACK_PROFILE_*`.
   - **Communicator username availability** — `GET
