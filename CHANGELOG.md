@@ -18,6 +18,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   graph falls back to a walk from there, and claiming "no map" about a real one
   is the worse mistake.
 
+- **The admin Users page can filter to Clinician accounts.** The plan filter
+  offered Pro, Partner Pro, Basic and Free but not `clinician`, so the one
+  cohort that arrives through a reviewed application had no way to be listed.
+  Exact `plan_type` match, like the other plan filters.
+
 - **`GET /api/board_groups/:id/graph` carries `can_edit`.** The map can then
   offer a way to fix an empty set only to someone who could act on it, rather
   than showing a signed-out visitor a button that would 403.
