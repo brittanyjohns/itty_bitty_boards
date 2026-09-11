@@ -1292,6 +1292,28 @@ an explicit decision, not a drive-by edit.
   **or** an id (the frontend admin page is routed by slug) and render the same
   404 when neither matches. Same shape as the board rule below — a serializer
   used on both sides of an auth boundary is the bug.
+
+- **The drawing never re-rolls by accident and never forgets a win.**
+  `contest_entries.won_at` is stamped on every win and **never cleared** — it is
+  the history, and the CSV (`ContestEntry.to_csv` serializes `column_names`)
+  reads from it. `winner` is the *current* holder; a redraw flips the old
+  winner to `winner: false`, leaves `won_at` alone and writes
+  `data["redrawn_at"]`. `POST /api/admin/events/:id_or_slug/pick_winner` with
+  no body means `redraw: false` and 409s (`{"error": "already_drawn", "winner":
+  ...}`) when the event already has a winner; an empty eligible pool is 422
+  `{"error": "no_eligible_entries"}`. Eligibility is one predicate,
+  `ContestEntry#eligible?` (not a winner, not `excluded`, not a staff/test
+  address), used by BOTH `Event#admin_view`'s `eligible_count` and the draw, so
+  the count the booth sees can't disagree with what the draw will do. The
+  cross-event half — "already won another event with the same `lead_source`",
+  one prize per person across a multi-day series — is keyed on `won_at`, not
+  `winner`, and lives in `API::Admin::EventsController`. Staff/test addresses
+  (`@speakanyway.com`, `bhannajohns`, plus a comma-separated
+  `DRAWING_EXCLUDED_EMAILS`) are flagged `excluded` by a `before_validation`, so
+  they show up in the admin UI rather than being invisibly skipped. Entrant
+  emails are stripped and downcased before validation, which is also what makes
+  the per-event uniqueness check case-insensitive.
+
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);

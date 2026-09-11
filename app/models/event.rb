@@ -10,6 +10,8 @@
 #  updated_at         :datetime         not null
 #  promo_code         :string
 #  promo_code_details :string
+#  lead_source        :string
+#  time_zone          :string           default("America/Chicago"), not null
 #
 class Event < ApplicationRecord
   has_many :contest_entries, dependent: :destroy
@@ -55,7 +57,10 @@ class Event < ApplicationRecord
     won_by = entries.find(&:winner?)
 
     public_view.merge(
+      lead_source: lead_source,
+      time_zone: time_zone,
       entries_count: entries.size,
+      eligible_count: entries.count(&:eligible?),
       winner: won_by&.api_view,
       winner_name: won_by&.name,
       winner_email: won_by&.email,

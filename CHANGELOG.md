@@ -29,6 +29,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The admin drawing can actually be run in front of people.** "Pick a
+  Winner" 500'd on an event with no entries (`nil.update`), and every click
+  silently re-rolled — it cleared `winner` on all entries first, so an
+  accidental double tap at the booth replaced the winner with no record anyone
+  had won. `POST /api/admin/events/:id_or_slug/pick_winner` now refuses to
+  redraw unless asked: no eligible entries is `422 {"error":
+  "no_eligible_entries"}`, an event that already has a winner is `409
+  {"error": "already_drawn", "winner": ...}`, and only `{"redraw": true}`
+  draws again. A new `contest_entries.won_at` records every win and is never
+  cleared, so a redrawn winner keeps their stamp and picks up
+  `data["redrawn_at"]` — the CSV shows the whole story. Staff and test
+  entrants (`@speakanyway.com`, `bhannajohns`, plus an optional
+  `DRAWING_EXCLUDED_EMAILS` list) are flagged `excluded` on save and can never
+  win, and when an event carries a `lead_source` nobody can win twice across
+  that series. Admin `create` saves once and returns the event JSON with a
+  201 instead of `{success: true}`; `update` returns the event JSON instead of
+  500ing on a `show` template that was never written; and
+  `DELETE /api/admin/events/:event_id/entries/:id` finally exists so a test
+  entry can be removed. Entrant emails are stripped and downcased before
+  validation, so `Jane@X.com` and `jane@x.com` are one entry, not two.
+  `AdminEvent` gains `lead_source`, `time_zone` and `eligible_count`; every
+  entry gains `won_at` and `excluded`.
+
 - **The public event page no longer hands out the entrant list.** `GET
   /api/events/:slug` is unauthenticated and rendered `Event#api_view`, which
   carried every entrant's name and email plus `winner_name` / `winner_email` —

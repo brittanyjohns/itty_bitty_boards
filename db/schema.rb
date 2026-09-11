@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_09_151432) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_11_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -489,7 +489,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_151432) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "winner", default: false
+    t.datetime "won_at"
+    t.boolean "excluded", default: false, null: false
     t.index ["event_id"], name: "index_contest_entries_on_event_id"
+    t.index ["excluded"], name: "index_contest_entries_on_excluded"
     t.index ["winner"], name: "index_contest_entries_on_winner"
   end
 
@@ -555,6 +558,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_151432) do
     t.datetime "updated_at", null: false
     t.string "promo_code"
     t.string "promo_code_details"
+    t.string "lead_source"
+    t.string "time_zone", default: "America/Chicago", null: false
+    t.index ["lead_source"], name: "index_events_on_lead_source"
     t.index ["promo_code"], name: "index_events_on_promo_code"
   end
 

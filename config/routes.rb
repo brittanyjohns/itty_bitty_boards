@@ -689,6 +689,7 @@ Rails.application.routes.draw do
       resources :events do
         get "download_entries", on: :member
         post "pick_winner", on: :member
+        resources :entries, only: [:destroy], controller: "contest_entries"
       end
       resources :feedback, only: [:index]
       resources :users do
