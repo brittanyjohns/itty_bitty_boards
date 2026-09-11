@@ -56,7 +56,7 @@ RSpec.describe "API::Events", type: :request do
       body = JSON.parse(response.body)
       expect(body["success"]).to be(true)
       expect(body["entry"].keys).to match_array(
-        %w[id name email data event_id winner created_at updated_at],
+        %w[id name email data event_id winner won_at excluded created_at updated_at],
       )
       expect(body["entry"]["name"]).to eq("Ada Lovelace")
       expect(body["entry"]["email"]).to eq("ada@example.com")

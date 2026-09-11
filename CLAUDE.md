@@ -1292,6 +1292,34 @@ an explicit decision, not a drive-by edit.
   **or** an id (the frontend admin page is routed by slug) and render the same
   404 when neither matches. Same shape as the board rule below — a serializer
   used on both sides of an auth boundary is the bug.
+
+- **The drawing never re-rolls by accident and never forgets a win.**
+  `contest_entries.won_at` is stamped on every win and **never cleared** — it is
+  the history, and the CSV (`ContestEntry.to_csv` serializes `column_names`)
+  reads from it. `winner` is the *current* holder; a redraw flips the old
+  winner to `winner: false`, leaves `won_at` alone and writes
+  `data["redrawn_at"]`. `POST /api/admin/events/:id_or_slug/pick_winner` with
+  no body means `redraw: false` and 409s (`{"error": "already_drawn", "winner":
+  ...}`) when the event already has a winner; an empty eligible pool is 422
+  `{"error": "no_eligible_entries"}`. **`eligible_count` and the draw pool are
+  not the same set, by design.** `Event#admin_view`'s `eligible_count` is the
+  API contract's definition and nothing more — `ContestEntry#eligible?`: not a
+  winner of this event, not `excluded`, not a staff/test address. The draw
+  (`API::Admin::EventsController#eligible_entries`) starts from that same
+  predicate and then applies one ADDITIONAL, cross-event rule: "already won
+  another event with the same `lead_source`" — one prize per person across a
+  multi-day series, keyed on `won_at`, not `winner`, so a redrawn past winner
+  still can't win again. So `eligible_count` is an **upper bound** on the draw
+  pool, and the two can legitimately disagree part-way through a series: on day
+  two or three the admin page can show "N eligible entries" while `pick_winner`
+  returns 422 `no_eligible_entries` because every one of those N already won on
+  an earlier day. Don't assume the count predicts the draw. Staff/test addresses
+  (`@speakanyway.com`, `bhannajohns`, plus a comma-separated
+  `DRAWING_EXCLUDED_EMAILS`) are flagged `excluded` by a `before_validation`, so
+  they show up in the admin UI rather than being invisibly skipped. Entrant
+  emails are stripped and downcased before validation, which is also what makes
+  the per-event uniqueness check case-insensitive.
+
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);
