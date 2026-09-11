@@ -2,9 +2,12 @@ class API::Admin::EventsController < API::Admin::ApplicationController
   before_action :set_event, only: %i[show edit update destroy pick_winner download_entries]
 
   # GET /events or /events.json
+  # Contract-shaped AdminEventListItem[], newest first. Was raw ActiveRecord
+  # JSON, which leaked the column set and carried none of the counts the admin
+  # page lists. #910
   def index
-    @events = Event.all.order(created_at: :desc)
-    render json: @events
+    @events = Event.order(created_at: :desc)
+    render json: Event.admin_list_view(@events)
   end
 
   # GET /events/1 or /events/1.json

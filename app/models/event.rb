@@ -35,6 +35,25 @@ class Event < ApplicationRecord
     contest_entries.find { |entry| entry.winner? }
   end
 
+  # The drawing a lead with `source` should be entered into right now, or nil.
+  #
+  # The app time zone is UTC (config.time_zone is commented out in
+  # config/application.rb), so `at` MUST be converted into the event's own
+  # time_zone before taking the calendar day — a booth submission at 23:30 CT
+  # is already "tomorrow" in UTC and would otherwise land on the wrong day.
+  # The `date` column is a string holding the event's local ISO day. #910
+  def self.drawing_for(source:, at: Time.current)
+    return nil if source.blank?
+
+    where(lead_source: source).find do |event|
+      event.date.present? && event.date == event.local_date(at)
+    end
+  end
+
+  def local_date(at = Time.current)
+    at.in_time_zone(time_zone.presence || "America/Chicago").to_date.iso8601
+  end
+
   # Safe for unauthenticated callers: no entrant PII, no winner fields.
   # See brittanyjohns/itty_bitty_boards#908.
   def public_view
@@ -66,6 +85,32 @@ class Event < ApplicationRecord
       winner_email: won_by&.email,
       contest_entries: entries.map(&:api_view),
     )
+  end
+
+  # AdminEventListItem[] for admin/events#index: admin_view minus the heavy
+  # `contest_entries` array and `winner` object. Deliberately NOT admin_view
+  # per row — that loads and serializes every entry of every event (N+1). One
+  # query fetches just the entry columns the counts and winner names need. #910
+  def self.admin_list_view(events)
+    events = events.to_a
+    entries_by_event = ContestEntry
+      .where(event_id: events.map(&:id))
+      .select(:id, :event_id, :name, :email, :winner, :excluded, :won_at)
+      .group_by(&:event_id)
+
+    events.map do |event|
+      entries = entries_by_event[event.id] || []
+      won_by = entries.find(&:winner?)
+
+      event.public_view.merge(
+        lead_source: event.lead_source,
+        time_zone: event.time_zone,
+        entries_count: entries.size,
+        eligible_count: entries.count(&:eligible?),
+        winner_name: won_by&.name,
+        winner_email: won_by&.email,
+      )
+    end
   end
 
   def public_url

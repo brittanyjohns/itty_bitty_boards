@@ -7,6 +7,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Every `/ctg` booth lead is entered into that day's drawing.** `POST
+  /api/download_leads` now looks for an event whose `lead_source` matches the
+  lead's `source` and whose `date` is today *in the event's own time zone*, and
+  creates a `ContestEntry` for it. The 201 gains an additive `drawing` key —
+  `{"entered": true, "event_name": "..."}` — which is absent entirely when no
+  drawing is configured for that source today. The backend alone decides the
+  date: the app runs in UTC, so an entry at 23:30 Central on Oct 20 lands on
+  the Tuesday drawing, not Wednesday's. The drawing never fails the lead; any
+  error is logged and reported as `{"entered": false}`, because the bundle
+  email matters more than the drawing. Same email, same day is one entry,
+  regardless of casing. A `ctg:create_drawings` rake task creates the three
+  Closing the Gap 2026 daily drawings idempotently.
+
+- **`GET /api/admin/events` returns the documented list shape.** It was raw
+  ActiveRecord JSON; it now returns each event's public fields plus
+  `lead_source`, `time_zone`, `entries_count`, `eligible_count`, `winner_name`
+  and `winner_email`, newest first — the detail view's shape minus the heavy
+  entry list, loaded in one query rather than one per row.
+
 - **A board set says whether it has a map at all.** `GET
   /api/board_groups/:id` carries `has_map`, true only when a tile in the set
   points at another board *in the same set* — mirroring

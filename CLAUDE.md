@@ -1320,6 +1320,34 @@ an explicit decision, not a drive-by edit.
   emails are stripped and downcased before validation, which is also what makes
   the per-event uniqueness check case-insensitive.
 
+- **The drawing's calendar day comes from the event's `time_zone`, never from
+  UTC and never from the visitor.** `config.time_zone` is commented out in
+  `config/application.rb`, so `Time.current` is **UTC**. `Event.drawing_for`
+  (the one place that answers "which drawing is running now?") converts
+  explicitly — `at.in_time_zone(event.time_zone).to_date.iso8601` — against the
+  string `events.date`. A booth submission at 23:30 Central on Oct 20 is
+  already Oct 21 in UTC; without the conversion it enters the wrong day's
+  drawing. Never take the date from a request parameter.
+
+- **Entering a lead into a drawing is a service, not a callback, and never
+  fails the lead.** `Drawings::EnterLead.call(lead)` is called from
+  `API::DownloadLeadsController#create` *after* a successful save — a model
+  callback would grow drawing side effects on every other `DownloadLead`
+  writer by surprise. Its return value is the response's `drawing` key: `nil`
+  (no drawing configured for that source today, so the key is **omitted** and
+  the frontend reads its absence as "not entered"), `{entered: true,
+  event_name:}`, or `{entered: false}` when something went wrong. Every error
+  is logged and swallowed: the bundle email matters more than the drawing, so
+  a drawing failure never changes `success` and never changes the 201.
+
+- **`GET /api/admin/events` uses `Event.admin_list_view`, not `admin_view` per
+  row.** The list item is the admin detail shape minus `contest_entries` and
+  `winner`; `admin_list_view` loads every listed event's entries in one query
+  and derives `entries_count` / `eligible_count` / `winner_name` /
+  `winner_email` from it. Calling `admin_view` in a map is an N+1 that grows
+  with the number of events and serializes every entrant's PII into a list
+  nobody reads it from.
+
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);
