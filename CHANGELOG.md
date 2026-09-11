@@ -29,6 +29,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The public event page no longer hands out the entrant list.** `GET
+  /api/events/:slug` is unauthenticated and rendered `Event#api_view`, which
+  carried every entrant's name and email plus `winner_name` / `winner_email` —
+  and event slugs are derived from the event name, so they are guessable. The
+  serializer is split: `Event#public_view` (id, name, slug, date, promo code,
+  promo code details, public URL, timestamps and nothing else) is what the
+  public endpoint renders, and `Event#admin_view` — public view plus
+  `entries_count`, `winner`, `winner_name`, `winner_email` and
+  `contest_entries` newest-first — is admin-only. The admin endpoint also
+  resolves an event by slug **or** id, because the admin page is routed by
+  slug, and an unknown value renders `404 {"error": "not_found"}` rather than
+  raising. Entering a contest under an unknown slug is now that same 404
+  instead of a 500. The public 404 body changed from `"Event not found"` to
+  `"not_found"`.
+
 - **The trial-ending reminder names the plan you're actually trialing.** The
   Mailchimp `trial_wrap` journey copy said "continue on Basic ($8/mo)" to every
   trialist, Pro included, because the job never told Mailchimp the plan.

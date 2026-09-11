@@ -1279,6 +1279,19 @@ an explicit decision, not a drive-by edit.
   one keyed on the caller's communicators and one on the caller's boards.
   Details: `.claude-notes/quick-add-board-visibility.md`.
 
+- **An `Event` has two serializers and the public endpoint may only ever call
+  `public_view`.** `Event#admin_view` carries the entrant list (`contest_entries`,
+  names and emails) plus `winner` / `winner_name` / `winner_email`;
+  `#public_view` carries the event's own fields and nothing else. `GET
+  /api/events/:slug` is `skip_before_action :authenticate_token!` and slugs are
+  `name.parameterize`, so one guessed slug used to return the whole entrant
+  list — the frontend never *rendered* it, which is why it survived. `save_entry`
+  echoes only the entrant's own row for the same reason. An unknown slug is a
+  404 `{"error": "not_found"}` on both, never a raise: `save_entry` called
+  `nil.contest_entries` and 500'd. The admin endpoints resolve `:id` as a slug
+  **or** an id (the frontend admin page is routed by slug) and render the same
+  404 when neither matches. Same shape as the board rule below — a serializer
+  used on both sides of an auth boundary is the bug.
 - **An unauthenticated endpoint never serializes a board with `api_view`.**
   `Board#api_view` publishes `in_use_by` (every communicator NAME using the
   board) and `communicator_account_data` (their ids, names, avatars);

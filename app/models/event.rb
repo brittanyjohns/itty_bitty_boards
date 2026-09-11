@@ -33,21 +33,34 @@ class Event < ApplicationRecord
     contest_entries.find { |entry| entry.winner? }
   end
 
-  def api_view
+  # Safe for unauthenticated callers: no entrant PII, no winner fields.
+  # See brittanyjohns/itty_bitty_boards#908.
+  def public_view
     {
       id: id,
       name: name,
       slug: slug.parameterize,
+      date: date,
       promo_code: promo_code,
       promo_code_details: promo_code_details,
-      date: date,
       public_url: public_url,
       created_at: created_at,
       updated_at: updated_at,
-      contest_entries: contest_entries.map(&:api_view),
-      winner_name: winner ? winner.name : nil,
-      winner_email: winner ? winner.email : nil,
     }
+  end
+
+  # Admin-only: everything in public_view plus the entrant list and winner.
+  def admin_view
+    entries = contest_entries.order(created_at: :desc).to_a
+    won_by = entries.find(&:winner?)
+
+    public_view.merge(
+      entries_count: entries.size,
+      winner: won_by&.api_view,
+      winner_name: won_by&.name,
+      winner_email: won_by&.email,
+      contest_entries: entries.map(&:api_view),
+    )
   end
 
   def public_url

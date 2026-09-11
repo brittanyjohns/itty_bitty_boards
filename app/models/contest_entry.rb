@@ -27,6 +27,7 @@ class ContestEntry < ApplicationRecord
       email: email,
       data: data,
       event_id: event_id,
+      winner: winner,
       created_at: created_at,
       updated_at: updated_at,
     }
