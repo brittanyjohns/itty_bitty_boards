@@ -253,6 +253,18 @@ class API::TeamsController < API::ApplicationController
       invited_by_name: team.created_by&.display_name,
       role: membership.role,
       email: masked_email(invited_user.email),
+      # This invitee has never set a password, so the screen's two signed-out
+      # doors are both closed to them: sign-up answers `email_taken` (their own
+      # invited row holds the address) and sign-in has no password to accept.
+      # The membership already exists — `upsert_member!` creates it at invite
+      # time — so there is nothing here for them to accept either. Setting a
+      # password is the whole of what is left, and the frontend offers that
+      # instead of the two dead ends (#915).
+      #
+      # Safe on a public endpoint: it is derived from the token the caller
+      # already holds, names no address, and says only what that link's own
+      # landing page would have to tell them anyway.
+      needs_password: invited_user.invited_to_sign_up?,
     }, status: :ok
   end
 

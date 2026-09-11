@@ -19,18 +19,33 @@ class BaseMailer < ApplicationMailer
     @inviter_name = @inviter.email || @inviter.to_s
     @team_name = @team.name
     @user_name = @invitee.name
+    # Two link shapes, and which one an invitee gets decides whether the
+    # invitation is usable at all (#915).
+    #
+    # `raw_invitation_token` is readable only on the instance that just minted
+    # it, so its presence means "this account has never set a password and we
+    # are holding a fresh token for it" — send them to the set-password page.
+    # `User.invite_new_user_to_team!` is what guarantees a re-invite still
+    # takes this branch; before it did, every invite after the first fell
+    # through to `/accept-invite`, where a passwordless account can neither
+    # sign up (`email_taken` — its own row holds the address) nor sign in
+    # (there is no password).
+    #
+    # Absent, the invitee has a real account and `/accept-invite` is right:
+    # they sign in and accept.
     @invitation_link = frontend_url
+    encoded_email = ERB::Util.url_encode(@invitee.email)
     if @invitee.raw_invitation_token.nil?
       @invitation_link += "/accept-invite/#{team.id}/#{@invitee.uuid}"
+      @invitation_link += "?email=#{encoded_email}"
     else
-      Rails.logger.info "User #{@invitee.id} already has a raw_invitation_token, using it for welcome link"
-      token = @invitee.raw_invitation_token
-      Rails.logger.info "User #{@invitee.id} has raw_invitation_token: #{token}"
-      @invitation_link += "/invite/token/#{token}"
+      @invitation_link += "/invite/token/#{@invitee.raw_invitation_token}"
+      # `team_id` so the set-password page can say an invitation is waiting and
+      # land the new member on the team. Without it the frontend falls back to
+      # the plan dashboard, which never mentions the team they just joined —
+      # correct, but it was the whole of what that page said.
+      @invitation_link += "?email=#{encoded_email}&team_id=#{team.id}"
     end
-
-    encoded_email = ERB::Util.url_encode(@invitee.email)
-    @invitation_link += "?email=#{encoded_email}"
 
     with_user_locale(@invitee) do
       mail(

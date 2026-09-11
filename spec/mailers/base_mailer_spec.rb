@@ -29,6 +29,39 @@ RSpec.describe BaseMailer, type: :mailer do
       expect(body).to include("/accept-invite/#{team.id}/#{invitee.uuid}")
     end
 
+    # #915. Which of the two link shapes an invitee gets decides whether the
+    # invitation is usable at all, and it is chosen from `raw_invitation_token`
+    # — readable only on the instance that just minted it.
+    describe "the invitation link" do
+      def link_in(mail)
+        body = (mail.html_part || mail).body.decoded
+        body[%r{https?://[^"']*/(?:invite/token|accept-invite)/[^"']+}]
+      end
+
+      it "sends an invitee with no password to the set-password page, carrying the team" do
+        pending_invitee = User.invite!(email: "brand.new@example.com") { |u| u.skip_invitation = true }
+
+        mail = described_class.team_invitation_email(pending_invitee, inviter, team).deliver_now
+
+        link = link_in(mail)
+        expect(link).to include("/invite/token/#{pending_invitee.raw_invitation_token}")
+        expect(link).to include("team_id=#{team.id}")
+        expect(link).to include("email=brand.new%40example.com")
+      end
+
+      it "sends an invitee who can sign in to the accept page" do
+        # A real account has no raw token in hand, and /accept-invite is right
+        # for them: they sign in and accept.
+        expect(invitee.raw_invitation_token).to be_nil
+
+        mail = described_class.team_invitation_email(invitee, inviter, team).deliver_now
+
+        link = link_in(mail)
+        expect(link).to include("/accept-invite/#{team.id}/#{invitee.uuid}")
+        expect(link).not_to include("team_id=")
+      end
+    end
+
     it "stamps invitation_sent_at on the invitee" do
       expect {
         described_class.team_invitation_email(invitee, inviter, team).deliver_now

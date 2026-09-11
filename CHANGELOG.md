@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A team invitation to an address with no account only worked once.**
+  Inviting an email that has no SpeakAnyWay account creates a real but
+  passwordless user, and `BaseMailer#team_invitation_email` picks its link
+  shape from `raw_invitation_token` — which devise_invitable populates only on
+  the call that mints it. So every invite *after the first* linked to
+  `/accept-invite`, where that account can neither sign up (it answers
+  `email_taken`, because its own row holds the address) nor sign in (there is
+  no password). It also fired for any address already stubbed by
+  `email_signup`, the Stripe `customer.created` webhook, `create_from_email`,
+  or `claim_placeholder`. `User.reissue_pending_invitation!` now mints a fresh
+  token for an invitee who has never set a password, so every invite carries a
+  usable set-password link. Gated on `invited_to_sign_up?`, so an address with
+  a real account is untouched; and it never fails the invite — without a fresh
+  token the mailer falls back to where it was before.
+
 ### Added
 
 - **Every `/ctg` booth lead is entered into that day's drawing.** `POST
@@ -37,6 +54,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   public IP — and every limit is ENV-tunable without a deploy. Throttled
   requests get the existing generic 429; the endpoints' success and error
   bodies are unchanged.
+
+- **The team-invitation set-password link carries `team_id`.** The frontend
+  lands the new member on the team instead of a generic dashboard that never
+  mentions the team they just joined.
+
+- **`GET /api/teams/:id/accept_invite` reports `needs_password`.** True when
+  the invitee has never set one, so the accept screen can offer a password
+  reset rather than two signed-out doors that both fail for them — including
+  for links already sitting in inboxes.
 
 - **A board set says whether it has a map at all.** `GET
   /api/board_groups/:id` carries `has_map`, true only when a tile in the set
