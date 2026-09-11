@@ -1301,13 +1301,19 @@ an explicit decision, not a drive-by edit.
   `data["redrawn_at"]`. `POST /api/admin/events/:id_or_slug/pick_winner` with
   no body means `redraw: false` and 409s (`{"error": "already_drawn", "winner":
   ...}`) when the event already has a winner; an empty eligible pool is 422
-  `{"error": "no_eligible_entries"}`. Eligibility is one predicate,
-  `ContestEntry#eligible?` (not a winner, not `excluded`, not a staff/test
-  address), used by BOTH `Event#admin_view`'s `eligible_count` and the draw, so
-  the count the booth sees can't disagree with what the draw will do. The
-  cross-event half — "already won another event with the same `lead_source`",
-  one prize per person across a multi-day series — is keyed on `won_at`, not
-  `winner`, and lives in `API::Admin::EventsController`. Staff/test addresses
+  `{"error": "no_eligible_entries"}`. **`eligible_count` and the draw pool are
+  not the same set, by design.** `Event#admin_view`'s `eligible_count` is the
+  API contract's definition and nothing more — `ContestEntry#eligible?`: not a
+  winner of this event, not `excluded`, not a staff/test address. The draw
+  (`API::Admin::EventsController#eligible_entries`) starts from that same
+  predicate and then applies one ADDITIONAL, cross-event rule: "already won
+  another event with the same `lead_source`" — one prize per person across a
+  multi-day series, keyed on `won_at`, not `winner`, so a redrawn past winner
+  still can't win again. So `eligible_count` is an **upper bound** on the draw
+  pool, and the two can legitimately disagree part-way through a series: on day
+  two or three the admin page can show "N eligible entries" while `pick_winner`
+  returns 422 `no_eligible_entries` because every one of those N already won on
+  an earlier day. Don't assume the count predicts the draw. Staff/test addresses
   (`@speakanyway.com`, `bhannajohns`, plus a comma-separated
   `DRAWING_EXCLUDED_EMAILS`) are flagged `excluded` by a `before_validation`, so
   they show up in the admin UI rather than being invisibly skipped. Entrant

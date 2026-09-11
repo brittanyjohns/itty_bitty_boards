@@ -99,12 +99,18 @@ RSpec.describe "API::Admin::Events", type: :request do
       expect(body["contest_entries"]).to eq([])
     end
 
+    # The old create called @event.save twice — once for the body, once for the
+    # status — which still only inserted one row, so a row-count assertion can't
+    # see the bug. Count the save calls instead. #909 item 5.
     it "saves exactly once" do
-      expect {
-        post "/api/admin/events",
-             params: { event: { name: "Only Once", date: "2026-10-20" } },
-             headers: auth_headers(admin)
-      }.to change { Event.where(slug: "only-once").count }.by(1)
+      expect_any_instance_of(Event).to receive(:save).once.and_call_original
+
+      post "/api/admin/events",
+           params: { event: { name: "Only Once", date: "2026-10-20" } },
+           headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:created)
+      expect(Event.where(slug: "only-once").count).to eq(1)
     end
 
     it "422s with field errors when the event is invalid" do
