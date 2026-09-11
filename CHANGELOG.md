@@ -86,6 +86,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   instead of a 500. The public 404 body changed from `"Event not found"` to
   `"not_found"`.
 
+- **A free/guest generated board can say no.** `GenerateFreeBoardJob` — the job
+  behind the anonymous `POST /api/generated_boards` funnel and the internal
+  `POST /api/internal/generated_boards` endpoint — hand-rolled its own prompt
+  and called `Board#get_word_suggestions_from_prompt`, which runs under the
+  incremental "add words" system prompt (no `BOARD_COVERAGE_RULES`) and never
+  reached `Prompts::Aac.with_core_floor`. A guest "snack time" board came back
+  as twelve foods with no `yes / no / more / help / stop / I want`. It now
+  calls `Board#get_words_for_scenario`, the same whole-board method logged-in
+  boards use, so the core floor and the `CommunicatorProfile` age handling both
+  apply. An empty AI response stays a failure — the board is no longer marked
+  complete with nothing on it.
+
 - **The trial-ending reminder names the plan you're actually trialing.** The
   Mailchimp `trial_wrap` journey copy said "continue on Basic ($8/mo)" to every
   trialist, Pro included, because the job never told Mailchimp the plan.

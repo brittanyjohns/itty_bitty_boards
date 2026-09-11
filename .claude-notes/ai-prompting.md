@@ -171,6 +171,15 @@ added between "Generate words" and "Create board" is a tile that appears from
 nowhere — the same complaint as the two extra tiles `GenerateBoardJob` used to
 merge in.
 
+A floor only holds where the code actually goes through it. `GenerateFreeBoardJob`
+— the anonymous `/api/generated_boards` funnel and the internal endpoint — built
+its own prompt and called `get_word_suggestions_from_prompt` directly, so every
+free board skipped both `BOARD_COVERAGE_RULES` and `with_core_floor` while the
+logged-in path was fully covered (#911). It now calls `get_words_for_scenario`
+like every other whole-board caller. **A whole board is defined by the method it
+goes through, not by who is signed in** — a new whole-board caller belongs on
+`get_words_for_scenario`, never on a fresh prompt of its own.
+
 The general shape: **when a model keeps getting a rule half-right, move the
 half that is checkable into Ruby and leave the prompt asking for all of it.**
 Compare the tile-size fix above, which took the opposite route for a rule that
