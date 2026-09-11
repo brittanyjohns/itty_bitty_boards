@@ -64,6 +64,25 @@ class Rack::Attack
   EXPORT_LIMIT           = env_int("RACK_ATTACK_EXPORT_LIMIT", 10)
   EXPORT_PERIOD          = env_int("RACK_ATTACK_EXPORT_PERIOD", 3600)
 
+  # Public lead capture / contest entry (issue #912). Both are unauthenticated
+  # POST writes: a lead enqueues a MailchimpUpsertLeadJob (and, once #910
+  # lands, a drawing entry), and a contest entry writes straight to the DB.
+  #
+  # ⚠️ The per-IP limit is deliberately GENEROUS. At a conference booth most
+  # visitors submit from the venue/hotel Wi-Fi behind ONE shared public IP, so
+  # a tight per-IP cap would block real attendees, not scripts. Real booth
+  # traffic is roughly one submission a minute with bursts during a grand
+  # opening; 60 per 10 minutes leaves a wide margin. Both the limit AND the
+  # period are ENV vars so they can be loosened from Hatchbox mid-show without
+  # a deploy.
+  LEADS_IP_LIMIT        = env_int("RACK_ATTACK_LEADS_LIMIT", 60)
+  LEADS_IP_PERIOD       = env_int("RACK_ATTACK_LEADS_PERIOD", 600)
+
+  # Per-email is the rule that actually catches abuse: one address being
+  # hammered. Kept small; a real person submits once.
+  LEADS_EMAIL_LIMIT     = env_int("RACK_ATTACK_LEADS_EMAIL_LIMIT", 5)
+  LEADS_EMAIL_PERIOD    = env_int("RACK_ATTACK_LEADS_EMAIL_PERIOD", 3600)
+
   # Public profile lookups (per IP) — existing anti-enumeration limits.
   PROFILE_PUBLIC_LIMIT  = env_int("RACK_ATTACK_PROFILE_PUBLIC_LIMIT", 30)
   PROFILE_SLUG_LIMIT    = env_int("RACK_ATTACK_PROFILE_SLUG_LIMIT", 10)
@@ -108,6 +127,13 @@ class Rack::Attack
   # below.
   EXPORT_DOWNLOAD_PATHS = %r{\A/api/boards/\d+/download_obf(\.\w+)?\z}
 
+  # Public lead-capture / contest-entry write surfaces (#912):
+  #   POST /api/download_leads
+  #   POST /api/events/:slug/save_entry
+  # The slug segment is `[^/]+` so any event slug matches. Anchored at both
+  # ends so lookalike paths (e.g. /api/download_leads/export) don't match.
+  LEAD_WRITE_PATHS = %r{\A/api/(download_leads|events/[^/]+/save_entry)(\.\w+)?\z}
+
   # --- Discriminator helpers ------------------------------------------------
 
   # Per-user key from the API auth token (a stable `authentication_token` sent
@@ -147,6 +173,38 @@ class Rack::Attack
     return nil unless parsed.is_a?(Hash)
 
     parsed["email"] || parsed.dig("user", "email")
+  rescue StandardError
+    nil
+  end
+
+  # Email for the per-email lead throttle (#912). `wrap_parameters` is OFF in
+  # this app, so the client wraps the body itself: the email lives under
+  # `download_lead[email]` or `contest_entry[email]`, never at the top level.
+  # Handles both form-encoded and JSON bodies, normalizes (strip + downcase) so
+  # " Foo@Example.COM " and "foo@example.com" share one bucket, and returns nil
+  # on anything malformed or missing so a bad body can never raise in here.
+  def self.lead_email(req)
+    email = req.params.dig("download_lead", "email") || req.params.dig("contest_entry", "email")
+    email ||= lead_json_body_email(req)
+    email.to_s.strip.downcase.presence
+  rescue StandardError
+    nil
+  end
+
+  def self.lead_json_body_email(req)
+    return nil unless req.content_type.to_s.include?("json")
+
+    body = req.body.read
+    req.body.rewind
+    return nil if body.blank?
+
+    parsed = JSON.parse(body)
+    return nil unless parsed.is_a?(Hash)
+
+    wrapped = parsed["download_lead"] || parsed["contest_entry"]
+    return nil unless wrapped.is_a?(Hash)
+
+    wrapped["email"]
   rescue StandardError
     nil
   end
@@ -217,6 +275,20 @@ class Rack::Attack
     is_download_obf   = req.get? && req.path.match?(EXPORT_DOWNLOAD_PATHS)
 
     user_discriminator(req) if is_export_package || is_download_obf
+  end
+
+  # --- Throttles: public lead capture / contest entry (#912) ---------------
+
+  # Per IP — a wide backstop against a script, sized so a booth full of people
+  # sharing one public IP is never blocked. See LEADS_IP_LIMIT above.
+  throttle("leads/ip", limit: LEADS_IP_LIMIT, period: LEADS_IP_PERIOD) do |req|
+    req.ip if req.post? && req.path.match?(LEAD_WRITE_PATHS)
+  end
+
+  # Per normalized email — the tight rule. nil (missing/malformed body) means
+  # this request simply isn't counted here; the per-IP rule still applies.
+  throttle("leads/email", limit: LEADS_EMAIL_LIMIT, period: LEADS_EMAIL_PERIOD) do |req|
+    lead_email(req) if req.post? && req.path.match?(LEAD_WRITE_PATHS)
   end
 
   # --- Throttles: public profile enumeration (existing) --------------------

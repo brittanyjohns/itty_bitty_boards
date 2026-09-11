@@ -26,6 +26,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   and `winner_email`, newest first — the detail view's shape minus the heavy
   entry list, loaded in one query rather than one per row.
 
+- **The two public lead-capture writes are rate limited.** `POST
+  /api/download_leads` and `POST /api/events/:slug/save_entry` had no
+  Rack::Attack throttle, so a script could flood the Mailchimp audience (and,
+  once drawings land, a contest) with made-up emails. Two rules: per IP
+  (`RACK_ATTACK_LEADS_LIMIT`, 60 per `RACK_ATTACK_LEADS_PERIOD`, 600s) and per
+  normalized email (`RACK_ATTACK_LEADS_EMAIL_LIMIT`, 5 per
+  `RACK_ATTACK_LEADS_EMAIL_PERIOD`, 3600s). The per-IP limit is deliberately
+  generous — a conference booth puts many real visitors behind one shared
+  public IP — and every limit is ENV-tunable without a deploy. Throttled
+  requests get the existing generic 429; the endpoints' success and error
+  bodies are unchanged.
+
 - **A board set says whether it has a map at all.** `GET
   /api/board_groups/:id` carries `has_map`, true only when a tile in the set
   points at another board *in the same set* — mirroring
