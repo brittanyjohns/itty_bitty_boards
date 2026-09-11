@@ -15,13 +15,24 @@ module API
 
       if lead.save
         enqueue_or_skip_mailchimp(lead)
-        render json: { success: true }, status: :created
+        render json: success_body(lead), status: :created
       else
         render json: { success: false, errors: lead.errors.full_messages }, status: :unprocessable_content
       end
     end
 
     private
+
+    # `drawing` is additive and only appears when the lead's source has a
+    # drawing configured for today (the backend alone decides the date). A
+    # missing `drawing` means "not entered" to the frontend. A drawing failure
+    # never changes `success` and never fails the lead. #910
+    def success_body(lead)
+      body = { success: true }
+      drawing = Drawings::EnterLead.call(lead)
+      body[:drawing] = drawing if drawing
+      body
+    end
 
     # A lead with no marketing consent is marked "skipped" rather than left at
     # "pending", so it doesn't linger in the mailchimp_pending scope and read as

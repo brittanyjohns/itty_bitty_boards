@@ -6,6 +6,68 @@ RSpec.describe "API::Admin::Events", type: :request do
   let!(:loser) { FactoryBot.create(:contest_entry, event: event, name: "Loser", email: "loser@example.com") }
   let!(:winner) { FactoryBot.create(:contest_entry, event: event, name: "Winner", email: "winner@example.com", winner: true) }
 
+  # AdminEventListItem[] = AdminEvent minus contest_entries and winner. #910
+  describe "GET /api/admin/events" do
+    it "returns contract-shaped list items, newest first" do
+      older = FactoryBot.create(:event, name: "Older Event", slug: "older-event",
+                                        lead_source: "ctg", date: "2026-10-20", created_at: 3.days.ago)
+      event.update!(created_at: 1.minute.ago)
+
+      get "/api/admin/events", headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body.map { |e| e["id"] }).to eq([event.id, older.id])
+
+      item = body.first
+      expect(item.keys).to match_array(
+        %w[id name slug date promo_code promo_code_details public_url created_at updated_at
+           lead_source time_zone entries_count eligible_count winner_name winner_email],
+      )
+      expect(item).not_to have_key("contest_entries")
+      expect(item).not_to have_key("winner")
+
+      expect(item["entries_count"]).to eq(2)
+      expect(item["eligible_count"]).to eq(1) # the winner is no longer eligible
+      expect(item["winner_name"]).to eq("Winner")
+      expect(item["winner_email"]).to eq("winner@example.com")
+
+      other = body.last
+      expect(other["lead_source"]).to eq("ctg")
+      expect(other["time_zone"]).to eq("America/Chicago")
+      expect(other["entries_count"]).to eq(0)
+      expect(other["eligible_count"]).to eq(0)
+      expect(other["winner_name"]).to be_nil
+    end
+
+    it "does not load entries once per event (no N+1)" do
+      3.times do |i|
+        e = FactoryBot.create(:event, name: "Event #{i}", slug: "event-#{i}")
+        FactoryBot.create(:contest_entry, event: e, email: "entrant#{i}@example.com")
+      end
+
+      entry_queries = 0
+      counter = lambda do |*, payload|
+        entry_queries += 1 if payload[:sql].to_s.include?("contest_entries")
+      end
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+        get "/api/admin/events", headers: auth_headers(admin)
+      end
+
+      expect(response).to have_http_status(:ok)
+      # One SELECT covers every listed event's entries; it must not grow with
+      # the number of events (which calling admin_view per row would).
+      expect(entry_queries).to eq(1)
+    end
+
+    it "401s with the exact Unauthorized error without a token" do
+      get "/api/admin/events"
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(JSON.parse(response.body)).to eq({ "error" => "Unauthorized" })
+    end
+  end
+
   describe "GET /api/admin/events/:id_or_slug" do
     it "returns the admin view, including entries and winner fields" do
       get "/api/admin/events/#{event.id}", headers: auth_headers(admin)
