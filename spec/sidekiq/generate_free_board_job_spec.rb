@@ -115,9 +115,15 @@ RSpec.describe GenerateFreeBoardJob, type: :job do
       stub_ai_words(food_nouns)
       expect(board).to receive(:get_words_for_scenario)
         .with("snack time", "5-9", word_count).and_call_original
-      expect(board).not_to receive(:get_word_suggestions_from_default_prompt)
 
       described_class.new.perform(board.id, "snack time", "5-9", word_count)
+
+      # The real guard against #911: a hand-rolled prompt calling
+      # #get_word_suggestions_from_prompt directly never reaches
+      # Prompts::Aac.with_core_floor, so the core words could not appear in a
+      # nouns-only AI response. Their presence proves the whole-board path ran.
+      expect(captured_words.map(&:downcase))
+        .to include(*Prompts::Aac::CORE_STARTER_WORDS.map(&:downcase))
     end
   end
 end

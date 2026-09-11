@@ -85,6 +85,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   raising. Entering a contest under an unknown slug is now that same 404
   instead of a 500. The public 404 body changed from `"Event not found"` to
   `"not_found"`.
+
 - **A free/guest generated board can say no.** `GenerateFreeBoardJob` — the job
   behind the anonymous `POST /api/generated_boards` funnel and the internal
   `POST /api/internal/generated_boards` endpoint — hand-rolled its own prompt
