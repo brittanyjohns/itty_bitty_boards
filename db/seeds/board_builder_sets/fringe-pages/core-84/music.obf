@@ -1,0 +1,387 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:core-84:music",
+  "locale": "en",
+  "name": "Music",
+  "ext_saw_core_template": "core-84",
+  "grid": {
+    "rows": 5,
+    "columns": 12,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36
+      ],
+      [
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48
+      ],
+      [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
+      ]
+    ]
+  },
+  "buttons": [
+    {
+      "id": 1,
+      "label": "sing",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 2,
+      "label": "dance",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 3,
+      "label": "listen",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 4,
+      "label": "clap",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 5,
+      "label": "play",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 6,
+      "label": "stomp",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 7,
+      "label": "tap",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 8,
+      "label": "hum",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 9,
+      "label": "march",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 10,
+      "label": "turn up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 11,
+      "label": "turn down",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 12,
+      "label": "stop",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 13,
+      "label": "shake",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 14,
+      "label": "strum",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 15,
+      "label": "sway",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 16,
+      "label": "snap",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 17,
+      "label": "move",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 18,
+      "label": "rest",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 19,
+      "label": "drum",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "guitar",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "piano",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "song",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "music",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "beat",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "bell",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "shaker",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "tambourine",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "microphone",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "radio",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "speaker",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "band",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 32,
+      "label": "headphones",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 33,
+      "label": "whistle",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 34,
+      "label": "keyboard",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 35,
+      "label": "flute",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 36,
+      "label": "violin",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 37,
+      "label": "xylophone",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 38,
+      "label": "maracas",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 39,
+      "label": "concert",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 40,
+      "label": "stage",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 41,
+      "label": "loud",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 42,
+      "label": "quiet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 43,
+      "label": "fast",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 44,
+      "label": "slow",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 45,
+      "label": "happy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 46,
+      "label": "silly",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 47,
+      "label": "favorite",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 48,
+      "label": "funny",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 49,
+      "label": "soft",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 50,
+      "label": "high",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 51,
+      "label": "low",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 52,
+      "label": "pretty",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 53,
+      "label": "more",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 54,
+      "label": "again",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 55,
+      "label": "all done",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 56,
+      "label": "no",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 57,
+      "label": "not now",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 58,
+      "label": "don't",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 59,
+      "label": "wait",
+      "part_of_speech": "important_function"
+    },
+    {
+      "id": 60,
+      "label": "not that",
+      "part_of_speech": "important_function"
+    }
+  ],
+  "images": [],
+  "sounds": []
+}

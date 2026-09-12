@@ -1,0 +1,387 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:core-84:transportation",
+  "locale": "en",
+  "name": "Transportation",
+  "ext_saw_core_template": "core-84",
+  "grid": {
+    "rows": 5,
+    "columns": 12,
+    "order": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36
+      ],
+      [
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48
+      ],
+      [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
+      ]
+    ]
+  },
+  "buttons": [
+    {
+      "id": 1,
+      "label": "car",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 2,
+      "label": "bus",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 3,
+      "label": "train",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "plane",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 5,
+      "label": "boat",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 6,
+      "label": "bike",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 7,
+      "label": "truck",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 8,
+      "label": "ambulance",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "scooter",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 10,
+      "label": "motorcycle",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 11,
+      "label": "taxi",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 12,
+      "label": "van",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 13,
+      "label": "subway",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 14,
+      "label": "ferry",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 15,
+      "label": "helicopter",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 16,
+      "label": "fire truck",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 17,
+      "label": "police car",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 18,
+      "label": "wheelchair",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 19,
+      "label": "stroller",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "seat belt",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "wheel",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "road",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "airport",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "bus stop",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "train station",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "ticket",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "driver",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "map",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "gas",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "traffic",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "bridge",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 32,
+      "label": "tunnel",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 33,
+      "label": "sidewalk",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 34,
+      "label": "crosswalk",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 35,
+      "label": "go",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 36,
+      "label": "ride",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 37,
+      "label": "drive",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 38,
+      "label": "stop",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 39,
+      "label": "wait",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 40,
+      "label": "get in",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 41,
+      "label": "get out",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 42,
+      "label": "buckle up",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 43,
+      "label": "fly",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 44,
+      "label": "walk",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 45,
+      "label": "turn",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 46,
+      "label": "park",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 47,
+      "label": "push",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 48,
+      "label": "pull",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 49,
+      "label": "climb in",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 50,
+      "label": "hurry",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 51,
+      "label": "fast",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 52,
+      "label": "slow",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 53,
+      "label": "loud",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 54,
+      "label": "far",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 55,
+      "label": "near",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 56,
+      "label": "bumpy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 57,
+      "label": "safe",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 58,
+      "label": "scary",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 59,
+      "label": "long",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 60,
+      "label": "short",
+      "part_of_speech": "adjective"
+    }
+  ],
+  "images": [],
+  "sounds": []
+}

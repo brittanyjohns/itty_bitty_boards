@@ -180,21 +180,103 @@ RSpec.describe "Board Builder seed sets" do
   end
 
   # The standalone interest-routing templates are cloned into a set and stretched
-  # to the root's columns, so a 12-word page lands sparser than any seeded one.
+  # to the root's columns, so a page authored for the wrong grid lands sparser
+  # than any seeded one. They are authored once per core set for that reason —
+  # Boards::NavRowSync widens a clone's lg count and moves no tile, so the width
+  # has to be right in the source.
+  #
+  # Content cells only: a standalone template carries NO nav row (it cannot know
+  # its future root's), so it is the core set's page minus the rows NavRowSync
+  # projects at build time.
   describe "fringe-pages templates" do
-    Dir.glob(H::DIR.join("fringe-pages", "*.obf")).sort.each do |path|
-      context File.basename(path) do
-        let(:obf) { H.load_obf(path) }
+    # variant => [columns, rows]. Core 60 pages are 10x6 with the nav row at 5;
+    # Core 84 pages are 12x7 with the nav row at 6 and a pinned More.
+    EXPECTED_SHAPE = { "core-60" => [10, 4], "core-84" => [12, 5] }.freeze
 
-        it "fills its whole grid" do
-          cells = obf.dig("grid", "order").flatten
-          expect(cells.compact.size).to eq(cells.size)
-          expect(cells.compact.size).to eq(obf["buttons"].size)
+    it "authors every category for every core set" do
+      by_variant = Boards::FringeTemplates::VARIANTS.index_with do |variant|
+        Dir.glob(H::DIR.join("fringe-pages", variant, "*.obf")).map { |p| File.basename(p) }.sort
+      end
+
+      expect(by_variant.values.uniq.size).to eq(1),
+        "each core set must author the same categories, got: #{by_variant.inspect}"
+      expect(by_variant.values.first).not_to be_empty
+    end
+
+    # Nothing may sit outside a variant directory — Boards::FringeSources keys
+    # every source on its authored variant, and a stray flat file would seed a
+    # template no build could resolve a width for.
+    it "keeps every source inside a core-set directory" do
+      stray = Dir.glob(H::DIR.join("fringe-pages", "*.obf"))
+      expect(stray).to be_empty, "move these into a core-set directory: #{stray.inspect}"
+    end
+
+    Boards::FringeTemplates::VARIANTS.each do |variant|
+      columns, rows = EXPECTED_SHAPE.fetch(variant)
+
+      describe variant do
+        Dir.glob(H::DIR.join("fringe-pages", variant, "*.obf")).sort.each do |path|
+          context File.basename(path) do
+            let(:obf) { H.load_obf(path) }
+
+            it "declares the core set its grid is sized for" do
+              expect(obf[Boards::FringeTemplates::VARIANT_KEY]).to eq(variant)
+            end
+
+            it "is #{rows}x#{columns}, matching the #{variant} content area" do
+              expect(obf.dig("grid", "columns")).to eq(columns)
+              expect(obf.dig("grid", "rows")).to eq(rows)
+              expect(obf["buttons"].size).to eq(columns * rows)
+            end
+
+            # Board.from_obf resolves by (user_id, obf_id) and both variants seed
+            # as the same admin, so a shared id makes one overwrite the other —
+            # the #278 collision, one directory over.
+            it "namespaces its id" do
+              expected = variant == "core-60" ? "fringe:" : "fringe:#{variant}:"
+              expect(obf["id"]).to start_with(expected)
+            end
+
+            it "fills its whole grid" do
+              cells = obf.dig("grid", "order").flatten
+              expect(cells.compact.size).to eq(cells.size)
+              expect(cells.compact.size).to eq(obf["buttons"].size)
+            end
+
+            it "never authors the same label twice" do
+              labels = obf["buttons"].map { |b| b["label"].to_s.strip.downcase }
+              expect(labels.uniq).to eq(labels)
+            end
+
+            # An unrecognized value does not fail — ImageHelper#background_color_for
+            # ends in `else "gray"`, so it silently miscolours the tile.
+            it "only uses known parts of speech" do
+              expect(obf["buttons"].map { |b| b["part_of_speech"] }.uniq)
+                .to all(be_in(ColorHelper::PARTS_OF_SPEECH))
+            end
+          end
         end
+      end
+    end
 
-        it "never authors the same label twice" do
-          labels = obf["buttons"].map { |b| b["label"].to_s.strip.downcase }
-          expect(labels.uniq).to eq(labels)
+    # "moving up a set is a widening, not a relearn" — the same rule the core
+    # sets follow, so a child who learns Animals on Core 60 finds every one of
+    # those words in the same part-of-speech block on Core 84.
+    describe "core-84 widens core-60" do
+      Dir.glob(H::DIR.join("fringe-pages", "core-60", "*.obf")).sort.each do |path|
+        base = File.basename(path)
+
+        it "#{base} is a superset with matching parts of speech" do
+          small = H.load_obf(path)
+          large = H.load_obf(H::DIR.join("fringe-pages", "core-84", base))
+
+          expect(large["name"]).to eq(small["name"])
+
+          large_pos = large["buttons"].to_h { |b| [b["label"], b["part_of_speech"]] }
+          small["buttons"].each do |button|
+            expect(large_pos).to include(button["label"])
+            expect(large_pos[button["label"]]).to eq(button["part_of_speech"])
+          end
         end
       end
     end

@@ -293,6 +293,20 @@ RSpec.describe BuildBoardSetJob do
       root.reload
     end
 
+    # A Core 60 page is 10 columns / 40 words and a Core 84 page is 12 / 60.
+    # NavRowSync widens the clone's lg count and moves no tile, so cloning the
+    # wrong variant leaves content stopping short of the grid it landed in.
+    it "clones the core-60 variant for a standard build" do
+      build_with_bathroom_interest!
+
+      bathroom = user.boards.find_by(name: "Bathroom")
+      expect(bathroom).to be_present
+      expect(bathroom.large_screen_columns).to eq(10)
+      # 40 authored words plus the interest ("toilet" is already on the page) and
+      # whatever nav tiles the sync projected — the core-84 variant would be 60.
+      expect(bathroom.board_images.count).to be < 60
+    end
+
     it "leaves the home board at its authored 60 tiles and 6 rows" do
       root = build_with_bathroom_interest!
 

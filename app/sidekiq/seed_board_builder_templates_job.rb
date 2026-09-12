@@ -48,14 +48,17 @@ class SeedBoardBuilderTemplatesJob
     Rails.logger.info("[SeedBoardBuilderTemplatesJob] re-seeded fringe template #{board&.name.inspect}")
   end
 
-  # File.basename, then an existence check against the seed dir — never string
-  # interpolation of a params-derived path.
-  def fringe_path(basename)
-    name = File.basename(basename.to_s)
-    return nil unless name.end_with?(".obf")
+  # Sources are nested one directory per core set ("core-60/animals.obf"), so the
+  # identifier is a RELATIVE path rather than a bare basename. It is matched
+  # against the authored glob as an allowlist — never interpolated into a path,
+  # which is what keeps a replayed job from reaching outside the seed dir.
+  def fringe_path(relative_name)
+    wanted = relative_name.to_s.delete_prefix("/")
+    return nil unless wanted.end_with?(".obf")
 
-    path = Boards::FringeTemplates::SEED_DIR.join(name)
-    path.exist? ? path : nil
+    Boards::FringeTemplates.seed_files.find do |path|
+      Pathname.new(path).relative_path_from(Boards::FringeTemplates::SEED_DIR).to_s == wanted
+    end
   end
 
   def seed_vocab(slug)

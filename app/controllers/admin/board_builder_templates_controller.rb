@@ -92,8 +92,9 @@ module Admin
     def register
       board = Board.find_by(id: params[:board_id])
       category = params[:category].to_s.strip
+      core_template = Boards::FringeTemplates.normalize_variant(params[:core_template])
 
-      if (@error = registration_error(board, category))
+      if (@error = registration_error(board, category, core_template))
         load_registry
         return render(:index, status: :unprocessable_entity)
       end
@@ -103,6 +104,7 @@ module Admin
         published: true,
         settings: (board.settings || {}).merge(
           Boards::FringeTemplates::TEMPLATE_MARKER => category.downcase,
+          Boards::FringeTemplates::VARIANT_MARKER => core_template,
           # Registration LOCKS the board to one screen, which is a real change to
           # how it renders. The form says so before you click.
           "disable_scroll" => true,
@@ -110,7 +112,7 @@ module Admin
       )
 
       redirect_to admin_dashboard_board_builder_templates_path,
-                  notice: "“#{board.name}” is now the fringe template for #{category}."
+                  notice: "“#{board.name}” is now the #{core_template} fringe template for #{category}."
     end
 
     def unregister
@@ -123,7 +125,8 @@ module Admin
       category = @board.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER]
       @board.update!(
         predefined: false,
-        settings: @board.settings.to_h.except(Boards::FringeTemplates::TEMPLATE_MARKER),
+        settings: @board.settings.to_h.except(Boards::FringeTemplates::TEMPLATE_MARKER,
+                                              Boards::FringeTemplates::VARIANT_MARKER),
       )
 
       redirect_to admin_dashboard_board_builder_templates_path,
@@ -158,20 +161,25 @@ module Admin
                 disposition: "attachment"
     end
 
+    # `file` is a path RELATIVE to SEED_DIR ("core-60/animals.obf") — sources are
+    # nested one directory per core set. Membership in available_fringe_files is
+    # the guard: the param is matched against the authored list as an allowlist
+    # and never interpolated into a path, so it cannot name a file outside the
+    # seed dir. (The job re-checks, since a job can be replayed from Sidekiq.)
     def reseed_fringe
-      basename = params[:file].presence
+      file = params[:file].presence
 
-      if basename && !available_fringe_files.include?(File.basename(basename))
+      if file && !available_fringe_files.include?(file)
         return redirect_to admin_dashboard_board_builder_templates_path,
-                           alert: "No authored fringe source named #{File.basename(basename)}."
+                           alert: "No authored fringe source named #{File.basename(file.to_s)}."
       end
 
       ActiveRecord.after_all_transactions_commit do
-        SeedBoardBuilderTemplatesJob.perform_async("fringe", basename && File.basename(basename))
+        SeedBoardBuilderTemplatesJob.perform_async("fringe", file)
       end
 
       redirect_to admin_dashboard_board_builder_templates_path,
-                  notice: "Re-seeding #{basename || "every fringe template"} from db/seeds in the background."
+                  notice: "Re-seeding #{file || "every fringe template"} from db/seeds in the background."
     end
 
     def reseed_vocab_set
@@ -221,15 +229,34 @@ module Admin
       @unseeded_fringe_files = unseeded_fringe_files
     end
 
+    # One Boards::FringeSources for the whole page: TemplateHealth parses the seed
+    # directory to answer "does this row still match its source", and building it
+    # per row turns a GET into ~22 x 22 file reads.
+    def fringe_sources
+      @fringe_sources ||= Boards::FringeSources.load
+    end
+
     def fringe_health
-      Boards::FringeTemplates.all_templates.includes(board_images: :image).map do |board|
-        category = board.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER]
+      templates = Boards::FringeTemplates.all_templates.includes(board_images: :image).to_a
+
+      # A duplicate is two rows claiming the same category AND core set — one
+      # Core 60 template beside one Core 84 template is the intended shape.
+      counts = templates.each_with_object(Hash.new(0)) do |board, memo|
+        memo[[Boards::FringeTemplates.category_for(board)&.downcase,
+              Boards::FringeTemplates.core_template_for(board)]] += 1
+      end
+
+      templates.map do |board|
+        category = Boards::FringeTemplates.category_for(board)
+        core_template = Boards::FringeTemplates.core_template_for(board)
         {
           board: board,
           category: category,
+          core_template: core_template,
           health: Boards::TemplateHealth.new(
-            board, kind: :fringe, category: category,
-            duplicate_registration: Boards::FringeTemplates.all_for(category).count > 1,
+            board, kind: :fringe, category: category, core_template: core_template,
+            duplicate_registration: counts[[category&.downcase, core_template]] > 1,
+            sources: fringe_sources,
           ),
         }
       end
@@ -258,11 +285,18 @@ module Admin
     end
 
     def health_for(board, kind)
-      category = board.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER]
+      category = Boards::FringeTemplates.category_for(board)
+      core_template = Boards::FringeTemplates.core_template_for(board)
+      duplicate = kind == :fringe &&
+                  Boards::FringeTemplates.for_variant(
+                    Boards::FringeTemplates.all_for(category), core_template,
+                  ).count > 1
+
       Boards::TemplateHealth.new(
-        board, kind: kind, category: category,
+        board, kind: kind, category: category, core_template: core_template,
         slug: Boards::RobustSets.slug_for(board),
-        duplicate_registration: kind == :fringe && Boards::FringeTemplates.all_for(category).count > 1,
+        duplicate_registration: duplicate,
+        sources: fringe_sources,
       )
     end
 
@@ -298,27 +332,29 @@ module Admin
 
       Boards::InterestCategories.categories.reject do |category|
         seed_name = Boards::StructurePlanner::CATEGORY_SEED_ALIASES[category] || category
-        seed_pages.include?(seed_name.downcase) || Boards::FringeTemplates.find(category).present?
+        seed_pages.include?(seed_name.downcase) || Boards::FringeTemplates.all_for(category).exists?
       end
     end
 
+    # Relative to SEED_DIR ("core-60/animals.obf") — sources are nested one
+    # directory per core set, and the re-seed button posts this back.
     def available_fringe_files
-      @available_fringe_files ||= Dir.glob(Boards::FringeTemplates::SEED_DIR.join("*.obf")).map { |p| File.basename(p) }.sort
+      @available_fringe_files ||= fringe_sources.relative_paths
     end
 
     # Authored .obf files with no template row here — the "you never ran the seed
-    # task" state, which otherwise reads as "we only have 3 templates".
+    # task" state, which otherwise reads as "we only have 3 templates". Keyed on
+    # (category, core set): a category seeded for Core 60 but not Core 84 is
+    # still a missing template.
     def unseeded_fringe_files
-      registered = Boards::FringeTemplates.all_templates.filter_map do |board|
-        board.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER].to_s.downcase
-      end
+      registered = Boards::FringeTemplates.all_templates.map do |board|
+        [Boards::FringeTemplates.category_for(board).to_s.downcase,
+         Boards::FringeTemplates.core_template_for(board)]
+      end.to_set
 
-      available_fringe_files.reject do |file|
-        name = JSON.parse(File.read(Boards::FringeTemplates::SEED_DIR.join(file)))["name"].to_s.downcase
-        registered.include?(name)
-      rescue JSON::ParserError
-        true
-      end
+      fringe_sources.sources.reject { |source|
+        registered.include?([source.category.downcase, source.core_template])
+      }.map(&:relative_path).sort
     end
 
     # Admin-owned boards an admin could plausibly register: not already seed
@@ -367,19 +403,30 @@ module Admin
                "Set the .obf's \"name\" to one of: #{selectable_categories.to_sentence}."
       end
 
-      if (existing = Boards::FringeTemplates.find(category))
-        return "#{category} is already served by \u201C#{existing.name}\u201D. Unregister that one first."
+      # Without a variant the build cannot tell which grid the page is sized for,
+      # and FringeTemplates.find falls back across core sets — so a template
+      # pasted without one silently serves the wrong width on one of the levels.
+      variant = Boards::FringeTemplates.normalize_variant(obf[Boards::FringeTemplates::VARIANT_KEY])
+      if variant.blank?
+        return "The .obf needs an \"#{Boards::FringeTemplates::VARIANT_KEY}\" of " \
+               "#{Boards::FringeTemplates::VARIANTS.to_sentence(two_words_connector: " or ", last_word_connector: " or ")}. " \
+               "It says which authored grid the page is sized for — Core 60 is 10 columns, Core 84 is 12."
+      end
+
+      if (existing = Boards::FringeTemplates.for_variant(Boards::FringeTemplates.all_for(category), variant).first)
+        return "#{category} is already served on #{variant} by \u201C#{existing.name}\u201D. Unregister that one first."
       end
 
       nil
     end
 
-    def registration_error(board, category)
+    def registration_error(board, category, core_template)
       return "Pick a board to register." if board.nil?
       # FringeTemplates.find is scoped to the seed admin, so a marker on anyone
       # else's board is one nothing can ever read.
       return "Only boards owned by the seed admin can be templates." unless board.user_id == User::DEFAULT_ADMIN_ID
       return "Pick a category." if category.blank?
+      return "Pick the core set this board's grid is sized for." if core_template.blank?
 
       unless selectable_categories.any? { |name| name.casecmp?(category) }
         # source_for_category only ever reaches :prebuilt for a category the
@@ -388,14 +435,24 @@ module Admin
         return "“#{category}” is not a Boards::InterestCategories category, so the planner could never select it."
       end
 
-      if (existing = Boards::FringeTemplates.find(category))
-        return "#{category} is already served by “#{existing.name}”. Unregister that one first."
+      if (existing = Boards::FringeTemplates.for_variant(Boards::FringeTemplates.all_for(category), core_template).first)
+        return "#{category} is already served on #{core_template} by “#{existing.name}”. Unregister that one first."
       end
 
       if Boards::LayoutRepacker.unstack_screen!(board, "lg", dry_run: true).positive?
         # Registering sets disable_scroll, which locks the board to one screen; a
         # stacked cell there reads as a free cell a build will then spend.
         return "“#{board.name}” has tiles stacked on the same cell. Repair its layout before registering it."
+      end
+
+      expected = Boards::FringeTemplates::EXPECTED_COLUMNS[core_template]
+      actual = board.get_number_of_columns("lg").to_i
+      if expected && actual != expected
+        # A page whose width does not match the set it is cloned into renders
+        # with dead columns: NavRowSync widens the clone's lg count and moves
+        # no tile.
+        return "“#{board.name}” is #{actual} columns wide; a #{core_template} page must be #{expected}. " \
+               "Fix its grid in the board editor first."
       end
 
       nil

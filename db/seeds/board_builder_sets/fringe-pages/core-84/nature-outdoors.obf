@@ -1,11 +1,12 @@
 {
   "format": "open-board-0.1",
-  "id": "fringe:nature-outdoors",
+  "id": "fringe:core-84:nature-outdoors",
   "locale": "en",
   "name": "Nature & Outdoors",
+  "ext_saw_core_template": "core-84",
   "grid": {
-    "rows": 4,
-    "columns": 10,
+    "rows": 5,
+    "columns": 12,
     "order": [
       [
         1,
@@ -16,10 +17,14 @@
         6,
         7,
         8,
-        13,
-        14
+        9,
+        10,
+        11,
+        12
       ],
       [
+        13,
+        14,
         15,
         16,
         17,
@@ -36,24 +41,42 @@
         26,
         27,
         28,
-        9,
-        10,
         29,
         30,
         31,
-        32
-      ],
-      [
+        32,
         33,
         34,
         35,
-        36,
-        11,
-        12,
+        36
+      ],
+      [
         37,
         38,
         39,
-        40
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48
+      ],
+      [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
       ]
     ]
   },
@@ -99,163 +122,263 @@
       "part_of_speech": "noun"
     },
     {
-      "id": 13,
+      "id": 9,
       "label": "leaf",
       "part_of_speech": "noun"
     },
     {
-      "id": 14,
+      "id": 10,
       "label": "grass",
       "part_of_speech": "noun"
     },
     {
-      "id": 15,
+      "id": 11,
       "label": "dirt",
       "part_of_speech": "noun"
     },
     {
-      "id": 16,
+      "id": 12,
       "label": "mud",
       "part_of_speech": "noun"
     },
     {
-      "id": 17,
+      "id": 13,
       "label": "stick",
       "part_of_speech": "noun"
     },
     {
-      "id": 18,
+      "id": 14,
       "label": "bug",
       "part_of_speech": "noun"
     },
     {
-      "id": 19,
+      "id": 15,
       "label": "cloud",
       "part_of_speech": "noun"
     },
     {
-      "id": 20,
+      "id": 16,
       "label": "wind",
       "part_of_speech": "noun"
     },
     {
-      "id": 21,
+      "id": 17,
       "label": "puddle",
       "part_of_speech": "noun"
     },
     {
-      "id": 22,
+      "id": 18,
       "label": "sand",
       "part_of_speech": "noun"
     },
     {
-      "id": 23,
+      "id": 19,
       "label": "water",
       "part_of_speech": "noun"
     },
     {
-      "id": 24,
+      "id": 20,
       "label": "hill",
       "part_of_speech": "noun"
     },
     {
-      "id": 25,
+      "id": 21,
       "label": "moon",
       "part_of_speech": "noun"
     },
     {
-      "id": 26,
+      "id": 22,
       "label": "star",
       "part_of_speech": "noun"
     },
     {
-      "id": 27,
+      "id": 23,
       "label": "bird",
       "part_of_speech": "noun"
     },
     {
-      "id": 28,
+      "id": 24,
       "label": "park",
       "part_of_speech": "noun"
     },
     {
-      "id": 9,
+      "id": 25,
+      "label": "river",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "lake",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "beach",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "ocean",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "forest",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "mountain",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "trail",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 32,
+      "label": "nest",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 33,
+      "label": "feather",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 34,
+      "label": "seed",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 35,
       "label": "plant",
       "part_of_speech": "verb"
     },
     {
-      "id": 10,
+      "id": 36,
       "label": "dig",
       "part_of_speech": "verb"
     },
     {
-      "id": 29,
+      "id": 37,
       "label": "climb",
       "part_of_speech": "verb"
     },
     {
-      "id": 30,
+      "id": 38,
       "label": "walk",
       "part_of_speech": "verb"
     },
     {
-      "id": 31,
+      "id": 39,
       "label": "run",
       "part_of_speech": "verb"
     },
     {
-      "id": 32,
+      "id": 40,
       "label": "look",
       "part_of_speech": "verb"
     },
     {
-      "id": 33,
+      "id": 41,
       "label": "pick",
       "part_of_speech": "verb"
     },
     {
-      "id": 34,
+      "id": 42,
       "label": "splash",
       "part_of_speech": "verb"
     },
     {
-      "id": 35,
+      "id": 43,
       "label": "jump",
       "part_of_speech": "verb"
     },
     {
-      "id": 36,
+      "id": 44,
       "label": "explore",
       "part_of_speech": "verb"
     },
     {
-      "id": 11,
+      "id": 45,
+      "label": "smell",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 46,
+      "label": "touch",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 47,
+      "label": "listen",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 48,
+      "label": "ride",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 49,
+      "label": "swing",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 50,
+      "label": "collect",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 51,
       "label": "wet",
       "part_of_speech": "adjective"
     },
     {
-      "id": 12,
+      "id": 52,
       "label": "cold",
       "part_of_speech": "adjective"
     },
     {
-      "id": 37,
+      "id": 53,
       "label": "hot",
       "part_of_speech": "adjective"
     },
     {
-      "id": 38,
+      "id": 54,
       "label": "muddy",
       "part_of_speech": "adjective"
     },
     {
-      "id": 39,
+      "id": 55,
       "label": "pretty",
       "part_of_speech": "adjective"
     },
     {
-      "id": 40,
+      "id": 56,
       "label": "windy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 57,
+      "label": "big",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 58,
+      "label": "small",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 59,
+      "label": "soft",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 60,
+      "label": "sunny",
       "part_of_speech": "adjective"
     }
   ],

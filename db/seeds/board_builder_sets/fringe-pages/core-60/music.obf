@@ -1,8 +1,9 @@
 {
   "format": "open-board-0.1",
-  "id": "fringe:sports",
+  "id": "fringe:music",
   "locale": "en",
-  "name": "Sports",
+  "name": "Music",
+  "ext_saw_core_template": "core-60",
   "grid": {
     "rows": 4,
     "columns": 10,
@@ -12,27 +13,26 @@
         2,
         3,
         4,
-        5,
-        6,
-        8,
         13,
         14,
-        15
-      ],
-      [
+        15,
         16,
         17,
-        18,
-        12,
-        7,
-        9,
-        10,
-        19,
-        20,
-        21
+        18
       ],
       [
-        22,
+        19,
+        20,
+        5,
+        6,
+        7,
+        8,
+        11,
+        12,
+        21,
+        22
+      ],
+      [
         23,
         24,
         25,
@@ -41,10 +41,11 @@
         28,
         29,
         30,
-        31
+        9,
+        10
       ],
       [
-        11,
+        31,
         32,
         33,
         34,
@@ -60,37 +61,22 @@
   "buttons": [
     {
       "id": 1,
-      "label": "run",
+      "label": "sing",
       "part_of_speech": "verb"
     },
     {
       "id": 2,
-      "label": "swim",
+      "label": "dance",
       "part_of_speech": "verb"
     },
     {
       "id": 3,
-      "label": "kick",
+      "label": "listen",
       "part_of_speech": "verb"
     },
     {
       "id": 4,
-      "label": "throw",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 5,
-      "label": "catch",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 6,
-      "label": "jump",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 8,
-      "label": "race",
+      "label": "clap",
       "part_of_speech": "verb"
     },
     {
@@ -100,116 +86,131 @@
     },
     {
       "id": 14,
-      "label": "score",
+      "label": "stomp",
       "part_of_speech": "verb"
     },
     {
       "id": 15,
-      "label": "pass",
+      "label": "tap",
       "part_of_speech": "verb"
     },
     {
       "id": 16,
-      "label": "dribble",
+      "label": "hum",
       "part_of_speech": "verb"
     },
     {
       "id": 17,
-      "label": "climb",
+      "label": "march",
       "part_of_speech": "verb"
     },
     {
       "id": 18,
-      "label": "cheer",
+      "label": "turn up",
       "part_of_speech": "verb"
-    },
-    {
-      "id": 12,
-      "label": "win",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 7,
-      "label": "ball",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 9,
-      "label": "soccer",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 10,
-      "label": "basketball",
-      "part_of_speech": "noun"
     },
     {
       "id": 19,
-      "label": "baseball",
-      "part_of_speech": "noun"
+      "label": "turn down",
+      "part_of_speech": "verb"
     },
     {
       "id": 20,
-      "label": "football",
+      "label": "stop",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 5,
+      "label": "drum",
       "part_of_speech": "noun"
     },
     {
-      "id": 21,
-      "label": "bat",
+      "id": 6,
+      "label": "guitar",
       "part_of_speech": "noun"
     },
     {
-      "id": 22,
-      "label": "glove",
+      "id": 7,
+      "label": "piano",
       "part_of_speech": "noun"
     },
     {
-      "id": 23,
-      "label": "net",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 24,
-      "label": "goal",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 25,
-      "label": "team",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 26,
-      "label": "coach",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 27,
-      "label": "game",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 28,
-      "label": "bike",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 29,
-      "label": "helmet",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 30,
-      "label": "field",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 31,
-      "label": "pool",
+      "id": 8,
+      "label": "song",
       "part_of_speech": "noun"
     },
     {
       "id": 11,
+      "label": "music",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 12,
+      "label": "beat",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 21,
+      "label": "bell",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "shaker",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "tambourine",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "microphone",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "radio",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "speaker",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "band",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "headphones",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "whistle",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "keyboard",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 9,
+      "label": "loud",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 10,
+      "label": "quiet",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 31,
       "label": "fast",
       "part_of_speech": "adjective"
     },
@@ -220,43 +221,43 @@
     },
     {
       "id": 33,
-      "label": "strong",
+      "label": "happy",
       "part_of_speech": "adjective"
     },
     {
       "id": 34,
-      "label": "tired",
+      "label": "silly",
       "part_of_speech": "adjective"
     },
     {
       "id": 35,
-      "label": "fun",
+      "label": "favorite",
       "part_of_speech": "adjective"
     },
     {
       "id": 36,
-      "label": "hard",
+      "label": "funny",
       "part_of_speech": "adjective"
     },
     {
       "id": 37,
-      "label": "lose",
+      "label": "more",
       "part_of_speech": "important_function"
     },
     {
       "id": 38,
-      "label": "all done",
+      "label": "again",
       "part_of_speech": "important_function"
     },
     {
       "id": 39,
-      "label": "my turn",
-      "part_of_speech": "social"
+      "label": "all done",
+      "part_of_speech": "important_function"
     },
     {
       "id": 40,
-      "label": "your turn",
-      "part_of_speech": "social"
+      "label": "no",
+      "part_of_speech": "important_function"
     }
   ],
   "images": [],

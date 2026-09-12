@@ -3,6 +3,7 @@
   "id": "fringe:home",
   "locale": "en",
   "name": "Home",
+  "ext_saw_core_template": "core-60",
   "grid": {
     "rows": 4,
     "columns": 10,

@@ -512,8 +512,12 @@ class BuildBoardSetJob
     end
   end
 
+  # The variant matters: a Core 60 template is 10 columns and a Core 84 one is
+  # 12, and NavRowSync only widens the clone's lg count — it never moves a tile
+  # — so cloning the wrong one leaves a page whose content stops short of the
+  # grid it was dropped into. page_plan carries the planned core set.
   def clone_one_prebuilt_page!(root, owner, page_plan)
-    fringe_source = Boards::FringeTemplates.find(page_plan[:name])
+    fringe_source = Boards::FringeTemplates.find(page_plan[:name], core_template: page_plan[:core_template])
     return false unless fringe_source
 
     cloned = fringe_source.clone_with_images(owner.id)

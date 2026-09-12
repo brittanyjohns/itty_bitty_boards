@@ -7,6 +7,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Board Builder interest pages were a quarter the size they were supposed to
+  be, and on Extended builds the wrong shape entirely.** The eleven standalone
+  interest templates (Animals, Music, Sports, …) were re-authored from 12 words
+  to 40 some time ago, but the seeded boards were never refreshed — so a build
+  that added an interest page cloned a sparse 3x4 grid into a set whose other
+  pages are full. The admin registry now flags a template that no longer matches
+  its authored source, so this cannot go unnoticed again. Separately, every
+  category is now authored for **both** core sets: an Extended (Core 84) build
+  gets a 12-column, 60-word interest page that matches its core pages, instead
+  of a 10-column, 40-word one stretched to fit with two empty columns.
+
 - **The team roster couldn't tell an invited person from one who had joined.**
   `TeamsController#invite` calls `upsert_member!` unconditionally, so an
   invitee is a full member row from the moment the invite POSTs — before they

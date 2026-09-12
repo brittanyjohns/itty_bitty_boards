@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Boards::SeedSourceExporter do
   let(:admin) { User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
-  let(:source_path) { Rails.root.join("db/seeds/board_builder_sets/fringe-pages/animals.obf") }
+  let(:source_path) { Rails.root.join("db/seeds/board_builder_sets/fringe-pages/core-60/animals.obf") }
 
   describe "#call" do
     it "emits the authored shape, not the app's export shape" do
@@ -43,6 +43,16 @@ RSpec.describe Boards::SeedSourceExporter do
     it "names the file after the un-namespaced id" do
       board = create(:board, user: admin, name: "Animals", obf_id: "fringe:animals")
       expect(described_class.new(board).filename).to eq("animals.obf")
+    end
+
+    # Sources are nested one directory per core set, so both variants of a
+    # category share a basename. The download prefixes the core set so the two
+    # don't collide in a Downloads folder.
+    it "prefixes a fringe template's core set" do
+      board = create(:board, user: admin, name: "Animals", obf_id: "fringe:core-84:animals",
+                             settings: { Boards::FringeTemplates::TEMPLATE_MARKER => "animals",
+                                         Boards::FringeTemplates::VARIANT_MARKER => "core-84" })
+      expect(described_class.new(board).filename).to eq("core-84-animals.obf")
     end
   end
 

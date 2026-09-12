@@ -135,17 +135,22 @@ module Boards
       end
     end
 
+    # Every page carries the core set it is planned against. A fringe template is
+    # sized for one authored grid (Core 60 is 10 wide, Core 84 is 12), so the
+    # build has to know which variant to clone — and reading it off the page plan
+    # keeps the planner's answer and the build's the same one.
     def plan_fringe_pages(needed_categories, categorized)
       needed_categories.map do |category|
         interests_for = categorized[category] || []
         source = source_for_category(category)
-        { name: category, source: source, interests: interests_for }
+        { name: category, source: source, interests: interests_for,
+          core_template: @config[:core_template] }
       end
     end
 
     def source_for_category(category)
       return :seed_set if in_seed_set?(category)
-      return :prebuilt if Boards::FringeTemplates.find(category).present?
+      return :prebuilt if Boards::FringeTemplates.find(category, core_template: @config[:core_template]).present?
 
       :ai_generated
     end

@@ -39,6 +39,13 @@ db/seeds/board_builder_sets/
       core-84.obf
       people.obf  feelings.obf  food.obf  drinks.obf  play.obf  places.obf
       body.obf  more.obf  school.obf  time.obf  describe.obf
+  fringe-pages/                  <- standalone interest templates, one directory
+    core-60/                        per core set (see "Fringe page templates")
+      animals.obf  art-craft.obf  bathroom.obf  clothing.obf  home.obf
+      music.obf  nature-outdoors.obf  social.obf  sports.obf
+      technology.obf  transportation.obf
+    core-84/                     <- the same eleven categories, widened
+      animals.obf  ...
 ```
 
 The seeder reads this directory, zips it **in memory** into an `.obz`, and feeds
@@ -183,7 +190,8 @@ fills **whole rows from the top**, with the last content row left empty:
 |---|---|---|---|
 | Core 60 fringe | 10×6, nav row 5 | 50 | **40** (rows 0–3) |
 | Core 84 fringe | 12×7, nav row 6 + pinned `More` | 71 | **60** (rows 0–4) |
-| `fringe-pages/*` | authored 10×4 | — | **40** |
+| `fringe-pages/core-60/*` | authored 10×4 | — | **40** |
+| `fringe-pages/core-84/*` | authored 12×5 | — | **60** |
 
 A partial final row is worse than a short board: rows aren't stored
 (`Board#rows_for_screen_size` derives them from the tiles), so the leftover
@@ -206,6 +214,59 @@ So `More` keeps **two** spare rows, not one — Core 60's More is 30 words, Core
 84's is 48. Filling it like any other page leaves one row for fifteen pages and
 silently pushes the overflow back onto the home grid. This is the one page
 where white space is load-bearing.
+
+## Fringe page templates (`fringe-pages/`)
+
+These are the **standalone** interest templates, separate from the pages that
+ship inside a set. `Boards::StructurePlanner` reaches for one only when a
+category is NOT a page of the level's core set — `source_for_category` returns
+`:seed_set` first and short-circuits — and `BuildBoardSetJob` then clones it and
+hangs a folder tile off the home board. Without a template, that category costs
+the user AI credits every build.
+
+**One template per category PER CORE SET.** A Core 60 page is 10 columns and a
+Core 84 page is 12, and `Boards::NavRowSync` force-widens a clone's
+`large_screen_columns` to the root's **without moving a single tile** — so a
+10-wide template dropped into a Core 84 set renders with two dead columns and
+two thirds of a sibling page's vocabulary. Hence `core-60/` and `core-84/`.
+
+Three rules:
+
+- **`ext_saw_core_template`** (`"core-60"` or `"core-84"`) is a required
+  top-level key. It — not the directory — is what
+  `Boards::FringeTemplates.seed_data!` stamps into
+  `settings["fringe_template_core_template"]`, so an .obf pasted into
+  `/admin/board_builder_templates` carries the same authority a file does. A
+  spec asserts the key and the directory agree.
+- **Ids are namespaced like everything else**, and core-60 keeps the bare
+  `fringe:<slug>` it shipped with so existing rows upsert in place; core-84 uses
+  `fringe:core-84:<slug>`. Sharing an id would make one variant overwrite the
+  other — #278, one directory over.
+- **core-84 is a SUPERSET of core-60**, same word in the same part-of-speech
+  block, for the same reason the core sets are: moving up a set is a widening,
+  not a relearn.
+
+Resolution at build time is `Boards::FringeTemplates.find(category,
+core_template:)`: the exact variant, then a row carrying no variant (seeded
+before variants existed, or hand-registered), then the other variant as a last
+resort — a page needing a repack still beats charging AI credits for one we have
+authored. `/admin/board_builder_templates` names the missing variant rather than
+absorbing it silently.
+
+### Re-seeding is not automatic
+
+```bash
+bin/rails fringe_templates:seed     # or the registry's "Re-seed all" button
+```
+
+Editing an `.obf` changes nothing already in the database. The eleven templates
+were re-authored from 3×4/12 words to 4×10/40 in #747 and the production rows
+were never re-seeded, so builds cloned a page a quarter of the intended size for
+months — and the registry reported them healthy, because the only source check
+asked whether a FILE existed. `Boards::TemplateHealth#stale_vs_source?` now
+compares the row's grid and tile count against its authored file and flags the
+mismatch, so **re-seed after every content revision** and check the registry is
+green.
 
 ## Fringe board names are load-bearing
 
