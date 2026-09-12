@@ -18,8 +18,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   there is genuinely no record, which is deliberately distinguishable from
   "delivered" rather than being reported as success. It works for invites
   already sent, and it is one lookup for the whole roster.
+- **A communicator's MySpeak page now knows when a team member is looking.**
+  When someone who is signed in opens a communicator's page, the page data now
+  says whether they are on that communicator's team, with their role and
+  whether they own the account. The page can then stop asking a Support member
+  to "ask the family to add you". Anonymous visitors get exactly the same page
+  data as before.
 
 ### Fixed
+
+- **Team members who could already sign in were listed as "Invited — hasn't
+  joined yet".** The roster only counted people who had clicked the link in
+  the invite email. Anyone who reached the team by signing in, because they
+  already had an account or made one themselves, never clicked it, so they
+  never counted as joined. The team page undercounted its members, and a
+  member could see her own row say she hadn't arrived. A member now counts as
+  joined once they have a working account (a password, or they have signed in
+  at all). Existing memberships are corrected. Invitations to addresses that
+  have never signed in still show as invited.
+- **On staging, a suppressed invite email never showed on the roster.** The
+  staging mail guard removed the recipient before the delivery record was
+  written, so the "suppressed" record named nobody and couldn't be matched to
+  the member. The record now keeps the intended address, so the roster reports
+  the invite as suppressed, with the reason.
 
 - **Every failed email reached the retry queue as the wrong error.** A delivery
   failure is reported by a handler that runs once against the mailer and then

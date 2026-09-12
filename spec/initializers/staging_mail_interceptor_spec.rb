@@ -38,6 +38,18 @@ RSpec.describe StagingMailInterceptor do
       expect(message.perform_deliveries).to be false
     end
 
+    # Issue #930 — the recipients are cleared here, before MailDeliveryObserver
+    # records the suppressed row, so the addresses the app meant to reach are
+    # carried on the (never-delivered) message for it to read.
+    it "records the intended `to` addresses on the dropped message" do
+      message = message_to("parent@example.com")
+
+      described_class.delivering_email(message)
+
+      expect(message.to).to be_nil
+      expect(described_class.intended_recipients(message)).to eq("parent@example.com")
+    end
+
     it "blocks delivery to cc and bcc recipients too" do
       message = message_to("parent@example.com", cc: "slp@example.com", bcc: "admin@example.com")
 
@@ -84,6 +96,8 @@ RSpec.describe StagingMailInterceptor do
 
       expect(message.perform_deliveries).to be true
       expect(message.to).to eq(["brittany@speakanyway.com"])
+      # A message that still goes out must not carry the stripped addresses.
+      expect(message[described_class::INTENDED_RECIPIENTS_HEADER]).to be_nil
     end
 
     it "strips non-allowlisted cc and bcc recipients" do

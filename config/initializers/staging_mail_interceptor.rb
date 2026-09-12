@@ -18,6 +18,19 @@
 class StagingMailInterceptor
   RECIPIENT_FIELDS = %i[to cc bcc].freeze
 
+  # Carries the `to` addresses of a DROPPED message to MailDeliveryObserver,
+  # which runs after this has cleared them and would otherwise record a
+  # suppressed row naming nobody (#930). Set only on a message that will not be
+  # delivered, so stripped addresses never ride out on one that still sends.
+  INTENDED_RECIPIENTS_HEADER = "X-SpeakAnyWay-Intended-To"
+
+  # The addresses a suppressed message was meant for, or nil.
+  def self.intended_recipients(message)
+    message&.[](INTENDED_RECIPIENTS_HEADER)&.value.presence
+  rescue StandardError
+    nil
+  end
+
   def self.allowlist
     ENV["STAGING_MAIL_ALLOWLIST"].to_s.split(",").filter_map do |entry|
       entry.strip.downcase.presence
@@ -37,6 +50,7 @@ class StagingMailInterceptor
     return unless AppEnv.staging?
 
     original = RECIPIENT_FIELDS.flat_map { |field| Array(message.public_send(field)) }
+    intended_to = Array(message.to)
     kept = []
 
     RECIPIENT_FIELDS.each do |field|
@@ -51,6 +65,7 @@ class StagingMailInterceptor
 
     return if kept.any?
 
+    message[INTENDED_RECIPIENTS_HEADER] = intended_to.join(", ") if intended_to.any?
     message.perform_deliveries = false
     Rails.logger.info("[StagingMailInterceptor] dropped mail to #{original.join(", ")}")
   end

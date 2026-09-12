@@ -475,6 +475,15 @@ an explicit decision, not a drive-by edit.
   subject is localized. `DISTINCT ON (recipients)` keeps it to ONE query per
   roster — never one per member. **`nil` means "no information on record"** —
   never sent, or pruned — and must never be rendered as success.
+  **A SUPPRESSED row records the INTENDED recipients** (#930):
+  `StagingMailInterceptor` clears `to` before `MailDeliveryObserver` runs, so
+  when it drops a message it stamps the original `to` on the
+  `X-SpeakAnyWay-Intended-To` header (only on a message that will NOT be
+  delivered, so stripped addresses never ride out), and the observer passes
+  `StagingMailInterceptor.intended_recipients(message)` as
+  `MailDelivery.record(recipients:)`. Without it the row's `recipients` was
+  empty and a staging invite could never correlate. Rows written before this
+  were not backfilled.
 - **A board that joins the PUBLIC CATALOGUE earns a cover; nothing else in the
   app was ever responsible for that.** Preview rendering is wired to AUTHORING
   paths only — a layout save, AI word/art generation, an .obf/.obz import, a
@@ -1301,11 +1310,21 @@ an explicit decision, not a drive-by edit.
   stamped row keeps the original — when they arrived beats when their role was
   last edited. `joined` is serialized beside the timestamp and is what a client
   gates on; the rule for turning a timestamp into a yes/no belongs here, not in
-  the frontend. The backfill is ADMIN ROWS ONLY, to `created_at`: `admin` is
-  absent from `TeamUser::ASSIGNABLE_ROLES` and rejected by `invite_role`, so such
-  a row is always server-created and never a pending invitation, while a
-  non-admin null is genuinely ambiguous and stamping it would destroy the
-  pending-invite signal #914 exists to give.
+  the frontend. **`TeamUser#joined?` is `invitation_accepted_at.present? ||
+  user.working_account?`** — a member who reaches the team by SIGNING IN never
+  uses the accept link (#930). `User#working_account?` is `!invited_to_sign_up?
+  || sign_in_count > 0 || last_sign_in_at.present?`, NOT `!invited_to_sign_up?`
+  alone: email_signup, Google sign-in, the Stripe webhook and
+  `create_from_email` all create users via `User.invite!`, so a pending
+  invitation token is also what a passwordless account that does sign in looks
+  like. `accept_invite_patch` deliberately still reads the raw timestamp — it
+  is the "first click" transition that mails the owner, not a joined test. Two
+  data backfills: `20260912120000` stamped ADMIN rows to `created_at` (never a
+  pending invitation), and `20260912130000` stamped every row whose user is a
+  working account, to `GREATEST(team_users.created_at,
+  users.invitation_accepted_at)`. An invitation shell (pending token, never
+  signed in) stays null, since there null is still the pending-invite signal
+  #914 exists to give.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row

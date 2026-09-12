@@ -519,6 +519,25 @@ yet" beside a ★ Owner chip, and the MEMBERS card read 0.
   date, but the rule for turning it into a yes/no belongs on the backend — the
   frontend was reading `invitation_accepted_at !== null` and carrying deploy-skew
   guesswork for the case where the key is absent.
+- **Joined = used the accept link OR has a working account** (#930):
+  `TeamUser#joined?` is `invitation_accepted_at.present? ||
+  user.working_account?`, and false (not an error) for a soft-deleted user.
+  Somebody who reaches a team by signing in — an existing account, or one they
+  made themselves — never travels `accept_invite_patch`, so a timestamp-only
+  rule reported them as never having arrived, beside a "Resend invite" button
+  that rotated nothing useful. `User#working_account?` is
+  `!invited_to_sign_up? || sign_in_count > 0 || last_sign_in_at.present?`. The
+  sign-in half is load-bearing: email_signup, Google sign-in, the Stripe
+  `customer.created` webhook and `create_from_email` all create users through
+  `User.invite!`, so those passwordless accounts carry a pending invitation
+  token while signing in normally. Every sign-in path (password, Google,
+  temp-login) calls Devise `sign_in`, so trackable covers them.
+- **Readers that deliberately stay on the raw timestamp:** `accept_invite_patch`
+  (`already_accepted` is the first-click transition that sends
+  `team_member_joined_email`, not a joined test) and `teams/show.html.erb`
+  (renders a date). Invite/resend token rotation
+  (`User.reissue_pending_invitation!`) gates on `invited_to_sign_up?`, so an
+  account with a usable password is never rotated.
 - **The backfill is admin rows ONLY**
   (`20260912120000_backfill_team_creator_invitation_accepted_at`), set to
   `created_at`. `admin` is absent from `TeamUser::ASSIGNABLE_ROLES` and rejected

@@ -1444,6 +1444,19 @@ class User < ApplicationRecord
     user
   end
 
+  # A real account somebody can get into, as opposed to an invitation shell
+  # (the row `invite_new_user_to_team!` mints for an address that has none).
+  #
+  # `!invited_to_sign_up?` alone is not enough: email_signup, Google sign-in,
+  # the Stripe `customer.created` webhook and `create_from_email` all create
+  # users through `User.invite!`, so a pending invitation token is also what a
+  # passwordless account that signs in by token, Google or temp-login looks
+  # like. Every sign-in path goes through Devise `sign_in` (trackable), so
+  # having signed in at all is the second half of the answer.
+  def working_account?
+    !invited_to_sign_up? || sign_in_count.to_i.positive? || last_sign_in_at.present?
+  end
+
   def send_partner_welcome_email
     Rails.logger.info "Sending partner welcome email to #{email}"
     begin

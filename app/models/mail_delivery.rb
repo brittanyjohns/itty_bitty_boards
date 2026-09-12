@@ -134,12 +134,17 @@ class MailDelivery < ApplicationRecord
 
   # The single writer. Returns the row, or nil if recording is off or the write
   # failed — callers ignore the return value, which is the point.
-  def self.record(status:, message: nil, mailer: nil, reason: nil, error: nil)
+  #
+  # `recipients:` overrides the message's own `to`. The suppression path passes
+  # it because `StagingMailInterceptor` has already cleared `to` by the time the
+  # observer runs, and a suppressed row with no recipients can never be matched
+  # to the member it was for (#930).
+  def self.record(status:, message: nil, mailer: nil, reason: nil, error: nil, recipients: nil)
     return nil unless recording_enabled?
 
     create!(
       status: status,
-      recipients: clamp(Array(message&.to).join(", ")),
+      recipients: clamp(recipients.presence || Array(message&.to).join(", ")),
       from_address: clamp(Array(message&.from).join(", ")),
       subject: clamp(message&.subject),
       message_id: clamp(message&.message_id),
