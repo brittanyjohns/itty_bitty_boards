@@ -5,7 +5,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **The team roster now says whether an invite email actually arrived.** A row
+  reading "Invited — hasn't joined yet" covered three very different things: the
+  email was delivered and the person hasn't got round to it, the email **failed**
+  (bad address, bounce, SMTP error), or the email was **suppressed** and never
+  left the building. The owner had no way to tell "chase them" from "check the
+  address", and the only lever the roster offered was removing them. Each member
+  now carries the most recent outcome of their invitation email — delivered,
+  failed or suppressed, with the reason and the time — or nothing at all where
+  there is genuinely no record, which is deliberately distinguishable from
+  "delivered" rather than being reported as success. It works for invites
+  already sent, and it is one lookup for the whole roster.
+
 ### Fixed
+
+- **Every failed email reached the retry queue as the wrong error.** A delivery
+  failure is reported by a handler that runs once against the mailer and then
+  again against the mailer class, and the second pass tripped over itself and
+  raised `NameError` over the top of the real problem. The SMTP error — the one
+  sentence that says whether an address is wrong or the mail server is down —
+  was replaced before anyone could read it, and the tagged log line for that
+  pass was never written. The transport's own error now survives, and the
+  failure is recorded exactly once.
 
 - **Board Builder interest pages were a quarter the size they were supposed to
   be, and on Extended builds the wrong shape entirely.** The eleven standalone

@@ -449,6 +449,32 @@ an explicit decision, not a drive-by edit.
   Envelope only, never a body. `MAIL_DELIVERY_LOG=false` disables recording;
   `PruneMailDeliveriesJob` enforces `MAIL_DELIVERY_RETENTION_DAYS` (90) so the
   table stays a log rather than an archive.
+  **`ApplicationMailer`'s `rescue_from` runs TWICE for every `deliver_later`,
+  and only the first pass is an instance.** `MessageDelivery#deliver_now` calls
+  the mailer INSTANCE's `handle_exceptions` — that is the pass that logs and
+  writes the row — then re-raises into `MailDeliveryJob`, whose own
+  `rescue_from` calls the CLASS-level `ActionMailer::Base.handle_exception` and
+  `instance_exec`s the same handler with `self` set to the mailer CLASS, where
+  `action_name` and `message` do not exist. So a handler that reads either one
+  unguarded raises `NameError` from inside itself and REPLACES the transport's
+  error on its way to Sidekiq's retry/dead set — which, `deliver_later` being
+  the send path everywhere, was every mail failure in production. The class pass
+  therefore re-raises and records nothing (`raise error if is_a?(Class)`), so
+  the row is written exactly once by the instance pass. A spec asserting only
+  `deliver_now` cannot see this; cover `deliver_later` through
+  `perform_enqueued_jobs`.
+  **The team roster is the second surface** (`Team#member_views`'
+  `last_invite_delivery`, #928): a team's own members see the newest
+  invite-mail outcome per member, since the admin dashboard does not answer the
+  OWNER who invited four people and watched none of them arrive. `mail_deliveries`
+  has no foreign key to a team, an invite or a user, so the correlation is
+  envelope-shaped — `MailDelivery.latest_team_invitations_by_recipient` matches
+  `recipients` exactly (index-backed; `users.email` is Devise-downcased and is
+  the same string the mailer addresses) and identifies the invitation by
+  `mailer` OR `subject`, because only the `rescue_from` writes `mailer` and the
+  subject is localized. `DISTINCT ON (recipients)` keeps it to ONE query per
+  roster — never one per member. **`nil` means "no information on record"** —
+  never sent, or pruned — and must never be rendered as success.
 - **A board that joins the PUBLIC CATALOGUE earns a cover; nothing else in the
   app was ever responsible for that.** Preview rendering is wired to AUTHORING
   paths only — a layout save, AI word/art generation, an .obf/.obz import, a

@@ -17,7 +17,24 @@ class ApplicationMailer < ActionMailer::Base
   # visible on the admin dashboard rather than only to whoever greps the box —
   # "we'll email you as soon as it's approved" is a promise an admin has to be
   # able to check.
+  # A `deliver_later` failure reaches this handler TWICE, and only the first
+  # pass is an instance. `MessageDelivery#deliver_now` calls the mailer
+  # INSTANCE's `handle_exceptions` — that pass is what logs the line and writes
+  # the `mail_deliveries` row — and then re-raises into `MailDeliveryJob`, whose
+  # own `rescue_from` calls the CLASS-level `ActionMailer::Base.handle_exception`
+  # and `instance_exec`s this same block with `self` set to the mailer CLASS,
+  # where `action_name` and `message` do not exist. Reading them there raised
+  # `NameError` from inside the handler, which REPLACED the original error on
+  # its way out: every `deliver_later` failure reached Sidekiq's retry/dead set
+  # as "undefined local variable or method `action_name'" instead of the SMTP
+  # error, and the second pass logged nothing at all. Since this is the
+  # environment-wide send path, that was every mail failure in production.
+  # Re-raise on the class pass and let the instance pass — which has already
+  # recorded the row — be the one that reports, so the row is written exactly
+  # once and the transport's own error survives (#928, finding 2).
   rescue_from StandardError do |error|
+    raise error if is_a?(Class)
+
     Rails.logger.error(
       "[mail] delivery_failed mailer=#{self.class.name}##{action_name} " \
       "to=#{Array(message&.to).join(",")} " \

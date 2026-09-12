@@ -113,6 +113,51 @@ RSpec.describe "mail delivery visibility" do
     end
   end
 
+  # Issue #928, finding 2 — `API::TeamsController#accept_invite_patch` wraps the
+  # join notification in a `rescue => e` that logs and swallows, and that
+  # fail-soft is correct: a mail error must not turn a successful join into a
+  # 500 the invitee retries. The open question was whether the FAILURE still
+  # reaches `mail_deliveries`, since `deliver_later` means the controller's
+  # rescue only ever sees an ENQUEUE error — the render and the transport both
+  # run later, inside the job. It does: `MailDeliveryJob` calls `deliver_now`,
+  # which wraps both in the mailer instance's `handle_exceptions`.
+  #
+  # What did NOT survive was the error itself. The job re-raises into its own
+  # `rescue_from`, which runs the same handler against the mailer CLASS, and
+  # reading `action_name` there raised `NameError` over the top of the SMTP
+  # error. See the comment on ApplicationMailer's `rescue_from`.
+  describe "a deliver_later failure" do
+    include ActiveJob::TestHelper
+
+    let(:owner) { FactoryBot.create(:user) }
+    let(:member) { FactoryBot.create(:user) }
+    let(:team) { FactoryBot.create(:team, created_by: owner) }
+
+    before do
+      team.upsert_member!(member, "member")
+      allow_any_instance_of(Mail::TestMailer)
+        .to receive(:deliver!).and_raise(Net::SMTPFatalError, "550 rejected")
+      BaseMailer.team_member_joined_email(member, team).deliver_later
+    end
+
+    it "records exactly one failed row, attributed to the mailer action" do
+      expect { perform_enqueued_jobs rescue nil }
+        .to change(MailDelivery.failures, :count).by(1)
+
+      expect(MailDelivery.failures.last).to have_attributes(
+        mailer: "BaseMailer#team_member_joined_email",
+        recipients: owner.email,
+        error_class: "Net::SMTPFatalError",
+      )
+    end
+
+    # The whole point of re-raising: Sidekiq's retry/dead set is the actual
+    # handling, and it has to see what actually went wrong.
+    it "hands the transport's own error to the job, not one from the handler" do
+      expect { perform_enqueued_jobs }.to raise_error(Net::SMTPFatalError, /550 rejected/)
+    end
+  end
+
   describe MailDelivery do
     it "prunes rows past the retention window and keeps the rest" do
       old_row = described_class.record(status: described_class::DELIVERED)
