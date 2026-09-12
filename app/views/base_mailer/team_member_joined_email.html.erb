@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title><%= t("base_mailer.team_invitation_email.title") %></title>
+    <title><%= t("base_mailer.team_member_joined_email.title") %></title>
     <style>
         body {
             background-color: #f0f0f0;
@@ -34,7 +34,6 @@
             margin-top: 10px;
             padding: 10px 20px;
             background-color:rgb(21, 58, 98);
-
             text-decoration: none;
             border-radius: 5px;
             color: white;
@@ -45,29 +44,25 @@
     <div class="container">
   <%= render "layouts/email_logo" %>
         <div class="header">
-            <%= t("base_mailer.team_invitation_email.heading") %>
+            <%= t("base_mailer.team_member_joined_email.heading", member_name: @member_name) %>
         </div>
         <div class="content">
             <p>
-              <%= @invitee.name.blank? ? t("base_mailer.team_invitation_email.greeting_no_name") : t("base_mailer.team_invitation_email.greeting_with_name", name: @invitee.name) %>
-            </p>
-            <p>
               <%= if @communicator_name
-                    t("base_mailer.team_invitation_email.body_with_communicator",
-                      inviter_name: @inviter_name, communicator_name: @communicator_name)
+                    t("base_mailer.team_member_joined_email.body_with_communicator",
+                      member_name: @member_name, communicator_name: @communicator_name)
                   else
-                    t("base_mailer.team_invitation_email.body", inviter_name: @inviter_name, team_name: @team_name)
+                    t("base_mailer.team_member_joined_email.body",
+                      member_name: @member_name, team_name: @team_name)
                   end %>
             </p>
-            <p><%= t("base_mailer.team_invitation_email.role_line.#{@role_key}") %></p>
-            <p><%= t("base_mailer.team_invitation_email.cta_intro") %></p>
+            <p><%= t("base_mailer.team_member_joined_email.role_line.#{@role_key}", member_name: @member_name) %></p>
             <p style="text-align: center;">
-              <a href="<%= @invitation_link %>" class="button" style="background-color:rgb(21, 58, 98); color: white; cursor: pointer;"><%= t("base_mailer.team_invitation_email.cta") %></a>
+              <a href="<%= @team_link %>" class="button" style="background-color:rgb(21, 58, 98); color: white; cursor: pointer;"><%= t("base_mailer.team_member_joined_email.cta") %></a>
             </p>
-
-            <p><%= t("base_mailer.team_invitation_email.support_html").html_safe %></p>
-            <p><%= t("base_mailer.team_invitation_email.signoff") %></p>
-            <p><%= t("base_mailer.team_invitation_email.signature") %></p>
+            <p><%= t("base_mailer.team_member_joined_email.control_note") %></p>
+            <p><%= t("base_mailer.team_member_joined_email.signoff") %></p>
+            <p><%= t("base_mailer.team_member_joined_email.signature") %></p>
         </div>
     </div>
 </body>

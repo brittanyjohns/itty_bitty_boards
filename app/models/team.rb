@@ -109,11 +109,22 @@ class Team < ApplicationRecord
   # `User` is soft-deleted (`default_scope { where(deleted_at: nil) }`), so a
   # team_users row can outlive the user it points at and preload `user` as nil.
   # INNER JOIN so those rows drop out rather than blowing up on `tu.user.name`.
+  # `invitation_accepted_at` is here because "invited" and "joined" are
+  # otherwise indistinguishable to the owner. `TeamsController#invite` calls
+  # `upsert_member!` unconditionally, so an invitee is a full member row from
+  # the moment the invite POSTs — before they have opened the email, and for a
+  # brand-new address before they have an account at all. Without this field the
+  # roster counts four people who may never arrive as members (issue #914).
+  #
+  # It is deliberately NOT a separate `pending_invites` array (the shape #493
+  # proposed): those team_users are already in this list, so a parallel array
+  # would render every pending person twice.
   def member_views(owner_ids)
     team_users.joins(:user).includes(:user).map { |tu|
       { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
         role: tu.role, plan_type: tu.user.plan_type,
-        is_account_owner: owner_ids.include?(tu.user_id) }
+        is_account_owner: owner_ids.include?(tu.user_id),
+        invitation_accepted_at: tu.invitation_accepted_at }
     }
   end
 

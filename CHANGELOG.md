@@ -7,6 +7,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The team roster couldn't tell an invited person from one who had joined.**
+  `TeamsController#invite` calls `upsert_member!` unconditionally, so an
+  invitee is a full member row from the moment the invite POSTs — before they
+  open the email, and for a brand-new address before they have an account at
+  all. The member payload carried no acceptance field, so an owner who invited
+  four people saw four members and had no way to learn whether any of them
+  actually arrived. `member_views` now carries `invitation_accepted_at`.
+- **A board attached to a communicator after its team already existed was
+  never shared with that team.** The team was seeded with the communicator's
+  boards only at creation and at the claim hand-off, so the ordinary order of
+  operations — make the communicator, then give them boards — left the team
+  with nothing on it and the team page reading "Shared boards 0" beside a
+  starred, attached board. Registration now happens at attach time, for every
+  path that attaches one. Legacy per-communicator template clones are
+  excluded: they are invisible in their owner's board list and are collected
+  by the orphan sweep.
+- **The invitation email never said what the recipient could do, or who it was
+  about.** `role` had been a parameter of the mailer since it was written and
+  reached the template nowhere, so an SLP invited as a Supervisor and a
+  grandparent invited as Support received byte-identical mail. The email now
+  states the role in plain language and names the communicator. An inviter
+  with a blank name no longer renders "You've been invited by  to join".
 - **A team invitation to an address with no account only worked once.**
   Inviting an email that has no SpeakAnyWay account creates a real but
   passwordless user, and `BaseMailer#team_invitation_email` picks its link
@@ -55,6 +77,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   requests get the existing generic 429; the endpoints' success and error
   bodies are unchanged.
 
+- **The team's owner is told when someone joins.** Accepting an invitation now
+  emails the team's creator, naming the person, the communicator, and what
+  that person can do — and saying they can change or remove it at any time.
+  Nothing told the owner anything before; `API::TeamsController` contained no
+  mailer at all, so after sending an invite there was no signal ever, neither
+  when someone joined nor when they didn't. Sent only on the transition, so
+  reopening the invite email doesn't re-notify, and fail-soft: a mail error
+  can't turn a successful join into an error the invitee retries.
 - **The team-invitation set-password link carries `team_id`.** The frontend
   lands the new member on the team instead of a generic dashboard that never
   mentions the team they just joined.

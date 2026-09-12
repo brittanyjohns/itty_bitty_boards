@@ -59,14 +59,39 @@ RSpec.describe ChildAccount, "#ensure_team!", type: :model do
       expect(team.team_boards.find_by(board_id: board.id).created_by_id).to eq(creator.id)
     end
 
-    it "does not retroactively share boards attached after the team existed" do
+    # Was "does not retroactively share boards attached after the team existed",
+    # pinning `ensure_team!` as a create-time seed rather than a re-sync. That
+    # is still true of `ensure_team!` — but the board now reaches the team at
+    # ATTACH time, via `ChildBoard#register_on_communicator_team` (#914),
+    # because a board attached in the ordinary order (create the communicator,
+    # then give them boards) never reached it at all and the owner's team page
+    # read "SHARED BOARDS 0" next to a starred board.
+    it "shares a board attached after the team existed, at attach time" do
       team = account.ensure_team!(creator: creator)
       later = create(:board, user: creator)
       ChildBoard.create!(child_account: account, board: later, created_by_id: creator.id)
 
-      account.ensure_team!(creator: creator)
+      expect(team.reload.boards).to include(later)
+    end
 
-      expect(team.reload.boards).not_to include(later)
+    it "is still a create-time seed, not a re-sync — a later call adds nothing" do
+      team = account.ensure_team!(creator: creator)
+      orphan = create(:board, user: creator)
+      team.remove_board!(board)
+
+      expect {
+        account.ensure_team!(creator: creator)
+      }.not_to change { team.reload.team_boards.count }
+
+      expect(team.boards).not_to include(orphan)
+    end
+
+    it "never shelves a legacy template clone, which the orphan sweep deletes" do
+      team = account.ensure_team!(creator: creator)
+      clone = create(:board, user: creator, is_template: true)
+      ChildBoard.create!(child_account: account, board: clone, created_by_id: creator.id)
+
+      expect(team.reload.boards).not_to include(clone)
     end
   end
 end

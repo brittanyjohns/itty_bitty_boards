@@ -390,6 +390,54 @@ RSpec.describe "API::Teams permissions", type: :request do
       expect(response).to have_http_status(:not_found)
       expect(JSON.parse(response.body)["error"]).to eq("not_a_team_member")
     end
+
+    # #914 — nothing in this controller told the owner anything, ever.
+    describe "notifying the team's owner" do
+      def accept_as(user)
+        patch "/api/teams/#{team.id}/accept_invite_patch",
+              params: { token: user.uuid },
+              headers: auth_headers(user)
+      end
+
+      it "emails the team's creator when someone joins" do
+        expect {
+          accept_as(supervisor)
+        }.to have_enqueued_mail(BaseMailer, :team_member_joined_email)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "only mails on the transition, not on a repeat accept" do
+        accept_as(supervisor)
+
+        expect {
+          accept_as(supervisor)
+        }.not_to have_enqueued_mail(BaseMailer, :team_member_joined_email)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "does not mail when the accept is refused" do
+        expect {
+          patch "/api/teams/#{team.id}/accept_invite_patch",
+                params: { token: supervisor.uuid },
+                headers: auth_headers(member)
+        }.not_to have_enqueued_mail(BaseMailer, :team_member_joined_email)
+
+        expect(response).to have_http_status(:forbidden)
+      end
+
+      # The acceptance is already written by the time the mail is attempted;
+      # a delivery error must not turn a successful join into a 500.
+      it "still accepts the invitation when the mail cannot be enqueued" do
+        allow(BaseMailer).to receive(:team_member_joined_email).and_raise(StandardError, "boom")
+
+        accept_as(supervisor)
+
+        expect(response).to have_http_status(:ok)
+        expect(TeamUser.find_by(team: team, user: supervisor).invitation_accepted_at).to be_present
+      end
+    end
   end
 
   describe "POST /api/teams (create) — owner-side Pro gate" do

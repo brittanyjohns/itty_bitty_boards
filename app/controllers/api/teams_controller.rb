@@ -288,7 +288,23 @@ class API::TeamsController < API::ApplicationController
       }, status: :forbidden
     end
 
+    already_accepted = membership.invitation_accepted_at.present?
     membership.accept_invitation!
+
+    # Only on the transition. `accept_invite_patch` is idempotent and a client
+    # may re-hit it (the link sits in an inbox), so notifying unconditionally
+    # would mail the owner every time someone reopened the email.
+    #
+    # Fail-soft: the acceptance has already been written, and a mail error must
+    # not turn a successful join into a 500 the invitee retries.
+    unless already_accepted
+      begin
+        BaseMailer.team_member_joined_email(current_user, team).deliver_later
+      rescue => e
+        Rails.logger.error("Could not send team_member_joined_email for team #{team.id}: #{e.message}")
+      end
+    end
+
     render json: team.show_api_view(current_user), status: :ok
   end
 
