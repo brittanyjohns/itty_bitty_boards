@@ -78,8 +78,17 @@ class TeamUser < ApplicationRecord
   #
   # Serialized as `joined` in `Team#member_views` so the client gates on the
   # backend's answer instead of re-deriving it from the timestamp (#923).
+  #
+  # Joined means the accept link was used OR the person has a working account
+  # (`User#working_account?`). The timestamp alone was a proxy for "clicked the
+  # link", and somebody who reaches the team by SIGNING IN — they already had an
+  # account, or made one — never travels that path, so they were reported as
+  # never having arrived (#930). A soft-deleted user preloads as nil: not
+  # joined, and not an error.
   def joined?
-    invitation_accepted_at.present?
+    return true if invitation_accepted_at.present?
+
+    user.present? && user.working_account?
   end
 
   def self.roles

@@ -59,6 +59,37 @@ RSpec.describe "mail delivery visibility" do
       )
     end
 
+    # Issue #930. An interceptor that strips every recipient leaves `to` empty
+    # by the time the observer runs; the row must still name who it was for.
+    it "records the intended recipients on a suppressed row whose recipients were stripped" do
+      message = message_to("parent@example.com")
+      message[StagingMailInterceptor::INTENDED_RECIPIENTS_HEADER] = "parent@example.com"
+      message.to = nil
+      message.perform_deliveries = false
+
+      described_class.delivered_email(message)
+
+      expect(MailDelivery.last).to have_attributes(
+        status: MailDelivery::SUPPRESSED,
+        recipients: "parent@example.com",
+      )
+    end
+
+    it "still names an e2e drop after the staging interceptor stripped the address" do
+      allow(AppEnv).to receive(:staging?).and_return(true)
+      message = message_to("e2e+run-1@speakanyway.com")
+      E2eMailInterceptor.delivering_email(message)
+      StagingMailInterceptor.delivering_email(message)
+
+      described_class.delivered_email(message)
+
+      expect(MailDelivery.last).to have_attributes(
+        status: MailDelivery::SUPPRESSED,
+        recipients: "e2e+run-1@speakanyway.com",
+        reason: "e2e_recipient",
+      )
+    end
+
     it "never breaks a send that already succeeded when recording raises" do
       allow(MailDelivery).to receive(:record).and_raise(ActiveRecord::StatementInvalid, "db gone")
 

@@ -140,6 +140,25 @@ RSpec.describe Team, "#member_views last_invite_delivery", type: :model do
     expect(delivery[:status]).to eq(MailDelivery.last.status)
   end
 
+  # Issue #930 (finding 3). The staging interceptor strips the recipients before
+  # the observer records the suppressed row, so that row used to carry an EMPTY
+  # `recipients` and could never be matched to the member it was for.
+  it "matches the suppressed row a real staging send leaves behind" do
+    allow(AppEnv).to receive(:staging?).and_return(true)
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("STAGING_MAIL_ALLOWLIST").and_return(nil)
+
+    expect { BaseMailer.team_invitation_email(invitee, owner, team, "supervisor").deliver_now }
+      .to change(MailDelivery, :count).by(1)
+
+    expect(MailDelivery.last).to have_attributes(status: MailDelivery::SUPPRESSED, recipients: invitee.email)
+
+    delivery = row_for(invitee)[:last_invite_delivery]
+    expect(delivery).to be_present
+    expect(delivery[:status]).to eq("suppressed")
+    expect(delivery[:reason]).to eq("staging")
+  end
+
   it "serializes to the fixed JSON shape the frontend reads" do
     record_invite_mail(status: MailDelivery::SUPPRESSED, to: invitee.email, reason: "staging")
 

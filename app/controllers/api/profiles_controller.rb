@@ -66,8 +66,16 @@ class API::ProfilesController < API::ApplicationController
     last_modified = profile_public_last_modified(@profile)
     etag = profile_public_etag(@profile)
 
+    # Viewer-scoped, and only for a signed-in caller on a communicator page
+    # (#930). It joins the ETag only when present, so an anonymous ETag is
+    # unchanged, and a cached anonymous body can never be revalidated for a
+    # signed-in viewer (which would serve it without `viewer`).
+    viewer = public_viewer_view(@profile)
+    etag += ["viewer", Digest::MD5.hexdigest(viewer.to_json)] if viewer
+
     if stale?(etag: etag, last_modified: last_modified, public: false)
       payload = @profile.public_page? ? @profile.public_page_view : @profile.safety_view
+      payload = payload.merge(viewer: viewer) if viewer
       render json: payload
     end
   end
@@ -488,6 +496,17 @@ class API::ProfilesController < API::ApplicationController
 
   def profile_params
     params.require(:profile).permit(:username, :bio, :intro, :avatar, :allow_discovery, settings: {})
+  end
+
+  # `public` skips `authenticate_token!`, but `current_user` still resolves a
+  # valid bearer token (and is nil for none or a bad one), which is what makes
+  # the viewer field optional-auth rather than a new gate. Nil — so no `viewer`
+  # key at all — for an anonymous caller or a non-communicator page (#930).
+  def public_viewer_view(profile)
+    return nil unless current_user
+    return nil unless profile.profileable_type == "ChildAccount" && profile.profileable
+
+    profile.profileable.page_viewer_view(current_user)
   end
 
   def profile_public_last_modified(profile)

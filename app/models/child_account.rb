@@ -310,6 +310,37 @@ class ChildAccount < ApplicationRecord
     team_users.where(user_id: viewing_user.id).exists?
   end
 
+  # Role reported for an owner who holds no TeamUser row on this communicator's
+  # team. Not a `TeamUser::ROLES` value — it exists only in `page_viewer_view`.
+  PAGE_VIEWER_OWNER_ROLE = "owner"
+
+  # The signed-in viewer's relationship to this communicator, for the public
+  # MySpeak payload (#930). Strictly viewer-scoped: it says only what the viewer
+  # already is, so it adds nothing an anonymous caller could learn — and the
+  # controller never calls it for one.
+  #
+  #   member of a team on this communicator → { team_member: true, role:, team_id:, is_owner: }
+  #   owner with no team row                 → { team_member: true, role: "owner", team_id: <team or nil>, is_owner: true }
+  #   anyone else                            → { team_member: false }
+  #
+  # `role` is the stored `TeamUser#role` verbatim. With several teams on one
+  # communicator, the oldest team the viewer belongs to wins, so the answer is
+  # stable between requests.
+  def page_viewer_view(viewer)
+    return nil unless viewer
+
+    is_owner = owner_id.present? && owner_id == viewer.id
+    membership = team_users.where(user_id: viewer.id).order(:team_id, :id).first
+
+    if membership
+      { team_member: true, role: membership.role, team_id: membership.team_id, is_owner: is_owner }
+    elsif is_owner
+      { team_member: true, role: PAGE_VIEWER_OWNER_ROLE, team_id: teams.order(:id).pick(:id), is_owner: true }
+    else
+      { team_member: false }
+    end
+  end
+
   # Most-recent Board Builder root still attached to this communicator, if any.
   # Detector for the re-run duplicate guard (issue #269): the wizard marks each
   # root board settings["builder_root"] = true. Deletion-safe — if the user

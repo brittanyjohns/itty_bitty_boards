@@ -16,7 +16,11 @@ RSpec.describe Team, "#member_views", type: :model do
   let(:owner) { create(:user, created_at: 2.months.ago) }
   let(:account) { create(:child_account, user: owner, owner: owner) }
   let(:team) { account.ensure_team!(creator: owner) }
-  let(:invitee) { create(:user, created_at: 2.months.ago) }
+  # An invitation SHELL — the account `invite_new_user_to_team!` mints for an
+  # address with none. Since #930 a member whose account can already sign in
+  # counts as joined without the accept link, so "invited but not joined" is
+  # only true of somebody who has not got in yet.
+  let(:invitee) { User.invite!(email: "invitee-#{SecureRandom.hex(4)}@example.com", skip_invitation: true) }
 
   def view_for(user)
     team.show_api_view(owner)[:members].find { |m| m[:user_id] == user.id }

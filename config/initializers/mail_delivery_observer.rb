@@ -32,7 +32,10 @@ class MailDeliveryObserver
       # Recorded rather than skipped: on staging EVERY message lands here, and
       # "suppressed" is the one state the logs left indistinguishable from
       # "never attempted" — which is exactly the ambiguity #820 was about.
-      MailDelivery.record(status: MailDelivery::SUPPRESSED, message: message, reason: suppression_reason(message))
+      # `recipients:` because the staging interceptor has cleared `to` by now;
+      # without it the row names nobody and never correlates (#930).
+      MailDelivery.record(status: MailDelivery::SUPPRESSED, message: message, reason: suppression_reason(message),
+                          recipients: StagingMailInterceptor.intended_recipients(message))
       return
     end
 
@@ -54,7 +57,10 @@ class MailDeliveryObserver
   # same conditions they used rather than having them report it — an
   # interceptor that stops setting a reason would otherwise silently blank it.
   def self.suppression_reason(message)
-    return "e2e_recipient" if Array(message.to).any? { |a| a.to_s.match?(E2eMailInterceptor::E2E_RECIPIENT) }
+    # The intended recipients too: on staging both interceptors run, and the
+    # staging one clears `to` after the e2e one has already dropped the message.
+    addresses = Array(message.to) + StagingMailInterceptor.intended_recipients(message).to_s.split(/\s*,\s*/)
+    return "e2e_recipient" if addresses.any? { |a| a.to_s.match?(E2eMailInterceptor::E2E_RECIPIENT) }
     return "staging" if AppEnv.staging?
     return "perform_deliveries_disabled" unless ActionMailer::Base.perform_deliveries
 

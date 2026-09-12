@@ -70,22 +70,104 @@ RSpec.describe "Team membership joined state", type: :model do
     end
   end
 
+  # An invitation shell: the row `TeamsController#invite` mints for an address
+  # with no account. It has a pending devise_invitable token, no password it can
+  # use, and has never signed in.
+  def invite_shell
+    User.invite!(email: "shell-#{SecureRandom.hex(4)}@example.com", skip_invitation: true)
+  end
+
   describe "Team#member_views" do
     let(:team) { account.ensure_team!(creator: owner) }
+    let(:shell) { invite_shell }
 
-    before { team.upsert_member!(invitee, "member", accepted: false) }
+    before { team.upsert_member!(shell, "member", accepted: false) }
 
     it "serializes a derived `joined` boolean so the client stops re-deriving it" do
       views = team.reload.member_views(team.account_owner_ids)
 
       creator = views.find { |v| v[:user_id] == owner.id }
-      pending = views.find { |v| v[:user_id] == invitee.id }
+      pending = views.find { |v| v[:user_id] == shell.id }
 
       expect(creator[:joined]).to be true
       expect(creator[:invitation_accepted_at]).to be_present
 
       expect(pending[:joined]).to be false
       expect(pending[:invitation_accepted_at]).to be_nil
+    end
+  end
+
+  # Issue #930 — `joined` must not be a proxy for "clicked the accept link".
+  #
+  # A person who reaches a team by SIGNING IN — because they already had an
+  # account, or made one themselves — never travels `accept_invite_patch`, so
+  # their stamp stayed null and a Support member reading the roster saw her own
+  # row say "Invited — hasn't joined yet".
+  describe "TeamUser#joined? for a member who never used the accept link" do
+    let(:team) { account.ensure_team!(creator: owner) }
+
+    it "is true for a member whose account has a password" do
+      tu = team.upsert_member!(invitee, "member", accepted: false)
+
+      expect(tu.invitation_accepted_at).to be_nil
+      expect(tu.joined?).to be true
+    end
+
+    it "is false for an invitation shell that has never set a password or signed in" do
+      shell = invite_shell
+      tu = team.upsert_member!(shell, "member", accepted: false)
+
+      expect(shell.invited_to_sign_up?).to be true
+      expect(tu.joined?).to be false
+    end
+
+    it "is true once the shell sets a password" do
+      shell = invite_shell
+      tu = team.upsert_member!(shell, "member", accepted: false)
+
+      shell.password = "password123"
+      shell.password_confirmation = "password123"
+      expect(shell.accept_invitation!).to be_truthy
+
+      expect(TeamUser.find(tu.id).joined?).to be true
+    end
+
+    # email_signup, Google sign-in and the Stripe webhook all create users with
+    # `User.invite!`, so a pending invitation token does NOT mean "cannot get
+    # in" — those people sign in without ever setting a password.
+    it "is true for a passwordless account that has signed in" do
+      passwordless = invite_shell
+      passwordless.update_columns(sign_in_count: 1, last_sign_in_at: 1.day.ago)
+      tu = team.upsert_member!(passwordless, "member", accepted: false)
+
+      expect(passwordless.reload.invited_to_sign_up?).to be true
+      expect(TeamUser.find(tu.id).joined?).to be true
+    end
+
+    it "is false, not an error, when the user has been soft-deleted" do
+      tu = team.upsert_member!(invitee, "member", accepted: false)
+      invitee.update_columns(deleted_at: Time.current)
+
+      reloaded = TeamUser.find(tu.id)
+      expect(reloaded.user).to be_nil
+      expect(reloaded.joined?).to be false
+    end
+
+    it "counts a signed-in member as joined on the roster and a shell as invited" do
+      shell = invite_shell
+      team.upsert_member!(invitee, "member", accepted: false)
+      team.upsert_member!(shell, "member", accepted: false)
+
+      views = team.reload.member_views(team.account_owner_ids)
+
+      expect(views.select { |v| v[:joined] }.map { |v| v[:user_id] }).to contain_exactly(owner.id, invitee.id)
+      expect(views.reject { |v| v[:joined] }.map { |v| v[:user_id] }).to contain_exactly(shell.id)
+    end
+
+    it "agrees in TeamUser#api_view" do
+      tu = team.upsert_member!(invitee, "member", accepted: false)
+
+      expect(tu.api_view[:joined]).to be true
     end
   end
 end
