@@ -1275,8 +1275,17 @@ class User < ApplicationRecord
     @team_curation ||= Boards::TeamCuration.new(self)
   end
 
+  # The READ-side sibling (issue #923). Same walk, no role gate — every team
+  # role is a legitimate reader of the boards on a communicator they are on a
+  # team for, which is what `ChildAccount#viewable_by?` already says. Memoized
+  # for the same reason `team_curation` is, and cleared by the same reset.
+  def team_reading
+    @team_reading ||= Boards::TeamReading.new(self)
+  end
+
   def reset_team_curation!
     @team_curation = nil
+    @team_reading = nil
   end
 
   def can_add_boards_to_account?(account_ids)

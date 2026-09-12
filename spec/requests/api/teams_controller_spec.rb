@@ -27,10 +27,13 @@ RSpec.describe "API::Teams permissions", type: :request do
     t = Team.create!(name: "Care Team", created_by: team_creator)
     TeamAccount.create!(team: t, account: communicator)
     t.upsert_member!(team_creator, "admin")
-    t.upsert_member!(account_owner, "member") # owner-pinned via account ownership
-    t.upsert_member!(supervisor, "supervisor")
-    t.upsert_member!(member, "member")
-    t.upsert_member!(restricted, "restricted")
+    # Everyone but the creator arrived by invitation, so they start unaccepted
+    # — the shape `TeamsController#invite` writes (`accepted: false`, #923).
+    # The accept-invite examples below depend on it.
+    t.upsert_member!(account_owner, "member", accepted: false) # owner-pinned via account ownership
+    t.upsert_member!(supervisor, "supervisor", accepted: false)
+    t.upsert_member!(member, "member", accepted: false)
+    t.upsert_member!(restricted, "restricted", accepted: false)
     t
   end
 
@@ -126,6 +129,37 @@ RSpec.describe "API::Teams permissions", type: :request do
       expect(response).to have_http_status(:created)
       invited = User.find_by(email: "newslp@example.com")
       expect(TeamUser.find_by(team: team, user: invited).role).to eq("supervisor")
+    end
+
+    # #923 — `upsert_member!` stamps `invitation_accepted_at` by default;
+    # invite is the one caller that must not, or the roster would report every
+    # unopened invitation as somebody who has already turned up.
+    it "does not mark a fresh invitee as joined" do
+      invite(team_creator, email: "notyet@example.com", role: "supervisor")
+
+      invited = User.find_by(email: "notyet@example.com")
+      tu = TeamUser.find_by(team: team, user: invited)
+      expect(tu.invitation_accepted_at).to be_nil
+      expect(tu).not_to be_joined
+    end
+
+    it "does not un-join an existing member on a re-invite" do
+      tu = TeamUser.find_by(team: team, user: supervisor)
+      tu.accept_invitation!
+      stamped = tu.reload.invitation_accepted_at
+
+      invite(team_creator, email: supervisor.email, role: "supervisor")
+
+      expect(response).to have_http_status(:created)
+      expect(tu.reload.invitation_accepted_at).to eq(stamped)
+    end
+
+    it "reports the team creator as joined on the payload it returns" do
+      invite(team_creator, email: "newslp2@example.com", role: "supervisor")
+
+      creator_row = JSON.parse(response.body)["members"]
+        .find { |m| m["user_id"] == team_creator.id }
+      expect(creator_row["joined"]).to be true
     end
 
     it "persists a restricted (Read-Only) invite as restricted, not member" do
@@ -336,7 +370,7 @@ RSpec.describe "API::Teams permissions", type: :request do
     # The frontend offers a password reset instead, on this flag (#915).
     it "reports needs_password for an invitee who has never set one" do
       invited = User.invite!(email: "brand.new@example.com") { |u| u.skip_invitation = true }
-      team.upsert_member!(invited, "member")
+      team.upsert_member!(invited, "member", accepted: false)
 
       get "/api/teams/#{team.id}/accept_invite", params: { token: invited.uuid }
 

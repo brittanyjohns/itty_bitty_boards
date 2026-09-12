@@ -41,10 +41,29 @@ class Team < ApplicationRecord
   # Named `upsert_member!` rather than `add_member!` because the
   # silent-role-overwrite behavior was a footgun under the old name
   # (issue #226).
-  def upsert_member!(user, role = "member")
+  #
+  # `accepted:` defaults to TRUE because putting somebody on a team IS
+  # joining — every caller but one is a server-side add of a person who is
+  # already acting (the creator at `ensure_team!`, both parties at the claim
+  # hand-off, the repair rake task). `TeamsController#invite` is the single
+  # deliberate exception and passes `accepted: false`: it mints a membership
+  # row for somebody who has not arrived yet.
+  #
+  # Getting this backwards is what issue #923 was: `invitation_accepted_at`
+  # was written in exactly one place — `TeamUser#accept_invitation!`, reached
+  # only by `accept_invite_patch` — and the team creator never travels that
+  # path, so she rendered on her own team as "hasn't joined yet".
+  #
+  # The stamp is only ever SET, never cleared or moved: `accepted: false` on
+  # an existing row leaves whatever is there alone (re-inviting an existing
+  # member must not un-join them), and `accepted: true` on a row that already
+  # has a timestamp keeps the original — when they actually arrived beats
+  # when their role was last edited.
+  def upsert_member!(user, role = "member", accepted: true)
     return nil if user.nil?
     team_user = team_users.find_or_initialize_by(user_id: user.id)
     team_user.role = role
+    team_user.invitation_accepted_at ||= Time.current if accepted
     team_user.save!
     team_user
   end
@@ -119,12 +138,19 @@ class Team < ApplicationRecord
   # It is deliberately NOT a separate `pending_invites` array (the shape #493
   # proposed): those team_users are already in this list, so a parallel array
   # would render every pending person twice.
+  #
+  # `joined` is the DERIVED answer and is what a client should gate on. The
+  # timestamp stays for anything that wants to render a date, but the rule for
+  # turning it into a yes/no belongs here — the frontend was reading
+  # `invitation_accepted_at !== null` and carrying deploy-skew guesswork for
+  # the case where the key is absent (issue #923).
   def member_views(owner_ids)
     team_users.joins(:user).includes(:user).map { |tu|
       { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
         role: tu.role, plan_type: tu.user.plan_type,
         is_account_owner: owner_ids.include?(tu.user_id),
-        invitation_accepted_at: tu.invitation_accepted_at }
+        invitation_accepted_at: tu.invitation_accepted_at,
+        joined: tu.joined? }
     }
   end
 

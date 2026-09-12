@@ -72,6 +72,16 @@ class TeamUser < ApplicationRecord
     self.save
   end
 
+  # Has this person actually turned up, as opposed to merely having a
+  # membership row? `TeamsController#invite` creates the row at invite time,
+  # so "on the team" and "joined" are different questions from that moment on.
+  #
+  # Serialized as `joined` in `Team#member_views` so the client gates on the
+  # backend's answer instead of re-deriving it from the timestamp (#923).
+  def joined?
+    invitation_accepted_at.present?
+  end
+
   def self.roles
     { "admin" => "Admin", "supervisor" => "Supervisor", "member" => "Support", "restricted" => "Read-Only" }
   end
@@ -92,6 +102,7 @@ class TeamUser < ApplicationRecord
       can_edit: user.can_add_boards_to_account?(team.account_ids),
       is_account_owner: account_owner?,
       invitation_accepted_at: invitation_accepted_at,
+      joined: joined?,
       user_id: user_id,
       team_id: team_id,
       created_at: created_at,

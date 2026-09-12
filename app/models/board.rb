@@ -828,7 +828,28 @@ class Board < ApplicationRecord
     # DASHBOARD has no such row, so without this a supervisor could edit a
     # board she was 404'd on reading (issue #889). Editable-but-invisible is
     # not a state to ship; what she may write, she may see.
-    team_curatable_by?(user)
+    return true if team_curatable_by?(user)
+
+    # ...and what her Support colleague may USE, she may see. Curation is
+    # `User::CURATE_ROLES`-only by design, so before this a `member` or
+    # `restricted` invitee on the same team read nothing (issue #923).
+    team_readable_by?(user)
+  end
+
+  # PERMISSION only — "is this board reachable from a communicator on a team
+  # I belong to?" — with no role gate and no plan gate. The read-side sibling
+  # of `team_curatable_by?`; see `Boards::TeamReading` for why reading follows
+  # reachability rather than `team_boards` attachment.
+  #
+  # A superset of `team_curatable_by?` by construction (curate roles are a
+  # subset of all roles), so `viewable_by?` could ask this alone — the two
+  # calls stay separate because they answer different questions and #889's
+  # editable-implies-visible guarantee should not depend on this one.
+  def team_readable_by?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+    return false if user_id.nil? || user_id == viewing_user.id
+
+    viewing_user.team_reading.include?(id)
   end
 
   def in_a_public_group?

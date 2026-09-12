@@ -490,6 +490,44 @@ Full permissions matrix and the rationale for the split lives in
 `../speakanyway/marketing/.claude-notes/handoff-workflow.md`.
 
 
+## Team membership — "on the team" and "joined" are different questions
+
+Issue #914 put `invitation_accepted_at` on the member payload because
+`TeamsController#invite` calls `upsert_member!` unconditionally: an invitee is a
+full member row from the moment the POST returns, before they have opened the
+email and — for a brand-new address — before they have an account at all.
+
+Issue #923 is the other half. The column was written in exactly one place,
+`TeamUser#accept_invitation!`, reached only by `accept_invite_patch`, and the
+team CREATOR never travels that path: her row is made directly at team creation.
+So her stamp was permanently null, her own roster listed her as "hasn't joined
+yet" beside a ★ Owner chip, and the MEMBERS card read 0.
+
+- **`Team#upsert_member!` stamps by DEFAULT (`accepted: true`).** Being put on a
+  team IS joining. Every caller but one is a server-side add of somebody already
+  acting: the creator at `ensure_team!`, both parties at the claim hand-off, the
+  repair rake task. `TeamsController#invite` is the single deliberate exception
+  and passes `accepted: false`. Get the default backwards and the bug returns
+  the moment a new call site forgets the kwarg.
+- **The stamp is only ever SET — never cleared, never moved.** `accepted: false`
+  on an existing row leaves what is there alone, so re-inviting an existing
+  member cannot un-join them (`upsert_member!` is idempotent and #916 leans on
+  that). `accepted: true` on a row that already has a timestamp keeps the
+  original: when somebody actually arrived beats when their role was last edited.
+- **`joined` is serialized in `member_views` and `TeamUser#api_view`** and is
+  what a client should gate on. The timestamp stays for anything rendering a
+  date, but the rule for turning it into a yes/no belongs on the backend — the
+  frontend was reading `invitation_accepted_at !== null` and carrying deploy-skew
+  guesswork for the case where the key is absent.
+- **The backfill is admin rows ONLY**
+  (`20260912120000_backfill_team_creator_invitation_accepted_at`), set to
+  `created_at`. `admin` is absent from `TeamUser::ASSIGNABLE_ROLES` and rejected
+  by `invite_role`, so an admin row can only have been created server-side and is
+  never a pending invitation. Non-admin nulls are deliberately left alone: there,
+  null is genuinely ambiguous (a supervisor who joined years ago and an invitee
+  who never opened the email look identical), and stamping them would destroy the
+  pending-invite signal #914 exists to provide, for every team in the database.
+
 ## Team curation — a Supervisor edits the boards on a communicator they curate
 
 Issue #889. Board editing was owner-or-sysadmin only: `Board#can_edit_for` never
@@ -515,9 +553,10 @@ the home copy, the divergence the team feature exists to prevent.
   claimed dashboard); templates and the viewer's own boards are excluded.
 - **Scope is the shared dashboard, never "every board the owner has."** Team
   membership must not reach a board the family never put on a communicator.
-- **Support (`member`) and Read-Only (`restricted`) stay excluded** — see
-  `ChildAccount#viewable_by?` ("a Support member watching how the week went does
-  not get to change the boards"). The softer path for them is issue #494.
+- **Support (`member`) and Read-Only (`restricted`) stay excluded from
+  CURATION** — see `ChildAccount#viewable_by?` ("a Support member watching how
+  the week went does not get to change the boards"). The softer path for them
+  is issue #494. They are *not* excluded from READING; see the section below.
 - **A supervisor is a permission grant, never a plan-lock bypass.** `can_edit_for`
   ends in `Board#owner_plan_allows_edit?`, so a board that reads read-only to
   the parent reads read-only to the SLP standing beside them. That is the same
@@ -532,7 +571,8 @@ the home copy, the divergence the team feature exists to prevent.
 - **`Board#viewable_by?` was widened too.** Its `team_users` check is the team
   LIBRARY relationship; a board on a curated *dashboard* has no such row, so
   without this a supervisor could write to a board she was 404'd on reading.
-  Editable-but-invisible is not a state to ship.
+  Editable-but-invisible is not a state to ship. (#923 widened it a second
+  time, for readers of every role — next section.)
 - **`api_view_with_predictive_images` now derives `can_edit` from
   `can_edit_for`** instead of re-deriving owner-or-admin plus the plan gate
   inline. That inline copy is what let the editor's own read disagree with the
@@ -548,6 +588,45 @@ the home copy, the divergence the team feature exists to prevent.
 Known gap, not addressed here: a Support/Read-Only member still 404s on a
 dashboard board that isn't also in the team library, and there is no attribution
 recording *who* edited a board.
+
+## Team reading — every role sees the boards on a shared communicator
+
+Issue #923. Curation answers who may WRITE; nothing answered who may READ, so
+`Board#viewable_by?` fell back on the curate roles and a `member`/`restricted`
+invitee got the communicator with zero boards. A parent invites a grandparent as
+Support *so that* she can help with the child's board; the two roles that mean
+"use it, don't change it" were the two that could not use anything, and the
+owner's only clue was a "SHARED BOARDS 0" panel that reads like an optional
+extra shelf rather than the reason half her team sees an empty screen.
+
+- **`Boards::TeamReading` is the read-side sibling of `Boards::TeamCuration`,
+  and the ONLY difference is the role set.** `TeamCuration` takes a `roles:`
+  argument defaulting to `User::CURATE_ROLES`; `TeamReading` passes
+  `TeamUser::ROLES`. Sharing the walk keeps the `admit:` entitlement filter — a
+  security control, not an optimization — in one place instead of two. Reached
+  as `Board#team_readable_by?` via `User#team_reading` (memoized like
+  `team_curation`, cleared by the same `reset_team_curation!`).
+- **This is what `ChildAccount#viewable_by?` already said**: every team role is a
+  legitimate reader, and a Support member watching how the week went does not
+  get to change the boards. The board side now agrees with the communicator side.
+- **Reachability, not attachment — and that is what makes it reach EXISTING
+  teams with no data migration.** `ChildBoard#register_on_communicator_team`
+  (#914) writes a `team_boards` row for a board attached from then on, which
+  fixes the ordinary order of operations going forward. It cannot reach a board
+  attached before it existed, and it registers only the attached ROOT, so the
+  folder pages below it stayed unreadable. Both are the same
+  `child_boards`-row-shaped blind spot `QuickAddScope`, `PublishCascade` and
+  `TeamCuration` each had to grow a walk to avoid.
+- **Reading only.** `Board#can_edit_for` still ends in `team_curatable_by?`,
+  `TEAM_CURATION_ACTIONS` is untouched, and `destroy` stays out of it. A reader
+  gets `can_edit: false` and a 403 on write.
+- **`viewable_by?` asks `team_curatable_by?` first and `team_readable_by?`
+  second**, even though the read set is a superset by construction. They are
+  different questions, and #889's editable-implies-visible guarantee should not
+  come to depend on the read path.
+- The refusal for a non-member is unchanged and still the generic
+  `404 {"error": "Board not found"}` — confirming the row exists is itself the
+  leak, and a board name routinely carries a child's first name.
 
 ## `Image#label` vs `Image#display_label`
 
