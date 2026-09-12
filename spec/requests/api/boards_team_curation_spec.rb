@@ -95,6 +95,72 @@ RSpec.describe "API::Boards team curation", type: :request do
     end
   end
 
+  # Issue #923 (finding 2) — Support and Read-Only members could see the child
+  # and none of the child's boards. Reading is now reachability-based for every
+  # team role, as curating already was.
+  describe "GET /api/boards/:id — reading by a non-curate role" do
+    let!(:restricted) { create(:user, created_at: 2.months.ago) }
+    let!(:stranger)   { create(:user, created_at: 2.months.ago) }
+
+    before { team.upsert_member!(restricted, "restricted") }
+
+    it "lets a Support (member) invitee read a dashboard-attached board" do
+      get "/api/boards/#{board.id}", headers: auth_headers(support)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["can_edit"]).to be false
+    end
+
+    it "lets a Read-Only (restricted) invitee read it" do
+      get "/api/boards/#{board.id}", headers: auth_headers(restricted)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["can_edit"]).to be false
+    end
+
+    it "reaches a folder page that carries no child_boards row" do
+      get "/api/boards/#{sub_board.id}", headers: auth_headers(support)
+      expect(response).to have_http_status(:ok)
+
+      get "/api/boards/#{sub_board.id}", headers: auth_headers(restricted)
+      expect(response).to have_http_status(:ok)
+    end
+
+    # The production state #923 was filed against: the board was attached
+    # before `ChildBoard#register_on_communicator_team` existed, so no
+    # `team_boards` row was ever written.
+    it "reads a board that predates team registration" do
+      team.team_boards.destroy_all
+
+      get "/api/boards/#{board.id}", headers: auth_headers(support)
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "still 404s a non-member — the generic refusal is unchanged" do
+      get "/api/boards/#{board.id}", headers: auth_headers(stranger)
+      expect(response).to have_http_status(:not_found)
+
+      get "/api/boards/#{sub_board.id}", headers: auth_headers(stranger)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "still 404s a board of the family's that is on no shared dashboard" do
+      private_board = create(:board, user: parent)
+
+      get "/api/boards/#{private_board.id}", headers: auth_headers(support)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not let a reader write" do
+      put "/api/boards/#{board.id}",
+          params: { board: { description: "Read-only tried" } },
+          headers: auth_headers(restricted)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(board.reload.description).not_to eq("Read-only tried")
+    end
+  end
+
   describe "DELETE /api/boards/:id" do
     it "still refuses a supervisor — the family keeps the board" do
       expect {

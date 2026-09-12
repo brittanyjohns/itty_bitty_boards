@@ -18,6 +18,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   gets a 12-column, 60-word interest page that matches its core pages, instead
   of a 10-column, 40-word one stretched to fit with two empty columns.
 
+- **A team's own owner showed as "hasn't joined yet", and the member count read
+  0.** `invitation_accepted_at` was written in exactly one place — the
+  accept-an-invite endpoint — and the team creator never travels that path: her
+  membership row is made directly when the team is created. So her timestamp was
+  permanently blank and the roster she was looking at reported her as somebody
+  who had never turned up. Being added to a team now counts as joining, with the
+  invite path as the one exception, and existing team creators are backfilled.
+  The member payload also carries a plain `joined` boolean so the app stops
+  deriving the rule for itself.
+- **Support and Read-Only members could see the child but none of the child's
+  boards.** A board on a communicator's dashboard was readable by a non-owner
+  only through the team's board shelf or through the curate roles
+  (Owner/Supervisor) — so a grandparent invited as Support precisely so she
+  could help with the board joined the team and found an empty screen, and the
+  owner's only clue was a "Shared boards 0" panel that reads like an optional
+  extra. Every team role can now read the boards on a communicator they share a
+  team with, including the folder pages below an attached board, and including
+  every team that already exists. Editing is unchanged: Support and Read-Only
+  still cannot change or delete anything.
 - **The team roster couldn't tell an invited person from one who had joined.**
   `TeamsController#invite` calls `upsert_member!` unconditionally, so an
   invitee is a full member row from the moment the invite POSTs — before they

@@ -37,9 +37,20 @@ module Boards
       ENV.fetch("TEAM_CURATION_MAX_BOARDS", 800).to_i
     end
 
-    def initialize(user, limit: nil)
+    # `roles:` is the team roles that earn this grant. It defaults to
+    # `User::CURATE_ROLES` (the EDIT question this class was built for);
+    # `Boards::TeamReading` passes every role, because reading is not
+    # role-gated — see `ChildAccount#viewable_by?`, which has said so all
+    # along, and issue #923, where a Support invitee could see the child and
+    # none of the child's boards.
+    #
+    # The role set is the ONLY difference between the two questions. Sharing
+    # the walk keeps the `admit:` entitlement filter — a security control, not
+    # an optimization — in one place rather than two.
+    def initialize(user, limit: nil, roles: User::CURATE_ROLES)
       @user = user
       @limit = limit || self.class.max_boards
+      @roles = roles
     end
 
     # Board ids this user may edit through team curation. Deliberately does
@@ -79,7 +90,7 @@ module Boards
 
     private
 
-    attr_reader :user, :limit
+    attr_reader :user, :limit, :roles
 
     def id_set
       @id_set ||= board_ids.to_set
@@ -87,7 +98,7 @@ module Boards
 
     def curate_team_ids
       @curate_team_ids ||=
-        TeamUser.where(user_id: user.id, role: User::CURATE_ROLES).pluck(:team_id)
+        TeamUser.where(user_id: user.id, role: roles).pluck(:team_id)
     end
 
     # A curated communicator's dashboard. `board_id` only, never

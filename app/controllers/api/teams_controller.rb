@@ -88,7 +88,12 @@ class API::TeamsController < API::ApplicationController
     unless @user
       return render json: { error: "User not invited. Something went wrong." }, status: :unprocessable_content
     end
-    @team.upsert_member!(@user, user_role)
+    # The ONE caller that must not stamp `invitation_accepted_at`: this row is
+    # a placeholder for somebody who has not arrived yet. Everywhere else,
+    # being added to a team IS joining — see `Team#upsert_member!` (#923).
+    # A re-invite of an existing member leaves an existing stamp alone rather
+    # than un-joining them.
+    @team.upsert_member!(@user, user_role, accepted: false)
 
     render json: @team.show_api_view(current_user), status: :created
   rescue ActiveRecord::RecordInvalid => e

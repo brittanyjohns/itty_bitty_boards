@@ -1210,8 +1210,9 @@ an explicit decision, not a drive-by edit.
   `PublishCascade` each had to grow a walk to avoid. The walk's `admit:` filter
   is a security control, not an optimization (`predictive_board_id` is
   unvalidated and board ids are sequential, so a curated board's folder tile can
-  point at a stranger's). Four rails. `member`/`restricted` stay excluded — see
-  #494 for the softer path. A supervisor is a permission grant and never a
+  point at a stranger's). Four rails. `member`/`restricted` stay excluded from
+  CURATION — see #494 for the softer path — but NOT from reading; that is
+  `Boards::TeamReading`, the next bullet. A supervisor is a permission grant and never a
   PLAN-LOCK bypass, so `can_edit_for` ends in `Board#owner_plan_allows_edit?`
   — the same single definition `BoardPlanLock` refuses on, which since #892
   measures the OWNER for every caller and hands a non-owner
@@ -1225,6 +1226,48 @@ an explicit decision, not a drive-by edit.
   ship. Revocation is automatic because the answer is derived from live
   membership; nothing is snapshotted, since a board she merely EDITED is the
   family's own row. Details: `.claude-notes/boards-and-teams.md`.
+- **Every team role READS the boards on a communicator it shares a team with,
+  and `Boards::TeamReading` is the only thing that decides which.** It is
+  `Boards::TeamCuration` with one argument changed — the class takes `roles:`,
+  defaulting to `User::CURATE_ROLES`, and the reader passes `TeamUser::ROLES` —
+  so the `admit:` entitlement filter, a security control rather than an
+  optimization, exists once instead of twice. Before it, `Board#viewable_by?`
+  granted a non-owner exactly two routes, a `team_boards` shelf row or
+  `team_curatable_by?`, and neither fits a `member`/`restricted` invitee: a
+  parent invites a grandparent as Support *so that* she can help with the
+  child's board, and the grandparent joined and saw the communicator with ZERO
+  boards, while the owner's only clue was a "SHARED BOARDS 0" panel that reads
+  like an optional extra shelf. `ChildAccount#viewable_by?` had said the rule
+  all along — every team role is a legitimate reader, a Support member watching
+  how the week went does not get to change the boards — so this is the board
+  side agreeing with the communicator side. REACHABILITY, not attachment, and
+  that is what makes it reach every EXISTING team with no data migration:
+  `ChildBoard#register_on_communicator_team` writes the missing `team_boards`
+  row only for boards attached from now on, and only for the attached ROOT, so
+  a board attached before it existed and every folder page below one stayed
+  unreadable. Reading only — `can_edit_for` still ends in `team_curatable_by?`,
+  `TEAM_CURATION_ACTIONS` is untouched, `destroy` stays out of it, and a
+  non-member's refusal is the same generic `404 {"error": "Board not found"}`,
+  since confirming the row exists is itself the leak.
+- **Being added to a team IS joining; `TeamsController#invite` is the one
+  exception.** `Team#upsert_member!` stamps `invitation_accepted_at` by default
+  (`accepted: true`) and invite passes `accepted: false`, because that row is a
+  placeholder for somebody who has not arrived. The column used to be written in
+  exactly one place — `TeamUser#accept_invitation!`, reached only by
+  `accept_invite_patch` — and a team CREATOR never travels that path, so her own
+  roster listed her as "hasn't joined yet" beside a ★ Owner chip while the
+  MEMBERS card read 0. The default must stay `true` or the bug returns the moment
+  a new call site forgets the kwarg. The stamp is only ever SET: `accepted:
+  false` leaves an existing one alone (re-inviting a member must not un-join
+  them, and `upsert_member!` is idempotent by design), and `accepted: true` on a
+  stamped row keeps the original — when they arrived beats when their role was
+  last edited. `joined` is serialized beside the timestamp and is what a client
+  gates on; the rule for turning a timestamp into a yes/no belongs here, not in
+  the frontend. The backfill is ADMIN ROWS ONLY, to `created_at`: `admin` is
+  absent from `TeamUser::ASSIGNABLE_ROLES` and rejected by `invite_role`, so such
+  a row is always server-created and never a pending invitation, while a
+  non-admin null is genuinely ambiguous and stamping it would destroy the
+  pending-invite signal #914 exists to give.
 - **An action on the `skip_before_action :authenticate_token!` list that resolves
   a board by id or slug MUST guard on `Board#viewable_by?(current_user)` itself.**
   `set_board` scopes by nothing — it takes any id or slug and only 404s a row
