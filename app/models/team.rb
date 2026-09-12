@@ -144,13 +144,28 @@ class Team < ApplicationRecord
   # turning it into a yes/no belongs here — the frontend was reading
   # `invitation_accepted_at !== null` and carrying deploy-skew guesswork for
   # the case where the key is absent (issue #923).
+  #
+  # `last_invite_delivery` is the third thing an owner could not tell apart
+  # (issue #928): "Invited — hasn't joined yet" covered a delivered email
+  # nobody had opened, a FAILED send to a bad address, and a SUPPRESSED one
+  # (the staging interceptor drops every message), and the difference is
+  # whether she should chase the person or check the address. `MailDelivery`
+  # already knew; nothing published it. It is `{ status:, reason:, at: }`, or
+  # **nil for "no information on record"** — never sent, or pruned by
+  # `PruneMailDeliveriesJob` — which a client must not render as success.
+  # Batched: one query for the whole roster, never one per member.
   def member_views(owner_ids)
-    team_users.joins(:user).includes(:user).map { |tu|
+    rows = team_users.joins(:user).includes(:user).to_a
+    deliveries = MailDelivery.latest_team_invitations_by_recipient(rows.map { |tu| tu.user.email })
+
+    rows.map { |tu|
+      delivery = deliveries[tu.user.email.to_s.strip.downcase]
       { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
         role: tu.role, plan_type: tu.user.plan_type,
         is_account_owner: owner_ids.include?(tu.user_id),
         invitation_accepted_at: tu.invitation_accepted_at,
-        joined: tu.joined? }
+        joined: tu.joined?,
+        last_invite_delivery: delivery&.invite_delivery_view }
     }
   end
 
