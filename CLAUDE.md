@@ -84,10 +84,14 @@ one-off handoff/scratch files stay untracked and local.
   every send when `AppEnv.staging?` unless the recipient matches
   `STAGING_MAIL_ALLOWLIST` (comma-separated exact addresses, or `@domain`
   suffixes); non-matching addresses are stripped from to/cc/bcc. That var is
-  set to `@speakanyway.com`, so **staging DOES now email the `brittany+*`
-  persona aliases** — deliberately, so invite and verification templates can be
-  walked end to end (they are all our own inboxes). Expect real mail when you
-  exercise a staging flow that sends to one. It lives in the manifest at
+  set to `@speakanyway.com` in the manifest, **so staging emails the
+  `brittany+*` persona aliases once the env sync has actually run** —
+  deliberately, so invite and verification templates can be walked end to end
+  (they are all our own inboxes). Two-step: merging a manifest change is not the
+  same as syncing it. Confirm the **"Sync staging env vars to Hatchbox"** run
+  went green before trusting either answer — the 2026-09-12 run aborted on
+  required-but-unset Mailchimp journey vars and pushed nothing, so the allowlist
+  sat in the manifest while staging still delivered no mail at all. It lives in the manifest at
   `script/hatchbox/staging_env_vars.yml` and is set as a literal in
   `.github/workflows/staging-sync-env.yml`; because it is also listed under
   `optional`, blanking the literal only makes the sync SKIP it, leaving
