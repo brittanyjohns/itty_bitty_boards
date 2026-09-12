@@ -28,9 +28,7 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   before_all do
     admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
     VocabSets.seed_slug!("core-84")
-    Dir.glob(Boards::FringeTemplates::SEED_DIR.join("*.obf")).sort.each do |p|
-      Boards::FringeTemplates.seed_obf!(p)
-    end
+    Boards::FringeTemplates.seed_files.each { |p| Boards::FringeTemplates.seed_obf!(p) }
     # The Phrases layer rides every build now; seed the GLP function boards so
     # the integration test exercises the real (Phrases-inclusive) build path.
     Boards::GlpTemplates.seed!(admin: admin)
@@ -315,6 +313,33 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
   # Aliased InterestCategories ("Family & People" -> People, "Health & Body" ->
   # Body) are seed-set interests; they must land in the cloned seed pages, not
   # spawn a spurious extra "My Favorites" folder tile on the home grid.
+  # A fringe template is authored per core set: Core 60's pages are 10 columns /
+  # 40 words, Core 84's are 12 / 60. Boards::NavRowSync force-widens a clone's
+  # large_screen_columns to the root's and moves NO tile, so cloning the core-60
+  # variant into a Core 84 set leaves two dead columns and a page carrying two
+  # thirds of a sibling's vocabulary.
+  it "clones the core-84 fringe variant into an extended set" do
+    # "giraffe" routes to Animals, which core-84 has no seed page for — so the
+    # planner marks it :prebuilt and the build clones a fringe template.
+    root = build!(%w[giraffe])
+
+    animals = set_boards(root).find_by(name: "Animals")
+    expect(animals).to be_present
+    expect(animals.large_screen_columns).to eq(12)
+
+    source = Boards::FringeTemplates.find("Animals", core_template: "core-84")
+    expect(source).to be_present
+    expect(source.obf_id).to eq("fringe:core-84:animals")
+
+    # The authored 60 words survive the clone; the core-60 variant is 40.
+    authored = source.board_images.map { |bi| bi.display_label.to_s.downcase }
+    cloned = animals.board_images.map { |bi| bi.display_label.to_s.downcase }
+    expect(cloned).to include(*authored)
+
+    # And no tile is parked outside the grid it was dropped into.
+    expect(Boards::LayoutRepacker.unstack_screen!(animals, "lg", dry_run: true)).to eq(0)
+  end
+
   it "routes aliased seed-set interests into the cloned People/Body pages" do
     root = build!([
       { "word" => "grandma", "category" => "Family & People" },

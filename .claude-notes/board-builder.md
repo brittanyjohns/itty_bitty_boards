@@ -359,8 +359,10 @@ Result { level, core_template, fringe_pages, excluded_fringe_pages,
          catch_all_interests, ai_credits_needed }
 ```
 
-Each fringe page entry has `{ name, source, interests }` where `source` is one
-of:
+Each fringe page entry has `{ name, source, interests, core_template }` where
+`core_template` is the level's core set (the page is planned against that grid,
+and the build reads it back to pick the right template variant) and `source` is
+one of:
 
 - **`:seed_set`** — the category page already ships with the core template clone
   (Food, Feelings, People, etc.). The clone includes it natively.
@@ -379,12 +381,45 @@ instead of failing the build.
 
 ### Fringe page templates (`Boards::FringeTemplates`)
 
-Standalone OBF boards seeded from `db/seeds/board_builder_sets/fringe-pages/`.
-11 categories covering topics not in the core seed sets. Each board is:
+Standalone OBF boards seeded from `db/seeds/board_builder_sets/fringe-pages/`,
+nested one directory per core set. 11 categories covering topics not in the core
+seed sets, each authored **twice**. Each board is:
 - Owned by `DEFAULT_ADMIN_ID`, predefined, published
 - Marked with `settings["fringe_template_category"]` (lowercase category name)
+  and `settings["fringe_template_core_template"]` (`core-60` / `core-84`)
 - Seeded via `bin/rails fringe_templates:seed` (also auto-runs after
   `vocab_sets:seed`)
+
+**A template is sized for ONE core set, and that is why there are two of each.**
+`Boards::NavRowSync` force-widens a clone's `large_screen_columns` to the root's
+and moves **no tile**, so a 10-column Core 60 template cloned into a Core 84 set
+renders with two dead columns and 40 words beside siblings carrying 60. The
+authored shapes are `core-60/` = 10x4 / 40 words and `core-84/` = 12x5 / 60,
+pinned by `spec/db/seeds/board_builder_sets_spec.rb`, which also asserts each
+core-84 page is a superset of its core-60 twin with matching parts of speech.
+`Boards::FringeTemplates::EXPECTED_COLUMNS` is the one place those widths live.
+
+The authority for the variant is **`ext_saw_core_template` in the .obf**, not
+the directory, so a pasted .obf carries the same authority a file does. Ids stay
+namespaced: core-60 keeps the bare `fringe:<slug>` it shipped with (so existing
+rows upsert in place rather than orphaning) and core-84 uses
+`fringe:core-84:<slug>`.
+
+Resolution is `FringeTemplates.find(category, core_template:)` — exact variant,
+then a row carrying no variant (pre-variant or hand-registered), then the other
+variant as a last resort. Falling back beats `:ai_generated`, which charges the
+user for a page we already have; `Boards::TemplateHealth` names the missing
+variant so the gap is visible rather than silently absorbed.
+
+**Editing an .obf changes nothing already in the database — re-seed.** The
+eleven templates were re-authored from 3x4/12 words to 4x10/40 in #747 and
+production was never re-seeded, so builds cloned a quarter-sized page for
+months while the registry reported them healthy: the only source check asked
+whether a FILE existed, never whether the row matched it.
+`Boards::TemplateHealth#stale_vs_source?` now compares the row's grid and tile
+count against its authored file (through `Boards::FringeSources`, which parses
+the seed dir ONCE — the index builds one health object per template and a
+per-object glob turns a GET into hundreds of file reads).
 
 To add a new fringe template, any of:
 - author a `.obf` file in the seed directory (see any existing one) and run the
@@ -393,7 +428,9 @@ To add a new fringe template, any of:
   .obf**, which runs `Boards::FringeTemplates.seed_data!` — the identical pass the
   rake task runs on a file, so a hand-created template cannot drift from a seeded
   one; or
-- build the board in `/admin/board_builds` and **register** it against a category.
+- build the board in `/admin/board_builds` and **register** it against a category
+  AND a core set — registration refuses a board that is not that set's width,
+  since NavRowSync will not fix it.
 
 The last two produce a template with no file under `SEED_DIR`, so `rake
 fringe_templates:seed` can neither see nor heal it. The registry flags those rows,

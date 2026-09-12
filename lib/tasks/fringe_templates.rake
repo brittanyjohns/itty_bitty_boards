@@ -7,7 +7,9 @@ namespace :fringe_templates do
       next
     end
 
-    obf_files = Dir.glob(dir.join("*.obf")).sort
+    # Sources are nested one directory per core set; seed_files is the one glob
+    # that knows that, shared with the admin re-seed button.
+    obf_files = Boards::FringeTemplates.seed_files
     if obf_files.empty?
       puts "[fringe_templates:seed] No .obf files in #{dir}"
       next
@@ -15,14 +17,15 @@ namespace :fringe_templates do
 
     puts "[fringe_templates:seed] Seeding #{obf_files.size} fringe templates..."
     obf_files.each do |path|
+      relative = Pathname.new(path).relative_path_from(dir)
       board = Boards::FringeTemplates.seed_obf!(path)
       if board
-        puts "  - #{board.name}: board ##{board.id} (#{board.board_images.count} tiles)"
+        puts "  - #{relative}: #{board.name} board ##{board.id} (#{board.board_images.count} tiles)"
       else
-        warn "  - #{File.basename(path)}: no board returned"
+        warn "  - #{relative}: no board returned"
       end
     rescue StandardError => e
-      warn "  - #{File.basename(path)}: FAILED — #{e.class}: #{e.message}"
+      warn "  - #{relative}: FAILED — #{e.class}: #{e.message}"
     end
 
     puts "[fringe_templates:seed] done"

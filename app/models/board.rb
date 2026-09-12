@@ -1751,7 +1751,7 @@ class Board < ApplicationRecord
       "display_image_source" => "preview",
     ).except("preset_display_image_url", "preview_status", "preview_generated_at",
              Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER,
-             Boards::FringeTemplates::TEMPLATE_MARKER)
+             Boards::FringeTemplates::TEMPLATE_MARKER, Boards::FringeTemplates::VARIANT_MARKER)
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false

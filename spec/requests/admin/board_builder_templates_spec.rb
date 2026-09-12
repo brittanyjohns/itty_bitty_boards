@@ -12,18 +12,19 @@ RSpec.describe "Admin board builder templates", type: :request do
     allow_any_instance_of(ActionView::Helpers::AssetTagHelper).to receive(:javascript_include_tag).and_return("")
   end
 
-  def fringe_template(category: "Animals", name: nil, columns: 2)
+  def fringe_template(category: "Animals", name: nil, columns: 2, core_template: "core-60")
+    settings = { Boards::FringeTemplates::TEMPLATE_MARKER => category.downcase, "disable_scroll" => true }
+    settings[Boards::FringeTemplates::VARIANT_MARKER] = core_template if core_template
     board = create(:board, user: seed_admin, name: name || category, predefined: true, published: true,
                    number_of_columns: columns, large_screen_columns: columns,
-                   settings: { Boards::FringeTemplates::TEMPLATE_MARKER => category.downcase,
-                               "disable_scroll" => true })
+                   settings: settings)
     tile = create(:board_image, board: board, image: create(:image, label: "dog"), label: "dog", position: 0)
     tile.update_columns(layout: { "lg" => { "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
     board.reload
   end
 
-  def plain_admin_board(name: "Dinosaur words")
-    board = create(:board, user: seed_admin, name: name, number_of_columns: 2, large_screen_columns: 2)
+  def plain_admin_board(name: "Dinosaur words", columns: Boards::FringeTemplates::EXPECTED_COLUMNS["core-60"])
+    board = create(:board, user: seed_admin, name: name, number_of_columns: columns, large_screen_columns: columns)
     tile = create(:board_image, board: board, image: create(:image, label: "rex"), label: "rex", position: 0)
     tile.update_columns(layout: { "lg" => { "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
     board.reload
@@ -45,7 +46,7 @@ RSpec.describe "Admin board builder templates", type: :request do
       board = plain_admin_board
       sign_in create(:user)
 
-      post register_admin_dashboard_board_builder_templates_path, params: { board_id: board.id, category: "Animals" }
+      post register_admin_dashboard_board_builder_templates_path, params: { board_id: board.id, category: "Animals", core_template: "core-60" }
 
       expect(board.reload.settings[Boards::FringeTemplates::TEMPLATE_MARKER]).to be_nil
     end
@@ -140,21 +141,22 @@ RSpec.describe "Admin board builder templates", type: :request do
         board = plain_admin_board
 
         post register_admin_dashboard_board_builder_templates_path,
-             params: { board_id: board.id, category: "Animals" }
+             params: { board_id: board.id, category: "Animals", core_template: "core-60" }
 
         board.reload
         expect(board.settings[Boards::FringeTemplates::TEMPLATE_MARKER]).to eq("animals")
+        expect(board.settings[Boards::FringeTemplates::VARIANT_MARKER]).to eq("core-60")
         expect(board.settings["disable_scroll"]).to be(true)
         expect(board.predefined).to be(true)
         expect(board.published).to be(true)
-        expect(Boards::FringeTemplates.find("Animals")).to eq(board)
+        expect(Boards::FringeTemplates.find("Animals", core_template: "core-60")).to eq(board)
       end
 
       it "refuses a board owned by someone other than the seed admin" do
         board = create(:board, user: create(:user), name: "Someone else's")
 
         post register_admin_dashboard_board_builder_templates_path,
-             params: { board_id: board.id, category: "Animals" }
+             params: { board_id: board.id, category: "Animals", core_template: "core-60" }
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(board.reload.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER]).to be_nil
@@ -166,7 +168,7 @@ RSpec.describe "Admin board builder templates", type: :request do
         board = plain_admin_board
 
         post register_admin_dashboard_board_builder_templates_path,
-             params: { board_id: board.id, category: "Dinosaurs" }
+             params: { board_id: board.id, category: "Dinosaurs", core_template: "core-60" }
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(response.body).to include("Boards::InterestCategories")
@@ -178,7 +180,7 @@ RSpec.describe "Admin board builder templates", type: :request do
         board = plain_admin_board
 
         post register_admin_dashboard_board_builder_templates_path,
-             params: { board_id: board.id, category: "Animals" }
+             params: { board_id: board.id, category: "Animals", core_template: "core-60" }
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(response.body).to include("The animals one")
@@ -192,10 +194,86 @@ RSpec.describe "Admin board builder templates", type: :request do
         stacked.update_columns(layout: { "lg" => { "x" => 0, "y" => 0, "w" => 1, "h" => 1 } })
 
         post register_admin_dashboard_board_builder_templates_path,
-             params: { board_id: board.reload.id, category: "Animals" }
+             params: { board_id: board.reload.id, category: "Animals", core_template: "core-60" }
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(response.body).to include("stacked")
+      end
+
+      it "refuses a registration that names no core set" do
+        board = plain_admin_board
+
+        post register_admin_dashboard_board_builder_templates_path,
+             params: { board_id: board.id, category: "Animals" }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Pick the core set")
+        expect(board.reload.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER]).to be_nil
+      end
+
+      # NavRowSync widens a clone's lg count and moves no tile, so a page of the
+      # wrong width renders with dead columns in every set built from it.
+      it "refuses a board that is not the core set's width" do
+        board = plain_admin_board(columns: 6)
+
+        post register_admin_dashboard_board_builder_templates_path,
+             params: { board_id: board.id, category: "Animals", core_template: "core-84" }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("6 columns wide")
+        expect(board.reload.settings.to_h[Boards::FringeTemplates::TEMPLATE_MARKER]).to be_nil
+      end
+
+      # One Core 60 template beside one Core 84 template is the intended shape —
+      # only a clash on the SAME core set is a duplicate.
+      it "allows the other core set for a category that already has one" do
+        fringe_template(category: "Animals", name: "Animals 60", core_template: "core-60")
+        board = plain_admin_board(columns: Boards::FringeTemplates::EXPECTED_COLUMNS["core-84"])
+
+        post register_admin_dashboard_board_builder_templates_path,
+             params: { board_id: board.id, category: "Animals", core_template: "core-84" }
+
+        expect(response).to redirect_to(admin_dashboard_board_builder_templates_path)
+        expect(board.reload.settings[Boards::FringeTemplates::VARIANT_MARKER]).to eq("core-84")
+      end
+    end
+
+    # Sources are nested one directory per core set, so the re-seed param is a
+    # RELATIVE path. It is matched against the authored list as an allowlist —
+    # a traversal attempt is simply not a member.
+    describe "POST reseed_fringe" do
+      it "enqueues a re-seed of everything with no file" do
+        expect {
+          post reseed_fringe_admin_dashboard_board_builder_templates_path
+        }.to change(SeedBoardBuilderTemplatesJob.jobs, :size).by(1)
+
+        expect(SeedBoardBuilderTemplatesJob.jobs.last["args"]).to eq(["fringe", nil])
+      end
+
+      it "enqueues one nested source by its relative path" do
+        expect {
+          post reseed_fringe_admin_dashboard_board_builder_templates_path,
+               params: { file: "core-84/animals.obf" }
+        }.to change(SeedBoardBuilderTemplatesJob.jobs, :size).by(1)
+
+        expect(SeedBoardBuilderTemplatesJob.jobs.last["args"]).to eq(["fringe", "core-84/animals.obf"])
+      end
+
+      it "refuses a path that is not an authored source and enqueues nothing" do
+        expect {
+          post reseed_fringe_admin_dashboard_board_builder_templates_path,
+               params: { file: "../../../config/database.yml" }
+        }.not_to change(SeedBoardBuilderTemplatesJob.jobs, :size)
+
+        expect(response).to redirect_to(admin_dashboard_board_builder_templates_path)
+      end
+
+      # The old flat layout's basename no longer identifies a source.
+      it "refuses a bare basename" do
+        expect {
+          post reseed_fringe_admin_dashboard_board_builder_templates_path,
+               params: { file: "animals.obf" }
+        }.not_to change(SeedBoardBuilderTemplatesJob.jobs, :size)
       end
     end
 
@@ -203,6 +281,7 @@ RSpec.describe "Admin board builder templates", type: :request do
       def obf_document(overrides = {})
         {
           "format" => "open-board-0.1", "id" => "fringe:animals", "locale" => "en", "name" => "Animals",
+          Boards::FringeTemplates::VARIANT_KEY => "core-60",
           "grid" => { "rows" => 1, "columns" => 2, "order" => [[1, 2]] },
           "buttons" => [{ "id" => 1, "label" => "dog", "part_of_speech" => "noun" },
                         { "id" => 2, "label" => "cat", "part_of_speech" => "noun" }],
@@ -221,11 +300,22 @@ RSpec.describe "Admin board builder templates", type: :request do
           post admin_dashboard_board_builder_templates_path, params: { obf: obf_document.to_json }
         }.to change(Board, :count).by(1)
 
-        board = Boards::FringeTemplates.find("Animals")
+        board = Boards::FringeTemplates.find("Animals", core_template: "core-60")
         expect(board).to be_present
+        expect(board.settings[Boards::FringeTemplates::VARIANT_MARKER]).to eq("core-60")
         expect(board.settings["disable_scroll"]).to be(true)
         expect(board.predefined).to be(true)
         expect(board.board_images.map(&:label)).to contain_exactly("dog", "cat")
+      end
+
+      it "refuses a document that declares no core set" do
+        expect {
+          post admin_dashboard_board_builder_templates_path,
+               params: { obf: obf_document.except(Boards::FringeTemplates::VARIANT_KEY).to_json }
+        }.not_to change(Board, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include(Boards::FringeTemplates::VARIANT_KEY)
       end
 
       it "keeps what was typed when the JSON does not parse" do

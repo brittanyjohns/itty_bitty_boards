@@ -109,4 +109,86 @@ RSpec.describe Boards::TemplateHealth do
       expect(health.problems.join(" ")).to include("More than one board")
     end
   end
+
+  # The failure this exists to catch: the authored .obf files were re-authored
+  # from 3x4/12 words to 4x10/40 in #747 and the database rows were never
+  # re-seeded, so production served a template three quarters smaller than its
+  # source — and reported "healthy", because the only source check asked whether
+  # a FILE existed, never whether the row still matched it. A stale template is
+  # cloned verbatim into every set built from it.
+  describe "drift from the authored source" do
+    def sources_with(category:, core_template:, rows:, columns:, tile_count:)
+      instance_double(
+        Boards::FringeSources,
+        for: Boards::FringeSources::Source.new(
+          path: "/seed/#{core_template}/animals.obf",
+          relative_path: "#{core_template}/animals.obf",
+          category: category, core_template: core_template,
+          rows: rows, columns: columns, tile_count: tile_count,
+        ),
+        for_category: [:a_source],
+        variants_for: Boards::FringeTemplates::VARIANTS,
+      )
+    end
+
+    it "flags a board whose grid and tile count no longer match its .obf" do
+      board = template_board(columns: 4, tiles: 2)
+      health = health_for(board, core_template: "core-60",
+                                 sources: sources_with(category: "Animals", core_template: "core-60",
+                                                       rows: 4, columns: 10, tile_count: 40))
+
+      expect(health).to be_stale_vs_source
+      expect(health).not_to be_healthy
+      expect(health.status).to eq("error")
+      expect(health.problems.join(" ")).to include("core-60/animals.obf authors 40 tiles in a 4x10 grid")
+      expect(health.problems.join(" ")).to include("Re-seed it")
+    end
+
+    it "stays healthy when the board matches its .obf" do
+      board = template_board(columns: 2, tiles: 2)
+      health = health_for(board, core_template: "core-60",
+                                 sources: sources_with(category: "Animals", core_template: "core-60",
+                                                       rows: 1, columns: 2, tile_count: 2))
+
+      expect(health).not_to be_stale_vs_source
+      expect(health.problems.join(" ")).not_to include("Stale")
+    end
+
+    # Boards::FringeSources#for answers nil when it cannot tell which authored
+    # file a row belongs to. Comparing against a guess would report a drift that
+    # is not there.
+    it "says nothing when there is no unambiguous source" do
+      board = template_board(columns: 4, tiles: 2)
+      sources = instance_double(Boards::FringeSources, for: nil, for_category: [:a_source],
+                                                       variants_for: Boards::FringeTemplates::VARIANTS)
+      health = health_for(board, sources: sources)
+
+      expect(health).not_to be_stale_vs_source
+      expect(health.problems.join(" ")).not_to include("Stale")
+    end
+
+    it "asks for a core set on a template that records none" do
+      board = template_board
+      sources = instance_double(Boards::FringeSources, for: nil, for_category: [:a_source],
+                                                       variants_for: Boards::FringeTemplates::VARIANTS)
+      health = health_for(board, sources: sources)
+
+      expect(health.notes.join(" ")).to include("No core set recorded")
+    end
+
+    # Not a fault — Boards::FringeTemplates.find falls back across core sets
+    # rather than charging AI credits — but the wrong-width page it produces
+    # should be nameable from the registry.
+    it "names a category authored for only one core set" do
+      board = template_board
+      sources = instance_double(
+        Boards::FringeSources,
+        for: nil, for_category: [:a_source], variants_for: ["core-60"],
+      )
+      health = health_for(board, core_template: "core-60", sources: sources)
+
+      expect(health.missing_variants).to eq(["core-84"])
+      expect(health.notes.join(" ")).to include("core-84 build clones a page sized for the other grid")
+    end
+  end
 end

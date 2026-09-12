@@ -1,25 +1,29 @@
 {
   "format": "open-board-0.1",
-  "id": "fringe:technology",
+  "id": "fringe:core-84:technology",
   "locale": "en",
   "name": "Technology",
+  "ext_saw_core_template": "core-84",
   "grid": {
-    "rows": 4,
-    "columns": 10,
+    "rows": 5,
+    "columns": 12,
     "order": [
       [
         1,
         2,
         3,
         4,
+        5,
+        6,
         7,
         8,
         9,
+        10,
         11,
-        12,
-        13
+        12
       ],
       [
+        13,
         14,
         15,
         16,
@@ -29,31 +33,50 @@
         20,
         21,
         22,
-        23
+        23,
+        24
       ],
       [
-        24,
         25,
-        5,
-        6,
-        10,
         26,
         27,
         28,
         29,
-        30
-      ],
-      [
+        30,
         31,
         32,
         33,
         34,
         35,
-        36,
+        36
+      ],
+      [
         37,
         38,
         39,
-        40
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48
+      ],
+      [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
       ]
     ]
   },
@@ -79,183 +102,283 @@
       "part_of_speech": "noun"
     },
     {
-      "id": 7,
+      "id": 5,
       "label": "video",
       "part_of_speech": "noun"
     },
     {
-      "id": 8,
+      "id": 6,
       "label": "game",
       "part_of_speech": "noun"
     },
     {
-      "id": 9,
+      "id": 7,
       "label": "screen",
       "part_of_speech": "noun"
     },
     {
-      "id": 11,
+      "id": 8,
       "label": "tv",
       "part_of_speech": "noun"
     },
     {
-      "id": 12,
+      "id": 9,
       "label": "headphones",
       "part_of_speech": "noun"
     },
     {
-      "id": 13,
+      "id": 10,
       "label": "app",
       "part_of_speech": "noun"
     },
     {
-      "id": 14,
+      "id": 11,
       "label": "mouse",
       "part_of_speech": "noun"
     },
     {
-      "id": 15,
+      "id": 12,
       "label": "keyboard",
       "part_of_speech": "noun"
     },
     {
-      "id": 16,
+      "id": 13,
       "label": "camera",
       "part_of_speech": "noun"
     },
     {
-      "id": 17,
+      "id": 14,
       "label": "photo",
       "part_of_speech": "noun"
     },
     {
-      "id": 18,
+      "id": 15,
       "label": "remote",
       "part_of_speech": "noun"
     },
     {
-      "id": 19,
+      "id": 16,
       "label": "charger",
       "part_of_speech": "noun"
     },
     {
-      "id": 20,
+      "id": 17,
       "label": "battery",
       "part_of_speech": "noun"
     },
     {
-      "id": 21,
+      "id": 18,
       "label": "robot",
       "part_of_speech": "noun"
     },
     {
-      "id": 22,
+      "id": 19,
       "label": "show",
       "part_of_speech": "noun"
     },
     {
-      "id": 23,
+      "id": 20,
       "label": "song",
       "part_of_speech": "noun"
     },
     {
-      "id": 24,
+      "id": 21,
       "label": "button",
       "part_of_speech": "noun"
     },
     {
-      "id": 25,
+      "id": 22,
       "label": "wifi",
       "part_of_speech": "noun"
     },
     {
-      "id": 5,
+      "id": 23,
+      "label": "laptop",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "speaker",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 25,
+      "label": "cord",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 26,
+      "label": "volume",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 27,
+      "label": "internet",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 28,
+      "label": "website",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 29,
+      "label": "message",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 30,
+      "label": "email",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 31,
+      "label": "alarm",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 32,
+      "label": "timer",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 33,
       "label": "watch",
       "part_of_speech": "verb"
     },
     {
-      "id": 6,
+      "id": 34,
       "label": "play",
       "part_of_speech": "verb"
     },
     {
-      "id": 10,
+      "id": 35,
       "label": "charge",
       "part_of_speech": "verb"
     },
     {
-      "id": 26,
+      "id": 36,
       "label": "turn on",
       "part_of_speech": "verb"
     },
     {
-      "id": 27,
+      "id": 37,
       "label": "turn off",
       "part_of_speech": "verb"
     },
     {
-      "id": 28,
+      "id": 38,
       "label": "tap",
       "part_of_speech": "verb"
     },
     {
-      "id": 29,
+      "id": 39,
       "label": "swipe",
       "part_of_speech": "verb"
     },
     {
-      "id": 30,
+      "id": 40,
       "label": "pause",
       "part_of_speech": "verb"
     },
     {
-      "id": 31,
+      "id": 41,
       "label": "look",
       "part_of_speech": "verb"
     },
     {
-      "id": 32,
+      "id": 42,
       "label": "listen",
       "part_of_speech": "verb"
     },
     {
-      "id": 33,
+      "id": 43,
       "label": "take a picture",
       "part_of_speech": "verb"
     },
     {
-      "id": 34,
+      "id": 44,
       "label": "call",
       "part_of_speech": "verb"
     },
     {
-      "id": 35,
+      "id": 45,
+      "label": "type",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 46,
+      "label": "scroll",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 47,
+      "label": "search",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 48,
+      "label": "record",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 49,
+      "label": "share",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 50,
+      "label": "download",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 51,
       "label": "loud",
       "part_of_speech": "adjective"
     },
     {
-      "id": 36,
+      "id": 52,
       "label": "quiet",
       "part_of_speech": "adjective"
     },
     {
-      "id": 37,
+      "id": 53,
       "label": "broken",
       "part_of_speech": "adjective"
     },
     {
-      "id": 38,
+      "id": 54,
       "label": "done",
       "part_of_speech": "adjective"
     },
     {
-      "id": 39,
+      "id": 55,
       "label": "new",
       "part_of_speech": "adjective"
     },
     {
-      "id": 40,
+      "id": 56,
       "label": "favorite",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 57,
+      "label": "fast",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 58,
+      "label": "slow",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 59,
+      "label": "bright",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 60,
+      "label": "dark",
       "part_of_speech": "adjective"
     }
   ],

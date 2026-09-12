@@ -155,6 +155,22 @@ RSpec.describe Board, type: :model do
       expect(Boards::RobustSets.slug_for(board.reload)).to eq("core-84")
     end
 
+    # Same rule one step down: FringeTemplates.find is scoped to the seed admin,
+    # so an ADMIN-owned clone of a fringe template becomes a rival template for
+    # that category — and the variant marker has to go with the category marker,
+    # or the clone rivals it on one specific core set.
+    it "does not inherit the fringe-template markers" do
+      board.update!(settings: (board.settings || {}).merge(
+        Boards::FringeTemplates::TEMPLATE_MARKER => "animals",
+        Boards::FringeTemplates::VARIANT_MARKER => "core-84",
+      ))
+
+      cloned = board.clone_with_images(user.id)
+
+      expect(cloned.settings).not_to have_key(Boards::FringeTemplates::TEMPLATE_MARKER)
+      expect(cloned.settings).not_to have_key(Boards::FringeTemplates::VARIANT_MARKER)
+    end
+
     it "does not inherit the source's display_image_url snapshot" do
       board.update_column(
         :display_image_url,

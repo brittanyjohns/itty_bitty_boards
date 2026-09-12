@@ -1,41 +1,42 @@
 {
   "format": "open-board-0.1",
-  "id": "fringe:bathroom",
+  "id": "fringe:art-craft",
   "locale": "en",
-  "name": "Bathroom",
+  "name": "Art & Craft",
+  "ext_saw_core_template": "core-60",
   "grid": {
     "rows": 4,
     "columns": 10,
     "order": [
       [
+        1,
+        2,
+        3,
         5,
         6,
-        7,
-        8,
-        11,
-        12,
         13,
         14,
         15,
-        16
+        16,
+        17
       ],
       [
-        17,
         18,
         19,
+        7,
         20,
-        1,
         21,
-        2,
-        3,
+        8,
+        9,
         4,
-        22
+        10,
+        11
       ],
       [
+        12,
+        22,
         23,
         24,
-        9,
-        10,
         25,
         26,
         27,
@@ -59,204 +60,204 @@
   },
   "buttons": [
     {
+      "id": 1,
+      "label": "draw",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 2,
+      "label": "paint",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 3,
+      "label": "cut",
+      "part_of_speech": "verb"
+    },
+    {
       "id": 5,
-      "label": "wash",
+      "label": "color",
       "part_of_speech": "verb"
     },
     {
       "id": 6,
-      "label": "flush",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 7,
-      "label": "brush",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 8,
-      "label": "wipe",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 11,
-      "label": "dry off",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 12,
-      "label": "rinse",
+      "label": "make",
       "part_of_speech": "verb"
     },
     {
       "id": 13,
-      "label": "go potty",
+      "label": "build",
       "part_of_speech": "verb"
     },
     {
       "id": 14,
-      "label": "pee",
+      "label": "fold",
       "part_of_speech": "verb"
     },
     {
       "id": 15,
-      "label": "poop",
+      "label": "rip",
       "part_of_speech": "verb"
     },
     {
       "id": 16,
-      "label": "sit",
+      "label": "stick",
       "part_of_speech": "verb"
     },
     {
       "id": 17,
-      "label": "stand",
+      "label": "mix",
       "part_of_speech": "verb"
     },
     {
       "id": 18,
-      "label": "wait",
+      "label": "trace",
       "part_of_speech": "verb"
     },
     {
       "id": 19,
-      "label": "help",
-      "part_of_speech": "verb"
-    },
-    {
-      "id": 20,
       "label": "clean up",
       "part_of_speech": "verb"
     },
     {
-      "id": 1,
-      "label": "toilet",
+      "id": 7,
+      "label": "crayon",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 20,
+      "label": "marker",
       "part_of_speech": "noun"
     },
     {
       "id": 21,
-      "label": "potty",
+      "label": "pencil",
       "part_of_speech": "noun"
     },
     {
-      "id": 2,
-      "label": "soap",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 3,
-      "label": "towel",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 4,
-      "label": "toothbrush",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 22,
-      "label": "toothpaste",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 23,
-      "label": "sink",
-      "part_of_speech": "noun"
-    },
-    {
-      "id": 24,
-      "label": "mirror",
+      "id": 8,
+      "label": "paper",
       "part_of_speech": "noun"
     },
     {
       "id": 9,
-      "label": "bath",
+      "label": "scissors",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 4,
+      "label": "glue",
       "part_of_speech": "noun"
     },
     {
       "id": 10,
-      "label": "shower",
+      "label": "stickers",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 11,
+      "label": "clay",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 12,
+      "label": "glitter",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 22,
+      "label": "brush",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 23,
+      "label": "tape",
+      "part_of_speech": "noun"
+    },
+    {
+      "id": 24,
+      "label": "chalk",
       "part_of_speech": "noun"
     },
     {
       "id": 25,
-      "label": "water",
+      "label": "easel",
       "part_of_speech": "noun"
     },
     {
       "id": 26,
-      "label": "tissue",
+      "label": "apron",
       "part_of_speech": "noun"
     },
     {
       "id": 27,
-      "label": "toilet paper",
+      "label": "picture",
       "part_of_speech": "noun"
     },
     {
       "id": 28,
-      "label": "hairbrush",
+      "label": "card",
       "part_of_speech": "noun"
     },
     {
       "id": 29,
-      "label": "comb",
+      "label": "box",
       "part_of_speech": "noun"
     },
     {
       "id": 30,
-      "label": "diaper",
+      "label": "string",
       "part_of_speech": "noun"
     },
     {
       "id": 31,
-      "label": "wipes",
+      "label": "beads",
       "part_of_speech": "noun"
     },
     {
       "id": 32,
-      "label": "bathroom",
+      "label": "ribbon",
       "part_of_speech": "noun"
     },
     {
       "id": 33,
-      "label": "dirty",
+      "label": "messy",
       "part_of_speech": "adjective"
     },
     {
       "id": 34,
-      "label": "clean",
+      "label": "pretty",
       "part_of_speech": "adjective"
     },
     {
       "id": 35,
-      "label": "wet",
+      "label": "sticky",
       "part_of_speech": "adjective"
     },
     {
       "id": 36,
-      "label": "dry",
+      "label": "wet",
       "part_of_speech": "adjective"
     },
     {
       "id": 37,
-      "label": "hot",
+      "label": "dry",
       "part_of_speech": "adjective"
     },
     {
       "id": 38,
-      "label": "cold",
+      "label": "done",
       "part_of_speech": "adjective"
     },
     {
       "id": 39,
-      "label": "all done",
-      "part_of_speech": "important_function"
+      "label": "help",
+      "part_of_speech": "social"
     },
     {
       "id": 40,
-      "label": "no",
-      "part_of_speech": "important_function"
+      "label": "my turn",
+      "part_of_speech": "social"
     }
   ],
   "images": [],

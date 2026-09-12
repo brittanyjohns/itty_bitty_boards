@@ -25,16 +25,24 @@ module Boards
     end
 
     def call
-      {
+      doc = {
         "format" => FORMAT,
         "id" => board_obf_id,
         "locale" => board.language.presence || "en",
         "name" => board.name,
+      }
+      # Round-trips the core set a fringe template is sized for. Without it the
+      # exported file re-seeds as a variant-less row, so the edit -> export ->
+      # commit -> re-seed loop would silently strip the marker every time.
+      variant = Boards::FringeTemplates.core_template_for(board)
+      doc[Boards::FringeTemplates::VARIANT_KEY] = variant if variant
+
+      doc.merge(
         "grid" => grid,
         "buttons" => buttons,
         "images" => [],
         "sounds" => [],
-      }
+      )
     end
 
     def to_json_document
@@ -42,9 +50,13 @@ module Boards
     end
 
     # "animals.obf" — the filename this document belongs at inside the seed dir.
+    # A fringe template's sources are nested one directory per core set, so the
+    # download names itself "core-84-animals.obf" rather than colliding with its
+    # twin in the browser's Downloads folder.
     def filename
       base = board_obf_id.to_s.split(":").last.presence || board.name.to_s.parameterize
-      "#{base.parameterize}.obf"
+      variant = Boards::FringeTemplates.core_template_for(board)
+      [variant, base.parameterize].compact.join("-") + ".obf"
     end
 
     private

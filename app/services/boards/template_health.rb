@@ -18,15 +18,22 @@ module Boards
     # triple-count one stacked tile.
     AUTHORED_SCREEN = "lg".freeze
 
-    attr_reader :board, :kind, :category, :slug
+    attr_reader :board, :kind, :category, :slug, :core_template
 
     # kind: :fringe | :robust_root | :robust_page
-    def initialize(board, kind:, category: nil, slug: nil, duplicate_registration: false)
+    #
+    # `sources` is a Boards::FringeSources. It defaults to loading the seed dir
+    # so a standalone caller still works, but an index rendering many templates
+    # must build ONE and pass it in — see that class for why.
+    def initialize(board, kind:, category: nil, slug: nil, duplicate_registration: false,
+                   core_template: nil, sources: nil)
       @board = board
       @kind = kind
       @category = category
       @slug = slug
       @duplicate_registration = duplicate_registration
+      @core_template = core_template
+      @sources = sources
     end
 
     def tile_count = tiles.size
@@ -89,17 +96,50 @@ module Boards
       end
     end
 
+    def sources
+      @sources ||= Boards::FringeSources.load
+    end
+
     # Is there authored source on disk for this template? A hand-registered one
     # sits outside the re-seed loop entirely — `rake fringe_templates:seed` can
     # neither see nor heal it — which is what the Export button is for.
     def authored_source?
       return true unless kind == :fringe
 
-      @authored_source ||= Dir.glob(Boards::FringeTemplates::SEED_DIR.join("*.obf")).any? do |path|
-        JSON.parse(File.read(path))["name"].to_s.casecmp?(category.to_s)
-      rescue JSON::ParserError
-        false
-      end
+      sources.for_category(category).any?
+    end
+
+    # The authored file this row should match, or nil when there is none (or no
+    # unambiguous one — see Boards::FringeSources#for).
+    def authored_shape
+      return nil unless kind == :fringe
+
+      return @authored_shape if defined?(@authored_shape)
+
+      @authored_shape = sources.for(category, core_template: core_template)
+    end
+
+    # A row that no longer matches its own authored source — the state a
+    # revision to the .obf leaves behind until somebody re-seeds. It reads as
+    # perfectly healthy from every other angle (the tiles are laid out, nothing
+    # is stacked, the art is there), and a stale template is cloned verbatim into
+    # every set built from it, so the registry has to say so.
+    def stale_vs_source?
+      shape = authored_shape
+      return false unless shape
+
+      shape.tile_count != tile_count || shape.columns != columns || shape.rows != rows
+    end
+
+    # Fringe only. A category authored for one core set and not the other means
+    # a build on the missing level clones a page sized for the wrong grid —
+    # Boards::FringeTemplates.find falls back rather than charging AI credits,
+    # which is the right trade and still worth naming.
+    def missing_variants
+      return [] unless kind == :fringe
+      return [] if category.blank?
+
+      Boards::FringeTemplates::VARIANTS - sources.variants_for(category)
     end
 
     # Fringe only. A template whose category is not a key in
@@ -149,7 +189,13 @@ module Boards
                   "select this template."
         end
         if duplicate_registration?
-          list << "More than one board is registered for \"#{category}\" — which one a build clones is undefined."
+          list << "More than one board is registered for \"#{category}\"#{variant_phrase} — which one a build " \
+                  "clones is undefined."
+        end
+        if stale_vs_source?
+          list << "Stale — #{authored_shape.relative_path} authors " \
+                  "#{pluralize_tiles(authored_shape.tile_count)} in a #{authored_shape.grid_label} grid, and this " \
+                  "board is #{pluralize_tiles(tile_count)} in #{grid_label}. Re-seed it."
         end
       end
     end
@@ -163,6 +209,14 @@ module Boards
         unless authored_source?
           list << "Hand-registered — there is no .obf for it in db/seeds/board_builder_sets/fringe-pages, so a " \
                   "re-seed cannot heal it. Export it and commit the file."
+        end
+        if kind == :fringe && core_template.blank? && authored_source?
+          list << "No core set recorded — a build cannot tell whether this is sized for Core 60's 10-column grid " \
+                  "or Core 84's 12. Re-seed it, or export and commit it with an ext_saw_core_template."
+        end
+        if missing_variants.any? && authored_source?
+          list << "\"#{category}\" is authored for #{sources.variants_for(category).to_sentence} only — a " \
+                  "#{missing_variants.to_sentence} build clones a page sized for the other grid."
         end
       end
     end
@@ -207,5 +261,9 @@ module Boards
     end
 
     def pluralize_tiles(count) = "#{count} tile#{"s" if count != 1}"
+
+    # Two boards on one category are only a fault when they claim the SAME core
+    # set — one Core 60 template and one Core 84 template is the intended shape.
+    def variant_phrase = core_template.present? ? " on #{core_template}" : ""
   end
 end

@@ -113,7 +113,7 @@
   <table class="w-full text-sm">
     <thead>
       <tr style="border-bottom: 1px solid var(--border);">
-        <% ["Category", "Board", "Health", "Open", "Actions"].each do |label| %>
+        <% ["Category", "Core set", "Board", "Health", "Open", "Actions"].each do |label| %>
           <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
         <% end %>
       </tr>
@@ -124,6 +124,15 @@
           <td class="px-5 py-3 whitespace-nowrap">
             <%= link_to row[:category], admin_dashboard_board_builder_template_path(row[:board]),
                   class: "text-accent hover:underline font-medium" %>
+          </td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <% if row[:core_template].present? %>
+              <span class="text-[11px] font-medium px-2 py-0.5 rounded border admin-input text-t2">
+                <%= row[:core_template] %>
+              </span>
+            <% else %>
+              <span class="text-[11px] text-t3">—</span>
+            <% end %>
           </td>
           <td class="px-5 py-3 text-t2"><%= row[:board].name %></td>
           <td class="px-5 py-3"><%= render "health_badges", health: row[:health] %></td>
@@ -139,7 +148,7 @@
               <%= button_to "Unregister", unregister_admin_dashboard_board_builder_template_path(row[:board]),
                     method: :post,
                     class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
-                    form: { data: { turbo_confirm: "Unregister “#{row[:board].name}” as the #{row[:category]} template? Builds will pay for an AI-generated page for that category instead. The board stays, but is unpublished from the catalogue." } } %>
+                    form: { data: { turbo_confirm: "Unregister “#{row[:board].name}” as the #{[row[:core_template], row[:category]].compact.join(" ")} template? Builds will pay for an AI-generated page for that category instead. The board stays, but is unpublished from the catalogue." } } %>
             </div>
           </td>
         </tr>
@@ -169,11 +178,13 @@
     Or build the board first in <%= link_to "Board Builds", admin_dashboard_board_builds_path, class: "text-accent hover:underline" %>,
     then point a category at it here. Registering publishes the board, marks it predefined, and turns on
     <code>disable_scroll</code> — which locks it to one screen. Categories come from
-    <code>Boards::InterestCategories</code>: the planner can only ever select one of those.
+    <code>Boards::InterestCategories</code>: the planner can only ever select one of those. The core set says which
+    authored grid the page is sized for — Core 60 pages are 10 columns, Core 84 pages 12 — and a board of the wrong
+    width is refused, because a build widens the clone's grid without moving a tile.
   </p>
 
   <%= form_tag register_admin_dashboard_board_builder_templates_path, method: :post do %>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
       <div>
         <label class="block text-xs font-medium text-t2 mb-1" for="board_id">Board</label>
         <%= select_tag :board_id,
@@ -186,6 +197,13 @@
         <%= select_tag :category,
               options_for_select(selectable_categories, params[:category]),
               include_blank: "Pick a category…", id: "category",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="core_template">Core set</label>
+        <%= select_tag :core_template,
+              options_for_select(Boards::FringeTemplates::VARIANTS, params[:core_template]),
+              include_blank: "Pick a core set…", id: "core_template",
               class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
       </div>
       <div>
