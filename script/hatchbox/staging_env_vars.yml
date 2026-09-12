@@ -102,6 +102,14 @@ vars:
   # ---- SMTP (Gmail relay) ----
   - SMTP_USERNAME
   - SMTP_PASSWORD
+  # Recipients StagingMailInterceptor lets through. Staging blocks ALL mail by
+  # default; this is the escape hatch for testing a template end to end.
+  # Comma-separated exact addresses (brittany@speakanyway.com) or @domain
+  # suffixes (@speakanyway.com). Listed in `optional`, so an empty value skips
+  # rather than aborting the sync — but note that a SKIPPED var leaves whatever
+  # Hatchbox already holds. To actually turn the allowlist off, delete the key
+  # from the Hatchbox env panel, the same way CDN_HOST had to be.
+  - STAGING_MAIL_ALLOWLIST
 
   # ---- Plan limits ----
   - PREDICTIVE_DEFAULT_ID
@@ -126,3 +134,4 @@ vars:
 # rather than abort. Add a name here if it's truly optional for staging.
 optional:
   - RAILS_MASTER_KEY
+  - STAGING_MAIL_ALLOWLIST

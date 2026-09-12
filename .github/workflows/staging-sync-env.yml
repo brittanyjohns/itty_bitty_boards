@@ -114,6 +114,14 @@ jobs:
           # ---- SMTP (Gmail relay) ----
           SMTP_USERNAME:                    ${{ secrets.STAGING_SMTP_USERNAME }}
           SMTP_PASSWORD:                    ${{ secrets.STAGING_SMTP_PASSWORD }}
+          # Recipients staging is allowed to actually email. Staging blocks all
+          # mail by default (StagingMailInterceptor); this lets the persona test
+          # aliases through so invite / verification templates can be walked end
+          # to end. Every brittany+*@speakanyway.com address is ours, and
+          # E2eMailInterceptor still drops e2e+*@speakanyway.com in every
+          # environment. Narrow this to exact addresses if staging ever needs to
+          # avoid mailing a real person on the domain.
+          STAGING_MAIL_ALLOWLIST: "@speakanyway.com"
 
           # ---- Plan limits ----
           PREDICTIVE_DEFAULT_ID:            ${{ secrets.STAGING_PREDICTIVE_DEFAULT_ID }}

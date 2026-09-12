@@ -80,11 +80,19 @@ one-off handoff/scratch files stay untracked and local.
   every attachment part — inline ones included — so the logo showed up as a
   downloadable file. Transactional mail is therefore single-part `text/html`,
   so specs must read bodies as `(mail.html_part || mail).body`. **Staging
-  delivers no mail:** `StagingMailInterceptor` blocks every send when
-  `AppEnv.staging?`, so nothing exercised on staging reaches a real inbox. Set
+  blocks mail except to `@speakanyway.com`:** `StagingMailInterceptor` drops
+  every send when `AppEnv.staging?` unless the recipient matches
   `STAGING_MAIL_ALLOWLIST` (comma-separated exact addresses, or `@domain`
-  suffixes) to let specific recipients through when testing a template;
-  non-matching addresses are stripped from to/cc/bcc. `E2eMailInterceptor` is
+  suffixes); non-matching addresses are stripped from to/cc/bcc. That var is
+  set to `@speakanyway.com`, so **staging DOES now email the `brittany+*`
+  persona aliases** — deliberately, so invite and verification templates can be
+  walked end to end (they are all our own inboxes). Expect real mail when you
+  exercise a staging flow that sends to one. It lives in the manifest at
+  `script/hatchbox/staging_env_vars.yml` and is set as a literal in
+  `.github/workflows/staging-sync-env.yml`; because it is also listed under
+  `optional`, blanking the literal only makes the sync SKIP it, leaving
+  Hatchbox's existing value — to truly disable it, delete the key from the
+  Hatchbox env panel. `E2eMailInterceptor` is
   separate and pattern-scoped — it drops `e2e+*@speakanyway.com` in every
   environment. **A send leaves two possible signals and no more:**
   `MailDeliveryObserver` logs `[mail] delivered` (with the Message-ID) once
@@ -1659,7 +1667,9 @@ an explicit decision, not a drive-by edit.
   PostHog captures; staging excluded via `AppEnv.staging?`) so non-prod can't
   email or track real users. Transactional mail is covered by the same rule at
   the delivery layer: `StagingMailInterceptor` drops every message on staging
-  unless the recipient is in `STAGING_MAIL_ALLOWLIST`.
+  unless the recipient is in `STAGING_MAIL_ALLOWLIST`, which is currently set
+  to `@speakanyway.com` — so staging reaches our own persona aliases, and
+  nobody else.
 - **Rails creates marketplace DRAFTS and never activates one.**
   `Etsy::Client#create_listing` hardcodes `state: "draft"` and the client
   implements no activate call — the absence is the guarantee. Publishing a
