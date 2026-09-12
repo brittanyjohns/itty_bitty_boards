@@ -645,11 +645,19 @@ class ChildAccount < ApplicationRecord
   end
 
   # Register the communicator's current dashboard boards as team boards on
-  # `team`. This is the safety net behind non-destructive board removal: once
-  # a board is also a team board, `ChildBoardsController#destroy` detaches it
-  # from the dashboard instead of deleting it, and it stays available via the
-  # team for re-adding. Idempotent — `Team#add_board!` skips boards already on
-  # the team. Attributed to each board's owner (the original sharer).
+  # `team`, so the people on the team can see and re-add them. Idempotent —
+  # `Team#add_board!` skips boards already on the team. Attributed to each
+  # board's owner (the original sharer).
+  #
+  # This used to be described as "the safety net behind non-destructive board
+  # removal", which is no longer true and sent at least one reader chasing a
+  # data-loss path that does not exist: `ChildBoardsController#destroy`
+  # preserves the board unconditionally, sweeping only legacy `is_template`
+  # assignment clones. Team membership has nothing to do with whether a
+  # detached board survives.
+  #
+  # This runs at team creation and at the claim hand-off. Boards attached
+  # afterwards are registered by `ChildBoard#register_on_communicator_team`.
   def register_dashboard_boards_on_team!(team)
     return unless team
     child_boards.includes(:board).find_each do |cb|

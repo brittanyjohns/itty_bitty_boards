@@ -253,6 +253,18 @@ class API::TeamsController < API::ApplicationController
       invited_by_name: team.created_by&.display_name,
       role: membership.role,
       email: masked_email(invited_user.email),
+      # This invitee has never set a password, so the screen's two signed-out
+      # doors are both closed to them: sign-up answers `email_taken` (their own
+      # invited row holds the address) and sign-in has no password to accept.
+      # The membership already exists — `upsert_member!` creates it at invite
+      # time — so there is nothing here for them to accept either. Setting a
+      # password is the whole of what is left, and the frontend offers that
+      # instead of the two dead ends (#915).
+      #
+      # Safe on a public endpoint: it is derived from the token the caller
+      # already holds, names no address, and says only what that link's own
+      # landing page would have to tell them anyway.
+      needs_password: invited_user.invited_to_sign_up?,
     }, status: :ok
   end
 
@@ -276,7 +288,23 @@ class API::TeamsController < API::ApplicationController
       }, status: :forbidden
     end
 
+    already_accepted = membership.invitation_accepted_at.present?
     membership.accept_invitation!
+
+    # Only on the transition. `accept_invite_patch` is idempotent and a client
+    # may re-hit it (the link sits in an inbox), so notifying unconditionally
+    # would mail the owner every time someone reopened the email.
+    #
+    # Fail-soft: the acceptance has already been written, and a mail error must
+    # not turn a successful join into a 500 the invitee retries.
+    unless already_accepted
+      begin
+        BaseMailer.team_member_joined_email(current_user, team).deliver_later
+      rescue => e
+        Rails.logger.error("Could not send team_member_joined_email for team #{team.id}: #{e.message}")
+      end
+    end
+
     render json: team.show_api_view(current_user), status: :ok
   end
 

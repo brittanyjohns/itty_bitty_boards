@@ -78,6 +78,69 @@ any non-owner. Full matrix in issue #166. Server-side rules:
   `account_owner_ids` and per-member `is_account_owner` so the frontend
   can hide destructive controls.
 
+### Inviting an address that has no account (#915)
+
+`POST /api/teams/:id/invite` → `User.invite_new_user_to_team!` creates a real,
+**passwordless** `User` via devise_invitable's `invite!` (plus a Stripe
+customer), then `Team#upsert_member!` makes them a full member **immediately** —
+board-read access before they accept anything. There is no pending-invite
+record; "pending" is only `team_users.invitation_accepted_at IS NULL`, which no
+API view serializes (#493).
+
+**`BaseMailer#team_invitation_email` has two link shapes, and only one works for
+a passwordless account.** It chooses from `raw_invitation_token`, which
+devise_invitable populates only on the call that mints it:
+
+| Invitee | Link | Why |
+|---|---|---|
+| Never set a password | `/invite/token/<raw_token>?email=…&team_id=<id>` | set-password page; `team_id` lands them on the team afterwards |
+| Has a real account | `/accept-invite/<team_id>/<uuid>?email=…` | they sign in and accept |
+
+**Before #915 the second invite to the same address always fell through to
+`/accept-invite`**, where both signed-out doors are closed to a passwordless
+account: sign-up answers `email_taken` (that very row holds the address) and
+sign-in has no password to accept. So the invite path worked **exactly once per
+address**, and only if the invitee clicked the first email. It also fired for
+any address already stubbed by `email_signup`, the Stripe `customer.created`
+webhook, `User.create_from_email`, or `profiles#claim_placeholder`.
+
+`User.reissue_pending_invitation!` is the fix: gated on `invited_to_sign_up?`,
+it re-invites with `skip_invitation` so a fresh `raw_invitation_token` is in
+hand. Three things about it:
+
+- **Re-inviting ROTATES the token**, so a link in an older, still unused email
+  stops working. That is the ordinary meaning of resending an invitation — the
+  newest email wins — and is the deliberate **opposite** of
+  `webhooks_controller`'s `customer.created` handling, which must not rotate
+  because nobody asked it to (it is a background race against `email_signup`'s
+  own magic link, and `update_columns` is used there precisely to avoid
+  touching `invitation_token`). Here a human pressed Invite and a fresh email
+  goes out in the same call.
+- **It is gated on `invited_to_sign_up?`**, so an address with a real account is
+  untouched and keeps the `/accept-invite` link, which works fine for someone
+  who can sign in.
+- **It never fails the invite.** A raised error is logged and swallowed: without
+  a fresh token the mailer falls back to `/accept-invite`, which is where it was
+  before — degraded, not broken, and the preview's `needs_password` still
+  explains itself.
+
+**`GET /api/teams/:id/accept_invite` (the public preview) serializes
+`needs_password: invited_to_sign_up?`** so that fallback, and every link already
+sitting in an inbox, can say what is actually wrong. Safe on a public endpoint:
+derived from the token the caller already holds, names no address, and says only
+what the landing page would have to tell them anyway. The frontend reads it as
+`=== true` and offers a password reset instead of two doors that fail.
+
+**The long-term shape is a `team_invites` table** mirroring the communicator
+claim-link flow — `email`, `token`, `role`, `sent_at`, `accepted_at`,
+`expires_at`; a token on the record rather than a stub `User`, no Stripe
+customer for someone who never joins, and a genuine pending state the owner can
+see (which also closes #493). The three changes above are the cheap unblock, not
+the final shape.
+
+Frontend counterpart: itty-bitty-frontend#910 / PR #913 — the set-password page
+reads `team_id`, and the accept screen reads `needs_password`.
+
 ### The team board library — who may put a board on a team
 
 **Sharing a board with a team makes it READABLE by every member.**

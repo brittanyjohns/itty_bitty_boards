@@ -36,6 +36,22 @@ class ChildBoard < ApplicationRecord
   after_create :recalculate_boards_in_use
   after_destroy :recalculate_boards_in_use
 
+  # Keep the communicator's team in step with its dashboard.
+  #
+  # `ChildAccount#register_dashboard_boards_on_team!` only runs at `ensure_team!`
+  # (team creation) and at the claim hand-off, so a board attached AFTER the
+  # team already exists was never registered on it. That is the ordinary order
+  # of operations — create the communicator, then give them boards — which left
+  # `team.boards == []` permanently and the owner's team page reading
+  # "SHARED BOARDS 0" next to a starred, attached board (issue #914).
+  #
+  # It lives here rather than at the call sites because six separate paths
+  # create this row (the boards and child_accounts controllers, MySpeak
+  # onboarding, the Board Builder, SeededSetCloner and BoardTreeBuilder), and
+  # the seventh shouldn't have to remember. `Team#add_board!` is idempotent, so
+  # a board already on the team is a no-op.
+  after_create :register_on_communicator_team
+
   # Favoriting is what puts a board on the communicator's public MySpeak page,
   # and a board there has to be published or its card 404s on tap. The guard
   # lives here rather than at the call sites because three separate paths set
@@ -172,6 +188,28 @@ class ChildBoard < ApplicationRecord
   def recalculate_boards_in_use
     [board, original_board].compact.uniq.each(&:recalculate_in_use!)
   end
+
+  # Never fail the attach. Sharing a board with the team is a convenience for
+  # the people around the communicator; a communicator with no team, or a team
+  # write that raises, must not stop a board reaching the child's dashboard.
+  # Same posture as `BoardSnapshotService` and `snapshot_shared_boards_to_family`.
+  def register_on_communicator_team
+    team = child_account&.primary_team
+    return unless team && board
+
+    # Never a LEGACY per-communicator template clone. Those are invisible in
+    # their owner's board list and are hard-deleted by
+    # `Boards::AssignmentTemplateSweep` the moment nothing else references them
+    # — so putting one on the team shelf both shares a board the owner cannot
+    # see and makes the sweep spare a throwaway it is meant to collect.
+    return if board.is_template?
+
+    team.add_board!(board, board.user_id || created_by_id)
+  rescue => e
+    Rails.logger.error("Could not register child_board #{id} on team #{team&.id}: #{e.message}")
+    nil
+  end
+  private :register_on_communicator_team
 
   def publish_for_myspeak
     Boards::MySpeakPublisher.new(self).call

@@ -142,6 +142,55 @@ RSpec.describe "API::Teams permissions", type: :request do
       expect(User.find_by(email: "junk@example.com")).to be_nil
     end
 
+    # #915: the mailer picks its link shape from `raw_invitation_token`, which
+    # devise_invitable populates only on the call that mints it. Without a
+    # re-issue, every invite after the first sent a passwordless account to
+    # `/accept-invite`, where it can neither sign up (`email_taken` — its own
+    # row holds the address) nor sign in (there is no password). So the invite
+    # path worked exactly once per address. The link SHAPE that follows from
+    # the token is asserted in `spec/mailers/base_mailer_spec.rb`.
+    describe "inviting an address that has no account yet" do
+      it "mints a fresh invitation token on a SECOND invite" do
+        invite(team_creator, email: "brand.new@example.com", role: "member")
+        invited = User.find_by(email: "brand.new@example.com")
+        expect(invited.invited_to_sign_up?).to be(true)
+
+        expect {
+          invite(team_creator, email: "brand.new@example.com", role: "supervisor")
+        }.to change { invited.reload.invitation_token }
+      end
+
+      it "leaves the role change from the second invite in place" do
+        invite(team_creator, email: "brand.new@example.com", role: "member")
+        invite(team_creator, email: "brand.new@example.com", role: "supervisor")
+
+        invited = User.find_by(email: "brand.new@example.com")
+        expect(TeamUser.find_by(team: team, user: invited).role).to eq("supervisor")
+      end
+
+      it "does not rotate anything for an address that already has a password" do
+        # A real account signs in and accepts, so `/accept-invite` is correct
+        # for them and their invitation state must not be touched.
+        expect(stranger.invited_to_sign_up?).to be(false)
+
+        expect {
+          invite(team_creator, email: stranger.email, role: "member")
+        }.not_to change { stranger.reload.invitation_token }
+      end
+
+      it "never fails the invite when the re-issue cannot run" do
+        # Degraded, not broken: without a fresh token the mailer falls back to
+        # the `/accept-invite` link, where the preview's `needs_password` still
+        # explains itself. Refusing the invite would be strictly worse.
+        invite(team_creator, email: "brand.new@example.com", role: "member")
+        allow_any_instance_of(User).to receive(:invite!).and_raise("boom")
+
+        invite(team_creator, email: "brand.new@example.com", role: "supervisor")
+
+        expect(response).to have_http_status(:created)
+      end
+    end
+
     it "rejects an explicit admin invite with 422 (admin is owner-only)" do
       invite(team_creator, email: "wannabe@example.com", role: "admin")
       expect(response).to have_http_status(:unprocessable_content)
@@ -280,6 +329,26 @@ RSpec.describe "API::Teams permissions", type: :request do
       get "/api/teams/#{team.id}/accept_invite", params: { token: stranger.uuid }
       expect(response).to have_http_status(:not_found)
     end
+
+    # Both signed-out doors on the accept screen are closed to an invitee who
+    # has never set a password: sign-up answers `email_taken` (their own
+    # invited row holds the address) and sign-in has no password to accept.
+    # The frontend offers a password reset instead, on this flag (#915).
+    it "reports needs_password for an invitee who has never set one" do
+      invited = User.invite!(email: "brand.new@example.com") { |u| u.skip_invitation = true }
+      team.upsert_member!(invited, "member")
+
+      get "/api/teams/#{team.id}/accept_invite", params: { token: invited.uuid }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["needs_password"]).to be(true)
+    end
+
+    it "does not report needs_password for a member with a real account" do
+      get "/api/teams/#{team.id}/accept_invite", params: { token: supervisor.uuid }
+
+      expect(JSON.parse(response.body)["needs_password"]).to be(false)
+    end
   end
 
   describe "PATCH /api/teams/:id/accept_invite_patch" do
@@ -320,6 +389,54 @@ RSpec.describe "API::Teams permissions", type: :request do
             headers: auth_headers(no_membership)
       expect(response).to have_http_status(:not_found)
       expect(JSON.parse(response.body)["error"]).to eq("not_a_team_member")
+    end
+
+    # #914 — nothing in this controller told the owner anything, ever.
+    describe "notifying the team's owner" do
+      def accept_as(user)
+        patch "/api/teams/#{team.id}/accept_invite_patch",
+              params: { token: user.uuid },
+              headers: auth_headers(user)
+      end
+
+      it "emails the team's creator when someone joins" do
+        expect {
+          accept_as(supervisor)
+        }.to have_enqueued_mail(BaseMailer, :team_member_joined_email)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "only mails on the transition, not on a repeat accept" do
+        accept_as(supervisor)
+
+        expect {
+          accept_as(supervisor)
+        }.not_to have_enqueued_mail(BaseMailer, :team_member_joined_email)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "does not mail when the accept is refused" do
+        expect {
+          patch "/api/teams/#{team.id}/accept_invite_patch",
+                params: { token: supervisor.uuid },
+                headers: auth_headers(member)
+        }.not_to have_enqueued_mail(BaseMailer, :team_member_joined_email)
+
+        expect(response).to have_http_status(:forbidden)
+      end
+
+      # The acceptance is already written by the time the mail is attempted;
+      # a delivery error must not turn a successful join into a 500.
+      it "still accepts the invitation when the mail cannot be enqueued" do
+        allow(BaseMailer).to receive(:team_member_joined_email).and_raise(StandardError, "boom")
+
+        accept_as(supervisor)
+
+        expect(response).to have_http_status(:ok)
+        expect(TeamUser.find_by(team: team, user: supervisor).invitation_accepted_at).to be_present
+      end
     end
   end
 

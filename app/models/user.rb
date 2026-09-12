@@ -1371,9 +1371,35 @@ class User < ApplicationRecord
     self
   end
 
+  # Invite an address to a team, creating a passwordless account for it if one
+  # does not exist yet.
+  #
+  # The re-invite branch is load-bearing, and its absence was a dead end (#915).
+  # `BaseMailer#team_invitation_email` picks its link shape from
+  # `raw_invitation_token`, which devise_invitable only populates on the call
+  # that mints it — so a SECOND invite to a still-passwordless address fell
+  # through to the `/accept-invite/:team_id/:uuid` link, whose two signed-out
+  # doors both fail for that account: sign-up answers `email_taken` (this very
+  # row holds the address) and sign-in has no password to accept. The invite
+  # path therefore worked exactly once per address, and only if the invitee
+  # clicked the first email.
+  #
+  # Re-inviting ROTATES the invitation token, so a link in an older, still
+  # unused email stops working. That is the ordinary meaning of resending an
+  # invitation — the newest email wins — and it is the deliberate opposite of
+  # `webhooks_controller`'s `customer.created` handling, which must NOT rotate
+  # because nobody asked it to: that path is a background race against
+  # `email_signup`'s own magic link. Here a human pressed Invite and a fresh
+  # email goes out in the same call.
+  #
+  # Gated on `invited_to_sign_up?`, so an address that already has a real
+  # account is untouched and keeps the `/accept-invite` link, which works fine
+  # for someone who can sign in.
   def self.invite_new_user_to_team!(new_user_email, inviter, team, role)
     @user = User.find_by(email: new_user_email)
-    unless @user
+    if @user
+      @user = reissue_pending_invitation!(@user)
+    else
       @user = User.invite!(email: new_user_email) do |u|
         u.skip_invitation = true
       end
@@ -1384,6 +1410,29 @@ class User < ApplicationRecord
       @user.update!(stripe_customer_id: stripe_customer_id)
     end
     @user
+  end
+
+  # Mint a fresh invitation token for an account that has never set a password,
+  # so the team-invitation email can carry the set-password link. No-op for an
+  # account that can already sign in.
+  #
+  # `skip_invitation` suppresses devise_invitable's own invitation email — this
+  # app sends `BaseMailer#team_invitation_email` instead — while still taking
+  # the token-generating branch of `no_token_present_or_skip_invitation?`, which
+  # is what leaves `raw_invitation_token` readable on this instance.
+  def self.reissue_pending_invitation!(user)
+    return user unless user.invited_to_sign_up?
+
+    user.skip_invitation = true
+    user.invite!
+    user
+  rescue => e
+    # Never fail the invite over this. Without a fresh token the mailer falls
+    # back to the `/accept-invite` link, which is where it was before #915 —
+    # degraded, not broken, and the accept screen's `needs_password` branch
+    # still explains itself.
+    Rails.logger.error("[TeamInvite] could not reissue invitation for user #{user.id}: #{e.message}")
+    user
   end
 
   def send_partner_welcome_email
