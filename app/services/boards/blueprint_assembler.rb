@@ -18,7 +18,7 @@
 #   assembler.interests                   # => normalized list, for persisting
 #
 # Interest placement: each interest is routed into a matching category folder
-# the chosen template already has (apple -> Food, trains -> Play) via
+# the chosen template already has (apple -> Food, dinosaurs -> Play) via
 # Boards::InterestCategories. The curated core tiles are left untouched — an
 # interest only ever *adds* a tile to an existing folder's child board, deduped
 # against what's already there. Anything with no matching folder (grandma, a

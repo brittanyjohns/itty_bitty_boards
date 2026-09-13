@@ -27,6 +27,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Board Builder: vehicle interests now go to the Transportation page.**
+  "train", "car", "truck" and "bike" (and their plurals) were filed under Play,
+  even though every Transportation page already has a tile for each. Picking
+  one now routes it to Transportation. On Starter and Standard builds, where
+  Play is part of the core set and Transportation is not, a vehicle interest
+  now adds a Transportation page instead of landing on Play.
+- **Board Builder: "fire truck" and "thank you" no longer create duplicate
+  tiles.** The picker spelled them "firetruck" and "thankyou", while the
+  Transportation and Social pages spell them with a space, so picking one put a
+  second copy next to the page's own tile. A typed "firetruck" (no space) no
+  longer matches Transportation and goes to My Favorites.
 - **Team members who could already sign in were listed as "Invited — hasn't
   joined yet".** The roster only counted people who had clicked the link in
   the invite email. Anyone who reached the team by signing in, because they

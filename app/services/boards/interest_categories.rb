@@ -79,11 +79,10 @@ module Boards
         bakery
       ],
       "Play" => %w[
-        train trains dinosaur dinosaurs ball blocks block painting paint cars
-        car books book puzzle puzzles doll dolls lego legos bike swing slide
-        park game games drawing draw dance dancing bubbles animals truck trucks
-        robot robots superhero princess art color colors coloring outside run
-        toys pretend hide seek chase tag build climb
+        dinosaur dinosaurs ball blocks block painting paint books book puzzle
+        puzzles doll dolls lego legos swing slide park game games drawing draw
+        dance dancing bubbles animals robot robots superhero princess art color
+        colors coloring outside run toys pretend hide seek chase tag build climb
       ],
       "School" => %w[
         read write pencil homework class desk backpack recess test learn spell
@@ -108,9 +107,9 @@ module Boards
       # Multi-word entries are spelled exactly as the fringe templates author
       # them: a picked interest is deduped against the page's tiles by label.
       "Transportation" => %w[
-        bus plane boat walk ride drive ambulance helicopter
-        motorcycle subway taxi van wagon canoe ferry rocket sled tractor
-        trolley
+        train trains car cars truck trucks bike bus plane boat walk ride drive
+        ambulance helicopter motorcycle subway taxi van wagon canoe ferry
+        rocket sled tractor trolley
       ] + ["fire truck"],
     }.freeze
 

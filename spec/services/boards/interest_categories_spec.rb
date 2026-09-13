@@ -26,6 +26,15 @@ RSpec.describe Boards::InterestCategories, type: :service do
       expect(described_class.category_for("bus")).to eq("Transportation")
     end
 
+    # Every Transportation fringe template authors these as tiles, so a typed
+    # vehicle word belongs on that page, not on Play.
+    it "routes vehicle words to Transportation, never Play" do
+      %w[train trains car cars truck trucks bike].each do |word|
+        expect(described_class.category_for(word)).to eq("Transportation"), "#{word} should route to Transportation"
+        expect(described_class::KEYWORDS["Play"]).not_to include(word)
+      end
+    end
+
     it "matches multi-word interests spelled the way the fringe templates author them" do
       expect(described_class.category_for("fire truck")).to eq("Transportation")
       expect(described_class.category_for("Fire Truck")).to eq("Transportation")
