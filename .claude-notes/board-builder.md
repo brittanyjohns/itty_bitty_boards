@@ -58,15 +58,27 @@ picker grid is cheap and safe to serve even before symbols exist.
 `HOME` carries category folders `Food`, `Feelings`, `Play`; `DAILY_ROUTINE`
 carries `Bathroom`. Those folder labels are what interest routing targets.
 
-## Interest routing (apple → Food, trains → Play)
+## Interest routing (apple → Food, dinosaurs → Play)
 
 Each normalized interest is routed by `Boards::InterestCategories.category_for`
 into a matching **category folder the chosen template actually has**:
 
 - The lexicon (`InterestCategories::KEYWORDS`) is keyed by folder label —
-  `"Food" => [apple, juice, snack…]`, `"Play" => [trains, dinosaurs, ball…]`,
+  `"Food" => [apple, juice, snack…]`, `"Play" => [dinosaurs, ball, blocks…]`,
   etc. It's small and hand-curated for v1; extend the word lists as real
   usage shows what kids ask for.
+- **Keep each list aligned with that category's fringe templates.** A word a
+  template authors as a tile belongs in that category, which is why vehicle
+  words (train, car, truck, bike and plurals) are Transportation, not Play. On
+  a Starter/Standard build that means a vehicle interest plans a Transportation
+  page instead of landing on the core set's Play page, and on the legacy `HOME`
+  template (no Transportation folder) it falls through to My Favorites.
+- **Multi-word words are spelled exactly as the templates author them**
+  (`"fire truck"`, `"thank you"`). Placement dedupes an interest against a
+  page's tiles by exact label, so a squashed spelling adds a second tile.
+  `interest_categories_spec.rb` fails if a word is a template's multi-word
+  label with the spaces removed. Matching is not space-insensitive, so a typed
+  `firetruck` falls through to My Favorites.
 - Routing is **dynamic by template**: an interest only lands in a folder if
   its category label matches a folder present in the resolved blueprint. A
   word mapped to `Bathroom` still falls through on `HOME` (no Bathroom there).
@@ -739,7 +751,7 @@ Three seams (input contract tightens left→right):
 - `Boards::BlueprintAssembler` — the resolution + routing seam. Resolves every
   label to an `image_id` (create-if-missing for new interest words, blank art
   for v1), then **routes interests into category folders** via
-  `Boards::InterestCategories` (apple→Food, trains→Play). Routing is dynamic
+  `Boards::InterestCategories` (apple→Food, dinosaurs→Play). Routing is dynamic
   by template (only into a folder the chosen template has); anything unmatched
   falls through to one appended **"My Favorites"** folder, deduped, nothing
   dropped. Interests are normalized + capped at 20. When the frontend sends

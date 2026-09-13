@@ -79,11 +79,10 @@ module Boards
         bakery
       ],
       "Play" => %w[
-        train trains dinosaur dinosaurs ball blocks block painting paint cars
-        car books book puzzle puzzles doll dolls lego legos bike swing slide
-        park game games drawing draw dance dancing bubbles animals truck trucks
-        robot robots superhero princess art color colors coloring outside run
-        toys pretend hide seek chase tag build climb
+        dinosaur dinosaurs ball blocks block painting paint books book puzzle
+        puzzles doll dolls lego legos swing slide park game games drawing draw
+        dance dancing bubbles animals robot robots superhero princess art color
+        colors coloring outside run toys pretend hide seek chase tag build climb
       ],
       "School" => %w[
         read write pencil homework class desk backpack recess test learn spell
@@ -91,10 +90,10 @@ module Boards
         geography
       ],
       "Social" => %w[
-        hi bye please thankyou sorry share turn wait mine yours stop go come
+        hi bye please sorry share turn wait mine yours stop go come
         look help want need like welcome together alone invite join agree
         disagree ask tell promise
-      ],
+      ] + ["thank you"],
       "Sports" => %w[
         swim kick throw catch jump race soccer basketball baseball football
         tennis gymnastics skateboard scooter yoga stretch wrestle hockey
@@ -105,11 +104,13 @@ module Boards
         camera remote charge keyboard mouse printer internet website email
         message text photo selfie
       ],
+      # Multi-word entries are spelled exactly as the fringe templates author
+      # them: a picked interest is deduped against the page's tiles by label.
       "Transportation" => %w[
-        bus plane boat walk ride drive ambulance firetruck helicopter
-        motorcycle subway taxi van wagon canoe ferry rocket sled tractor
-        trolley
-      ],
+        train trains car cars truck trucks bike bus plane boat walk ride drive
+        ambulance helicopter motorcycle subway taxi van wagon canoe ferry
+        rocket sled tractor trolley
+      ] + ["fire truck"],
     }.freeze
 
     # Reverse index word -> category, built once at load for O(1) lookup.
