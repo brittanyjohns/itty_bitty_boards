@@ -765,27 +765,27 @@ Boards beyond that limit become
   board's `api_view` exposes `can_edit`, `locked`, and `lock_reason`
   (`Board#lock_reason_for` — `free_plan_board_limit` for Free, `plan_board_limit`
   for a limited paid plan like Clinician) for the frontend.
-- **The editable set generalizes to the board limit.** *(Written when Free's
-  limit was 1; Free is now 5 and the editable set is sized by
-  `editable_slot_count` = `max(board_limit, EDITABLE_BOARD_FLOOR)` — see
-  CLAUDE.md.)* A limit-1 account keeps the
-  single board the user designates (`editable_board_id`, the make_editable pick +
-  cooldown below); a higher-limit locked plan (**Clinician**, 100) **pins that
-  same designated board first**, then fills the remaining slots with its
-  most-recently-updated owned boards (favorites first,
-  `User#top_editable_board_ids`) — active work stays editable, stale boards lock.
+- **The editable set is `editable_slot_count` boards** =
+  `max(board_limit, EDITABLE_BOARD_FLOOR)` — 5 on Free, 100 on Clinician. Every
+  locked plan fills it the same way: the designated board
+  (`editable_board_id`, the make_editable pick + cooldown below) is **pinned
+  first**, then the remaining slots go to the most-recently-updated owned boards
+  (favorites first, `User#top_editable_board_ids`) — active work stays
+  editable, stale boards lock.
   Full paid plans (Basic/Pro/licenses/Partner Pro) are never board-locked; their
   limit only gates creation.
 - "Over their board limit" is computed by `User#countable_board_count` (own,
-  non-predefined, non-`builder_child` boards) vs `User#board_limit`. This is the
+  non-predefined boards) vs `User#board_limit`. This is the
   **single source of truth** for board counting — `User#at_board_limit?` wraps
   it (admins never limited), and every creation gate (create, clone,
   `create_from_template`, `import_obf`, menus, generated-board claim,
   Board Builder) plus the `can_create_boards` api_view flag and this read-only
-  rule all route through it. Board Builder sub-boards are excluded so a built
-  tree counts as one (see `.claude-notes/board-builder.md`).
-- The user picks which single board keeps full edit access via
-  `PATCH /api/boards/:id/make_editable`. The selection is persisted on
+  rule all route through it. A Board Builder set counts page by page — every
+  board in it costs a slot (#796; see
+  `.claude-notes/board-limit-consolidation-handoff.md`).
+- The user picks which board is PINNED into the editable set via
+  `PATCH /api/boards/:id/make_editable` — it is kept first, and the rest of
+  `editable_slot_count` fills by recency. The selection is persisted on
   `users.editable_board_id`. If none is set, `effective_editable_board_id`
   falls back to a favorite or most-recently-updated board so a freshly-
   downgraded user is never fully locked out. The lookup that honors an explicit

@@ -2300,10 +2300,11 @@ class User < ApplicationRecord
     board_groups.where(predefined: [false, nil]).count
   end
 
-  # The single board a limited-plan user keeps full edit access to. Returns
-  # the board they designated; if that's missing, falls back to a favorite or
-  # most-recently-updated owned board so a freshly-downgraded user is never
-  # locked out of everything before they pick one.
+  # The board PINNED first into a locked user's editable set (the rest of
+  # `editable_slot_count` fills by recency). Returns the board they designated;
+  # if that's missing, falls back to a favorite or most-recently-updated owned
+  # board so a freshly-downgraded user always has a deterministic pin before
+  # they pick one.
   def effective_editable_board_id
     return @effective_editable_board_id if defined?(@effective_editable_board_id)
 

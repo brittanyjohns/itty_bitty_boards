@@ -44,10 +44,11 @@ RSpec.describe "Board read-only on downgrade", type: :model do
         expect(fresh.board_editable?(stalest)).to be true
       end
 
-      it "locks nothing while at or under the floor, even though the plan allows one board" do
-        # The floor is what makes Free behave like every other locked plan
-        # instead of collapsing to a single editable board. Creation is still
-        # capped at 1 — this only governs what stays writable.
+      it "locks nothing while the user holds no more than EDITABLE_BOARD_FLOOR boards" do
+        # editable_slot_count is max(board_limit, EDITABLE_BOARD_FLOOR), so a
+        # Free user holding exactly the floor's worth of boards keeps all of
+        # them writable. Creation is still capped by board_limit — this only
+        # governs what stays writable.
         quiet = create(:free_user)
         few = Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: quiet) }
         fresh = User.find(quiet.id)
