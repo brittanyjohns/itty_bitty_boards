@@ -340,23 +340,26 @@ class BoardImage < ApplicationRecord
     !display_image_url.nil? && display_image_url.empty?
   end
 
-  # The cover of the board a FOLDER tile opens, when the tile should show it
-  # in place of its own art — or nil to keep the tile's normal picture.
+  # The rendered preview of the board this tile links to, while the tile's
+  # "Use board preview" toggle is on — or nil to keep the tile's own picture.
   #
-  # Resolved at READ time and never written to the tile, so it follows the
-  # linked board as its cover is regenerated, and a non-nil display_image_url
-  # stays the pin. Only a tile with no picture of its own qualifies: nil, or
-  # still the library art `set_defaults` snapshotted at create (the same
-  # "still the default" test Images::TileArtFanout uses). A chosen picture
-  # wins, and a blank stays blank. `door_tile?`, not `predictive_board_id`:
-  # a predictive WORD tile points at a generated board too, and keeps its word.
-  def linked_board_cover_url
+  # An explicit per-tile choice (`data["use_board_preview"]`, set from the tile
+  # modal), so it wins over whatever picture the tile holds. It is resolved at
+  # READ time and never written to the tile: switching it off brings the tile's
+  # own picture straight back, and it follows the linked board's preview as that
+  # is regenerated. The rendered preview only, never the board's custom cover.
+  # A blank ("Hide pictures") stays blank, and a board with no rendered preview
+  # yet leaves the tile on its own art.
+  def linked_board_preview_url
+    return nil unless use_board_preview?
     return nil if predictive_board_id.blank? || predictive_board_id == board_id
-    return nil unless door_tile?
     return nil if picture_hidden?
-    return nil unless display_image_url.nil? || display_image_url == image&.src_url
 
-    predictive_board&.display_image_url.presence
+    predictive_board&.preview_image_url.presence
+  end
+
+  def use_board_preview?
+    ActiveModel::Type::Boolean.new.cast((data || {})["use_board_preview"]) == true
   end
 
   # Is this tile still waiting on a picture it will eventually get? The half of
