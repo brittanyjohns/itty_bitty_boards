@@ -7,6 +7,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **A folder tile now shows the cover of the board it opens.** A tile that
+  links to another board used to show only its library symbol, so "Food" and
+  "Play" looked like any other word. It now shows that board's cover, the same
+  picture as its card, so you can see which page a tap opens. The cover updates
+  whenever that board's cover is regenerated. A picture you chose or uploaded
+  for the tile is kept, a tile with pictures hidden stays blank, and predictive
+  word tiles keep their own picture.
 - **The team roster now says whether an invite email actually arrived.** A row
   reading "Invited — hasn't joined yet" covered three very different things: the
   email was delivered and the person hasn't got round to it, the email **failed**
