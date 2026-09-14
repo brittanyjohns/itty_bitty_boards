@@ -52,6 +52,36 @@ RSpec.describe "plans:clear_stamped_board_limits", type: :task do
     expect(user.reload.settings).not_to have_key("board_limit")
   end
 
+  # The backfill for the Free 1 -> 5 change. Once Free's constant is no longer
+  # 1, a legacy stamp of 1 only gets cleared because 1 is listed as a pre-#796
+  # Free default — not because it matches the current constant. If it were
+  # reported as kept_as_override instead, the users who already hit the old
+  # wall would never see the new limit.
+  describe "a Free user carrying the legacy stamp of 1" do
+    [1, "1"].each do |legacy_stamp|
+      it "clears a #{legacy_stamp.class} stamp and resolves to Free's current limit" do
+        user = stamped("free", legacy_stamp)
+
+        output = run_task
+
+        expect(user.reload.settings).not_to have_key("board_limit")
+        expect(User.find(user.id).board_limit).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+        expect(output).to include("cleared=1")
+        expect(output).to include("kept_as_override=0")
+      end
+    end
+
+    it "counts it as would-clear in a dry run" do
+      user = stamped("free", 1)
+
+      output = run_task(dry_run: true)
+
+      expect(user.reload.settings["board_limit"]).to eq(1)
+      expect(output).to include("would clear=1")
+      expect(output).to include("kept_as_override=0")
+    end
+  end
+
   it "keeps a value no setter could have written, and says so" do
     user = stamped("basic", 250)
 

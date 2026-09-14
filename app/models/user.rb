@@ -408,7 +408,10 @@ class User < ApplicationRecord
 
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
-    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
+    # 5, not 4: the Quick Start builder set (StarterBlueprints::HOME) is 4
+    # boards plus the "My Favorites" page off-topic interests add. Read once at
+    # class load, so an ENV change needs a reboot to take effect.
+    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 5).to_i,
     "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
   }.freeze

@@ -29,12 +29,61 @@ RSpec.describe Boards::BuilderSetSize do
       expect(described_class.worst_case(:Extended)).to eq(described_class.worst_case("extended"))
     end
 
-    # A legacy `template:` build (a robust-set slug or a StarterBlueprints key)
-    # never reaches StructurePlanner, so there is no level to size it by.
-    it "falls back to the roomiest level for a legacy template key" do
-      expect(described_class.worst_case("home")).to eq(described_class.legacy_worst_case)
+    it "keeps the shipped level sizes at 23 / 27 / 35" do
+      expect(described_class.worst_case("starter")).to eq(23)
+      expect(described_class.worst_case("standard")).to eq(27)
+      expect(described_class.worst_case("extended")).to eq(35)
+    end
+
+    # A StarterBlueprints tree is fully known up front, so it is sized from the
+    # tree itself: its root, one board per folder tile, plus the "My Favorites"
+    # page BlueprintAssembler#route_interests! can append. Falling back to the
+    # roomiest level here is what made the 4-board HOME set cost 35 slots.
+    describe "blueprint templates" do
+      it "sizes Quick Start (home) at 5: root + Food + Feelings + Play + My Favorites" do
+        expect(described_class.worst_case("home")).to eq(5)
+      end
+
+      it "sizes daily_routine at 3: root + Bathroom + My Favorites" do
+        expect(described_class.worst_case("daily_routine")).to eq(3)
+      end
+
+      it "is case- and symbol-insensitive for a blueprint key too" do
+        expect(described_class.worst_case(:HOME)).to eq(5)
+      end
+
+      it "derives the count from the tree, so a new blueprint sizes itself" do
+        tree = {
+          name: "Nested",
+          tiles: [
+            { label: "hi" },
+            { label: "A", children: { name: "A", tiles: [
+              { label: "a1" },
+              { label: "B", children: { name: "B", tiles: [{ label: "b1" }] } },
+            ] } },
+            { label: "C", children: { name: "C", tiles: [{ label: "c1" }] } },
+          ],
+        }
+        stub_const("Boards::StarterBlueprints::TEMPLATES", { "nested" => tree })
+
+        # root + A + B (nested) + C + favorites
+        expect(described_class.worst_case("nested")).to eq(5)
+      end
+    end
+
+    # A robust-set slug clones a whole authored tree whose size isn't knowable
+    # without the seed, so it keeps the roomy bound.
+    it "falls back to the roomiest level for a robust-set slug or an unknown key" do
       expect(described_class.worst_case("core-60")).to eq(described_class.legacy_worst_case)
+      expect(described_class.worst_case("core-84")).to eq(described_class.legacy_worst_case)
+      expect(described_class.worst_case("core-60")).to eq(35)
+      expect(described_class.worst_case("core-84")).to eq(35)
       expect(described_class.worst_case(nil)).to eq(described_class.legacy_worst_case)
+    end
+
+    it "does not resolve a robust-set slug as a blueprint" do
+      expect(Boards::StarterBlueprints.tree_for("core-60")).to be_nil
+      expect(Boards::StarterBlueprints.tree_for("core-84")).to be_nil
     end
 
     it "legacy_worst_case is the max over the shipped levels" do
@@ -89,6 +138,25 @@ RSpec.describe Boards::BuilderSetSize do
       fresh = User.find(user.id)
       expect(fresh.countable_board_count).to be > 1
       expect(fresh.countable_board_count).to be <= described_class.worst_case("extended")
+    end
+
+    # Quick Start is the one set a Free account can hold, and it is sized at 5
+    # rather than 4 precisely because off-topic interests add "My Favorites".
+    # Build that exact path and prove the reservation holds.
+    it "bounds what a Quick Start (home) build with off-topic interests persists" do
+      post "/api/v1/board_builder",
+           params: { communicator_id: communicator.id, level: "home",
+                     interests: ["grandma", "backpack"] }.to_json,
+           headers: headers
+      expect(response).to have_http_status(:created)
+      BuildBoardSetJob.drain
+
+      root = Board.find(JSON.parse(response.body)["id"])
+      expect(root.board_images.map(&:display_label)).to include("My Favorites")
+
+      fresh = User.find(user.id)
+      expect(fresh.countable_board_count).to eq(5)
+      expect(fresh.countable_board_count).to be <= described_class.worst_case("home")
     end
   end
 end

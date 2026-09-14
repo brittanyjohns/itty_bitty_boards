@@ -1186,7 +1186,10 @@ RSpec.describe "API::Boards", type: :request do
   # Rails.cache so a user mashing the create button isn't spammed.
   describe "POST /api/boards triggers the Mailchimp hit_limit journey" do
     let(:free_user) { create(:free_user) }
-    let!(:existing_board) { create(:board, user: free_user) }
+    # Fill Free's whole limit so the next create trips the cap.
+    let!(:existing_boards) do
+      create_list(:board, User::FREE_PLAN_LIMITS["board_limit"], user: free_user)
+    end
     let(:memory_cache) { ActiveSupport::Cache::MemoryStore.new }
 
     before do

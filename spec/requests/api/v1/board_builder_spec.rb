@@ -80,14 +80,46 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
       body = JSON.parse(response.body)
       levels = body["levels"]
-      expect(levels.size).to eq(3)
+      expect(levels.size).to eq(4)
       keys = levels.map { |l| l["key"] }
-      expect(keys).to eq(%w[starter standard extended])
+      expect(keys).to eq(%w[home starter standard extended])
       levels.each do |level|
         expect(level).to have_key("name")
         expect(level).to have_key("description")
         expect(level).to have_key("fringe_page_range")
       end
+    end
+
+    # Quick Start is the smallest option and the only one a Free account can
+    # hold, so it leads the list; every option carries the number of board
+    # slots the create gate will reserve, from the same source as the gate.
+    it "lists Quick Start first and gives every level a board_cost from BuilderSetSize" do
+      get "/api/v1/board_builder/templates", headers: headers
+
+      levels = JSON.parse(response.body)["levels"]
+      expect(levels.first["key"]).to eq("home")
+      expect(levels.first["name"]).to eq("Quick Start")
+      expect(levels.first["grid_rows"]).to eq(4)
+      expect(levels.first["grid_columns"]).to eq(4)
+
+      levels.each do |level|
+        expect(level["board_cost"]).to eq(Boards::BuilderSetSize.worst_case(level["key"])),
+                                       "#{level["key"]} board_cost"
+      end
+      expect(levels.to_h { |l| [l["key"], l["board_cost"]] })
+        .to eq("home" => 5, "starter" => 23, "standard" => 27, "extended" => 35)
+    end
+
+    it "still recommends by communicator profile, never Quick Start by plan" do
+      free = create(:free_user)
+      free_comm = create(:child_account, user: free,
+                                         details: { "aac_level" => "emerging", "age_band" => "4-6" })
+
+      get "/api/v1/board_builder/templates",
+          params: { communicator_id: free_comm.id },
+          headers: auth_headers(free)
+
+      expect(JSON.parse(response.body)["recommended_level"]).to eq("starter")
     end
 
     it "includes grid dimensions in levels" do
@@ -667,10 +699,11 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
     # Boards::BuilderSetSize.worst_case(level) slots up front.
     context "board-limit gate (the whole set has to fit)" do
       let(:legacy_required) { Boards::BuilderSetSize.legacy_worst_case }
+      let(:home_required) { Boards::BuilderSetSize.worst_case("home") }
 
       it "returns 422, builds nothing, and enqueues no job when there isn't room for the set" do
-        # Free's cap is 1 board, so a set can never fit — the Board Builder is a
-        # paid feature by arithmetic, not by a separate flag.
+        # A limit of 1 can't hold even the 5-slot Quick Start set — the gate is
+        # arithmetic, not a separate flag.
         user.update!(settings: (user.settings || {}).merge("board_limit" => 1))
         jobs_before = BuildBoardSetJob.jobs.size
 
@@ -687,12 +720,12 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(body["error_code"]).to eq("board_limit_reached")
         expect(body["limit"]).to eq(1)
         expect(body["count"]).to eq(0)
-        expect(body["required"]).to eq(legacy_required)
+        expect(body["required"]).to eq(home_required)
         expect(body["remaining"]).to eq(1)
       end
 
       it "refuses when there is SOME room but not enough for the whole set" do
-        user.update!(settings: (user.settings || {}).merge("board_limit" => legacy_required))
+        user.update!(settings: (user.settings || {}).merge("board_limit" => home_required))
         create(:board, user: user, name: "In the way")
 
         expect {
@@ -702,7 +735,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         }.not_to change { Board.count }
 
         expect(response).to have_http_status(:unprocessable_content)
-        expect(JSON.parse(response.body)["remaining"]).to eq(legacy_required - 1)
+        expect(JSON.parse(response.body)["remaining"]).to eq(home_required - 1)
       end
 
       it "is level-sensitive — a starter set fits where an extended one doesn't" do
@@ -756,14 +789,14 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(fresh.countable_board_count).to eq(fresh.boards.where(predefined: false).count)
         expect(fresh.countable_board_count).to be > 1
         # The bound the gate reserved has to actually hold.
-        expect(fresh.countable_board_count).to be <= Boards::BuilderSetSize.legacy_worst_case
+        expect(fresh.countable_board_count).to be <= home_required
       end
 
       it "still lets a capped user REPLACE, because the destroy frees the room first" do
         # Room for exactly one set. Stacking a second needs another full set's
         # worth and is refused; replacing destroys the first one before the gate
         # runs, which is the only move a capped user has.
-        user.update!(settings: (user.settings || {}).merge("board_limit" => legacy_required))
+        user.update!(settings: (user.settings || {}).merge("board_limit" => home_required))
 
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
@@ -814,6 +847,86 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(set_boards.count { |b| fresh.board_editable?(b) }).to eq(slots)
         expect(set_boards.count { |b| !fresh.board_editable?(b) }).to be > 0
         expect(root.reload.viewable_by?(fresh)).to be(true)
+      end
+    end
+
+    # Quick Start is the one builder set a Free account can hold: 5 slots
+    # against Free's limit of 5. No plan flag gates it — these examples use the
+    # REAL plan limits (no board_limit override), so they fail if either the
+    # limit or the set's sizing drifts.
+    context "Quick Start (level: home) against real plan limits" do
+      let(:free) { create(:free_user) }
+
+      def build_as(owner, level:, **extra)
+        comm = create(:child_account, user: owner)
+        post "/api/v1/board_builder",
+             params: { communicator_id: comm.id, level: level }.merge(extra).to_json,
+             headers: auth_headers(owner).merge("Content-Type" => "application/json")
+      end
+
+      it "gives Free 5 boards" do
+        expect(User.find(free.id).board_limit).to eq(5)
+      end
+
+      it "lets a Free user with 0 boards build it: 201, job enqueued with the home key" do
+        expect { build_as(free, level: "home") }.to change { BuildBoardSetJob.jobs.size }.by(1)
+
+        expect(response).to have_http_status(:created)
+        expect(BuildBoardSetJob.jobs.last["args"][2]).to eq("home")
+        expect(Board.find(JSON.parse(response.body)["id"]).name).to eq("Home")
+      end
+
+      it "refuses a Free user with 1 board: needs 5, has 4 left (422)" do
+        create(:board, user: free)
+
+        expect { build_as(free, level: "home") }.not_to change { Board.count }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        body = JSON.parse(response.body)
+        expect(body["error_code"]).to eq("board_limit_reached")
+        expect(body["limit"]).to eq(5)
+        expect(body["count"]).to eq(1)
+        expect(body["required"]).to eq(5)
+        expect(body["remaining"]).to eq(4)
+      end
+
+      it "refuses a Free user with 0 boards a Starter set, quoting 23" do
+        expect { build_as(free, level: "starter") }.not_to change { Board.count }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        body = JSON.parse(response.body)
+        expect(body["error_code"]).to eq("board_limit_reached")
+        expect(body["required"]).to eq(23)
+        expect(body["message"]).to include("needs room for 23 boards")
+      end
+
+      it "lets a Basic user build it" do
+        basic = create(:user, plan_type: "basic")
+
+        build_as(basic, level: "home")
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "still answers 422 unknown_template for a nonsense level" do
+        expect { build_as(free, level: "nonsense") }.not_to change { Board.count }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to eq("unknown_template")
+      end
+
+      it "fits a Free account end to end, off-topic interests and My Favorites included" do
+        build_as(free, level: "home", interests: ["grandma"])
+        expect(response).to have_http_status(:created)
+        BuildBoardSetJob.drain
+
+        root = Board.find(JSON.parse(response.body)["id"])
+        expect(root.status).to eq("complete")
+        expect(root.board_images.map(&:display_label)).to include("My Favorites")
+
+        fresh = User.find(free.id)
+        expect(fresh.countable_board_count).to eq(5)
+        expect(fresh.countable_board_count).to be <= fresh.board_limit
       end
     end
 

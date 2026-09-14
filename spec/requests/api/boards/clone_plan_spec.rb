@@ -72,7 +72,7 @@ RSpec.describe "API::Boards clone_plan", type: :request do
     # earlier instead of after the user has confirmed.
     it "returns the board-limit 422 when the user has no room at all" do
       source = create(:board, user: owner, published: true)
-      create(:board, user: cloner) # Free, board_limit 1 → at limit
+      create_list(:board, User::FREE_PLAN_LIMITS["board_limit"], user: cloner) # Free, at limit
 
       get "/api/boards/#{source.id}/clone_plan", headers: auth_headers(cloner)
 

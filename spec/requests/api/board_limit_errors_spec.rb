@@ -8,9 +8,12 @@ require "rails_helper"
 # human sentences the frontend renders verbatim, and flipping one to a code
 # would be a silent break.
 RSpec.describe "board-limit 422 contract", type: :request do
-  # Free, board_limit 1, already at it.
+  # Free, already at its board limit. Derived from the constant so moving Free's
+  # limit never needs this file.
+  let(:free_limit) { User::FREE_PLAN_LIMITS["board_limit"] }
   let(:user) { create(:user) }
   let!(:existing_board) { create(:board, user: user) }
+  let!(:filler_boards) { create_list(:board, free_limit - 1, user: user) }
   let(:headers) { auth_headers(user) }
 
   def body
@@ -23,8 +26,8 @@ RSpec.describe "board-limit 422 contract", type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(body["error_code"]).to eq("board_limit_reached")
-      expect(body["limit"]).to eq(1)
-      expect(body["count"]).to eq(1)
+      expect(body["limit"]).to eq(free_limit)
+      expect(body["count"]).to eq(free_limit)
       expect(body["remaining"]).to eq(0)
       expect(body["required"]).to be >= 1
       expect(body["message"]).to be_present
@@ -40,7 +43,7 @@ RSpec.describe "board-limit 422 contract", type: :request do
 
     it "keeps its human `error` sentence" do
       make_request
-      expect(body["error"]).to match(/Maximum number of boards reached \(1\/1\)/)
+      expect(body["error"]).to match(/Maximum number of boards reached \(#{free_limit}\/#{free_limit}\)/)
     end
   end
 
@@ -82,7 +85,7 @@ RSpec.describe "board-limit 422 contract", type: :request do
     # concern now, so its body matches the others.
     it "reports the same counts the boards path does" do
       make_request
-      expect(body["error"]).to match(/Maximum number of boards reached \(1\/1\)/)
+      expect(body["error"]).to match(/Maximum number of boards reached \(#{free_limit}\/#{free_limit}\)/)
     end
   end
 
@@ -108,7 +111,7 @@ RSpec.describe "board-limit 422 contract", type: :request do
 
     it "reserves room for the WHOLE set, not one board" do
       make_request
-      expect(body["required"]).to eq(Boards::BuilderSetSize.legacy_worst_case)
+      expect(body["required"]).to eq(Boards::BuilderSetSize.worst_case("home"))
     end
   end
 

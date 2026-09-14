@@ -5,8 +5,8 @@ require "rails_helper"
 RSpec.describe "API::Boards create_from_template board-limit gate", type: :request do
   describe "POST /api/boards/create_from_template" do
     it "returns 422 and builds nothing when the user is already at their limit" do
-      user = create(:user) # Free, board_limit 1
-      create(:board, user: user) # at limit
+      user = create(:user) # Free
+      create_list(:board, User::FREE_PLAN_LIMITS["board_limit"], user: user) # at limit
 
       expect {
         post "/api/boards/create_from_template",

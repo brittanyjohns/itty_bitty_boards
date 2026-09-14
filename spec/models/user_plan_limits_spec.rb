@@ -46,12 +46,19 @@ RSpec.describe User, "plan limits", type: :model do
   end
 
   describe "#countable_board_count / #at_board_limit? (board-limit counting)" do
-    let(:user) { create(:free_user) } # board_limit 1
+    let(:user) { create(:free_user) }
+    let(:free_limit) { User::FREE_PLAN_LIMITS["board_limit"] }
 
     it "counts the user's own non-predefined boards" do
-      create(:board, user: user)
-      expect(user.countable_board_count).to eq(1)
+      create_list(:board, free_limit, user: user)
+      expect(user.countable_board_count).to eq(free_limit)
       expect(user.at_board_limit?).to be(true)
+    end
+
+    it "gives Free 5 boards by default" do
+      # The Quick Start builder set is 5 boards (4 + "My Favorites"), so Free is
+      # 5, not 4. ENV-overridable, read once at boot.
+      expect(User::FREE_PLAN_LIMITS["board_limit"]).to eq(5)
     end
 
     it "excludes predefined boards from the count" do
@@ -68,7 +75,7 @@ RSpec.describe User, "plan limits", type: :model do
 
     it "exposes can_create_boards as the inverse of at_board_limit?" do
       expect(user.can_create_boards).to be(true)
-      create(:board, user: user)
+      create_list(:board, free_limit, user: user)
       # Fresh instance — countable_board_count memoizes, matching the controller.
       expect(User.find(user.id).can_create_boards).to be(false)
     end

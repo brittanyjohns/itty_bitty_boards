@@ -136,7 +136,7 @@ RSpec.describe "API::Boards clone", type: :request do
     # limit still gets the 422 upgrade message and no board.
     it "still returns 422 at the board limit" do
       source = create(:board, user: owner, published: true)
-      create(:board, user: cloner) # Free, board_limit 1 → at limit
+      create_list(:board, User::FREE_PLAN_LIMITS["board_limit"], user: cloner) # Free, at limit
 
       expect {
         post "/api/boards/#{source.id}/clone", headers: auth_headers(cloner)
