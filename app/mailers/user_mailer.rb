@@ -235,10 +235,11 @@ class UserMailer < BaseMailer
 
   # Confirmation that a paid subscription was canceled (Stripe fired
   # customer.subscription.deleted and the user was downgraded to Free).
-  # Explains that boards over the Free limit are now read-only (the editable
-  # set is `editable_slot_count` boards, led by the one auto-pinned by
-  # pin_default_editable_board!) and offers a re-subscribe CTA. Not sent to
-  # admins.
+  # Explains that an account over its plan's board limit may have read-only
+  # boards: `editable_slot_count` boards (max of board_limit and
+  # EDITABLE_BOARD_FLOOR) stay editable, led by the pinned board
+  # (pin_default_editable_board! or the user's make_editable pick), then the
+  # most recently updated ones. Offers a re-subscribe CTA. Not sent to admins.
   def subscription_canceled_email(user)
     @user = user
     @user_name = @user.name
@@ -284,8 +285,9 @@ class UserMailer < BaseMailer
 
   # Sent when a 5-Year license reaches its expiry and the account is dropped to
   # Free (PlanExpiryJob → Billing::PlanTransitions.apply_free_plan). Mirrors
-  # subscription_canceled_email: nothing is deleted, boards over the Free limit
-  # become read-only (one stays editable), and there's a renew CTA.
+  # subscription_canceled_email: nothing is deleted, an account over its board
+  # limit may have read-only boards (recent ones stay editable, up to
+  # User#editable_slot_count), and there's a renew CTA.
   def license_ended_email(user)
     @user = user
     @user_name = @user.name

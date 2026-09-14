@@ -69,6 +69,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The subscription-canceled and license-ended emails no longer say only one
+  board stays editable.** They said the Free plan keeps "one board" editable,
+  which was never true: boards only go read-only once an account is over its
+  plan's board limit, and then the board you picked plus your most recently
+  updated boards stay editable. The emails now say that, in
+  English and Spanish, and match the read-only notice on the board itself. The
+  license-ended email also had no Spanish version at all and arrived in English
+  for Spanish-speaking accounts; it now has one.
 - **Board Builder: vehicle interests now go to the Transportation page.**
   "train", "car", "truck" and "bike" (and their plurals) were filed under Play,
   even though every Transportation page already has a tile for each. Picking
