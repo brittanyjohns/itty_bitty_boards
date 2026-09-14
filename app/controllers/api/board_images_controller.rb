@@ -78,7 +78,7 @@ class API::BoardImagesController < API::ApplicationController
 
     @board_image.data = updatedData if updatedData
     @board_image.status = "updated"
-    if @board_image.update(board_image_params)
+    if @board_image.update(without_linked_board_preview(board_image_params))
       @board = @board_image.board
       @board.broadcast_board_update!
       render json: @board_image.api_view(current_user)
@@ -731,6 +731,18 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   # Only allow a list of trusted parameters through.
+  # A board payload serializes a "Use board preview" tile's RESOLVED picture —
+  # the linked board's rendered preview — and the tile editor posts the whole
+  # tile back on save. Writing that URL would pin the preview into the tile's
+  # own picture, so switching the toggle off would no longer restore it.
+  # BoardImage#linked_board_preview_url is read-time only; keep it that way.
+  def without_linked_board_preview(attrs)
+    preview_url = @board_image.predictive_board&.preview_image_url
+    return attrs if preview_url.blank?
+
+    attrs.reject { |key, value| %w[display_image_url src].include?(key.to_s) && value == preview_url }
+  end
+
   def board_image_params
     params.require(:board_image).permit(:board_id, :predictive_board_id,
                                         :image_id, :position, :voice, :bg_color, :border_color,

@@ -565,11 +565,13 @@ an explicit decision, not a drive-by edit.
   printables without any of them knowing the feature exists — which is exactly
   why it must not become a second `data[...]` flag. One read-time layer sits in
   FRONT of that chain in the two tile serializers:
-  `BoardImage#linked_board_cover_url` shows a FOLDER tile (`door_tile?`) the
-  cover of the board it opens, but only while the tile's picture is `nil` or
-  still the library art `set_defaults` snapshotted, so a chosen picture and a
-  blank both win. It is never written to the tile, so it tracks cover
-  regenerations; preload `predictive_board: CARD_PRELOADS` wherever it runs.
+  `BoardImage#linked_board_preview_url` shows a tile whose owner switched on
+  "Use board preview" (`data["use_board_preview"]`, set from the tile modal)
+  the RENDERED preview of the board it links to — never that board's custom
+  cover. It is an explicit choice, so it wins over the tile's own picture, but a
+  blank still stays blank. It is never written to the tile, so switching it off
+  restores the tile's picture untouched and it tracks preview regenerations;
+  preload `predictive_board: CARD_PRELOADS` wherever it runs.
 - **`BoardImage#set_defaults` SEEDS a picture, it never overwrites one — a
   non-nil `display_image_url` is the pin, and a copy has to look like its
   source.** The `before_create` cannot tell an authored URL from a defaulted

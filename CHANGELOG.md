@@ -21,13 +21,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
-- **A folder tile now shows the cover of the board it opens.** A tile that
-  links to another board used to show only its library symbol, so "Food" and
-  "Play" looked like any other word. It now shows that board's cover, the same
-  picture as its card, so you can see which page a tap opens. The cover updates
-  whenever that board's cover is regenerated. A picture you chose or uploaded
-  for the tile is kept, a tile with pictures hidden stays blank, and predictive
-  word tiles keep their own picture.
+- **A tile that opens another board can show that board's preview.** Turn on
+  **Use board preview** in the tile's settings, beside "View linked board", and
+  the tile shows the linked board's rendered preview instead of its own
+  picture. It follows the preview as that board changes, and switching it off
+  brings the tile's own picture back. A tile with pictures hidden stays blank.
+  This replaces the automatic folder-tile cover from the previous release, which
+  changed tiles nobody asked to change.
 - **Free accounts get 5 boards and can run the Board Builder.** The Free board
   limit goes from 1 to 5, and the Board Builder picker gains a **Quick Start**
   option — one home board plus Food, Feelings and Play — listed first. It is
