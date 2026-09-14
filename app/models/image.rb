@@ -1276,34 +1276,40 @@ class Image < ApplicationRecord
   # .where(image_id: id)` query below — this image's UserDocs are sorted the
   # same way (by UserDoc#updated_at, matching the original `.order(:updated_at)`
   # SQL) before mapping to their docs, so the resolved doc is identical to
-  # what the per-image query would have produced. Every other branch is
-  # untouched, and default nil preserves exact existing behavior.
+  # what the per-image query would have produced.
+  #
+  # Only ever returns a doc the viewer may see (Doc.for_user / Doc#visible_to?):
+  # their own, or library art. It feeds serializers, tile fallbacks and the
+  # shared src_url, so a fallback that hands out "whichever doc is newest" —
+  # the admin shortcut and the unscoped tail this used to end in — shows one
+  # user's private picture to everyone else. With no viewer it resolves as the
+  # image's owner, which for a library image is library art only.
   def display_doc(viewing_user = nil, preloaded_user_docs: nil)
     viewing_user ||= self.user
     if viewing_user
-      if viewing_user.id == User::DEFAULT_ADMIN_ID
-        return docs.last if docs.any?
-      end
-      # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
       user_docs = if preloaded_user_docs
           Array(preloaded_user_docs[id])
         else
           viewing_user.user_docs.includes(:doc).where(image_id: id)
         end
-      docs = user_docs.sort_by(&:updated_at).map(&:doc)
-      return docs.last if docs.any?
-      # if viewing_user.id == self.user_id
-      #   return nil
-      # end
-
-      docs = self.docs.for_user(viewing_user)
-      last_current_doc = docs.current.last
-
-      return last_current_doc if last_current_doc
-      return docs.last if docs.any?
+      # A pick is a pointer, and one aimed at a doc its user could not
+      # otherwise see must not become a way to see it.
+      picks = user_docs.sort_by(&:updated_at).map(&:doc).compact.select { |doc| doc.visible_to?(viewing_user) }
+      return picks.last if picks.any?
     end
-    base_doc = self.docs.includes(image_attachment: :blob).last
-    base_doc
+
+    visible = self.docs.for_user(viewing_user)
+    visible.current.last || visible.last
+  end
+
+  # The docs a viewer may list. Admins see every doc — the gallery is how they
+  # moderate — but that is a LISTING only: display_doc still resolves them to
+  # library art. Filters the loaded association so a preloaded caller pays no
+  # query per image.
+  def visible_docs_for(viewing_user)
+    return docs.to_a if viewing_user&.admin?
+
+    docs.select { |doc| doc.visible_to?(viewing_user) }
   end
 
   # The authored casing, falling back to the matching key. The fallback covers
@@ -1425,7 +1431,7 @@ class Image < ApplicationRecord
       label: localized_display_label(viewer_lang),
       user_id: user_id,
       obf_id: obf_id,
-      docs: docs.map(&:api_view),
+      docs: visible_docs_for(viewing_user).map(&:api_view),
       matching_viewer_images: matching_viewer_images(viewing_user).map { |img| img.with_display_doc(viewing_user) },
       user_board_images: user_board_imgs.map { |board_image| { id: board_image.id, board_id: board_image.board_id, name: board_image.board.name } },
       # predictive_board_id: predictive_board_id,

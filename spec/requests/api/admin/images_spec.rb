@@ -118,6 +118,17 @@ RSpec.describe "API::Admin::Images", type: :request do
       expect(image.reload.docs.where(current: true)).to be_empty
       expect(image.reload.src_url).to be_present
     end
+
+    # src_url is shared; the newest doc on a library image can be a user's
+    # private upload, which must never become everyone's picture.
+    it "never falls back to a user's private doc" do
+      image.set_library_default_doc!(doc_b, actor: admin)
+      create(:doc, documentable: image, user: user, original_image_url: "https://cdn.example.com/private.webp")
+
+      delete "/api/admin/images/#{image.id}/default_doc", headers: auth_headers(admin)
+
+      expect(image.reload.src_url).to eq("https://cdn.example.com/b.webp")
+    end
   end
 
   describe "DELETE a doc" do
@@ -139,6 +150,16 @@ RSpec.describe "API::Admin::Images", type: :request do
     it "re-resolves the default when the deleted doc was it" do
       image.set_library_default_doc!(doc_b, actor: admin)
       image.update(src_url: doc_b.tile_url)
+
+      delete "/api/admin/images/#{image.id}/docs/#{doc_b.id}", headers: auth_headers(admin)
+
+      expect(image.reload.src_url).to eq("https://cdn.example.com/a.webp")
+    end
+
+    it "never re-resolves the default to a user's private doc" do
+      image.set_library_default_doc!(doc_b, actor: admin)
+      image.update(src_url: doc_b.tile_url)
+      create(:doc, documentable: image, user: user, original_image_url: "https://cdn.example.com/private.webp")
 
       delete "/api/admin/images/#{image.id}/docs/#{doc_b.id}", headers: auth_headers(admin)
 

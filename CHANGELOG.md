@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security
+
+- **Your pictures stay yours.** A picture you upload, pick, or generate for a
+  word is private to your account; only the shared library art is visible to
+  everyone. Several fallbacks could hand another account's picture to you —
+  or yours to them — when a word had no library art: in the picture gallery, as
+  a board tile's default, as the picture new boards start from, and when a
+  regenerated board's art was saved as library art. Those paths now only ever
+  show your own pictures and library art. Pictures already copied onto other
+  boards before this fix are reported for review rather than changed
+  automatically.
+- The docs endpoints no longer let a signed-in user read, list, move, or pin a
+  picture that belongs to someone else.
+
 ### Added
 
 - **The team roster now says whether an invite email actually arrived.** A row

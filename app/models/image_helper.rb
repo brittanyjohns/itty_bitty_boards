@@ -74,9 +74,11 @@ module ImageHelper
       # Image is shared, so a save by someone who may not edit it (a user
       # picking a Google result for a word the library already has) must not
       # move it; their own pick is the UserDoc the caller writes. Only fill it
-      # when it is blank, i.e. the Image had no default at all.
+      # when it is blank, i.e. the Image had no default at all — and only with a
+      # doc the Image's own owner could see, or a stranger's pick becomes the
+      # picture every future tile snapshots.
       self.fanout_actor_id = user_id
-      if src_url.blank?
+      if src_url.blank? && doc.visible_to?(user)
         self.update(status: "finished", src_url: doc.tile_url)
       else
         self.update(status: "finished")

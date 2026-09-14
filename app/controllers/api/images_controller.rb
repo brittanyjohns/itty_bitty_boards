@@ -67,9 +67,9 @@ class API::ImagesController < API::ApplicationController
     if @current_user.admin?
       @docs = UserDoc.where(image_id: @images.pluck(:id)).includes(:doc, :image).order(created_at: :desc).page params[:page]
     else
-      @docs = UserDoc.where(image_id: @images.pluck(:id)).for_user(@current_user).includes(:doc, :image).order(created_at: :desc).page params[:page]
-
-      # @docs = @current_user.docs.where(documentable_type: "Image").order(created_at: :desc).page params[:page]
+      # UserDoc has no `.for_user` scope, so this branch raised for every
+      # non-admin. A user's picks are their own rows.
+      @docs = UserDoc.where(image_id: @images.pluck(:id), user_id: @current_user.id).includes(:doc, :image).order(created_at: :desc).page params[:page]
     end
 
     render json: { docs: @docs.map(&:api_view) }
@@ -776,7 +776,9 @@ class API::ImagesController < API::ApplicationController
       # cascade from a surprising place. fanout_actor_id scopes it either way.
       if @image.src_url == doc_url && current_user.can_edit?(@image)
         @image.docs.reload
-        replacement = @image.docs.where.not(id: @doc.id).last&.tile_url
+        # Resolved as the image's owner, never "newest doc": the next doc could
+        # be another user's private upload, and src_url is shared.
+        replacement = @image.docs.where.not(id: @doc.id).for_user(@image.user).last&.tile_url
         @image.fanout_actor_id = current_user.id
         @image.update(src_url: replacement)
       end

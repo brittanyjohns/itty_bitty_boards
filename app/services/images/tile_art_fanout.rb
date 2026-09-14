@@ -15,7 +15,9 @@ module Images
   #   a shared library Image (rather than on a specific board being edited) may
   #   touch a tile only when all of:
   #     1. the tile's board is owned by the ACTING user, or by
-  #        User::DEFAULT_ADMIN_ID. No actor => admin-owned boards only.
+  #        User::DEFAULT_ADMIN_ID when the actor is an admin or there is no
+  #        actor (a system write). No actor => admin-owned boards only. A
+  #        regular user never reaches an admin board: their picture is private.
   #     2. the tile has no picture of its own: display_image_url is nil, or is
   #        exactly the URL being replaced (it was still tracking the old
   #        default). A tile pointing anywhere else was deliberately chosen.
@@ -118,9 +120,19 @@ module Images
     def actor_owns?(board_image)
       owner_id = board_image.board&.user_id
       return false if owner_id.nil?
-      return true if owner_id == User::DEFAULT_ADMIN_ID
+      return actor_id.present? && owner_id == actor_id unless owner_id == User::DEFAULT_ADMIN_ID
 
-      actor_id.present? && owner_id == actor_id
+      # Admin boards are the catalogue and template boards other users browse
+      # and clone, so only LIBRARY art may land on them: a system write (no
+      # actor) or an admin's. A regular user's URL is their own private picture
+      # (Doc#visible_to?), and filling an admin tile with it publishes it.
+      actor_id.nil? || actor_admin?
+    end
+
+    def actor_admin?
+      return @actor_admin if defined?(@actor_admin)
+
+      @actor_admin = User.find_by(id: actor_id)&.admin? || false
     end
 
     # A HEAD request per tile, so it only runs when a caller explicitly asked to
