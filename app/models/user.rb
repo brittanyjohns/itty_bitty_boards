@@ -2486,13 +2486,15 @@ class User < ApplicationRecord
   #
   # The floor makes Free behave the way every other locked plan already did.
   # Clinician (limit 100) keeps its hundred most-recent boards editable; Free
-  # kept exactly one, purely because its limit happens to be 1. Now both fill
-  # by the same rule, and Free stops being a special case.
+  # kept exactly one, purely because its limit was then 1. Now both fill by the
+  # same rule, and Free stops being a special case. Free's limit is now 5, equal
+  # to the floor, so for Free the floor is inert unless an admin override sets a
+  # lower `board_limit`.
   #
-  # It grants nothing: you still cannot CREATE a second board on Free, the
-  # pricing page's "1 board" is still true, and `at_board_limit?` is untouched.
-  # ENV-overridable like the plan limits themselves, so it can be retuned from
-  # Hatchbox without a deploy.
+  # It grants nothing: creation is still capped by `board_limit` (the pricing
+  # page's board count stays true), and `at_board_limit?` is untouched.
+  # ENV-overridable like the plan limits themselves, but read once at class
+  # load, so a Hatchbox env change needs a reboot (deploy or restart).
   EDITABLE_BOARD_FLOOR = ENV.fetch("EDITABLE_BOARD_FLOOR", 5).to_i
 
   # The number of editable slots this user gets while locked — their plan's
