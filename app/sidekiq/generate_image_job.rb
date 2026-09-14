@@ -30,9 +30,12 @@ class GenerateImageJob
       image.save! if image.changed?
 
       # A raw admin prompt and a menu dish's own prompt are complete as written.
+      # And only a word whose picture IS the communicator takes the likeness —
+      # "dog" and "she" get ordinary art, unstamped.
       likeness = if board && !raw_prompt && !image.menu?
           Images::LikenessResolver.for(board: board)
         end
+      likeness = nil unless likeness&.applies_to?(image, user_input: image.image_prompt)
 
       composed_prompt = resolve_prompt(
         image: image, user_input: image_prompt, board: board, user: user,
