@@ -410,6 +410,8 @@ RSpec.describe UserMailer, type: :mailer do
         expect(body).not_to include("one board")
         expect(body).to include("más tableros de los que permite tu plan")
         expect(body).to include("tableros actualizados más recientemente siguen siendo editables")
+        # "casillas" is the app's Spanish word for a board tile.
+        expect(body).to include("casillas siguen reproduciendo audio")
       end
     end
   end
