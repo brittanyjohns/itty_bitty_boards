@@ -2685,7 +2685,9 @@ class Board < ApplicationRecord
   def api_view_for_native_grid(viewing_user = nil, show_hidden = false, voice_to_play = nil)
     viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
     schedule_translations_for(viewer_lang) if viewer_lang.present?
-    @board_images = show_hidden ? board_images.includes(:image) : visible_board_images.includes(:image)
+    # predictive_board covers are preloaded for BoardImage#linked_board_cover_url.
+    tile_preloads = [:image, { predictive_board: CARD_PRELOADS }]
+    @board_images = show_hidden ? board_images.includes(tile_preloads) : visible_board_images.includes(tile_preloads)
     {
       id: id,
       board_type: board_type,
@@ -2723,7 +2725,8 @@ class Board < ApplicationRecord
         @board_image = board_image
 
         @image = @board_image.image
-        @full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
+        # A folder tile on library-default art shows the board it opens.
+        @full_src_url = @board_image.linked_board_cover_url || @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
 
         is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -2840,9 +2843,9 @@ class Board < ApplicationRecord
     @board_settings = settings || {}
     freeze_parent_board = @board_settings["freeze_board"] == true
     if show_hidden
-      @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
+      @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, { predictive_board: CARD_PRELOADS }).distinct
     else
-      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
+      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, { predictive_board: CARD_PRELOADS }).distinct
     end
     current_colors = @board_images.map { |bi| bi.bg_color }.flatten.compact.uniq
     # Not gated on the stored in_use flag — it can lag the join rows.
@@ -2955,7 +2958,8 @@ class Board < ApplicationRecord
       images: @board_images.map do |board_image|
         @board_image = board_image
         @image = @board_image.image
-        @full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
+        # A folder tile on library-default art shows the board it opens.
+        @full_src_url = @board_image.linked_board_cover_url || @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
 
         is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)

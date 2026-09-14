@@ -340,6 +340,25 @@ class BoardImage < ApplicationRecord
     !display_image_url.nil? && display_image_url.empty?
   end
 
+  # The cover of the board a FOLDER tile opens, when the tile should show it
+  # in place of its own art — or nil to keep the tile's normal picture.
+  #
+  # Resolved at READ time and never written to the tile, so it follows the
+  # linked board as its cover is regenerated, and a non-nil display_image_url
+  # stays the pin. Only a tile with no picture of its own qualifies: nil, or
+  # still the library art `set_defaults` snapshotted at create (the same
+  # "still the default" test Images::TileArtFanout uses). A chosen picture
+  # wins, and a blank stays blank. `door_tile?`, not `predictive_board_id`:
+  # a predictive WORD tile points at a generated board too, and keeps its word.
+  def linked_board_cover_url
+    return nil if predictive_board_id.blank? || predictive_board_id == board_id
+    return nil unless door_tile?
+    return nil if picture_hidden?
+    return nil unless display_image_url.nil? || display_image_url == image&.src_url
+
+    predictive_board&.display_image_url.presence
+  end
+
   # Is this tile still waiting on a picture it will eventually get? The half of
   # "board ready" that has nothing to do with words or layout (#824).
   #
