@@ -450,14 +450,15 @@ class Image < ApplicationRecord
   # envelope inside a new one. The full prompt is composed here, at call time,
   # and recorded on the resulting doc.
   #
-  # `likeness_fingerprint:` marks a picture drawn with a communicator likeness.
-  # It belongs to the tiles it was drawn for, so it gets no UserDoc pick, never
-  # becomes the library default, and is never fanned out to other tiles.
-  def create_image_doc(user_id = nil, prompt_to_use = nil, transparent: true, likeness_fingerprint: nil)
+  # `likeness:` (an Images::LikenessResolver::Result) marks a picture drawn with
+  # a communicator likeness and tags it with the traits used. It is pickable
+  # but never a default, so it gets no automatic UserDoc pick, never becomes
+  # the library default, and is never fanned out to other tiles.
+  def create_image_doc(user_id = nil, prompt_to_use = nil, transparent: true, likeness: nil)
     user_id ||= self.user_id
     prompt = prompt_to_use.presence || default_image_prompt(image_prompt, transparent: transparent)
 
-    response = create_image(user_id, prompt, transparent: transparent, likeness_fingerprint: likeness_fingerprint)
+    response = create_image(user_id, prompt, transparent: transparent, likeness: likeness)
     Rails.logger.error "No response for image creation" unless response
     if response
       doc = response
@@ -1236,6 +1237,9 @@ class Image < ApplicationRecord
   def set_library_default_doc!(doc, actor:)
     return false unless actor && actor.can_edit?(self)
     return false unless doc && doc.documentable_type == "Image" && doc.documentable_id == id
+    # A likeness picture is one look: pickable from the library, never what
+    # everyone falls back to for the word.
+    return false if doc.likeness?
 
     transaction do
       docs.where.not(id: doc.id).where(current: true).update_all(current: false)
@@ -1245,7 +1249,12 @@ class Image < ApplicationRecord
   end
 
   def update_to_src_url!(viewing_user)
-    new_url = display_tile_url(viewing_user)
+    doc = display_doc(viewing_user)
+    # A user may pick a library likeness picture for themselves; src_url is
+    # shared and snapshotted onto every future tile, so it never follows one.
+    return if doc.nil? || doc.likeness?
+
+    new_url = doc.tile_url
     if new_url.blank? || new_url == src_url
       return
     end
@@ -1299,15 +1308,18 @@ class Image < ApplicationRecord
           viewing_user.user_docs.includes(:doc).where(image_id: id)
         end
       # A pick is a pointer, and one aimed at a doc its user could not
-      # otherwise see must not become a way to see it.
+      # otherwise see must not become a way to see it. A LIBRARY likeness doc
+      # is a deliberate choice from the shared library and resolves; a private
+      # one never gets a pick of its own (Doc#update_user_docs skips it).
       picks = user_docs.sort_by(&:updated_at).map(&:doc).compact
-        .select { |doc| doc.visible_to?(viewing_user) && !doc.likeness? }
+        .select { |doc| doc.visible_to?(viewing_user) && (!doc.likeness? || doc.shared_likeness?) }
       return picks.last if picks.any?
     end
 
-    # Likeness docs are excluded even for their owner: a picture drawn to look
-    # like one communicator must not become the word's picture on the owner's
-    # other boards (a sibling's, say). Tiles reach them directly instead.
+    # Likeness docs are excluded from the fallback for everyone, owner and
+    # library alike: a picture drawn to look like one communicator must not
+    # become the word's picture on a board nobody picked it for (a sibling's,
+    # say). Tiles reach them directly, or through an explicit pick above.
     visible = self.docs.for_user(viewing_user).where(Doc::NOT_LIKENESS_SQL)
     visible.current.last || visible.last
   end

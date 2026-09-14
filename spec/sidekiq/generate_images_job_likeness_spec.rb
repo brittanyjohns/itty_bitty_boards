@@ -14,7 +14,10 @@ RSpec.describe GenerateImagesJob, "communicator likeness", type: :job do
   def capture_generation
     captured = {}
     expect_any_instance_of(Image).to receive(:create_image_doc) do |_img, user_id, prompt, **kwargs|
-      captured.merge!(user_id: user_id, prompt: prompt, fingerprint: kwargs[:likeness_fingerprint])
+      captured.merge!(
+        user_id: user_id, prompt: prompt,
+        fingerprint: kwargs[:likeness]&.fingerprint, likeness: kwargs[:likeness],
+      )
       nil
     end
     yield
@@ -29,6 +32,11 @@ RSpec.describe GenerateImagesJob, "communicator likeness", type: :job do
     expect(result[:prompt]).to include("If the picture shows a person, draw that person as a child with dark brown skin and black braided hair")
     expect(result[:fingerprint]).to eq(communicator.likeness.fingerprint)
     expect(result[:user_id]).to eq(owner.id)
+    # The tag the save stamps: the look and age band, not the communicator.
+    expect(Doc.likeness_data(result[:likeness])).to include(
+      Doc::LIKENESS_TRAITS_KEY => communicator.likeness.to_h,
+      Doc::LIKENESS_AGE_BAND_KEY => "7-10",
+    )
   end
 
   it "uses a communicator named in the options for a board that isn't attached" do

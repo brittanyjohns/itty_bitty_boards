@@ -777,8 +777,9 @@ class API::ImagesController < API::ApplicationController
       if @image.src_url == doc_url && current_user.can_edit?(@image)
         @image.docs.reload
         # Resolved as the image's owner, never "newest doc": the next doc could
-        # be another user's private upload, and src_url is shared.
-        replacement = @image.docs.where.not(id: @doc.id).for_user(@image.user).last&.tile_url
+        # be another user's private upload, and src_url is shared. Never a
+        # likeness picture either: pickable from the library, not a default.
+        replacement = @image.docs.where.not(id: @doc.id).for_user(@image.user).where(Doc::NOT_LIKENESS_SQL).last&.tile_url
         @image.fanout_actor_id = current_user.id
         @image.update(src_url: replacement)
       end

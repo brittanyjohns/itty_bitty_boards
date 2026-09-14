@@ -118,6 +118,27 @@ RSpec.describe CommunicatorLikeness do
     end
   end
 
+  describe "#label" do
+    it "is nil when blank" do
+      expect(described_class.from_hash({}).label).to be_nil
+    end
+
+    it "names the look from the picker's labels, with the age band last" do
+      expect(described_class.from_hash(full).label(locale: :en, age_band: "4-6")).to eq(
+        "Skin tone: Medium brown · Hair color: Black · Hair style: Curly · " \
+        "Looks like a: Girl / woman · Also include: Glasses, Wheelchair · 4–6 years",
+      )
+    end
+
+    it "is localized" do
+      expect(described_class.from_hash("skin_tone" => "brown").label(locale: :es)).to eq("Tono de piel: Morena")
+    end
+
+    it "skips an unknown age band" do
+      expect(described_class.from_hash("skin_tone" => "brown").label(locale: :en, age_band: "2-3")).to eq("Skin tone: Brown")
+    end
+  end
+
   describe "phrases and labels" do
     it "has a prompt phrase for every token that describes a look" do
       expect(described_class::SKIN_PHRASES.keys).to match_array(described_class::FIELDS["skin_tone"])

@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Personalized library pictures are shared, and say who they look like.**
+  Pictures SpeakAnyWay's library draws to match a communicator's look (skin
+  tone, hair, glasses, a wheelchair, and so on) now appear in every account's
+  picture picker, tagged with the look they were drawn with, so anyone can
+  choose one. They never replace a word's default picture on a board unless
+  someone picks them. Pictures you draw for your own communicators stay private
+  to your account.
+
 ### Security
 
 - **Your pictures stay yours.** A picture you upload, pick, or generate for a

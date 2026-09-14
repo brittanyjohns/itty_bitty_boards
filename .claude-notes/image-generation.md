@@ -151,11 +151,22 @@ turban, kippah, braces, AAC device). `CommunicatorLikeness`
   Image with the same owner and fingerprint (`Image#likeness_doc_for`) and
   points the tile at it for free. `regenerate_images` never reuses — asking for
   a new picture means a new picture.
-- **The doc.** `create_image_doc(likeness_fingerprint:)` stamps
-  `data["likeness_fingerprint"]`. That doc is not library even when admin-owned,
-  is never returned by `display_doc` (even for its owner), gets no `UserDoc`,
-  never becomes `current`, is never fanned out, and `replace_current` skips it.
-  It is still LISTED for its owner (`visible_docs_for`).
+- **The doc.** `create_image_doc(likeness:)` takes the resolver `Result` and
+  the save merges `Doc.likeness_data`: `data["likeness_fingerprint"]` (reuse),
+  plus the TAG — `data["likeness_traits"]` (the allowlisted tokens) and
+  `data["likeness_age_band"]`. Never a communicator id or name. `Doc#likeness_tag`
+  serializes it as `{traits, age_band, label}` on `api_view`/`list_api_view`
+  (`CommunicatorLikeness#label`, from the picker's locale labels); docs generated
+  before the tag carry only the fingerprint and serialize `likeness: nil`.
+- **Pickable, never a default.** An ADMIN-owned likeness doc is library
+  (`Doc#library?`, `for_user`) — listed for every account, and a user's explicit
+  `UserDoc` pick of it resolves (`Doc#shared_likeness?`). Nothing resolves to one
+  on its own: `display_doc`'s fallback filters `Doc::NOT_LIKENESS_SQL`,
+  `set_library_default_doc!` refuses it, `update_to_src_url!` won't follow a
+  pick of it, the `src_url` fallbacks in the admin/images controllers filter it,
+  it gets no automatic `UserDoc`, is never fanned out, `replace_current` skips
+  it, and `LikenessArt.art_present?` doesn't count it as the word's art. A
+  likeness doc owned by anyone else is private and listed for its owner only.
 - **Known gap:** a later single-tile generate on a builder sub-page has no
   communicator to name, so it resolves only through the board's own override.
 

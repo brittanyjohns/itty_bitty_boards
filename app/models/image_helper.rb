@@ -78,7 +78,7 @@ module ImageHelper
       # doc the Image's own owner could see, or a stranger's pick becomes the
       # picture every future tile snapshots.
       self.fanout_actor_id = user_id
-      if src_url.blank? && doc.visible_to?(user)
+      if src_url.blank? && doc.visible_to?(user) && !doc.likeness?
         self.update(status: "finished", src_url: doc.tile_url)
       else
         self.update(status: "finished")
@@ -92,7 +92,7 @@ module ImageHelper
     doc
   end
 
-  def create_image(user_id = nil, image_prompt = nil, transparent: true, likeness_fingerprint: nil)
+  def create_image(user_id = nil, image_prompt = nil, transparent: true, likeness: nil)
     return if Rails.env.test?
 
     user_id ||= self.user_id
@@ -124,7 +124,7 @@ module ImageHelper
         "quality" => response[:quality],
         "background" => response[:background],
       },
-      likeness_fingerprint: likeness_fingerprint,
+      likeness: likeness,
     )
   end
 
@@ -136,7 +136,7 @@ module ImageHelper
     source_type = "OpenAI",
     output_format = "webp",
     generation_metadata: {},
-    likeness_fingerprint: nil
+    likeness: nil
   )
     return if Rails.env.test?
 
@@ -175,7 +175,7 @@ module ImageHelper
         output_format: format,
         content_type: content_type,
       }.merge(generation_metadata.compact)
-        .merge(likeness_fingerprint.present? ? { Doc::LIKENESS_KEY => likeness_fingerprint } : {}),
+        .merge(Doc.likeness_data(likeness)),
     )
 
     doc.image.attach(

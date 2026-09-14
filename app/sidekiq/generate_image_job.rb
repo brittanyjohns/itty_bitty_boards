@@ -84,8 +84,7 @@ class GenerateImageJob
   # moderator objects to, and dropping it would put a stranger's look on a
   # communicator's board.
   def generate_with_refusal_retry(image, user_id, composed_prompt, transparent, likeness = nil)
-    fingerprint = likeness&.fingerprint
-    doc = image.create_image_doc(user_id, composed_prompt, transparent: transparent, likeness_fingerprint: fingerprint)
+    doc = image.create_image_doc(user_id, composed_prompt, transparent: transparent, likeness: likeness)
     raise "Image generation returned no document" if doc.nil?
 
     doc
@@ -99,7 +98,7 @@ class GenerateImageJob
       "GenerateImageJob: prompt refused for Image #{image.id}; retrying with the " \
       "default house prompt. (#{e.message})"
     )
-    doc = image.create_image_doc(user_id, fallback, transparent: transparent, likeness_fingerprint: fingerprint)
+    doc = image.create_image_doc(user_id, fallback, transparent: transparent, likeness: likeness)
     raise "Image generation returned no document" if doc.nil?
 
     doc
