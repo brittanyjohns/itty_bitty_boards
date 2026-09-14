@@ -1071,9 +1071,9 @@ RSpec.describe "API::Boards", type: :request do
   # is never a half-made unlinked tile, and the whole thing stays behind
   # add_image's existing editable / marketplace guards.
   describe "POST /api/boards/:id/add_image with predictive_board_id" do
-    # A paid owner on purpose: the Free plan's board_limit of 1 makes every
-    # board but the designated one read-only, and these examples need two
-    # boards at once — a hub and something to link it to.
+    # A paid owner on purpose: a locked plan makes boards past the editable set
+    # read-only, and these examples need two editable boards at once — a hub
+    # and something to link it to — with no plan lock in the way.
     let(:owner) { create(:user, plan_type: "pro", plan_status: "active") }
     let(:hub_board) { create(:board, user: owner, name: "Hub") }
     let(:target_board) { create(:board, user: owner, name: "Big Feelings") }
@@ -1186,7 +1186,10 @@ RSpec.describe "API::Boards", type: :request do
   # Rails.cache so a user mashing the create button isn't spammed.
   describe "POST /api/boards triggers the Mailchimp hit_limit journey" do
     let(:free_user) { create(:free_user) }
-    let!(:existing_board) { create(:board, user: free_user) }
+    # Fill Free's whole limit so the next create trips the cap.
+    let!(:existing_boards) do
+      create_list(:board, User::FREE_PLAN_LIMITS["board_limit"], user: free_user)
+    end
     let(:memory_cache) { ActiveSupport::Cache::MemoryStore.new }
 
     before do

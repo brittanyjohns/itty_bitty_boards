@@ -235,9 +235,10 @@ class UserMailer < BaseMailer
 
   # Confirmation that a paid subscription was canceled (Stripe fired
   # customer.subscription.deleted and the user was downgraded to Free).
-  # Explains that boards over the Free limit are now read-only (one board
-  # stays editable, auto-pinned by pin_default_editable_board!) and offers a
-  # re-subscribe CTA. Not sent to admins.
+  # Explains that boards over the Free limit are now read-only (the editable
+  # set is `editable_slot_count` boards, led by the one auto-pinned by
+  # pin_default_editable_board!) and offers a re-subscribe CTA. Not sent to
+  # admins.
   def subscription_canceled_email(user)
     @user = user
     @user_name = @user.name

@@ -46,12 +46,13 @@ RSpec.describe "boards:limit_audit", type: :task do
   end
 
   it "reports the plan numbers behind a refusal" do
-    create(:board, user: user, board_type: "static")
+    free_limit = User::FREE_PLAN_LIMITS["board_limit"]
+    create_list(:board, free_limit, user: user, board_type: "static")
 
     output = run_task(user_id: user.id)
 
     expect(output).to include("plan_type              free")
-    expect(output).to include("countable_board_count  1")
+    expect(output).to include("countable_board_count  #{free_limit}")
     expect(output).to include("at_board_limit?        true")
   end
 

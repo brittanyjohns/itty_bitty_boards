@@ -6,7 +6,16 @@ module API
       RECOMMENDED_SMALL_SET = "core-60"
       RECOMMENDED_LARGE_SET = "core-84"
 
+      # Picker options, smallest first. `home` is not a StructurePlanner level —
+      # it is the Boards::StarterBlueprints::HOME tree, offered here because the
+      # picker only renders `levels`, and it is the one set small enough to fit a
+      # Free account. No plan flag: `board_cost` (served by #templates, sourced
+      # from BuilderSetSize) and the create gate do the gating by arithmetic.
       COMPLEXITY_LEVELS = [
+        { key: "home", name: "Quick Start",
+          description: "One home board plus Food, Feelings, and Play — enough to start today.",
+          fringe_page_range: "3",
+          grid_rows: 4, grid_columns: 4 },
         { key: "starter", name: "Starter",
           description: "A focused set with essential categories — great for beginning communicators.",
           fringe_page_range: "4-6",
@@ -43,7 +52,11 @@ module API
         glp_template, glp_reason = recommend_glp_template
 
         render json: {
-          levels: COMPLEXITY_LEVELS,
+          # board_cost is what the create gate will reserve, from the same
+          # source, so a client pre-check can never disagree with the refusal.
+          levels: COMPLEXITY_LEVELS.map { |lvl|
+            lvl.merge(board_cost: Boards::BuilderSetSize.worst_case(lvl[:key]))
+          },
           recommended_level: level_rec&.dig(:key),
           # A GLP-stage communicator gets the gestalt recommendation; otherwise
           # fall back to the existing level/template reasons.
@@ -244,7 +257,12 @@ module API
       def resolve_build_key
         if params[:level].present?
           level = params[:level].to_s.downcase
-          unless Boards::StructurePlanner::LEVELS.key?(level)
+          # The picker sends every option as `level`, including Quick Start
+          # ("home"), which is a StarterBlueprints tree rather than a planner
+          # level. BuildBoardSetJob already routes a non-level key to
+          # build_legacy, so accepting it here is the whole change.
+          unless Boards::StructurePlanner::LEVELS.key?(level) ||
+                 Boards::StarterBlueprints.tree_for(level)
             raise Boards::BlueprintAssembler::UnknownTemplate,
                   "unknown level #{params[:level].inspect}"
           end

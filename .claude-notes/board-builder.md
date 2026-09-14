@@ -204,13 +204,13 @@ Label-only picker catalog. No `Image` resolution.
 - **422 `unknown_template`** — template key not in the registry (builds nothing).
 - **422 `build_failed`** — `BoardTreeBuilder::BuildError` mid-build; the whole
   build rolls back in its transaction, so no orphan boards.
-- **422 "Maximum number of boards reached"** — `current_user.at_board_limit?`
-  when `create` is called. Gated like every other creation path, **but a built
-  tree counts as ONE board**: `BoardTreeBuilder` marks sub-boards (depth > 0)
-  `settings["builder_child"] = true`, and `User#countable_board_count`
-  (the single source of truth for board counting) excludes them. So a Free user
-  (limit 1) can build one tree, and the tree's own sub-boards never trip the
-  read-only lock; a second build is blocked.
+- **422 `board_limit_reached`** — *(superseded by #796; this paragraph used to
+  say a built tree counts as ONE board and that a Free user with limit 1 could
+  build one tree. Neither is true now.)* Every board in a set counts, and the
+  gate reserves `Boards::BuilderSetSize.worst_case(build_key)` slots up front.
+  Free's limit is 5: it fits Quick Start (`level: "home"`, 5) on an account with
+  no boards yet, and never a Starter/Standard/Extended level (23/27/35). See
+  `.claude-notes/board-limit-consolidation-handoff.md`.
 
 **Counting now lives in a builder `BoardGroup` (#407).** New builds write a real
 `BoardGroup(builder: true, root_board_id: root)` whose members are the root +
@@ -1037,8 +1037,16 @@ still works for backward compat.
 Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
 
 - `GET /api/v1/board_builder/templates` — label-only picker catalog. Returns
-  `levels` (array of `{ key, name, description, fringe_page_range }`),
-  `recommended_level` (profile-based, null without a communicator), and
+  `levels` (array of `{ key, name, description, fringe_page_range, grid_rows,
+  grid_columns, board_cost }`, smallest first: `home` "Quick Start" (a
+  `StarterBlueprints` tree, not a `StructurePlanner` level), then
+  starter/standard/extended). `board_cost` is
+  `Boards::BuilderSetSize.worst_case(key)` — the exact reservation the create
+  gate makes (5 / 23 / 27 / 35) — so a client pre-check can't disagree with it.
+  A `level` that is a `StarterBlueprints.tree_for` hit is accepted on create and
+  takes `BuildBoardSetJob#build_legacy`.
+  Also returns `recommended_level` (profile-based — never Quick Start, and
+  never by plan; null without a communicator), and
   `recommendation_reason`. Also returns legacy `templates` array and
   `recommended_template` for backward compat. Accepts an optional
   `communicator_id` (scoped to `current_user.communicator_accounts`).
@@ -1083,13 +1091,14 @@ Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
       already returns nil recommendations when `communicator_id` is blank.
     - `BuildBoardSetJob` receives a **nil** `communicator_id`; it fails the root
       only when an id is **present and unresolvable** (a real dangling ref).
-  - **Board-limit gated, but a tree counts as ONE board.** `create` returns
-    **422 "Maximum number of boards reached"** when `current_user.at_board_limit?`
-    (see the board read-only rule in `.claude-notes/billing-and-plans.md`). Because one wizard run persists a whole
-    linked tree, `BoardTreeBuilder` marks every sub-board (depth > 0)
-    `settings["builder_child"] = true`, and `User#countable_board_count` excludes
-    them — so the tree counts as its single root, not ~5. This also keeps the
-    whole built set editable (the read-only lock keys off the same count).
+  - **Board-limit gated, and every board in the set counts (#796).** `create`
+    reserves `Boards::BuilderSetSize.worst_case(build_key)` slots up front and
+    returns **422 `board_limit_reached`** when the whole set won't fit
+    (Quick Start 5; starter/standard/extended 23/27/35). `builder_child` still
+    marks sub-boards but no longer excludes them from
+    `User#countable_board_count`, so a built set over the limit is subject to
+    the ordinary read-only lock (`editable_slot_count` boards stay editable).
+    See `.claude-notes/board-limit-consolidation-handoff.md`.
   - **Re-run guard (issue #269) + replace flow: detect + warn, never silently
     dupe.** If the communicator already has a builder set, `create` returns
     **409 `board_builder_set_exists`** (`{ existing_root_id,

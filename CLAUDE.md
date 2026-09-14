@@ -301,9 +301,13 @@ an explicit decision, not a drive-by edit.
   caps for one resource, since a Board Set cannot exist without boards. Board
   Sets are now uncapped and `board_group_limit` is gone. Two corollaries. A
   builder run has to fit ENTIRELY (`Boards::BuilderSetSize.worst_case(level)`,
-  reserved up front) because the job cannot stop halfway — which is what makes
-  the Board Builder a paid feature by arithmetic rather than by a flag, since
-  Free's cap of 1 can never hold a set. And `board_limit` resolves from
+  reserved up front) because the job cannot stop halfway — which is what gates
+  the larger builder sets by arithmetic rather than by a flag: Free's cap of 5
+  holds the Quick Start set (`StarterBlueprints::HOME`, sized from its own tree
+  at 5 including the "My Favorites" page interests can add) and never a
+  23-35-board level. Never add a plan check to the builder; size the set
+  honestly instead (`BuilderSetSize.worst_case` falls back to the roomiest
+  level only for a key it cannot size). And `board_limit` resolves from
   `plan_type` at READ time (`User.plan_limits_for`): it used to be stamped into
   `settings` by the five plan setters, so every user who ever changed plans
   carried a frozen copy and moving a constant reached nobody.
@@ -850,8 +854,8 @@ an explicit decision, not a drive-by edit.
   board list, uncountable, and unreachable by any edit made to the source: the
   board you edited and the board the child used were different rows, with no
   sync and nothing in the codebase that could have provided one. Attachment
-  costs no board slot and consults no board limit, so a Free user's one board
-  still goes on their one communicator. `Boards::AssignableSource` is the single
+  costs no board slot and consults no board limit, so a Free user's boards
+  still go on their one communicator. `Boards::AssignableSource` is the single
   allowlist — the actor's own boards, the communicator OWNER's own boards (a
   supervisor curates on the owner's behalf), `Board.public_boards`, and the
   communicator's team boards — and a refusal is generic, because naming the id
@@ -1073,8 +1077,11 @@ an explicit decision, not a drive-by edit.
   editable board. The floor makes Free behave like every other locked plan
   (Clinician already kept its `board_limit` most-recent boards) instead of
   being a special case, and it grants nothing: `at_board_limit?` is untouched,
-  so Free still creates exactly one board and the pricing page stays true.
-  `EDITABLE_BOARD_FLOOR` is ENV-overridable — retune from Hatchbox, no deploy.
+  so Free still creates only its `board_limit` and the pricing page stays true.
+  Free's limit (5) now equals the floor, so for Free the floor is inert and it
+  matters for any account whose limit sits below it. `EDITABLE_BOARD_FLOOR` and
+  every `*_BOARD_LIMIT` are ENV-overridable but read ONCE, at class load — a
+  Hatchbox env change does nothing until the app reboots (a deploy or restart).
   Note the lock is inert at or below the floor; that is the trade, and the
   upgrade lever there is that creation is still blocked.
 - **External-service failures fail soft.** Redis blips, PostHog, Mailchimp,

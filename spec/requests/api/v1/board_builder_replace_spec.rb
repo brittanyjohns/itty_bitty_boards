@@ -81,7 +81,7 @@ RSpec.describe "API::V1::BoardBuilder replace flow", type: :request do
   # and is refused, but replacing destroys the first one before the gate runs.
   it "replace works for a user at their board cap (destroy frees the room first)" do
     user.update!(settings: user.settings.to_h
-      .merge("board_limit" => Boards::BuilderSetSize.legacy_worst_case))
+      .merge("board_limit" => Boards::BuilderSetSize.worst_case("home")))
     built_root_id!
 
     build!(confirm: true)

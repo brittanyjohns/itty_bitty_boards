@@ -6,11 +6,11 @@ require "rails_helper"
 # (still fully usable: view/tap/audio).
 #
 # `editable_slot_count` is `max(board_limit, EDITABLE_BOARD_FLOOR)`, so on Free
-# (limit 1) the lock does not bite until the user is holding more than
-# EDITABLE_BOARD_FLOOR boards. These examples create enough boards to cross it.
+# the lock does not bite until the user is holding more than that many boards.
+# These examples create enough boards to cross it.
 RSpec.describe "Board read-only on downgrade", type: :model do
   describe "User#board_editable?" do
-    let(:user) { create(:free_user) } # board_limit 1, past trial window
+    let(:user) { create(:free_user) } # Free plan limit, past trial window
 
     it "is true for every board when the user is under their board limit" do
       board = create(:board, user: user)
@@ -44,10 +44,11 @@ RSpec.describe "Board read-only on downgrade", type: :model do
         expect(fresh.board_editable?(stalest)).to be true
       end
 
-      it "locks nothing while at or under the floor, even though the plan allows one board" do
-        # The floor is what makes Free behave like every other locked plan
-        # instead of collapsing to a single editable board. Creation is still
-        # capped at 1 — this only governs what stays writable.
+      it "locks nothing while the user holds no more than EDITABLE_BOARD_FLOOR boards" do
+        # editable_slot_count is max(board_limit, EDITABLE_BOARD_FLOOR), so a
+        # Free user holding exactly the floor's worth of boards keeps all of
+        # them writable. Creation is still capped by board_limit — this only
+        # governs what stays writable.
         quiet = create(:free_user)
         few = Array.new(User::EDITABLE_BOARD_FLOOR) { create(:board, user: quiet) }
         fresh = User.find(quiet.id)

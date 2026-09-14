@@ -128,20 +128,23 @@ RSpec.describe "beta:audit_entitlements", type: :task do
 
     invoke_task
 
-    # 1 countable board == free limit, so not over and not in the CSV.
+    # Within the free limit, so not over and not in the CSV.
     expect(row_for(user)).to be_nil
   end
 
   it "counts a builder-set board, matching enforcement" do
     user = FactoryBot.create(:user, plan_type: "free")
-    FactoryBot.create(:board, user: user)
+    free_limit = User::FREE_PLAN_LIMITS["board_limit"]
+    FactoryBot.create_list(:board, free_limit, user: user)
     builder_board = FactoryBot.create(:board, user: user)
     group = user.board_groups.create!(name: "Built Set", builder: true)
     group.board_group_boards.create!(board: builder_board)
 
     invoke_task
 
-    expect(row_for(user)["board_count"]).to eq("2")
+    # Only over-limit users land in the CSV, so the builder board is what
+    # tips this user over Free's limit.
+    expect(row_for(user)["board_count"]).to eq((free_limit + 1).to_s)
   end
 
   it "performs no writes" do

@@ -178,7 +178,9 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
 
     context "board-limit gate" do
       it "returns 422 and imports nothing when the user is already at their limit" do
-        create(:board, user: user) # user is Free (limit 1) → now at limit
+        # user is Free: fill every board slot so the import has no room.
+        create_list(:board, User::FREE_PLAN_LIMITS["board_limit"], user: user)
+        expect(User.find(user.id).at_board_limit?).to be(true)
 
         expect {
           post "/api/boards/import_obf",

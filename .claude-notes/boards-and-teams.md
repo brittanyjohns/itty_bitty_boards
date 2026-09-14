@@ -304,7 +304,7 @@ board into an `is_template: true` copy excluded from `user.boards`, so the board
 the owner edited and the board the child used were different rows, with no sync
 and nothing in the codebase that could have provided one.
 
-- **No slot cost, no board-limit check.** A Free user's one board still goes on
+- **No slot cost, no board-limit check.** A Free user's boards still go on
   their one communicator. `countable_board_count` does not move.
 - **`Boards::AssignableSource` is the allowlist**, shared by both endpoints:
   the actor's own boards, the communicator OWNER's own boards (a supervisor

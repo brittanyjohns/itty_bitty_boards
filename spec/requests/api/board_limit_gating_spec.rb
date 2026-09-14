@@ -11,9 +11,12 @@ require "rails_helper"
 # One file for all of them because they share a contract: the same 422, the same
 # `error_code`, and no Board row written.
 RSpec.describe "Board creation limit gating", type: :request do
-  # A Free user with their single board already spent — at the cap, not over it.
+  # A Free user with every board slot already spent — at the cap, not over it.
+  # Derived from the constant so moving Free's limit never needs this file.
+  let(:free_limit) { User::FREE_PLAN_LIMITS["board_limit"] }
   let(:free_user) { create(:free_user) }
   let!(:only_board) { create(:board, user: free_user, name: "The One") }
+  let!(:filler_boards) { create_list(:board, free_limit - 1, user: free_user) }
   let(:admin) { create(:user, role: "admin") }
 
   def limit_refusal!(expected_status: :unprocessable_content)
@@ -135,7 +138,7 @@ RSpec.describe "Board creation limit gating", type: :request do
       board = Board.find(JSON.parse(response.body)["boardId"])
       expect(board.published).to be(true)
       expect(board.counts_toward_board_limit?).to be(false)
-      expect(User.find(free_user.id).countable_board_count).to eq(1)
+      expect(User.find(free_user.id).countable_board_count).to eq(free_limit)
     end
   end
 
