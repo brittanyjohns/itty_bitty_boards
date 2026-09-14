@@ -77,10 +77,15 @@ derived from constants so a new seed page or GLP board moves the bound:
 | phrases layer | `PhrasesPageBuilder`: 1 + `GlpTemplates::TEMPLATES.size` |
 | favorites | "My Favorites", created once |
 
-Today: **starter 23 / standard 27 / extended 35**; a legacy `template:` build
-never reaches `StructurePlanner`, so it uses `legacy_worst_case` (the max over
-the levels). Free's cap of 1 can never hold a set, which is what makes the
-Board Builder a paid feature — by arithmetic, not by a flag.
+Today: **starter 23 / standard 27 / extended 35**. A `StarterBlueprints` tree
+(`home` = Quick Start, `daily_routine`) is sized from its own tree — root + one
+board per folder tile + "My Favorites" — so `home` is **5** and `daily_routine`
+is **3**; only a key that can't be sized that way (a robust-set slug such as
+`core-60`/`core-84`) falls back to `legacy_worst_case` (the max over the
+levels). *(Updated 2026-09-14: this doc originally said every `template:` build
+used `legacy_worst_case` and that Free's cap of 1 could never hold a set. Free
+is now 5, which holds Quick Start and none of the levels — still gated by
+arithmetic, not by a flag.)*
 
 Two orderings are load-bearing in `API::V1::BoardBuilderController#create`:
 
@@ -131,8 +136,10 @@ from the payload; `board_group_count` stays. `admin_api_view` matches, and adds
   viewable, tappable and audible.
 - **Plan constants were not retuned.** Free 1 / Basic 100 / Pro 300 /
   Clinician 100, unchanged. At those numbers Basic fits ~2 extended sets. All
-  four are ENV-overridable (`FREE_/BASIC_/PRO_/CLINICIAN_BOARD_LIMIT`), so
-  retuning is a Hatchbox env change rather than a deploy.
+  four are ENV-overridable (`FREE_/BASIC_/PRO_/CLINICIAN_BOARD_LIMIT`), **but
+  the constants read ENV once, at class load — a Hatchbox env change alone is
+  inert until the app reboots (deploy or restart).** *(Corrected 2026-09-14;
+  this line used to say retuning needed no deploy. Free has since moved to 5.)*
 - `top_editable_board_ids` dropped the builder exclusion too: once builder
   boards consume slots they have to be eligible to fill one, or an over-limit
   user has boards eating slots they can never edit.
@@ -145,9 +152,15 @@ from the payload; `board_group_count` stays. `admin_api_view` matches, and adds
   broken, but it should read `board_limit`/`board_count`. The Free funnels
   (`/start`, MySpeak onboarding, `FreeDashboard`, `SideMenu`) route into a
   builder Free can no longer use and should say so.
-- **Three authenticated endpoints create countable boards with no gate at all**:
+- ~~**Three authenticated endpoints create countable boards with no gate at all**:
   `images#create_predictive_board`, `scenarios#answer`,
-  `board_images#update_multiple` (which also uses a non-bang `Board.create`
-  behind a truthiness check that passes for an invalid record).
+  `board_images#update_multiple`.~~ **Resolved (verified 2026-09-14).** All
+  three board-creating paths gate now: `images#create_predictive_board` via
+  `before_action :check_board_create_permissions`; `board_images#update_multiple`
+  inline on its `create_new_board` branch (above the tile loop, and it now uses
+  `Board.create!`); and the scenario path via `before_action
+  :check_board_create_permissions, only: %i[finalize]`. `scenarios#answer` never
+  created a board — it saves the answer and generates the next question —
+  `scenarios#finalize` is the action that mints one.
 - `attr_accessor :skip_plan_setup` is written by both admin controllers and read
   by nothing.

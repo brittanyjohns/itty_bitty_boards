@@ -731,25 +731,27 @@ downgrade (Stripe cancel, "Free" pick at checkout). If you touch this
 callback, preserve both invariants: trial only on initial create, and
 never overwrite an explicit paid_plan_type pick.
 
-### MySpeak ID limit (Free = 1)
+### MySpeak pages (no per-Profile quota)
 
-Free users are capped at **one MySpeak ID** (Profile). Basic/Pro/admin
-are unlimited. A "MySpeak ID" counts a Profile attached to the user
-directly *or* to one of their `communicator_accounts`. Implemented in
-`User#myspeak_id_limit` / `#myspeak_id_count` / `#can_create_myspeak_id?`,
-with limit env-tunable via `FREE_MYSPEAK_ID_LIMIT` (default `1`).
+There is **no MySpeak ID limit** any more. `FREE_MYSPEAK_ID_LIMIT`,
+`User#myspeak_id_limit` / `#myspeak_id_count` / `#can_create_myspeak_id?` and
+the 403 `myspeak_id_limit_reached` were all deleted (#764) — do not reintroduce
+them.
 
-`POST /api/profiles` is gated up front and returns **HTTP 403** with
-`{ error: "myspeak_id_limit_reached", message, limit, count }` when a
-Free user is already at the cap. Trial users (`basic_trial`, Stripe
-`trialing`) are treated as paid by `paid_plan?` and the gate doesn't
-trigger — consistent with how credit gates work.
+- A **communicator's MySpeak page** is free on every plan with no quota. Every
+  communicator auto-mints exactly one `Profile` at create time, so the
+  communicator SLOT (`Permissions::CommunicatorLimits`) is the only quota.
+- The **user-level Public page** is capped at **1 on every plan** (`User
+  has_one :profile`), and a duplicate create answers **HTTP 409
+  `public_page_exists`** — a state conflict, not a plan gate.
 
 
 ### Board access on downgrade (read-only rule)
 
 When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
-`free` and `settings["board_limit"]` to 1. Boards beyond that limit become
+`free`; `board_limit` then resolves to Free's (`FREE_BOARD_LIMIT`, default 5)
+at read time — plan setters no longer stamp `settings["board_limit"]` (#796).
+Boards beyond that limit become
 **read-only**, never deleted: still openable, tappable, and audio still plays
 (SpeakAnyWay is an AAC app — usage must never break), but
 **content-mutating endpoints return HTTP 403 `board_locked`**.
@@ -763,7 +765,10 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   board's `api_view` exposes `can_edit`, `locked`, and `lock_reason`
   (`Board#lock_reason_for` — `free_plan_board_limit` for Free, `plan_board_limit`
   for a limited paid plan like Clinician) for the frontend.
-- **The editable set generalizes to the board limit.** Free (limit 1) keeps the
+- **The editable set generalizes to the board limit.** *(Written when Free's
+  limit was 1; Free is now 5 and the editable set is sized by
+  `editable_slot_count` = `max(board_limit, EDITABLE_BOARD_FLOOR)` — see
+  CLAUDE.md.)* A limit-1 account keeps the
   single board the user designates (`editable_board_id`, the make_editable pick +
   cooldown below); a higher-limit locked plan (**Clinician**, 100) **pins that
   same designated board first**, then fills the remaining slots with its
@@ -820,7 +825,8 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
 - Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
   editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
 - **The make_editable pick applies to every board-limited plan, not just
-  Free.** Free (`FREE_BOARD_LIMIT == 1`) frees exactly one board with it.
+  Free.** Free (`FREE_BOARD_LIMIT`, default 5) pins the pick into its
+  editable set like any other locked plan.
   Higher-limit locked plans (Clinician, or any account whose
   `settings["board_limit"]` was raised) pin the pick into their editable set
   and fill the rest by recency, so the pick displaces the least-recently-updated

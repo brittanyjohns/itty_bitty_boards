@@ -1,5 +1,16 @@
 # Handoff: activation gap — clone flattening (backend)
 
+> **STALE — historical record only (updated 2026-09-14).** Two of the
+> "decisions" below no longer describe the code. Cloning is **not** root-only:
+> `Boards::SetCloner` copies the linked set and `Boards::CloneSetPlanner`
+> budgets it against the user's remaining board slots (one slot per board,
+> breadth-first and partial when over budget; `include_linked_boards: false` is
+> the root-only opt-out). `clone_with_images(flatten_foreign_links:)` was
+> removed — out-of-set links are decided by `SetCloner#rewire!`'s `out_of_set:`
+> policy. And Free's `board_limit` is 5, not 1. Current behaviour: CLAUDE.md
+> ("Copying a board copies its SET…", "A copied set costs ONE BOARD SLOT PER
+> BOARD…") and `.claude-notes/boards-and-teams.md`.
+
 **Date:** 2026-08-27 · **Status:** not started
 **Full plan:** `../drafts/activation-gap-plan.md` (this doc is self-contained; the plan adds funnel data)
 **Counterpart:** `../itty-bitty-frontend/.claude-notes/activation-gap-handoff.md`

@@ -28,6 +28,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   whenever that board's cover is regenerated. A picture you chose or uploaded
   for the tile is kept, a tile with pictures hidden stays blank, and predictive
   word tiles keep their own picture.
+- **Free accounts get 5 boards and can run the Board Builder.** The Free board
+  limit goes from 1 to 5, and the Board Builder picker gains a **Quick Start**
+  option — one home board plus Food, Feelings and Play — listed first. It is
+  sized at 5 boards (the "My Favorites" page that interests can add included),
+  so it fits a Free account while the larger Starter / Standard / Extended sets
+  (23 / 27 / 35 boards) still need a paid plan. Every picker option now reports
+  its `board_cost`, the exact number of board slots a build reserves, so the app
+  can say up front whether a set fits instead of refusing after the wizard.
+  A Free account that already holds a board has 4 slots left, so Quick Start is
+  refused there until a board is deleted.
 - **The team roster now says whether an invite email actually arrived.** A row
   reading "Invited — hasn't joined yet" covered three very different things: the
   email was delivered and the person hasn't got round to it, the email **failed**
