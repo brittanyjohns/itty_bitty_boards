@@ -44,6 +44,11 @@ class GenerateImagesJob
   # this tile starts clean instead of inheriting one run's styling forever.
   # A no-op on menu boards, which bypass the builder entirely (see below).
   #
+  # options["communicator_id"] — the communicator this board is being filled
+  # for, when the board isn't (yet) attached to them — a Board Builder folder
+  # page, say. Feeds Images::LikenessResolver; ignored unless the board's owner
+  # owns that communicator.
+  #
   # options["credit_txn_id"] / options["credit_per_image"] — the caller pre-paid
   # per image against that spend txn (bulk regenerate), so a failed generation
   # refunds one image's cost against it. Absent for every enqueue that spends
@@ -57,6 +62,9 @@ class GenerateImagesJob
 
     board = Board.includes(:board_images).find_by(id: board_id) if board_id
     board_images = board&.board_images&.where(image_id: image_ids)
+
+    communicator = ChildAccount.find_by(id: options[:communicator_id]) if options[:communicator_id].present?
+    likeness = board && Images::LikenessResolver.for(board: board, communicator: communicator)
 
     board.update_column(:status, "generating") if board
     board_images.update_all(status: "generating") if board_images.present?
@@ -94,12 +102,13 @@ class GenerateImagesJob
                 board: board,
                 user: image.user,
                 modifiers: modifiers,
+                likeness: likeness,
               )
             end
 
           Rails.logger.debug "BOARD TYPE: #{board&.board_type} - Generating image for Image ID #{image.id} with prompt: #{composed_prompt}"
 
-          new_doc = image.create_image_doc(user_id, composed_prompt)
+          new_doc = image.create_image_doc(user_id, composed_prompt, likeness_fingerprint: likeness&.fingerprint)
 
           unless new_doc
             Rails.logger.error("Failed to create image doc for image #{image.id}")
@@ -118,7 +127,9 @@ class GenerateImagesJob
           # `current` is the LIBRARY DEFAULT on a shared row, so only an actor
           # who may edit the Image may demote it — the same gate as
           # Image#set_library_default_doc!.
-          if replace_current && User.find_by(id: user_id)&.can_edit?(image)
+          # A likeness picture is never the library default, so it replaces
+          # nothing there.
+          if replace_current && likeness.nil? && User.find_by(id: user_id)&.can_edit?(image)
             image.docs.where.not(id: new_doc.id).update_all(current: false)
           end
 

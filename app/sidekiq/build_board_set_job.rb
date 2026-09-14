@@ -61,6 +61,9 @@ class BuildBoardSetJob
       root.update_column(:status, "failed")
       return
     end
+    # Only the root gets a ChildBoard; the pages under it are attached to no
+    # one, so art generation is told who the set is for (#generate_art_if_blank).
+    @communicator = communicator
 
     begin
       explicit_categories = categories.is_a?(Hash) ? categories : {}
@@ -644,9 +647,13 @@ class BuildBoardSetJob
 
   def generate_art_if_blank(owner, image, board)
     return if image.display_tile_url(owner).present?
-    return if image.docs.any? { |doc| [User::DEFAULT_ADMIN_ID, owner.id].include?(doc.user_id) }
+    return if Images::LikenessArt.art_present?(image, owner.id)
 
-    GenerateImagesJob.perform_async([image.id], board.id)
+    likeness = Images::LikenessResolver.for(board: board, communicator: @communicator)
+    return if Images::LikenessArt.reuse!(image: image, board: board, likeness: likeness)
+
+    options = @communicator ? [{ "communicator_id" => @communicator.id }] : []
+    GenerateImagesJob.perform_async([image.id], board.id, *options)
   end
 
   def generate_preview!(root)

@@ -92,7 +92,7 @@ module ImageHelper
     doc
   end
 
-  def create_image(user_id = nil, image_prompt = nil, transparent: true)
+  def create_image(user_id = nil, image_prompt = nil, transparent: true, likeness_fingerprint: nil)
     return if Rails.env.test?
 
     user_id ||= self.user_id
@@ -123,7 +123,8 @@ module ImageHelper
         "model" => response[:model],
         "quality" => response[:quality],
         "background" => response[:background],
-      }
+      },
+      likeness_fingerprint: likeness_fingerprint,
     )
   end
 
@@ -134,7 +135,8 @@ module ImageHelper
     edited_prompt = nil,
     source_type = "OpenAI",
     output_format = "webp",
-    generation_metadata: {}
+    generation_metadata: {},
+    likeness_fingerprint: nil
   )
     return if Rails.env.test?
 
@@ -172,7 +174,8 @@ module ImageHelper
         b64_json: true,
         output_format: format,
         content_type: content_type,
-      }.merge(generation_metadata.compact),
+      }.merge(generation_metadata.compact)
+        .merge(likeness_fingerprint.present? ? { Doc::LIKENESS_KEY => likeness_fingerprint } : {}),
     )
 
     doc.image.attach(
@@ -184,7 +187,8 @@ module ImageHelper
     doc.ensure_tile_variant!
 
     self.update!(status: "finished")
-    update_all_boards_image_belongs_to(doc.tile_url, false, user_id)
+    # A likeness picture is for the tiles it was drawn for, never a fan-out.
+    update_all_boards_image_belongs_to(doc.tile_url, false, user_id) unless doc.likeness?
 
     doc
   rescue => e

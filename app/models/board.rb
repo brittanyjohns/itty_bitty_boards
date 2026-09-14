@@ -1500,7 +1500,10 @@ class Board < ApplicationRecord
   # thousands of other boards, and a per-board answer belongs to the tile.
   # Used by the curated word packs (Boards::WordPacks).
   # Returns the number of images queued for generation.
-  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil, parts_of_speech: nil)
+  # `communicator:` is who the board is being built for, when the caller knows —
+  # it lets a board that isn't attached yet still draw its people with that
+  # communicator's likeness (Images::LikenessResolver).
+  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil, parts_of_speech: nil, communicator: nil)
     if id.blank?
       self.save!
     end
@@ -1515,6 +1518,8 @@ class Board < ApplicationRecord
     end
     image_ids_to_generate = []
     queued_count = 0
+    likeness = Images::LikenessResolver.for(board: self, communicator: communicator)
+    generation_options = communicator ? [{ "communicator_id" => communicator.id }] : []
 
     word_list.each do |word|
       og_word = word
@@ -1531,6 +1536,7 @@ class Board < ApplicationRecord
       menu_prompt = menu_prompts && menu_prompts[word.to_s.downcase.strip]
       authored_pos = parts_of_speech && parts_of_speech[word.to_s.downcase.strip]
       skip_generation = false
+      reused_likeness_url = nil
       if menu_prompt && (max_generate.nil? || queued_count < max_generate)
         # Menu labels ("single", "virginia") collide with unrelated library
         # art, so menu items get a fresh image generated from the parsed dish
@@ -1561,10 +1567,12 @@ class Board < ApplicationRecord
         end
         image ||= new_image
         display_doc = image.display_tile_url(user)
-        if display_doc.blank?
-          admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
-          user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
-          if !admin_image_present && !user_image_present
+        if display_doc.blank? && !Images::LikenessArt.art_present?(image, user_id)
+          # A likeness doc is one look's picture, not the word's art, so it
+          # doesn't stop generation — unless it IS this board's look, in which
+          # case it is reused for free.
+          reused_likeness_url = Images::LikenessArt.reusable_url(image: image, owner_id: user_id, likeness: likeness)
+          if reused_likeness_url.nil?
             if max_generate.nil? || queued_count < max_generate
               image_ids_to_generate << image.id
               queued_count += 1
@@ -1577,10 +1585,13 @@ class Board < ApplicationRecord
       new_board_image = self.add_image(image.id) if image
       apply_authored_part_of_speech!(new_board_image, authored_pos)
       new_board_image.update_column(:status, "skipped") if skip_generation && new_board_image&.persisted?
+      if reused_likeness_url && new_board_image&.persisted? && new_board_image.display_image_url.nil?
+        new_board_image.update_column(:display_image_url, reused_likeness_url)
+      end
       apply_phrase_art_fallback(new_board_image, word) unless is_a_menu?
       if image_ids_to_generate.count > 2
         image_ids_to_generate.each_slice(3) do |batch|
-          GenerateImagesJob.perform_async(batch, id)
+          GenerateImagesJob.perform_async(batch, id, *generation_options)
         end
         image_ids_to_generate = []
       end
@@ -1589,7 +1600,7 @@ class Board < ApplicationRecord
     self.save!
     if image_ids_to_generate.any?
       image_ids_to_generate.each_slice(3) do |batch|
-        GenerateImagesJob.perform_async(batch, id)
+        GenerateImagesJob.perform_async(batch, id, *generation_options)
       end
     end
     queued_count

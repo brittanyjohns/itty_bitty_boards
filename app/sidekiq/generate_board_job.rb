@@ -76,7 +76,7 @@ class GenerateBoardJob
 
         # create_board_tiles_from_words(board, words)
         board.update_column(:status, "finding_images")
-        board.find_or_create_images_from_word_list(words)
+        board.find_or_create_images_from_word_list(words, communicator: communicator)
         board.update_column(:status, "processing")
         board.reset_layouts
 

@@ -127,6 +127,38 @@ turban, kippah, braces, AAC device). `CommunicatorLikeness`
 - `#fingerprint` is stable across key/extras order, so two communicators who look
   the same can share generated art.
 
+### How generation uses it
+
+- **Resolution** — `Images::LikenessResolver.for(board:, communicator:)`: board
+  override → a named communicator the board's owner owns → the one owner-owned
+  communicator attached to the board → nil. Two attached communicators, a
+  foreign one, or a menu board all resolve to nil. The result carries the
+  communicator's `age_band` for the noun, even when the look came from the
+  board override.
+- **The prompt layer** sits after the part-of-speech clause and before
+  `modifiers` and the style spec (`PromptBuilder.for_image(likeness:)`). The
+  refusal retry in `GenerateImageJob` keeps it.
+- **Only where art is generated anyway.** Library art and the owner's own
+  ordinary art are kept; `Images::LikenessArt.art_present?` is the test every
+  fill path shares, and it ignores likeness docs.
+- **Naming the communicator.** `GenerateBoardJob` →
+  `Board#find_or_create_images_from_word_list(communicator:)`,
+  `BuildBoardSetJob#generate_art_if_blank` and
+  `Boards::SeededSetCloner#generate_art_if_blank` all enqueue with
+  `{"communicator_id" => …}`, because builder sub-pages carry no ChildBoard. With
+  no communicator the job args are unchanged.
+- **Reuse.** A fill path that would generate first looks for a doc on the same
+  Image with the same owner and fingerprint (`Image#likeness_doc_for`) and
+  points the tile at it for free. `regenerate_images` never reuses — asking for
+  a new picture means a new picture.
+- **The doc.** `create_image_doc(likeness_fingerprint:)` stamps
+  `data["likeness_fingerprint"]`. That doc is not library even when admin-owned,
+  is never returned by `display_doc` (even for its owner), gets no `UserDoc`,
+  never becomes `current`, is never fanned out, and `replace_current` skips it.
+  It is still LISTED for its owner (`visible_docs_for`).
+- **Known gap:** a later single-tile generate on a builder sub-page has no
+  communicator to name, so it resolves only through the board's own override.
+
 ## Style resolution
 
 Two specs: `symbol` (flat vector AAC symbol) and `illustrated` (soft flat colors).

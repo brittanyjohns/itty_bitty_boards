@@ -375,9 +375,15 @@ module Boards
     # never pay to regenerate something we already have.
     def generate_art_if_blank(image, board)
       return if image.display_tile_url(@owner).present?
-      return if image.docs.any? { |doc| [User::DEFAULT_ADMIN_ID, @owner.id].include?(doc.user_id) }
+      return if Images::LikenessArt.art_present?(image, @owner.id)
 
-      GenerateImagesJob.perform_async([image.id], board.id)
+      # The cloned pages aren't attached to the communicator (only the root is),
+      # so name them for the likeness resolver.
+      likeness = Images::LikenessResolver.for(board: board, communicator: @communicator)
+      return if Images::LikenessArt.reuse!(image: image, board: board, likeness: likeness)
+
+      options = @communicator ? [{ "communicator_id" => @communicator.id }] : []
+      GenerateImagesJob.perform_async([image.id], board.id, *options)
     end
 
     # Create a "My Favorites" fringe owned by the user, marked builder_child so

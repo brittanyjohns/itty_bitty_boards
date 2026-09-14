@@ -382,8 +382,10 @@ RSpec.describe BuildBoardSetJob do
       seed_robust_set!
       root = precreate_root!(name: "Core 60")
 
+      # The pages under the root are attached to no one, so the job is told who
+      # the set is for — that is what lets their art use the likeness.
       expect(GenerateImagesJob).to receive(:perform_async)
-        .with(kind_of(Array), kind_of(Integer)).at_least(:once)
+        .with(kind_of(Array), kind_of(Integer), { "communicator_id" => communicator.id }).at_least(:once)
 
       described_class.new.perform(root.id, communicator.id, "core-60", ["dinosaurs"])
     end

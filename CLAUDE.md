@@ -604,6 +604,26 @@ an explicit decision, not a drive-by edit.
   caller can't see rather than 403ing, since confirming it exists is the leak.
   Pre-fix URLs already copied into `src_url`/tiles stay put:
   `rake images:doc_isolation_report` counts them and repairs nothing.
+- **Art drawn with a communicator LIKENESS belongs to the tiles it was drawn for
+  — never to the library, never to the word.** `Images::LikenessResolver` is the
+  one answer to "whose look does this board draw": the board's own override
+  (`{"mode" => "none"}` switches it off), else a communicator the caller NAMES
+  and the board's owner owns, else the ONE owner-owned communicator the board is
+  attached to — and nil for anything ambiguous, since a board sits on several
+  dashboards and a guess draws one person onto another's board. Such a doc
+  carries `data["likeness_fingerprint"]`, and that stamp makes it private even
+  when the admin owns it (`Doc#library?` is false), takes it out of generic
+  resolution even for its OWNER (`Image#display_doc` filters
+  `Doc::NOT_LIKENESS_SQL`, so kid A's look can't become the word's picture on
+  kid B's board), and skips the UserDoc pick, `set_library_default_doc!`, the
+  fan-out, and `replace_current`. Tiles reach it directly. Two rules ride on it.
+  A likeness only applies where art would be GENERATED ANYWAY — library art is
+  kept, and `Images::LikenessArt.art_present?` is the shared test, which ignores
+  likeness docs so another look's picture never counts as the word's art. And a
+  builder's sub-pages are attached to no one, so every fill path passes
+  `communicator_id` through to `GenerateImagesJob`; a picture already drawn for
+  the same owner and fingerprint is reused (`Images::LikenessArt`) rather than
+  paid for twice, while an explicit regenerate always draws a new one.
 - **A tile's picture belongs to the board's OWNER, and `Images::TileArtFanout`
   is the only thing allowed to write it from a shared `Image`.** `images` and
   `docs` are shared library rows — one "apple" `Image` is on thousands of boards

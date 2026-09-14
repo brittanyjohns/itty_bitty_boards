@@ -161,7 +161,10 @@ RSpec.describe Boards::SeededSetCloner do
     end
 
     it "queues AI art for a novel interest word with no existing symbol" do
-      expect(GenerateImagesJob).to receive(:perform_async).with(kind_of(Array), kind_of(Integer)).at_least(:once)
+      # Names the communicator: the cloned page isn't attached to them, and the
+      # likeness resolver can't find them otherwise.
+      expect(GenerateImagesJob).to receive(:perform_async)
+        .with(kind_of(Array), kind_of(Integer), { "communicator_id" => communicator.id }).at_least(:once)
 
       described_class.new(@source[:root], communicator: communicator, interests: ["dinosaurs"]).call
     end
