@@ -180,6 +180,38 @@ RSpec.describe "POST /api/docs/:id/mark_as_current — board isolation", type: :
     end
   end
 
+  # One Image can back several tiles on the same board — a "play" word tile and
+  # a "Play" folder tile, say. Finding the tile by image_id repainted whichever
+  # came first, so the tile the user actually opened could never be changed.
+  context "when the board holds two tiles for the same image" do
+    let!(:second_tile) do
+      create(:board_image, board: stranger_board, image: image, display_image_url: old_url)
+    end
+
+    before { set_tile(stranger_board, old_url) }
+
+    it "pins only the tile named by board_image_id" do
+      post "/api/docs/#{new_doc.id}/mark_as_current",
+           params: { board_id: stranger_board.id, board_image_id: second_tile.id }.to_json,
+           headers: auth_headers(stranger).merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(second_tile.reload.display_image_url).to eq(new_url)
+      expect(tile_on(stranger_board).reload.display_image_url).to eq(old_url)
+      expect(JSON.parse(response.body).dig("board_image", "id").to_s).to eq(second_tile.id.to_s)
+    end
+
+    it "ignores a board_image_id from a different board" do
+      set_tile(admin_board, old_url)
+
+      post "/api/docs/#{new_doc.id}/mark_as_current",
+           params: { board_id: stranger_board.id, board_image_id: tile_on(admin_board).id }.to_json,
+           headers: auth_headers(stranger).merge("CONTENT_TYPE" => "application/json")
+
+      expect(tile_on(admin_board).reload.display_image_url).to eq(old_url)
+    end
+  end
+
   # The board_id was looked up with an unscoped find_by, so anyone could
   # repaint a tile on any board by passing its id.
   it "refuses to pin a tile on a board the caller cannot edit" do
