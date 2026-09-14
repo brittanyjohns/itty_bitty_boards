@@ -47,7 +47,16 @@ class Doc < ApplicationRecord
   has_one_base64_attached :image
   has_many :user_docs, dependent: :destroy
 
-  after_create :update_user_docs, if: :user_id
+  # A likeness doc is drawn for one tile's look; a UserDoc pick would make it
+  # the owner's picture for that word on every other board they have.
+  after_create :update_user_docs, if: -> { user_id && !likeness? }
+
+  # data key stamped on art generated with a communicator likeness
+  # (Images::LikenessResolver). Such a doc is never library art, and generic
+  # resolution (Image#display_doc) never picks it: it belongs to the tiles it
+  # was drawn for.
+  LIKENESS_KEY = "likeness_fingerprint".freeze
+  NOT_LIKENESS_SQL = "docs.data->>'#{LIKENESS_KEY}' IS NULL".freeze
 
   scope :current, -> { where(current: true) }
   scope :image_docs, -> { where(documentable_type: "Image") }
@@ -285,15 +294,21 @@ class Doc < ApplicationRecord
   # DEFAULT_ADMIN_ID). A doc owned by any other user is private to that user —
   # Images are shared rows, their docs are not. `#visible_to?` is the in-memory
   # mirror, for filtering an already-loaded association without a query.
+  #
+  # A likeness doc is never library, even when the admin owns it: it is one
+  # person's look, visible only to its owner.
   def self.for_user(user)
-    if user.nil?
-      return self.with_attached_image.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
-    end
-    self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
+    library = where(user_id: [nil, User::DEFAULT_ADMIN_ID]).where(NOT_LIKENESS_SQL)
+    scope = user.nil? ? library : library.or(where(user_id: user.id))
+    scope.with_attached_image
   end
 
   def library?
-    user_id.nil? || user_id == User::DEFAULT_ADMIN_ID
+    (user_id.nil? || user_id == User::DEFAULT_ADMIN_ID) && !likeness?
+  end
+
+  def likeness?
+    data.is_a?(Hash) && data[LIKENESS_KEY].present?
   end
 
   def visible_to?(viewer)

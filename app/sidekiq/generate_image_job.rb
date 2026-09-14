@@ -29,12 +29,17 @@ class GenerateImageJob
       image.image_prompt = image_prompt if image_prompt.present?
       image.save! if image.changed?
 
+      # A raw admin prompt and a menu dish's own prompt are complete as written.
+      likeness = if board && !raw_prompt && !image.menu?
+          Images::LikenessResolver.for(board: board)
+        end
+
       composed_prompt = resolve_prompt(
         image: image, user_input: image_prompt, board: board, user: user,
-        style: style, transparent: transparent, raw_prompt: raw_prompt
+        style: style, transparent: transparent, raw_prompt: raw_prompt, likeness: likeness
       )
 
-      new_doc = generate_with_refusal_retry(image, user_id, composed_prompt, transparent)
+      new_doc = generate_with_refusal_retry(image, user_id, composed_prompt, transparent, likeness)
 
       new_doc.update(source_type: "OpenAI")
       if image.menu? && image.image_prompt.to_s.include?(Menu::PROMPT_ADDITION)
@@ -56,7 +61,7 @@ class GenerateImageJob
   # Menu items keep their own description-driven prompt (set at creation from
   # the vision parse); everything else is composed by Images::PromptBuilder.
   # `raw_prompt` is the admin escape hatch for hand-written prompts.
-  def resolve_prompt(image:, user_input:, board:, user:, style:, transparent:, raw_prompt:)
+  def resolve_prompt(image:, user_input:, board:, user:, style:, transparent:, raw_prompt:, likeness: nil)
     return user_input if raw_prompt && user_input.present?
     return image.image_prompt if image.menu? && image.image_prompt.present?
 
@@ -67,6 +72,7 @@ class GenerateImageJob
       board: board,
       user: user,
       transparent: transparent,
+      likeness: likeness,
     )
   end
 
@@ -74,22 +80,26 @@ class GenerateImageJob
   # blank: AAC vocabulary legitimately includes body parts, medical, and
   # bathroom/safety words that trip the moderator. Retry once with the clean
   # label-only house prompt before giving up.
-  def generate_with_refusal_retry(image, user_id, composed_prompt, transparent)
-    doc = image.create_image_doc(user_id, composed_prompt, transparent: transparent)
+  # The fallback keeps the likeness: it is server-composed and not what a
+  # moderator objects to, and dropping it would put a stranger's look on a
+  # communicator's board.
+  def generate_with_refusal_retry(image, user_id, composed_prompt, transparent, likeness = nil)
+    fingerprint = likeness&.fingerprint
+    doc = image.create_image_doc(user_id, composed_prompt, transparent: transparent, likeness_fingerprint: fingerprint)
     raise "Image generation returned no document" if doc.nil?
 
     doc
   rescue => e
     raise unless refusal_error?(e)
 
-    fallback = Images::PromptBuilder.for_image(image, transparent: transparent)
+    fallback = Images::PromptBuilder.for_image(image, transparent: transparent, likeness: likeness)
     raise if fallback == composed_prompt
 
     Rails.logger.warn(
       "GenerateImageJob: prompt refused for Image #{image.id}; retrying with the " \
       "default house prompt. (#{e.message})"
     )
-    doc = image.create_image_doc(user_id, fallback, transparent: transparent)
+    doc = image.create_image_doc(user_id, fallback, transparent: transparent, likeness_fingerprint: fingerprint)
     raise "Image generation returned no document" if doc.nil?
 
     doc

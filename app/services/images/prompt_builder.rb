@@ -12,9 +12,11 @@
 # Prompt layers, in order:
 #   1. subject          — the user's input, else the label
 #   2. disambiguation   — from part_of_speech, only when it adds information
-#   3. appearance mods  — the bulk "apply to every selected tile" field
-#   4. style spec       — STYLES[:symbol] or STYLES[:illustrated]
-#   5. hard constraints — always; no text, single subject, background rule
+#   3. likeness         — how any person in the picture looks (a communicator's
+#                         CommunicatorLikeness, via Images::LikenessResolver)
+#   4. appearance mods  — the bulk "apply to every selected tile" field
+#   5. style spec       — STYLES[:symbol] or STYLES[:illustrated]
+#   6. hard constraints — always; no text, single subject, background rule
 module Images
   class PromptBuilder
     SYMBOL = "symbol".freeze
@@ -85,7 +87,7 @@ module Images
                               "gesture or hand sign.",
     }.freeze
 
-    attr_reader :label, :user_input, :part_of_speech, :style, :transparent, :modifiers
+    attr_reader :label, :user_input, :part_of_speech, :style, :transparent, :modifiers, :likeness_clause
 
     # Free text from a user, made safe to drop into a composed prompt.
     #
@@ -139,7 +141,9 @@ module Images
 
     # Convenience wrapper for the common "generate art for this Image record"
     # case, so callers don't have to remember to pass part_of_speech.
-    def self.for_image(image, user_input: nil, style: nil, transparent: true, board: nil, user: nil, modifiers: nil)
+    #
+    # `likeness` is an Images::LikenessResolver::Result (or nil).
+    def self.for_image(image, user_input: nil, style: nil, transparent: true, board: nil, user: nil, modifiers: nil, likeness: nil)
       new(
         label: image.label,
         user_input: user_input,
@@ -147,20 +151,28 @@ module Images
         style: style || resolve_style(board: board, user: user || image.user),
         transparent: transparent,
         modifiers: modifiers,
+        likeness_clause: likeness&.prompt_clause,
       ).call
     end
 
-    def initialize(label:, user_input: nil, part_of_speech: nil, style: nil, transparent: true, modifiers: nil)
+    # `likeness_clause` is SERVER-composed text (CommunicatorLikeness owns every
+    # phrase in it) and is therefore not sanitized like user text. Never pass a
+    # client string here — free text belongs in `user_input` or `modifiers`.
+    def initialize(label:, user_input: nil, part_of_speech: nil, style: nil, transparent: true, modifiers: nil, likeness_clause: nil)
       @label = label.to_s.strip
       @user_input = user_input.to_s.strip
       @part_of_speech = part_of_speech.to_s.strip.downcase
       @style = STYLE_NAMES.include?(style.to_s) ? style.to_s : DEFAULT_STYLE
       @transparent = transparent
       @modifiers = self.class.sanitize_modifiers(modifiers)
+      @likeness_clause = likeness_clause.to_s.strip.presence
     end
 
+    # The likeness sits after the part-of-speech clause (which is often what
+    # puts a person in the picture) and before modifiers and the style spec, so
+    # the house style stays the last word.
     def call
-      [subject_clause, pos_clause, modifiers_clause, style_clause, BASE_CONSTRAINTS, background_clause]
+      [subject_clause, pos_clause, likeness_clause, modifiers_clause, style_clause, BASE_CONSTRAINTS, background_clause]
         .compact_blank
         .join(" ")
     end

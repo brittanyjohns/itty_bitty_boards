@@ -449,14 +449,20 @@ class Image < ApplicationRecord
   # composed prompt — otherwise each regeneration would wrap the previous
   # envelope inside a new one. The full prompt is composed here, at call time,
   # and recorded on the resulting doc.
-  def create_image_doc(user_id = nil, prompt_to_use = nil, transparent: true)
+  #
+  # `likeness_fingerprint:` marks a picture drawn with a communicator likeness.
+  # It belongs to the tiles it was drawn for, so it gets no UserDoc pick, never
+  # becomes the library default, and is never fanned out to other tiles.
+  def create_image_doc(user_id = nil, prompt_to_use = nil, transparent: true, likeness_fingerprint: nil)
     user_id ||= self.user_id
     prompt = prompt_to_use.presence || default_image_prompt(image_prompt, transparent: transparent)
 
-    response = create_image(user_id, prompt, transparent: transparent)
+    response = create_image(user_id, prompt, transparent: transparent, likeness_fingerprint: likeness_fingerprint)
     Rails.logger.error "No response for image creation" unless response
     if response
       doc = response
+      return doc if doc.likeness?
+
       # The generating user's own pointer.
       doc.update_user_docs
       # The LIBRARY default is a different question: a regular user generating
@@ -1294,12 +1300,23 @@ class Image < ApplicationRecord
         end
       # A pick is a pointer, and one aimed at a doc its user could not
       # otherwise see must not become a way to see it.
-      picks = user_docs.sort_by(&:updated_at).map(&:doc).compact.select { |doc| doc.visible_to?(viewing_user) }
+      picks = user_docs.sort_by(&:updated_at).map(&:doc).compact
+        .select { |doc| doc.visible_to?(viewing_user) && !doc.likeness? }
       return picks.last if picks.any?
     end
 
-    visible = self.docs.for_user(viewing_user)
+    # Likeness docs are excluded even for their owner: a picture drawn to look
+    # like one communicator must not become the word's picture on the owner's
+    # other boards (a sibling's, say). Tiles reach them directly instead.
+    visible = self.docs.for_user(viewing_user).where(Doc::NOT_LIKENESS_SQL)
     visible.current.last || visible.last
+  end
+
+  # The picture already drawn for this owner with this likeness, if any.
+  def likeness_doc_for(user_id:, fingerprint:)
+    return nil if user_id.blank? || fingerprint.blank?
+
+    docs.where(user_id: user_id).where("docs.data->>'#{Doc::LIKENESS_KEY}' = ?", fingerprint).order(:id).last
   end
 
   # The docs a viewer may list. Admins see every doc — the gallery is how they

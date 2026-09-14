@@ -177,7 +177,8 @@ class CommunicatorLikeness
     return nil if blank?
 
     descriptors = [SKIN_PHRASES[skin_tone], hair_phrase].compact
-    description = "a #{person_noun(age_band)}"
+    noun = person_noun(age_band)
+    description = "#{noun.match?(/\A[aeiou]/i) ? "an" : "a"} #{noun}"
     description += " with #{descriptors.join(" and ")}" if descriptors.any?
     extra_phrases = extras.filter_map { |extra| EXTRA_PHRASES[extra] }
     description += ", #{extra_phrases.to_sentence}" if extra_phrases.any?
