@@ -88,9 +88,9 @@ RSpec.describe CommunicatorLikeness do
       clause = described_class.from_hash(full).prompt_clause(age_band: "4-6")
 
       expect(clause).to eq(
-        "If the picture shows a person, draw that person as a young girl with medium-brown skin " \
+        "Draw the person in this picture as a young girl with medium-brown skin " \
         "and curly black hair, wearing glasses and using a wheelchair. " \
-        "Do not add a person the subject does not need.",
+        "Do not add any other people the subject does not need.",
       )
     end
 

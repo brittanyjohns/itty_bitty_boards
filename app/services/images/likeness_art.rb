@@ -17,8 +17,11 @@ module Images
     # a communicator's second board, or a sibling who looks the same, costs
     # nothing. Only ever asked where generation would otherwise run, so it never
     # replaces art a tile would have shown anyway.
+    #
+    # Never for a word whose picture isn't the communicator: that word gets
+    # ordinary art, so a likeness picture on it would be a stray person.
     def reusable_url(image:, owner_id:, likeness:)
-      return nil unless likeness
+      return nil unless likeness&.applies_to?(image, user_input: image.image_prompt)
 
       image.likeness_doc_for(user_id: owner_id, fingerprint: likeness.fingerprint)&.tile_url.presence
     end

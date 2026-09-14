@@ -84,7 +84,7 @@ class CommunicatorLikeness
     "neutral" => "person",
   }.freeze
 
-  PROMPT_GUARD = "Do not add a person the subject does not need.".freeze
+  PROMPT_GUARD = "Do not add any other people the subject does not need.".freeze
 
   attr_reader :skin_tone, :hair_color, :hair_style, :gender_presentation, :extras
 
@@ -171,8 +171,10 @@ class CommunicatorLikeness
   end
 
   # One sentence for Images::PromptBuilder, or nil when there is nothing to say.
-  # Conditional on a person being in the picture, and followed by a guard, so
-  # "apple" does not come back holding a child.
+  # Only ever sent for a word whose picture IS the communicator — that decision
+  # is Images::LikenessApplicability's, never this sentence's. Worded as a
+  # conditional ("if the picture shows a person…") it rode every prompt, and the
+  # model drew the person it described into "dog" and "she" alike.
   def prompt_clause(age_band: nil)
     return nil if blank?
 
@@ -183,7 +185,7 @@ class CommunicatorLikeness
     extra_phrases = extras.filter_map { |extra| EXTRA_PHRASES[extra] }
     description += ", #{extra_phrases.to_sentence}" if extra_phrases.any?
 
-    "If the picture shows a person, draw that person as #{description}. #{PROMPT_GUARD}"
+    "Draw the person in this picture as #{description}. #{PROMPT_GUARD}"
   end
 
   # A readable tag for a picture drawn with this look, e.g.

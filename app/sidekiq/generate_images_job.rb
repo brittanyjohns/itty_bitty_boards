@@ -89,6 +89,11 @@ class GenerateImagesJob
           end
           image.save! if image.changed?
 
+          # Per word: the board's likeness applies only where this picture's
+          # person is the communicator. "dog" and "she" get ordinary art, with no
+          # likeness in the prompt and no likeness stamp on the doc.
+          image_likeness = likeness if likeness&.applies_to?(image, user_input: image.image_prompt)
+
           # `image_prompt` holds the user's intent; the house envelope is
           # composed here so it never gets persisted and re-wrapped. This used
           # to overwrite image_prompt unconditionally on non-menu boards,
@@ -102,13 +107,13 @@ class GenerateImagesJob
                 board: board,
                 user: image.user,
                 modifiers: modifiers,
-                likeness: likeness,
+                likeness: image_likeness,
               )
             end
 
           Rails.logger.debug "BOARD TYPE: #{board&.board_type} - Generating image for Image ID #{image.id} with prompt: #{composed_prompt}"
 
-          new_doc = image.create_image_doc(user_id, composed_prompt, likeness: likeness)
+          new_doc = image.create_image_doc(user_id, composed_prompt, likeness: image_likeness)
 
           unless new_doc
             Rails.logger.error("Failed to create image doc for image #{image.id}")
@@ -129,7 +134,7 @@ class GenerateImagesJob
           # Image#set_library_default_doc!.
           # A likeness picture is never the library default, so it replaces
           # nothing there.
-          if replace_current && likeness.nil? && User.find_by(id: user_id)&.can_edit?(image)
+          if replace_current && image_likeness.nil? && User.find_by(id: user_id)&.can_edit?(image)
             image.docs.where.not(id: new_doc.id).update_all(current: false)
           end
 

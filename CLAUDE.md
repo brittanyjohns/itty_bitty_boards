@@ -630,7 +630,15 @@ an explicit decision, not a drive-by edit.
   follow a pick of it, every `src_url` fallback filters it, and it skips the
   automatic UserDoc, the fan-out, and `replace_current`. Tiles reach it
   directly. `Doc.for_user` is a VISIBILITY scope — any caller resolving a
-  default from it must add `NOT_LIKENESS_SQL`. Two rules ride on it.
+  default from it must add `NOT_LIKENESS_SQL`. **And a likeness is
+  drawn only onto a word whose picture IS the communicator** —
+  `Images::LikenessApplicability` (an action, a feeling, something they say, or
+  a first-person word; never a thing, a place, or another person, and never
+  "we"). Sent with every prompt on the board, the described person was drawn
+  into "dog" and turned "she" into a boy who looked like the communicator. The
+  prompt, the fingerprint stamp and reuse all read the one per-image answer
+  (`LikenessResolver::Result#applies_to?`), so a non-person word is ordinary,
+  unstamped art. Two more rules ride on it.
   A likeness only applies where art would be GENERATED ANYWAY — library art is
   kept, and `Images::LikenessArt.art_present?` is the shared test, which ignores
   likeness docs so another look's picture never counts as the word's art. And a

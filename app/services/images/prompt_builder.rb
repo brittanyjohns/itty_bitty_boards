@@ -142,8 +142,11 @@ module Images
     # Convenience wrapper for the common "generate art for this Image record"
     # case, so callers don't have to remember to pass part_of_speech.
     #
-    # `likeness` is an Images::LikenessResolver::Result (or nil).
+    # `likeness` is an Images::LikenessResolver::Result (or nil). It is dropped
+    # for a word whose picture isn't the communicator (Result#applies_to?), so no
+    # caller can put the communicator into a picture of something else.
     def self.for_image(image, user_input: nil, style: nil, transparent: true, board: nil, user: nil, modifiers: nil, likeness: nil)
+      likeness = nil unless likeness&.applies_to?(image, user_input: user_input)
       new(
         label: image.label,
         user_input: user_input,

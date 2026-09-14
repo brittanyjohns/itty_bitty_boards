@@ -29,7 +29,7 @@ RSpec.describe GenerateImagesJob, "communicator likeness", type: :job do
 
     result = capture_generation { described_class.new.perform([image.id], board.id) }
 
-    expect(result[:prompt]).to include("If the picture shows a person, draw that person as a child with dark brown skin and black braided hair")
+    expect(result[:prompt]).to include("Draw the person in this picture as a child with dark brown skin and black braided hair")
     expect(result[:fingerprint]).to eq(communicator.likeness.fingerprint)
     expect(result[:user_id]).to eq(owner.id)
     # The tag the save stamps: the look and age band, not the communicator.
@@ -37,6 +37,27 @@ RSpec.describe GenerateImagesJob, "communicator likeness", type: :job do
       Doc::LIKENESS_TRAITS_KEY => communicator.likeness.to_h,
       Doc::LIKENESS_AGE_BAND_KEY => "7-10",
     )
+  end
+
+  # The likeness used to ride every prompt on the board, and the model read a
+  # described person as an instruction to draw one: "dog" came back with the
+  # communicator in it, and "she" came back as a boy who looked like them.
+  [
+    ["dog", "noun"],
+    ["she", "pronoun"],
+    ["girl", "noun"],
+  ].each do |label, pos|
+    it "draws #{label.inspect} as ordinary art with no likeness and no stamp" do
+      ChildBoard.create!(child_account: communicator, board: board)
+      word = create(:image, user: nil, label: label, part_of_speech: pos)
+      board.add_image(word.id)
+
+      result = capture_generation { described_class.new.perform([word.id], board.id) }
+
+      expect(result[:prompt]).not_to include("Draw the person in this picture")
+      expect(result[:prompt]).not_to include("dark brown skin")
+      expect(result[:fingerprint]).to be_nil
+    end
   end
 
   it "uses a communicator named in the options for a board that isn't attached" do
@@ -50,13 +71,14 @@ RSpec.describe GenerateImagesJob, "communicator likeness", type: :job do
   it "sends the plain house prompt with no likeness" do
     result = capture_generation { described_class.new.perform([image.id], board.id) }
 
-    expect(result[:prompt]).not_to include("If the picture shows a person")
+    expect(result[:prompt]).not_to include("Draw the person in this picture")
     expect(result[:fingerprint]).to be_nil
   end
 
   it "never demotes the library default for a likeness run" do
     admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
-    library_image = create(:image, user: admin, label: "slide")
+    # A verb, so the likeness actually applies to this word.
+    library_image = create(:image, user: admin, label: "slide", part_of_speech: "verb")
     library_doc = create(:doc, documentable: library_image, user: admin, current: true)
     admin_board = create(:board, user: admin, board_type: "dynamic")
     admin_board.add_image(library_image.id)

@@ -119,10 +119,12 @@ turban, kippah, braces, AAC device). `CommunicatorLikeness`
 - **Never copied.** `Board#clone_with_images` strips `likeness` alongside the
   robust-set markers: a copy in another account must not draw that account's
   tiles to look like the source owner's communicator.
-- **The prompt clause is conditional and guarded** — "If the picture shows a
-  person, draw that person as…" followed by `PROMPT_GUARD` ("Do not add a person
-  the subject does not need") — so a noun like "apple" doesn't grow a child. The
-  noun comes from the communicator's age band and stays age-neutral without one:
+- **The prompt clause** — "Draw the person in this picture as…" followed by
+  `PROMPT_GUARD` ("Do not add any other people the subject does not need"). It
+  is NOT conditional prose: an earlier "If the picture shows a person…" version
+  rode every prompt, and the model drew the person it described into "dog" and
+  "she" alike. Whether it is sent at all is decided per word (below). The noun
+  comes from the communicator's age band and stays age-neutral without one:
   communicators are not all children.
 - `#fingerprint` is stable across key/extras order, so two communicators who look
   the same can share generated art.
@@ -135,6 +137,22 @@ turban, kippah, braces, AAC device). `CommunicatorLikeness`
   foreign one, or a menu board all resolve to nil. The result carries the
   communicator's `age_band` for the noun, even when the look came from the
   board override.
+- **Which words take it** — `Images::LikenessApplicability.applies?(label:,
+  part_of_speech:, user_input:)`, deterministic, checked in order:
+  1. names another person (she, his, girl, mom, teacher, friend, we, us, …) →
+     no, even beside "me". "you" counts only as a subject: it is fine in
+     something said to someone (social/question POS, or with a first-person word).
+  2. first person (i, me, my, mine, myself; contractions reduced) → yes.
+  3. part of speech: `verb`, `social`, `question`, `important_function` → yes;
+     `adjective` only for `FEELING_WORDS`; everything else (nouns, prepositions,
+     determiners, adverbs, nil) → no.
+
+  It reads the typed description too, so "a girl feeding a dog" stays
+  unpersonalized. `Result#applies_to?(image, user_input:)` is the per-image
+  entry point: `GenerateImagesJob` / `GenerateImageJob` compute it once per
+  image for the prompt, the fingerprint and `replace_current`;
+  `PromptBuilder.for_image` re-checks it; `LikenessArt.reusable_url` refuses
+  reuse without it.
 - **The prompt layer** sits after the part-of-speech clause and before
   `modifiers` and the style spec (`PromptBuilder.for_image(likeness:)`). The
   refusal retry in `GenerateImageJob` keeps it.

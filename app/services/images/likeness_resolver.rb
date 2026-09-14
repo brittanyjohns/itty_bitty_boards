@@ -24,6 +24,15 @@ module Images
       def prompt_clause
         likeness.prompt_clause(age_band: age_band)
       end
+
+      # Whether this word's picture should look like the communicator at all.
+      # The prompt, the doc stamp and reuse all ask this, per image, so they
+      # can never disagree about one word.
+      def applies_to?(image, user_input: nil)
+        Images::LikenessApplicability.applies?(
+          label: image.label, part_of_speech: image.part_of_speech, user_input: user_input,
+        )
+      end
     end
 
     def self.for(board:, communicator: nil)

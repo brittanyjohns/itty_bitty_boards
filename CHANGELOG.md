@@ -15,6 +15,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   someone picks them. Pictures you draw for your own communicators stay private
   to your account.
 
+### Fixed
+
+- **"Pictures that look like them" no longer puts the communicator into every
+  picture.** With a look set, new pictures for words like "dog", "she" or
+  "girl" came back with a person who looked like the communicator in them. The
+  look is now used only when the picture is of the communicator: an action
+  ("eat", "jump"), a feeling ("happy", "tired"), something they say ("hi",
+  "thank you", "stop"), or a word about themselves ("I", "my turn"). Pictures of
+  things, places and other people are drawn as usual. Pictures already made with
+  the wrong look don't change; regenerate those tiles to redraw them.
+
 ### Security
 
 - **Your pictures stay yours.** A picture you upload, pick, or generate for a

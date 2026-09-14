@@ -9,7 +9,8 @@ RSpec.describe Board, "#find_or_create_images_from_word_list with a likeness" do
   let(:communicator) do
     create(:child_account, user: owner, settings: { "likeness" => { "skin_tone" => "medium" } })
   end
-  let!(:image) { create(:image, label: "kite", user: nil, is_private: false, part_of_speech: "noun") }
+  # A verb: its picture is someone doing it, which is the communicator.
+  let!(:image) { create(:image, label: "jump", user: nil, is_private: false, part_of_speech: "verb") }
 
   before do
     GenerateImagesJob.jobs.clear
@@ -17,7 +18,19 @@ RSpec.describe Board, "#find_or_create_images_from_word_list with a likeness" do
   end
 
   def fill(**kwargs)
-    board.find_or_create_images_from_word_list(["kite"], parts_of_speech: { "kite" => "noun" }, **kwargs)
+    board.find_or_create_images_from_word_list(["jump"], parts_of_speech: { "jump" => "verb" }, **kwargs)
+  end
+
+  # A likeness picture of "kite" would be the communicator holding a kite —
+  # exactly the stray person the rule exists to keep out.
+  it "never reuses a likeness picture for a word whose picture isn't the communicator" do
+    kite = create(:image, label: "kite", user: nil, is_private: false, part_of_speech: "noun")
+    create(:doc, documentable: kite, user: owner, data: { Doc::LIKENESS_KEY => communicator.likeness.fingerprint })
+
+    board.find_or_create_images_from_word_list(["kite"], parts_of_speech: { "kite" => "noun" }, communicator: communicator)
+
+    expect(board.board_images.find_by(image_id: kite.id).display_image_url.to_s).not_to include("doc_")
+    expect(GenerateImagesJob.jobs.size).to eq(1)
   end
 
   def tile
