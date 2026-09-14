@@ -93,6 +93,40 @@ determiner, default) are deliberately absent — a nil clause is dropped.
 The POS clause is **skipped when the user wrote their own description** — their
 words are more specific, and stacking both yields contradictory instructions.
 
+## Communicator likeness (how the people in the art look)
+
+A communicator can carry a **likeness**: skin tone, hair color and style, gender
+presentation, and extras (glasses, hearing aids, wheelchair, walker, hijab,
+turban, kippah, braces, AAC device). `CommunicatorLikeness`
+(`app/services/communicator_likeness.rb`) owns all of it.
+
+- **Tokens in, prose out.** Storage and the API carry allowlisted tokens only;
+  every sentence the image model sees comes from phrases the class owns
+  (`#prompt_clause(age_band:)`). Unknown tokens are dropped, not rejected, like
+  `resolve_style`. Labels live in `config/locales/likeness.{en,es}.yml` and are
+  served on `GET /api/likeness_options` (no auth, like `/api/age_bands`); a
+  label can change without changing a single generated picture.
+- **Where it lives.** `child_accounts.settings["likeness"]` — `settings` merges
+  on update, and the picker replaces this one sub-hash whole.
+  `boards.settings["likeness"]` is a per-board override: a likeness,
+  `{"mode" => "none"}` to switch it off, or no key to inherit. Both are
+  normalized in a model callback (`boards#update` merges `settings` unfiltered).
+- **Who sees it.** It describes what a person looks like, so payloads only carry
+  it to an editor: `ChildAccount#settings_for` (gated on `editable_by?`, like the
+  passcode) and `Board#settings_for` (gated on `can_edit_for` — a published
+  board is served to anyone). Use `settings_for(viewing_user)`, never bare
+  `settings`, in any new serializer.
+- **Never copied.** `Board#clone_with_images` strips `likeness` alongside the
+  robust-set markers: a copy in another account must not draw that account's
+  tiles to look like the source owner's communicator.
+- **The prompt clause is conditional and guarded** — "If the picture shows a
+  person, draw that person as…" followed by `PROMPT_GUARD` ("Do not add a person
+  the subject does not need") — so a noun like "apple" doesn't grow a child. The
+  noun comes from the communicator's age band and stays age-neutral without one:
+  communicators are not all children.
+- `#fingerprint` is stable across key/extras order, so two communicators who look
+  the same can share generated art.
+
 ## Style resolution
 
 Two specs: `symbol` (flat vector AAC symbol) and `illustrated` (soft flat colors).

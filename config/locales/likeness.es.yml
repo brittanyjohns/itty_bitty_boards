@@ -1,0 +1,49 @@
+# Spanish labels for CommunicatorLikeness tokens. See likeness.en.yml — every
+# token needs an entry here too.
+es:
+  likeness:
+    fields:
+      skin_tone: Tono de piel
+      hair_color: Color de cabello
+      hair_style: Peinado
+      gender_presentation: Se ve como
+      extras: Incluir también
+    skin_tone:
+      light: Clara
+      light_medium: Clara media
+      medium: Media
+      medium_brown: Morena media
+      brown: Morena
+      dark_brown: Morena oscura
+    hair_color:
+      black: Negro
+      dark_brown: Castaño oscuro
+      brown: Castaño
+      auburn: Caoba
+      red: Pelirrojo
+      blond: Rubio
+      gray: Canoso
+    hair_style:
+      short: Corto
+      long: Largo
+      curly: Rizado
+      coily: Muy rizado
+      braids: Trenzas
+      locs: Rastas
+      ponytail: Coleta
+      buzzed: Rapado
+      bald: Calvo
+    gender_presentation:
+      boy_man: Niño / hombre
+      girl_woman: Niña / mujer
+      neutral: Cualquiera / neutral
+    extras:
+      glasses: Lentes
+      hearing_aids: Audífonos
+      wheelchair: Silla de ruedas
+      walker: Andadera
+      hijab: Hiyab
+      turban: Turbante
+      kippah: Kipá
+      braces: Frenos dentales
+      aac_device: Dispositivo de CAA

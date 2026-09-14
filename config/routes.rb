@@ -244,6 +244,8 @@ Rails.application.routes.draw do
     # their age select from this rather than from two hand-written lists that
     # had already drifted apart.
     get "age_bands", to: "age_bands#index"
+    # Token lists for a communicator's tile-art likeness picker. Static, no auth.
+    get "likeness_options", to: "likeness_options#index"
 
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"
