@@ -186,6 +186,29 @@ class CommunicatorLikeness
     "If the picture shows a person, draw that person as #{description}. #{PROMPT_GUARD}"
   end
 
+  # A readable tag for a picture drawn with this look, e.g.
+  # "Skin tone: Brown · Hair style: Curly · Also include: Glasses · 4–6 years".
+  # Built from the picker's own locale labels, never from the prompt phrases, so
+  # it names the look in the words it was chosen in. nil when blank.
+  def label(locale: I18n.default_locale, age_band: nil)
+    return nil if blank?
+
+    parts = FIELDS.keys.filter_map do |field|
+      value = public_send(field)
+      next if value.nil?
+
+      "#{I18n.t("likeness.fields.#{field}", locale: locale)}: #{I18n.t("likeness.#{field}.#{value}", locale: locale)}"
+    end
+    if extras.any?
+      names = extras.map { |extra| I18n.t("likeness.extras.#{extra}", locale: locale) }
+      parts << "#{I18n.t("likeness.fields.extras", locale: locale)}: #{names.join(", ")}"
+    end
+    band = CommunicatorProfile.age_band_label(age_band, locale: locale) if age_band.present?
+    parts << band if band
+
+    parts.join(" · ")
+  end
+
   private
 
   def person_noun(age_band)

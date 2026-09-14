@@ -47,15 +47,22 @@ class Doc < ApplicationRecord
   has_one_base64_attached :image
   has_many :user_docs, dependent: :destroy
 
-  # A likeness doc is drawn for one tile's look; a UserDoc pick would make it
-  # the owner's picture for that word on every other board they have.
+  # A likeness doc is drawn for one tile's look; an automatic UserDoc pick would
+  # make it the owner's picture for that word on every other board they have.
   after_create :update_user_docs, if: -> { user_id && !likeness? }
 
-  # data key stamped on art generated with a communicator likeness
-  # (Images::LikenessResolver). Such a doc is never library art, and generic
-  # resolution (Image#display_doc) never picks it: it belongs to the tiles it
-  # was drawn for.
+  # data keys stamped on art generated with a communicator likeness
+  # (Images::LikenessResolver). The fingerprint identifies the look for reuse;
+  # the traits and age band are the TAG — which personalization drew it, as
+  # allowlisted tokens and never the communicator it was drawn for.
+  #
+  # A likeness doc is PICKABLE, never a DEFAULT: an admin-owned one is library
+  # (listed for everyone, and a user may choose it), but generic resolution
+  # (Image#display_doc's fallback), docs.current and images.src_url never land
+  # on one — NOT_LIKENESS_SQL is the filter those paths use.
   LIKENESS_KEY = "likeness_fingerprint".freeze
+  LIKENESS_TRAITS_KEY = "likeness_traits".freeze
+  LIKENESS_AGE_BAND_KEY = "likeness_age_band".freeze
   NOT_LIKENESS_SQL = "docs.data->>'#{LIKENESS_KEY}' IS NULL".freeze
 
   scope :current, -> { where(current: true) }
@@ -188,6 +195,7 @@ class Doc < ApplicationRecord
       license: license,
       documentable_type: documentable_type,
       documentable_id: documentable_id,
+      likeness: likeness_tag,
       src: display_url,
     # tile_src: tile_url,
     }
@@ -211,6 +219,7 @@ class Doc < ApplicationRecord
       license: license,
       documentable_type: documentable_type,
       documentable_id: documentable_id,
+      likeness: likeness_tag,
       src: tile_url,
     # tile_src: tile_url,
     }
@@ -295,20 +304,60 @@ class Doc < ApplicationRecord
   # Images are shared rows, their docs are not. `#visible_to?` is the in-memory
   # mirror, for filtering an already-loaded association without a query.
   #
-  # A likeness doc is never library, even when the admin owns it: it is one
-  # person's look, visible only to its owner.
+  # An admin-owned likeness doc is library like any other admin doc — listed for
+  # everyone and pickable. This is a VISIBILITY answer only: a caller resolving
+  # a default adds `.where(NOT_LIKENESS_SQL)`. A likeness doc owned by anyone
+  # else stays private to its owner.
   def self.for_user(user)
-    library = where(user_id: [nil, User::DEFAULT_ADMIN_ID]).where(NOT_LIKENESS_SQL)
+    library = where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     scope = user.nil? ? library : library.or(where(user_id: user.id))
     scope.with_attached_image
   end
 
   def library?
-    (user_id.nil? || user_id == User::DEFAULT_ADMIN_ID) && !likeness?
+    user_id.nil? || user_id == User::DEFAULT_ADMIN_ID
   end
 
   def likeness?
     data.is_a?(Hash) && data[LIKENESS_KEY].present?
+  end
+
+  # A likeness picture in the shared library: any user may pick it for
+  # themselves, and nothing may make it the word's default.
+  def shared_likeness?
+    likeness? && library?
+  end
+
+  # The data keys a generation stamps for a resolved likeness
+  # (Images::LikenessResolver::Result), or {} when there is none. Traits are
+  # tokens and the age band only — never the communicator, since an admin
+  # likeness doc is visible to every account.
+  def self.likeness_data(likeness)
+    return {} if likeness.nil? || likeness.likeness.blank?
+
+    {
+      LIKENESS_KEY => likeness.fingerprint,
+      LIKENESS_TRAITS_KEY => likeness.likeness.to_h,
+      LIKENESS_AGE_BAND_KEY => likeness.age_band.presence,
+    }.compact
+  end
+
+  # Which personalization drew this picture, for a picker to show. nil for an
+  # ordinary doc, and for a likeness doc generated before traits were stamped
+  # (its fingerprint is a one-way hash and names no look).
+  def likeness_tag(locale = I18n.locale)
+    traits = data.is_a?(Hash) ? data[LIKENESS_TRAITS_KEY] : nil
+    return nil unless traits.is_a?(Hash)
+
+    likeness = CommunicatorLikeness.from_hash(traits)
+    return nil if likeness.blank?
+
+    age_band = data[LIKENESS_AGE_BAND_KEY].presence
+    {
+      traits: likeness.to_h,
+      age_band: age_band,
+      label: likeness.label(locale: locale, age_band: age_band),
+    }
   end
 
   def visible_to?(viewer)

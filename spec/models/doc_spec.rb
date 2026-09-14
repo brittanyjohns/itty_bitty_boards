@@ -82,6 +82,50 @@ RSpec.describe Doc, type: :model do
       expect(result).not_to include(doc2)
       expect(result).to include(doc4)
     end
+
+    it "lists an admin likeness doc for everyone and keeps another user's private" do
+      admin_look = FactoryBot.create(:doc, user: admin_user, data: { Doc::LIKENESS_KEY => "abc" })
+      other_look = FactoryBot.create(:doc, user: other_user, data: { Doc::LIKENESS_KEY => "abc" })
+
+      expect(Doc.for_user(user)).to include(admin_look)
+      expect(Doc.for_user(nil)).to include(admin_look)
+      expect(Doc.for_user(user)).not_to include(other_look)
+      expect(Doc.for_user(other_user)).to include(other_look)
+    end
+  end
+
+  describe "likeness tag" do
+    let(:tokens) { { "skin_tone" => "brown", "hair_style" => "curly", "extras" => ["glasses"] } }
+    let(:result) do
+      Images::LikenessResolver::Result.new(likeness: CommunicatorLikeness.from_hash(tokens), age_band: "4-6")
+    end
+
+    it "stamps the look's tokens and age band, and nothing about who it was drawn for" do
+      expect(Doc.likeness_data(result)).to eq(
+        Doc::LIKENESS_KEY => result.fingerprint,
+        Doc::LIKENESS_TRAITS_KEY => tokens,
+        Doc::LIKENESS_AGE_BAND_KEY => "4-6",
+      )
+    end
+
+    it "stamps nothing without a likeness" do
+      expect(Doc.likeness_data(nil)).to eq({})
+    end
+
+    it "serializes a readable tag" do
+      doc = FactoryBot.build(:doc, data: Doc.likeness_data(result))
+
+      expect(doc.likeness_tag(:en)).to eq(
+        traits: tokens,
+        age_band: "4-6",
+        label: "Skin tone: Brown · Hair style: Curly · Also include: Glasses · 4–6 years",
+      )
+    end
+
+    it "is nil for an ordinary doc and for a fingerprint-only likeness doc" do
+      expect(FactoryBot.build(:doc, data: {}).likeness_tag).to be_nil
+      expect(FactoryBot.build(:doc, data: { Doc::LIKENESS_KEY => "abc" }).likeness_tag).to be_nil
+    end
   end
 
   # Rendering a tile variant inside an open transaction is fatal, not slow: the

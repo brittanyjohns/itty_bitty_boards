@@ -108,7 +108,7 @@ class GenerateImagesJob
 
           Rails.logger.debug "BOARD TYPE: #{board&.board_type} - Generating image for Image ID #{image.id} with prompt: #{composed_prompt}"
 
-          new_doc = image.create_image_doc(user_id, composed_prompt, likeness_fingerprint: likeness&.fingerprint)
+          new_doc = image.create_image_doc(user_id, composed_prompt, likeness: likeness)
 
           unless new_doc
             Rails.logger.error("Failed to create image doc for image #{image.id}")

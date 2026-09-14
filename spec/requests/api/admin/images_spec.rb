@@ -129,6 +129,18 @@ RSpec.describe "API::Admin::Images", type: :request do
 
       expect(image.reload.src_url).to eq("https://cdn.example.com/b.webp")
     end
+
+    # A likeness picture is shared library art a user may pick, but one look is
+    # never what every future tile snapshots.
+    it "never falls back to a likeness picture, even the library's own" do
+      image.set_library_default_doc!(doc_b, actor: admin)
+      create(:doc, documentable: image, user_id: nil, data: { Doc::LIKENESS_KEY => "abc" },
+                   original_image_url: "https://cdn.example.com/likeness.webp")
+
+      delete "/api/admin/images/#{image.id}/default_doc", headers: auth_headers(admin)
+
+      expect(image.reload.src_url).to eq("https://cdn.example.com/b.webp")
+    end
   end
 
   describe "DELETE a doc" do

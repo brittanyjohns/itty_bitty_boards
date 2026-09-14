@@ -128,6 +128,31 @@ RSpec.describe "POST /api/docs/:id/mark_as_current — board isolation", type: :
     end
   end
 
+  # An admin likeness picture is shared library art a user may choose, but it is
+  # one communicator's look and never the word's default for everyone.
+  context "when a user picks an admin likeness doc" do
+    let!(:likeness_doc) do
+      create(:doc, documentable: image, user: admin, data: { Doc::LIKENESS_KEY => "abc", Doc::LIKENESS_TRAITS_KEY => { "skin_tone" => "brown" } })
+    end
+
+    it "records their pick and leaves the library default alone" do
+      post "/api/docs/#{likeness_doc.id}/mark_as_current", headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:ok)
+      expect(UserDoc.find_by(user_id: stranger.id, image_id: image.id)&.doc_id).to eq(likeness_doc.id)
+      expect(likeness_doc.reload.current).to be(false)
+      expect(image.reload.src_url).to eq(old_url)
+    end
+
+    it "doesn't move the default even when the admin picks it" do
+      post "/api/docs/#{likeness_doc.id}/mark_as_current", headers: auth_headers(admin)
+
+      expect(likeness_doc.reload.current).to be(false)
+      expect(old_doc.reload.current).to be(true)
+      expect(image.reload.src_url).to eq(old_url)
+    end
+  end
+
   # The doc itself was loaded with an unscoped find, so any signed-in user could
   # pin another user's private doc as their own pick, onto their own board, and
   # read its URL back. A doc they cannot see is indistinguishable from one that

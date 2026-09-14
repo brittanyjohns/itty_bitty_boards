@@ -64,7 +64,8 @@ class API::Admin::ImagesController < API::Admin::ApplicationController
     @image.fanout_actor_id = current_admin.id
     # Library art only: src_url is shared, and the newest doc may be a user's
     # private upload.
-    @image.update(src_url: @image.docs.for_user(@image.user).last&.tile_url)
+    # Never a likeness picture: those are pickable, not a default.
+    @image.update(src_url: @image.docs.for_user(@image.user).where(Doc::NOT_LIKENESS_SQL).last&.tile_url)
 
     render json: image_json
   end
@@ -88,7 +89,8 @@ class API::Admin::ImagesController < API::Admin::ApplicationController
       @image.fanout_actor_id = current_admin.id
       # Library art only: src_url is shared, and the newest doc may be a user's
     # private upload.
-    @image.update(src_url: @image.docs.for_user(@image.user).last&.tile_url)
+    # Never a likeness picture: those are pickable, not a default.
+    @image.update(src_url: @image.docs.for_user(@image.user).where(Doc::NOT_LIKENESS_SQL).last&.tile_url)
     end
 
     render json: image_json
