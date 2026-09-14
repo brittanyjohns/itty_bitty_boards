@@ -51,6 +51,36 @@ RSpec.describe ChildAccount, "claim flow", type: :model do
       expect(slp_membership.role).to eq("supervisor")
     end
 
+    # The hand-off is where the SLP's credential access ends.
+    it "rotates the passcode the SLP knew" do
+      loaner.claim_by!(user: parent)
+      expect(loaner.reload.passcode).to be_present
+      expect(loaner.passcode).not_to eq("loaner01")
+    end
+
+    it "uses a passcode the family chose" do
+      loaner.claim_by!(user: parent, passcode: "family-pick")
+      expect(loaner.reload.passcode).to eq("family-pick")
+    end
+
+    # A communicator session IS the authentication_token, so rotating only the
+    # passcode would leave the SLP's signed-in devices signed in.
+    it "regenerates the session token, ending every earlier session" do
+      old_token = loaner.authentication_token
+      loaner.claim_by!(user: parent)
+      expect(loaner.reload.authentication_token).to be_present
+      expect(loaner.authentication_token).not_to eq(old_token)
+      expect(ChildAccount.find_by_token(old_token)).to be_nil
+    end
+
+    it "leaves the passcode and token alone when the claim is refused" do
+      create(:child_account, user: parent, owner: parent, status: "active", passcode: "x", username: "held")
+      old_token = loaner.authentication_token
+      expect { loaner.claim_by!(user: parent) }.to raise_error(ChildAccount::SlotFull)
+      expect(loaner.reload.passcode).to eq("loaner01")
+      expect(loaner.authentication_token).to eq(old_token)
+    end
+
     it "raises SlotFull when the parent has no claim slot" do
       # Parent already hosts one — Free hosts exactly 1 claimed.
       create(:child_account, user: parent, owner: parent, status: "active", passcode: "x", username: "first")

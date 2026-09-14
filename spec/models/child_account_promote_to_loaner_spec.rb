@@ -51,14 +51,21 @@ RSpec.describe ChildAccount, "loaner provisioning", type: :model do
     end
 
     # Issue #164 — active → loaner is allowed (SLP relends a
-    # self-created active). Passcode is always rotated so the SLP's
-    # old credentials no longer work.
-    it "promotes active → loaner and rotates the passcode" do
+    # self-created active). The passcode is KEPT: lending is not the
+    # hand-off, and a student mid-evaluation must still be able to sign in.
+    # The rotation moved to claim_by!.
+    it "promotes active → loaner and keeps the passcode" do
       account.update!(status: "active", passcode: "knownpass")
       account.promote_to_loaner!
       expect(account.status).to eq("loaner")
-      expect(account.passcode).to be_present
-      expect(account.passcode).not_to eq("knownpass")
+      expect(account.passcode).to eq("knownpass")
+    end
+
+    it "keeps the session token on active → loaner, so nobody is signed out" do
+      account.update!(status: "active", passcode: "knownpass")
+      token = account.authentication_token
+      account.promote_to_loaner!
+      expect(account.reload.authentication_token).to eq(token)
     end
 
     it "honors a caller-supplied passcode on active → loaner" do

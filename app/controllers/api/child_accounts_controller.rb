@@ -164,7 +164,7 @@ class API::ChildAccountsController < API::ApplicationController
     # Ownership guard. By the time we pass this, the caller IS the
     # current owner — which means a `status: active` here is a
     # self-created active (not a family-claimed one). #164 lets the
-    # SLP lend it out (passcode gets rotated in promote_to_loaner!).
+    # SLP lend it out. The passcode is kept; it rotates at claim_by!.
     unless @child_account.owner_id == current_user.id || current_user.admin?
       if @child_account.active?
         render json: account_error_payload("This communicator is owned by someone else and can't be lent."),
@@ -335,7 +335,8 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     begin
-      account.claim_by!(user: current_user)
+      # Optional: the family may choose the passcode; otherwise one is minted.
+      account.claim_by!(user: current_user, passcode: params[:passcode])
       render json: { account: account.api_view(current_user) }, status: :ok
     rescue ChildAccount::SlotFull => e
       render json: {

@@ -34,6 +34,17 @@ any non-owner. Full matrix in issue #166. Server-side rules:
   non-admin callers. Covers the `active→loaner` lend path too, which skips the
   slot check. The frontend `LoanerControls` Pro gate is now defense-in-depth,
   not the only guard.
+- **Credentials rotate at CLAIM, never at lend.** `promote_to_loaner!` keeps an
+  active's passcode (it mints one only when there is none). `claim_by!` rotates
+  the passcode (or takes the family's `passcode` param) **and regenerates
+  `authentication_token`**. The token is the load-bearing half: a communicator
+  session is that token and nothing else, and `ChildAuthsController#create`
+  only mints one when it is nil — so a passcode change alone never signed
+  anyone out. #164's rotate-at-lend therefore never revoked the SLP's existing
+  sessions; it only locked a student out mid-evaluation. Resetting the token
+  signs out EVERY session on the account, the family's loaner device included;
+  the claim response shows the new owner the new passcode (`api_view` gates
+  credentials on `editable_by?`).
 - **Roster + delete are owner-scoped.** `ChildAccountsController#index` scopes
   on `owner_id` (the canonical ownership column that slot counts and serializers
   use), not the legacy `user_id` mirror — so the listed communicators can't
