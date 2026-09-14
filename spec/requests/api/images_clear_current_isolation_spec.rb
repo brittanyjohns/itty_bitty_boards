@@ -69,6 +69,18 @@ RSpec.describe "POST /api/images/:id/clear_current — board isolation", type: :
     expect(doc.reload.current).to be(false)
   end
 
+  # One Image can back two tiles on the same board (a word tile and a folder
+  # tile). Looking the tile up by image_id cleared whichever came first.
+  it "clears only the tile named by board_image_id" do
+    second_tile = create(:board_image, board: owner_board, image: image, display_image_url: url)
+    tile_on(owner_board).update_column(:display_image_url, url)
+
+    clear(as: owner, params: { board_id: owner_board.id, board_image_id: second_tile.id })
+
+    expect(second_tile.reload.display_image_url).to be_nil
+    expect(tile_on(owner_board).reload.display_image_url).to eq(url)
+  end
+
   it "does not blow up when no board_id is given" do
     clear(as: owner)
 

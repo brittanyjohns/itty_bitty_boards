@@ -699,7 +699,14 @@ class API::ImagesController < API::ApplicationController
         # deliberately switched off.
         Images::TileArtFanout.clear(@image, actor: current_user)
       elsif @board
-        @board_image = @board.board_images.find_by(image_id: @image.id)
+        # Same tile-scoped lookup as API::DocsController#mark_as_current: an
+        # Image can back several tiles on one board, so image_id alone clears
+        # whichever comes first rather than the tile being edited.
+        @board_image = if params[:board_image_id].present?
+            @board.board_images.find_by(id: params[:board_image_id])
+          else
+            @board.board_images.find_by(image_id: @image.id)
+          end
         @board_image.update!(display_image_url: nil) if @board_image
       end
 

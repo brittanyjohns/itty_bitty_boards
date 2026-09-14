@@ -3,6 +3,17 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Picking a gallery picture changes the tile you opened.** When two tiles on
+  one board share a picture's word (a "play" word tile and a "Play" folder
+  tile), `POST /api/docs/:id/mark_as_current` and
+  `POST /api/images/:id/clear_current` repainted whichever tile came first.
+  Both now accept `board_image_id` (scoped to the board) and fall back to the
+  old lookup when it is absent.
+
 ## [1.12.0] — 2026-09-14
 
 ### Changed

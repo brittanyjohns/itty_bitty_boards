@@ -205,7 +205,17 @@ class API::DocsController < API::ApplicationController
     end
 
     if @board
-      @board_image = @board.board_images.find_by(image_id: @image.id)
+      # board_image_id names the tile being edited. One Image can back several
+      # tiles on a board (a "play" word tile and a "Play" folder tile), and
+      # find_by(image_id:) repainted whichever came first — so the tile the
+      # user opened could never be changed. Scoped to @board, so an id from
+      # another board matches nothing. image_id stays the fallback for callers
+      # that don't send it.
+      @board_image = if params[:board_image_id].present?
+          @board.board_images.find_by(id: params[:board_image_id])
+        else
+          @board.board_images.find_by(image_id: @image.id)
+        end
       @board_image&.update(display_image_url: @doc.tile_url)
       @board.broadcast_board_update!
     end
