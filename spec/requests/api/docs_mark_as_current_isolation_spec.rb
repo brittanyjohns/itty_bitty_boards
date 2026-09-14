@@ -128,6 +128,33 @@ RSpec.describe "POST /api/docs/:id/mark_as_current — board isolation", type: :
     end
   end
 
+  # The doc itself was loaded with an unscoped find, so any signed-in user could
+  # pin another user's private doc as their own pick, onto their own board, and
+  # read its URL back. A doc they cannot see is indistinguishable from one that
+  # does not exist.
+  context "when the doc is another user's private doc" do
+    let!(:owner) { create(:user) }
+    let!(:private_doc) { create(:doc, documentable: image, user: owner) }
+
+    it "404s and writes nothing" do
+      set_tile(stranger_board, old_url)
+
+      post "/api/docs/#{private_doc.id}/mark_as_current",
+           params: { board_id: stranger_board.id, update_all: true }.to_json,
+           headers: auth_headers(stranger).merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:not_found)
+      expect(UserDoc.where(user_id: stranger.id, doc_id: private_doc.id)).to be_empty
+      expect(tile_on(stranger_board).reload.display_image_url).to eq(old_url)
+    end
+
+    it "still lets the owner pin it" do
+      post "/api/docs/#{private_doc.id}/mark_as_current", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   # The board_id was looked up with an unscoped find_by, so anyone could
   # repaint a tile on any board by passing its id.
   it "refuses to pin a tile on a board the caller cannot edit" do

@@ -412,7 +412,7 @@ RSpec.describe Image, type: :model do
       expect(tile_for(stranger_board).reload.display_image_url).to be_nil
     end
 
-    it "still fills admin-owned tiles so the shared library stays populated" do
+    it "does not fill admin-owned tiles from a regular user's generation" do
       admin = User.find_by(id: User::DEFAULT_ADMIN_ID) ||
               FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID)
       admin_board = FactoryBot.create(:board, user: admin)
@@ -422,7 +422,7 @@ RSpec.describe Image, type: :model do
 
       image.update_all_boards_image_belongs_to(new_url, false, owner.id)
 
-      expect(tile_for(admin_board).reload.display_image_url).to eq(new_url)
+      expect(tile_for(admin_board).reload.display_image_url).to be_nil
     end
 
     it "does nothing when there is no URL to point at" do

@@ -2,6 +2,9 @@ class API::DocsController < API::ApplicationController
   before_action :authenticate_token!
 
   before_action :set_doc, only: %i[ show edit update destroy ]
+  # The listings span every account's docs, and every doc but library art is
+  # private to its owner, so they are an admin moderation surface only.
+  before_action :require_admin_listing!, only: %i[ index deleted ]
 
   # GET /docs or /docs.json
   def index
@@ -23,6 +26,10 @@ class API::DocsController < API::ApplicationController
 
   def find_or_create_image
     @doc = Doc.unscoped.find(params[:id])
+    unless current_user.can_edit?(@doc)
+      render json: { error: "Unauthorized" }, status: :forbidden
+      return
+    end
     @label = params[:label]
     puts "Processing #{@label} for doc id #{@doc.id}"
 
@@ -47,7 +54,16 @@ class API::DocsController < API::ApplicationController
   end
 
   # GET /docs/1 or /docs/1.json
+  #
+  # 404, not 403, for a doc the caller may not see: confirming it exists is
+  # itself the leak.
   def show
+    unless current_user.admin? || @doc.visible_to?(current_user)
+      render json: { error: "Not found." }, status: :not_found
+      return
+    end
+
+    render json: @doc.api_view(current_user)
   end
 
   # GET /docs/new
@@ -69,6 +85,11 @@ class API::DocsController < API::ApplicationController
     # deliberate claim we shouldn't silently overwrite.
     @doc.source_type = Doc::SOURCE_TYPE_USER if @doc.source_type.blank?
     @documentable = @doc.documentable if @doc.documentable
+
+    if @documentable && !documentable_accessible?(@documentable)
+      render json: { error: "Not found." }, status: :not_found
+      return
+    end
 
     respond_to do |format|
       if @doc.save
@@ -121,11 +142,18 @@ class API::DocsController < API::ApplicationController
 
   def move
     @doc = Doc.find(params[:id])
+    # This redirected WITHOUT returning, so the move below still ran for a
+    # caller who had just been refused.
     unless current_user&.can_edit?(@doc)
-      redirect_back_or_to root_url, notice: "You do not have permission to edit this doc."
+      render json: { error: "Unauthorized" }, status: :forbidden
+      return
     end
     if params[:documentable_type] == "Image"
       @image = Image.find(params[:documentable_id])
+      unless documentable_accessible?(@image)
+        render json: { error: "Not found." }, status: :not_found
+        return
+      end
       @doc.update(documentable_id: @image.id, documentable_type: "Image")
       redirect_to @image
     else
@@ -146,6 +174,10 @@ class API::DocsController < API::ApplicationController
   #     belongs to that board's owner; a library change must not repaint it.
   def mark_as_current
     @doc = Doc.find(params[:id])
+    # Another user's private doc is indistinguishable from one that does not
+    # exist — pinning it would copy their picture onto the caller's pick, their
+    # board, and the response.
+    raise ActiveRecord::RecordNotFound unless current_user.admin? || @doc.visible_to?(current_user)
     @image = @doc.documentable
     unless @image.is_a?(Image)
       render json: { error: "Doc is not attached to an image." }, status: :unprocessable_content
@@ -227,6 +259,24 @@ class API::DocsController < API::ApplicationController
   end
 
   private
+
+  def require_admin_listing!
+    return if current_user&.admin?
+
+    render json: { error: "Unauthorized" }, status: :forbidden
+  end
+
+  # A doc may only be attached where the caller could use the result: a
+  # non-private image, or a private image or menu of their own.
+  def documentable_accessible?(documentable)
+    return true if current_user.admin?
+
+    case documentable
+    when Image then !documentable.is_private || documentable.user_id == current_user.id
+    when Menu then documentable.user_id == current_user.id
+    else false
+    end
+  end
 
   def set_scoped_docs
     case params[:scope]

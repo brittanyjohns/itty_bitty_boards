@@ -583,6 +583,27 @@ an explicit decision, not a drive-by edit.
   `Board.from_obf` must hand each tile its OWN button's picture — its
   first-picture-wins variable is the BOARD's cover and was being passed to every
   tile, giving a picture-less button the previous button's art.
+- **A doc owned by nil or `DEFAULT_ADMIN_ID` is LIBRARY art; every other doc is
+  PRIVATE to its owner, and nothing may show it to anyone else.** `Doc.for_user`
+  (scope) and `Doc#visible_to?` (in-memory) are the one definition, and every
+  resolver, listing and shared column reads through them. `Image#display_doc`
+  resolves a viewer's `UserDoc` picks (only those pointing at a doc they could
+  see), then `current` among visible docs, then the newest visible doc — never
+  "the newest doc" unfiltered. It used to end in exactly that, and give the admin
+  viewer `docs.last`, and since it feeds serializers, tile fallbacks and
+  `images.src_url` (which every new tile snapshots), one user's upload became
+  everyone's picture. With no viewer it resolves as the Image's owner, so a
+  user's own private image still renders on their own public board while a
+  library image resolves library art only. The corollaries: `images.src_url` is
+  only ever filled from a doc its Image's owner could see; admin LISTINGS may
+  show every doc (moderation) but admin RESOLUTION is library-only;
+  `GenerateImagesJob` generates as the BOARD's owner, never `image.user_id`
+  (nil on every word-list image — which minted a regular user's board fill as
+  public library art) and never whoever enqueued the run (an admin doing support
+  must not publish a family's picture); and `API::DocsController` 404s a doc the
+  caller can't see rather than 403ing, since confirming it exists is the leak.
+  Pre-fix URLs already copied into `src_url`/tiles stay put:
+  `rake images:doc_isolation_report` counts them and repairs nothing.
 - **A tile's picture belongs to the board's OWNER, and `Images::TileArtFanout`
   is the only thing allowed to write it from a shared `Image`.** `images` and
   `docs` are shared library rows — one "apple" `Image` is on thousands of boards
@@ -591,8 +612,10 @@ an explicit decision, not a drive-by edit.
   tile of an Image on any `src_url` change with no ownership check at all, so an
   admin picking different library art repainted every user's existing board. A
   fan-out may now touch a tile only when its board is owned by the **acting
-  user** or by `DEFAULT_ADMIN_ID` (**no actor ⇒ admin boards only** — never a
-  guess), the tile has no picture of its own (`nil`, or still equal to the URL
+  user**, or by `DEFAULT_ADMIN_ID` when the actor is an admin or there is none
+  (**no actor ⇒ admin boards only** — never a guess; a REGULAR actor never
+  reaches an admin board, because admin boards are the catalogue others clone
+  and a regular user's URL is their private picture), the tile has no picture of its own (`nil`, or still equal to the URL
   being replaced), and the tile is not `picture_hidden?`. `force:` means "all of
   MY boards, including my own pins" and relaxes the pin check *only*;
   `repair_dead:` is the sole mode that may cross ownership, because a URL that

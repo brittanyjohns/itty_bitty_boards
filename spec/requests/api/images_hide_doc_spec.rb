@@ -39,4 +39,23 @@ RSpec.describe "API::Images#hide_doc", type: :request do
 
     expect(Doc.unscoped.find(doc.id).deleted_at).to be_nil
   end
+
+  # src_url is SHARED — every tile created from the image snapshots it. Hiding
+  # the default used to promote whichever doc was newest, which could be some
+  # other user's private upload, publishing it as the library art.
+  it "never promotes another user's private doc into the shared src_url" do
+    admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+    library_image = create(:image, user: admin, label: "moon")
+    older_library_doc = create(:doc, documentable: library_image, user: admin)
+    default_doc = create(:doc, documentable: library_image, user: admin, current: true)
+    create(:doc, documentable: library_image, user: create(:user))
+    allow_any_instance_of(Doc).to receive(:tile_url) { |d| "https://cdn.example.com/doc_#{d.id}.webp" }
+    library_image.update_column(:src_url, default_doc.tile_url)
+
+    post "/api/images/#{library_image.id}/hide_doc",
+         params: { doc_id: default_doc.id },
+         headers: auth_headers(admin)
+
+    expect(library_image.reload.src_url).to eq(older_library_doc.tile_url)
+  end
 end

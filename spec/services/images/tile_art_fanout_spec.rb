@@ -45,10 +45,21 @@ RSpec.describe Images::TileArtFanout do
       expect(tile_on(stranger_board).reload.display_image_url).to be_nil
     end
 
-    it "still fills admin-owned tiles so the shared library stays populated" do
+    # Admin boards are the template/catalogue boards other users browse and
+    # clone. A regular user's URL is their own picture, private to them, so
+    # filling an admin tile with it would publish it to everyone.
+    it "never fills an admin-owned tile from a regular user's action" do
       add_tile(admin_board, display_image_url: nil)
 
       described_class.call(image, url: new_url, actor: owner)
+
+      expect(tile_on(admin_board).reload.display_image_url).to be_nil
+    end
+
+    it "fills admin-owned tiles when the actor is an admin" do
+      add_tile(admin_board, display_image_url: nil)
+
+      described_class.call(image, url: new_url, actor: admin)
 
       expect(tile_on(admin_board).reload.display_image_url).to eq(new_url)
     end
@@ -194,7 +205,7 @@ RSpec.describe Images::TileArtFanout do
   end
 
   describe ".clear" do
-    it "clears the actor's and admin's tiles but not a stranger's" do
+    it "clears the actor's tiles but not an admin's or a stranger's" do
       add_tile(owner_board, display_image_url: old_url)
       add_tile(admin_board, display_image_url: old_url)
       add_tile(stranger_board, display_image_url: old_url)
@@ -202,7 +213,7 @@ RSpec.describe Images::TileArtFanout do
       described_class.clear(image, actor: owner)
 
       expect(tile_on(owner_board).reload.display_image_url).to be_nil
-      expect(tile_on(admin_board).reload.display_image_url).to be_nil
+      expect(tile_on(admin_board).reload.display_image_url).to eq(old_url)
       expect(tile_on(stranger_board).reload.display_image_url).to eq(old_url)
     end
 

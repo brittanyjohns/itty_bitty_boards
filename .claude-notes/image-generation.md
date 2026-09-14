@@ -139,6 +139,27 @@ variation" used to emit visibly off-style art next to gpt-image tiles.
 spec, different composition. `ImageVariationService` was deleted. Do not
 reintroduce the variations endpoint.
 
+## Who can see a generated doc
+
+A doc owned by nil or `DEFAULT_ADMIN_ID` is **library** art; any other doc is
+**private to its owner**. `Doc.for_user` / `Doc#visible_to?` are the definition;
+full rule in the doc-visibility invariant in `CLAUDE.md`.
+
+Generation decides ownership, so it decides visibility:
+
+- `GenerateImageJob` — the requesting user.
+- `GenerateImagesJob` — the **board's owner** (`#generating_user_id`), falling
+  back to `image.user_id` only with no board. Never `image.user_id` first: it is
+  nil on every word-list image, which made a regular user's board fill public
+  library art. Never the enqueuer either: an admin regenerating a family's board
+  for support must not publish it, and a curator's regenerate is the family's
+  picture.
+- `replace_current` only demotes siblings when that user `can_edit?` the Image —
+  the same gate as `set_library_default_doc!`.
+
+So library art grows only from admin-owned boards and system imports. A regular
+user's generation is theirs and reaches their own tiles directly.
+
 ## Bulk edit vs. bulk regenerate
 
 Two bulk actions off the same drawer, and the differences between them are all
@@ -190,7 +211,9 @@ not add logic there.
 **Images are shared library records**, so callers in the generation path must
 pass `current_user_id`: without it the sweep reaches into other users' boards.
 With no actor the fan-out reaches **admin-owned boards only**, which keeps the
-shared library populated without guessing. `override_existing` means "all of MY
+shared library populated without guessing. A regular actor never reaches an
+admin board: those are the catalogue other users clone, and a regular user's
+URL is a private picture. `override_existing` means "all of MY
 boards, including my own pins" — it has never meant, and must never mean, "all
 boards".
 

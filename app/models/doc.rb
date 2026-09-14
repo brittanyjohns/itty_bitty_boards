@@ -281,12 +281,23 @@ class Doc < ApplicationRecord
     User::DEFAULT_ADMIN_ID
   end
 
+  # The docs a viewer may see: their own, plus LIBRARY docs (owned by nil or
+  # DEFAULT_ADMIN_ID). A doc owned by any other user is private to that user —
+  # Images are shared rows, their docs are not. `#visible_to?` is the in-memory
+  # mirror, for filtering an already-loaded association without a query.
   def self.for_user(user)
     if user.nil?
       return self.with_attached_image.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     end
-    # user.admin? ? self.all : self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
     self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
+  end
+
+  def library?
+    user_id.nil? || user_id == User::DEFAULT_ADMIN_ID
+  end
+
+  def visible_to?(viewer)
+    library? || (viewer.present? && user_id == viewer.id)
   end
 
   def self.current_for_user(user)

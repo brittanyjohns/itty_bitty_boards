@@ -70,7 +70,7 @@ class GenerateImagesJob
         begin
           board_image&.update_column(:status, "generating")
 
-          user_id = image.user_id
+          user_id = generating_user_id(image, board)
           if board&.board_type == "menu"
             # Fresh menu-item images carry a description-driven prompt set at
             # creation (Menu#create_images_from_description) — keep it. Reused
@@ -115,7 +115,12 @@ class GenerateImagesJob
           # Only AFTER a successful generation. Clearing up front would leave
           # the image with no current doc at all when the call fails, which is
           # worse than the stale art we're replacing.
-          image.docs.where.not(id: new_doc.id).update_all(current: false) if replace_current
+          # `current` is the LIBRARY DEFAULT on a shared row, so only an actor
+          # who may edit the Image may demote it — the same gate as
+          # Image#set_library_default_doc!.
+          if replace_current && User.find_by(id: user_id)&.can_edit?(image)
+            image.docs.where.not(id: new_doc.id).update_all(current: false)
+          end
 
           # if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
           #   image.update!(
@@ -184,6 +189,19 @@ class GenerateImagesJob
   end
 
   private
+
+  # Who the generated Doc belongs to, which decides who may see it: a doc owned
+  # by nil or DEFAULT_ADMIN_ID is library art for EVERYONE. `image.user_id` is
+  # not that answer — it is nil on every word-list image, so a regular user's
+  # board fill became public library art.
+  #
+  # The BOARD's owner, never whoever enqueued the run: a tile's picture belongs
+  # to the board's owner. A curator regenerating a family's board makes the
+  # family's picture, and an admin doing the same for support must not publish
+  # it as library art. Only a board-less run falls back to the image's owner.
+  def generating_user_id(image, board)
+    board&.user_id || image.user_id
+  end
 
   # Give one image's cost back when its generation failed. Idempotent inside the
   # refund service, so the Sidekiq retry can't double-refund. No-op when nothing
