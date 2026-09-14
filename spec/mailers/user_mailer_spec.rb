@@ -375,4 +375,59 @@ RSpec.describe UserMailer, type: :mailer do
       expect(body).not_to include("cid:")
     end
   end
+
+  # The read-only note in both downgrade emails used to promise "one board"
+  # stays editable. The lock actually keeps `User#editable_slot_count` boards
+  # writable (max of the plan's board limit and EDITABLE_BOARD_FLOOR), filled
+  # by the user's pick and then their most recently updated boards, and it only
+  # applies once an account is over its plan's board limit. The copy must
+  # describe that rule without inventing a number.
+  shared_examples "a read-only note that describes the board limit" do |mailer_method|
+    let(:user) { FactoryBot.create(:user, name: "Rae") }
+
+    context "in English" do
+      before { use_locale(user, "en-US") }
+
+      it "describes the limit and recent boards, not a single editable board" do
+        mail = described_class.public_send(mailer_method, user)
+        body = (mail.html_part || mail).body.decoded
+
+        expect(body).not_to include("one board")
+        expect(body).to include("more boards than your plan allows")
+        expect(body).to include("most recently updated boards stay editable")
+        expect(body).to include("still play audio")
+      end
+    end
+
+    context "in Spanish" do
+      before { use_locale(user, "es-US") }
+
+      it "describes the limit and recent boards in Spanish" do
+        mail = described_class.public_send(mailer_method, user)
+        body = (mail.html_part || mail).body.decoded
+
+        expect(body).not_to include("un tablero activamente")
+        expect(body).not_to include("one board")
+        expect(body).to include("más tableros de los que permite tu plan")
+        expect(body).to include("tableros actualizados más recientemente siguen siendo editables")
+      end
+    end
+  end
+
+  describe "#subscription_canceled_email read-only note" do
+    it_behaves_like "a read-only note that describes the board limit", :subscription_canceled_email
+  end
+
+  describe "#license_ended_email read-only note" do
+    it_behaves_like "a read-only note that describes the board limit", :license_ended_email
+
+    it "renders the whole email in Spanish for a Spanish-speaking user" do
+      user = FactoryBot.create(:user, name: "Rae")
+      use_locale(user, "es-US")
+      mail = described_class.license_ended_email(user)
+
+      expect(mail.subject).to eq("Tu licencia de SpeakAnyWay ha terminado")
+      expect((mail.html_part || mail).body.decoded).to include("Renovar tu licencia")
+    end
+  end
 end
