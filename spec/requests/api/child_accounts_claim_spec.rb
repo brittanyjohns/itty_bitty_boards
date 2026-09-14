@@ -154,6 +154,28 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
       expect(loaner.reload.owner_id).to eq(parent.id)
     end
 
+    # The new owner has to learn the new passcode somewhere, and the claim
+    # response is the moment she becomes someone allowed to see it.
+    it "shows the new owner the rotated passcode, and ends the SLP's sessions" do
+      old_token = loaner.authentication_token
+
+      post "/api/communicator_claims/#{loaner.claim_token}/claim", headers: auth_headers(parent)
+
+      body = JSON.parse(response.body)
+      expect(body["account"]["passcode"]).to be_present
+      expect(body["account"]["passcode"]).not_to eq("loaner01")
+      expect(body["account"]["passcode"]).to eq(loaner.reload.passcode)
+      expect(ChildAccount.find_by_token(old_token)).to be_nil
+    end
+
+    it "uses a passcode the family sends" do
+      post "/api/communicator_claims/#{loaner.claim_token}/claim",
+           params: { passcode: "family-pick" }, headers: auth_headers(parent)
+
+      expect(response).to have_http_status(:ok)
+      expect(loaner.reload.passcode).to eq("family-pick")
+    end
+
     it "returns slot_full when the parent has no room" do
       create(:child_account, user: parent, owner: parent, status: "active",
                              passcode: "x", username: "preclaimed-#{SecureRandom.hex(2)}")
@@ -205,14 +227,15 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
         account
       end
 
-      it "promotes active → loaner and rotates the passcode" do
+      # The passcode now rotates at claim, not lend — lending must not lock
+      # a student out mid-evaluation.
+      it "promotes active → loaner and keeps the passcode" do
         post "/api/child_accounts/#{slp_active.id}/lend", headers: auth_headers(slp)
 
         expect(response).to have_http_status(:ok)
         slp_active.reload
         expect(slp_active.status).to eq("loaner")
-        expect(slp_active.passcode).not_to eq("knownpass")
-        expect(slp_active.passcode).to be_present
+        expect(slp_active.passcode).to eq("knownpass")
         expect(slp_active.claim_token).to be_present
       end
 

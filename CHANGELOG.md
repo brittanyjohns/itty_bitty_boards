@@ -25,6 +25,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   to "ask the family to add you". Anonymous visitors get exactly the same page
   data as before.
 
+### Changed
+
+- **Lending a communicator no longer changes its passcode; the family's claim
+  does.** Lending an active communicator used to mint a new passcode on the
+  spot, so a student using it mid-evaluation couldn't sign back in. It now
+  keeps the passcode. When the family claims the communicator, the passcode is
+  replaced (with one they choose, or a new one shown to them as the new owner)
+  and every existing sign-in for that communicator is ended. Rotating the
+  passcode alone had never signed anyone out, so until now the clinician's
+  signed-in devices stayed signed in after the hand-off.
+
 ### Fixed
 
 - **Board Builder: vehicle interests now go to the Transportation page.**

@@ -420,10 +420,14 @@ class ChildAccount < ApplicationRecord
   # Sandbox → loaner: provisions a passcode (uses the caller's if
   # supplied, otherwise mints one) and lifts the sandbox board cap.
   #
-  # Active → loaner (issue #164): always rotates the passcode. The SLP
-  # knew the active's credentials; once the family takes over, the SLP
-  # shouldn't retain credential access. Caller-supplied `passcode:` is
-  # honored so an SLP can intentionally hand over a known password.
+  # Active → loaner (issue #164): KEEPS the passcode. It used to rotate here
+  # so the SLP would lose credential access once the family took over — but
+  # lending is not the hand-off, and rotating at lend signed nobody out anyway
+  # (sessions ride on `authentication_token`, which a passcode change never
+  # touched). It only made a student on a school iPad unable to sign back in
+  # mid-evaluation. The SLP's access now ends where the family's begins:
+  # `claim_by!` rotates the passcode AND the session token. A caller-supplied
+  # `passcode:` is still honored.
   #
   # Idempotent on a loaner.
   def promote_to_loaner!(passcode: nil)
@@ -436,9 +440,9 @@ class ChildAccount < ApplicationRecord
 
     if passcode.present?
       self.passcode = passcode
-    elsif self.passcode.blank? || from_active
-      # Mint a fresh passcode whenever sandbox lacks one, or always on
-      # active → loaner (the SLP forfeits their old credential access).
+    elsif self.passcode.blank?
+      # A loaner needs a way to sign in during the loan. Only mint when there
+      # is none — an active keeps the passcode its student already uses.
       self.passcode = SecureRandom.alphanumeric(8)
     end
 
@@ -521,10 +525,21 @@ class ChildAccount < ApplicationRecord
   # account onto the parent's plan, keeps the SLP on the team as a
   # supervisor by default, and marks the account active.
   #
+  # This is where the SLP's credential access ends, so it rotates BOTH halves
+  # of it. The passcode is minted fresh (or set to the one the family chose);
+  # the new owner reads it in the claim response, where `api_view` shows
+  # credentials to the owner only. And `authentication_token` is regenerated,
+  # because a communicator session is that token and nothing else — rotating
+  # only the passcode would leave every device the SLP ever signed in on still
+  # signed in after the hand-off. That includes the family's own device if they
+  # used the loaner during the loan: one token per account, so revoking the
+  # SLP's sessions means signing every session out. They sign back in with the
+  # new passcode.
+  #
   # Returns self. Raises ArgumentError on misuse and
   # Permissions::CommunicatorLimits::SlotFull when the parent has no
   # room (caller should rescue and surface an upgrade prompt).
-  def claim_by!(user:)
+  def claim_by!(user:, passcode: nil)
     raise ArgumentError, "user is required" unless user
     raise ArgumentError, "Only loaners can be claimed" unless loaner?
 
@@ -543,6 +558,8 @@ class ChildAccount < ApplicationRecord
       self.claimed_at = Time.current
       self.claim_token = nil
       self.claim_token_sent_at = nil
+      self.passcode = passcode.presence || SecureRandom.alphanumeric(8)
+      self.authentication_token = self.class.generate_unique_secure_token
       save!
 
       if previous_owner && previous_owner != user
