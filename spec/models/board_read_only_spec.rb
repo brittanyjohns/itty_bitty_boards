@@ -6,11 +6,11 @@ require "rails_helper"
 # (still fully usable: view/tap/audio).
 #
 # `editable_slot_count` is `max(board_limit, EDITABLE_BOARD_FLOOR)`, so on Free
-# (limit 1) the lock does not bite until the user is holding more than
-# EDITABLE_BOARD_FLOOR boards. These examples create enough boards to cross it.
+# the lock does not bite until the user is holding more than that many boards.
+# These examples create enough boards to cross it.
 RSpec.describe "Board read-only on downgrade", type: :model do
   describe "User#board_editable?" do
-    let(:user) { create(:free_user) } # board_limit 1, past trial window
+    let(:user) { create(:free_user) } # Free plan limit, past trial window
 
     it "is true for every board when the user is under their board limit" do
       board = create(:board, user: user)

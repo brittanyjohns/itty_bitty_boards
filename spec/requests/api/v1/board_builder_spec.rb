@@ -9,7 +9,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
   # Every board in a builder set counts against board_limit now (#796), and the
   # gate reserves room for the WHOLE set — up to
-  # Boards::BuilderSetSize.legacy_worst_case boards, far past the Free cap of 1.
+  # Boards::BuilderSetSize.legacy_worst_case boards, far past Free's cap.
   # Give the user headroom by default so unrelated examples exercise what they
   # are about; the cap itself has its own context below, which overrides this.
   before { user.update!(settings: (user.settings || {}).merge("board_limit" => 500)) }

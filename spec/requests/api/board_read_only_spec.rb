@@ -8,7 +8,7 @@ require "rails_helper"
 # EDITABLE_BOARD_FLOOR), so Free's lock only bites past the floor — hence the
 # filler boards. `locked_board` is aged so recency drops it.
 RSpec.describe "API board read-only gating", type: :request do
-  let(:user) { create(:free_user) } # board_limit 1, past trial window
+  let(:user) { create(:free_user) } # Free plan limit, past trial window
   let!(:editable_board) { create(:board, user: user, name: "Editable") }
   let!(:locked_board)   { create(:board, user: user, name: "Locked") }
   let!(:filler) do
