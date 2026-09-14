@@ -1,0 +1,53 @@
+# Labels for CommunicatorLikeness tokens, served on GET /api/likeness_options.
+# These are what a caregiver READS in the picker. What the image model reads is
+# composed separately, from phrases CommunicatorLikeness owns, so a label can be
+# reworded here without changing a single generated picture. Every token needs
+# an entry — spec/services/communicator_likeness_spec.rb fails the build
+# otherwise.
+en:
+  likeness:
+    fields:
+      skin_tone: Skin tone
+      hair_color: Hair color
+      hair_style: Hair style
+      gender_presentation: Looks like a
+      extras: Also include
+    skin_tone:
+      light: Light
+      light_medium: Light medium
+      medium: Medium
+      medium_brown: Medium brown
+      brown: Brown
+      dark_brown: Dark brown
+    hair_color:
+      black: Black
+      dark_brown: Dark brown
+      brown: Brown
+      auburn: Auburn
+      red: Red
+      blond: Blond
+      gray: Gray
+    hair_style:
+      short: Short
+      long: Long
+      curly: Curly
+      coily: Coily
+      braids: Braids
+      locs: Locs
+      ponytail: Ponytail
+      buzzed: Buzzed
+      bald: Bald
+    gender_presentation:
+      boy_man: Boy / man
+      girl_woman: Girl / woman
+      neutral: Either / neutral
+    extras:
+      glasses: Glasses
+      hearing_aids: Hearing aids
+      wheelchair: Wheelchair
+      walker: Walker
+      hijab: Hijab
+      turban: Turban
+      kippah: Kippah
+      braces: Braces
+      aac_device: AAC device

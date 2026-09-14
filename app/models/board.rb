@@ -373,6 +373,8 @@ class Board < ApplicationRecord
   # and then rolled back — a lot of work to arrive at the same refusal.
   before_destroy :block_marketplace_protected_destroy, prepend: true
   before_save :block_marketplace_protected_unpublish
+  before_save :normalize_likeness_setting,
+              if: -> { settings.is_a?(Hash) && (settings.key?("likeness") || settings.key?(:likeness)) }
 
   def enqueue_destroy_cleanup
     BoardDestroyCleanupJob.perform_async(id)
@@ -1770,9 +1772,12 @@ class Board < ApplicationRecord
     @cloned_board.write_attribute(:display_image_url, nil)
     @cloned_board.settings = (@cloned_board.settings || {}).merge(
       "display_image_source" => "preview",
+    # `likeness` too: it describes how the source owner's communicator looks,
+    # and a copy in someone else's account must not draw their tiles that way.
     ).except("preset_display_image_url", "preview_status", "preview_generated_at",
              Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER,
-             Boards::FringeTemplates::TEMPLATE_MARKER, Boards::FringeTemplates::VARIANT_MARKER)
+             Boards::FringeTemplates::TEMPLATE_MARKER, Boards::FringeTemplates::VARIANT_MARKER,
+             "likeness")
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
@@ -2698,7 +2703,7 @@ class Board < ApplicationRecord
       data: data,
       created_at: created_at,
       updated_at: updated_at,
-      settings: settings,
+      settings: settings_for(viewing_user),
       published: published,
       has_generating_images: has_generating_images?,
       # Gate a "board ready" screen on images_ready, not on status == complete:
@@ -2946,7 +2951,7 @@ class Board < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at,
       margin_settings: margin_settings,
-      settings: settings,
+      settings: settings_for(viewing_user),
       has_generating_images: has_generating_images?,
       # Gate a "board ready" screen on images_ready, not on status == complete:
       # a board is complete the moment its words and layout exist, which is
@@ -3503,6 +3508,25 @@ class Board < ApplicationRecord
   # team-curation grant (issue #889), plus the plan-based read-only rule
   # (User#board_editable?). Non-User viewers (e.g. ChildAccount) are not
   # plan-gated here.
+  # A board's tile-art likeness override: a likeness hash, {"mode" => "none"}
+  # to switch it off, or no key (inherit from the communicator). boards#update
+  # merges `settings` unfiltered, so this is where the allowlist is enforced.
+  def normalize_likeness_setting
+    stringified = settings.deep_stringify_keys
+    normalized = CommunicatorLikeness.normalize_board_setting(stringified["likeness"])
+    self.settings = normalized ? stringified.merge("likeness" => normalized) : stringified.except("likeness")
+  end
+
+  # `settings` for a payload. A likeness describes what a person looks like, and
+  # a published board is served to anyone — so it goes only to someone who may
+  # edit the board.
+  def settings_for(viewing_user)
+    return settings unless settings.is_a?(Hash) && settings.key?("likeness")
+    return settings if can_edit_for(viewing_user)
+
+    settings.except("likeness")
+  end
+
   def can_edit_for(viewing_user)
     return false unless viewing_user
 
@@ -3668,7 +3692,7 @@ class Board < ApplicationRecord
       user_id: user_id,
       voice: voice,
       word_list: data ? data["current_word_list"] : nil,
-      settings: settings,
+      settings: settings_for(viewing_user),
       margin_settings: margin_settings,
       preset_display_image_url: preset_display_image_url,
       board_images_count: board_images_count,

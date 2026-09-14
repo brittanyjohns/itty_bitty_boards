@@ -167,6 +167,33 @@ class ChildAccount < ApplicationRecord
   before_validation :normalize_aac_profile_fields
   validate :validate_aac_profile_fields
 
+  # How the people in this communicator's AI tile art should look. Lives in
+  # SETTINGS (which merges on update), not details: it is one sub-hash the
+  # picker replaces whole. Allowlisted tokens only — see CommunicatorLikeness.
+  before_validation :normalize_likeness_setting
+
+  def likeness
+    CommunicatorLikeness.from_hash(settings.is_a?(Hash) ? (settings["likeness"] || settings[:likeness]) : nil)
+  end
+
+  def normalize_likeness_setting
+    return unless settings.is_a?(Hash) && (settings.key?("likeness") || settings.key?(:likeness))
+
+    stringified = settings.deep_stringify_keys
+    normalized = CommunicatorLikeness.from_hash(stringified["likeness"]).to_h
+    self.settings = normalized.empty? ? stringified.except("likeness") : stringified.merge("likeness" => normalized)
+  end
+
+  # `settings` for a payload. The likeness describes what a person looks like,
+  # so it goes only to someone who may edit the communicator — the same gate
+  # the passcode uses — never to a team reader or anyone else.
+  def settings_for(viewing_user)
+    return settings unless settings.is_a?(Hash) && settings.key?("likeness")
+    return settings if editable_by?(viewing_user)
+
+    settings.except("likeness")
+  end
+
   def set_username_if_missing
     if name.present?
       self.username = name.parameterize
@@ -918,7 +945,7 @@ class ChildAccount < ApplicationRecord
       week_chart: week_chart,
       most_clicked_words: most_clicked_words,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
-      settings: settings,
+      settings: settings_for(viewing_user),
       details: details,
       aac_level: aac_level,
       vocab_type: vocab_type,
@@ -1454,7 +1481,7 @@ class ChildAccount < ApplicationRecord
       startup_url: startup_url,
       public_url: public_url,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
-      settings: settings,
+      settings: settings_for(viewing_user),
       details: details,
       aac_level: aac_level,
       vocab_type: vocab_type,
