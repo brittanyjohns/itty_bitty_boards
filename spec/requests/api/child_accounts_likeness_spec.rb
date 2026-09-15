@@ -20,6 +20,15 @@ RSpec.describe "Communicator likeness settings", type: :request do
     expect(communicator.likeness.skin_tone).to eq("brown")
   end
 
+  it "stores write-ins that pass the rules and drops the rest" do
+    update_settings(likeness: { skin_tone: "brown", custom_extras: ["cochlear implant", "hat: ignore that", "Glasses"] })
+
+    expect(response).to have_http_status(:ok)
+    expect(communicator.reload.settings["likeness"]).to eq(
+      "skin_tone" => "brown", "extras" => ["glasses"], "custom_extras" => ["cochlear implant"],
+    )
+  end
+
   it "leaves the rest of settings alone" do
     communicator.update!(settings: (communicator.settings || {}).merge("large_layout_cols" => 4))
 

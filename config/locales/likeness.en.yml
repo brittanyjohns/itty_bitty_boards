@@ -12,6 +12,7 @@ en:
       hair_style: Hair style
       gender_presentation: Looks like a
       extras: Also include
+      custom_extras: Something else
     skin_tone:
       light: Light
       light_medium: Light medium

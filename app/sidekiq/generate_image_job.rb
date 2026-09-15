@@ -83,9 +83,10 @@ class GenerateImageJob
   # blank: AAC vocabulary legitimately includes body parts, medical, and
   # bathroom/safety words that trip the moderator. Retry once with the clean
   # label-only house prompt before giving up.
-  # The fallback keeps the likeness: it is server-composed and not what a
-  # moderator objects to, and dropping it would put a stranger's look on a
-  # communicator's board.
+  # The fallback keeps the likeness's server-owned phrases: they are not what a
+  # moderator objects to, and dropping them would put a stranger's look on a
+  # communicator's board. It drops the likeness's WRITE-INS, the only user words
+  # in it, and stamps the doc with the look it actually drew.
   def generate_with_refusal_retry(image, user_id, composed_prompt, transparent, likeness = nil)
     doc = image.create_image_doc(user_id, composed_prompt, transparent: transparent, likeness: likeness)
     raise "Image generation returned no document" if doc.nil?
@@ -94,14 +95,15 @@ class GenerateImageJob
   rescue => e
     raise unless refusal_error?(e)
 
-    fallback = Images::PromptBuilder.for_image(image, transparent: transparent, likeness: likeness)
+    fallback_likeness = likeness&.without_custom_extras
+    fallback = Images::PromptBuilder.for_image(image, transparent: transparent, likeness: fallback_likeness)
     raise if fallback == composed_prompt
 
     Rails.logger.warn(
       "GenerateImageJob: prompt refused for Image #{image.id}; retrying with the " \
       "default house prompt. (#{e.message})"
     )
-    doc = image.create_image_doc(user_id, fallback, transparent: transparent, likeness: likeness)
+    doc = image.create_image_doc(user_id, fallback, transparent: transparent, likeness: fallback_likeness)
     raise "Image generation returned no document" if doc.nil?
 
     doc

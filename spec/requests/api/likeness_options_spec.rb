@@ -33,6 +33,20 @@ RSpec.describe "API::LikenessOptions", type: :request do
       end
     end
 
+    # The picker enforces these as the user types; a drifted copy would let a
+    # write-in through the form that the save then silently drops.
+    it "serves the write-in caps and character class the save enforces" do
+      get "/api/likeness_options"
+      custom = JSON.parse(response.body)["custom_extras"]
+
+      expect(custom).to include(
+        "max_items" => CommunicatorLikeness::CUSTOM_EXTRAS_MAX_ITEMS,
+        "max_length" => CommunicatorLikeness::CUSTOM_EXTRA_MAX_LENGTH,
+        "allowed_characters" => CommunicatorLikeness::CUSTOM_EXTRA_CHARACTERS,
+      )
+      expect(custom["label"]).to eq("Something else")
+    end
+
     it "labels in Spanish when asked" do
       get "/api/likeness_options", params: { locale: "es" }
 

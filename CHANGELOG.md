@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **Write your own "Also include" item for people in pictures.** A
+  communicator's likeness (and a board's custom look) accepts up to 3 short
+  `custom_extras` — e.g. "cochlear implant" — alongside the preset extras. Each
+  is capped at 40 characters of letters, digits, spaces, apostrophes, periods
+  and hyphens; anything else is dropped on save. `GET /api/likeness_options`
+  serves the caps as `custom_extras`. If the image model refuses a prompt, the
+  retry leaves the write-ins out.
+
 ### Fixed
 
 - **Picking a gallery picture changes the tile you opened.** When two tiles on
