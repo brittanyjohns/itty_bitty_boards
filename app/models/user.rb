@@ -216,6 +216,18 @@ class User < ApplicationRecord
   # agreement or the admin filter and the admin trial badge disagree about who
   # is on a trial.
   scope :trialing, -> { where(plan_status: "trialing").or(where(plan_type: "basic_trial")) }
+  # SQL counterparts of #billing_source's "app_store" and "manual" answers, read
+  # by Mission Control's revenue split. A paid account with no Stripe
+  # subscription is only App Store revenue when RevenueCat stamped it; anything
+  # else (an admin comp) is manual. Keep these and #billing_source in agreement.
+  scope :billed_by_app_store, -> {
+    paid.where(stripe_subscription_id: [nil, ""])
+        .where("users.settings->>'billing_provider' = ?", RevenueCat::WebhookProcessor::PROVIDER)
+  }
+  scope :billed_manually, -> {
+    paid.where(stripe_subscription_id: [nil, ""])
+        .where("users.settings->>'billing_provider' IS DISTINCT FROM ?", RevenueCat::WebhookProcessor::PROVIDER)
+  }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   include WordEventsHelper

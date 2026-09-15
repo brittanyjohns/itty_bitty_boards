@@ -55,6 +55,37 @@ RSpec.describe User, "#billing_source" do
   end
 end
 
+# Mission Control counts App Store revenue and comped accounts in SQL. Those
+# scopes and #billing_source must give the same answer for every row, or the
+# dashboard and the pricing page disagree about who bills an account.
+RSpec.describe User, "billing source scopes" do
+  let!(:rows) do
+    {
+      free: FactoryBot.create(:user, plan_type: "free", plan_status: "active", settings: {}),
+      canceled: FactoryBot.create(:user, plan_type: "pro", plan_status: "canceled", settings: {}),
+      stripe: FactoryBot.create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: "sub_1",
+                                       settings: { "billing_provider" => "revenuecat" }),
+      app_store: FactoryBot.create(:user, plan_type: "basic", plan_status: "trialing", stripe_subscription_id: "",
+                                          settings: { "billing_provider" => "revenuecat" }),
+      manual: FactoryBot.create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil,
+                                       settings: { "purchase_platform" => "ios" }),
+      manual_blank_settings: FactoryBot.create(:user, plan_type: "pro", plan_status: "active", settings: {}),
+    }
+  end
+
+  it "billed_by_app_store matches billing_source == app_store" do
+    expected = rows.values.select { |u| u.billing_source == "app_store" }.map(&:id)
+    expect(User.billed_by_app_store.where(id: rows.values.map(&:id)).pluck(:id)).to match_array(expected)
+    expect(expected).to eq([rows[:app_store].id])
+  end
+
+  it "billed_manually matches billing_source == manual" do
+    expected = rows.values.select { |u| u.billing_source == "manual" }.map(&:id)
+    expect(User.billed_manually.where(id: rows.values.map(&:id)).pluck(:id)).to match_array(expected)
+    expect(expected).to match_array([rows[:manual].id, rows[:manual_blank_settings].id])
+  end
+end
+
 RSpec.describe Billing::PlanTransitions, ".apply_free_plan" do
   # A plan that ended has no provider. A leftover stamp would mark a later
   # admin comp as App-Store-billed and hide Checkout from it.

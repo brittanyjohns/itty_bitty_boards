@@ -83,6 +83,7 @@
         <%= render "metric_row", label: "  ↳ #{plan.presence || "unknown"}", value: count %>
       <% end %>
       <%= render "metric_row", label: "Paid users",            value: @revenue[:paid_users] %>
+      <%= render "metric_row", label: "  ↳ Comped (no billing)", value: @revenue[:manual_paid_users] %>
       <%= render "metric_row", label: "Free users",            value: @revenue[:free_users] %>
       <% if @revenue[:estimated_mrr_cents].to_i > 0 %>
         <%= render "metric_row", label: "Est. MRR (combined)",

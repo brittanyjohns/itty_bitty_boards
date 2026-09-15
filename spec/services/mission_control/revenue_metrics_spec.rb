@@ -78,6 +78,18 @@ RSpec.describe MissionControl::RevenueMetrics do
       expect(result[:free_users]).to eq(1)
     end
 
+    it "counts comped (manually billed) paid accounts on their own" do
+      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil, settings: {})
+      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: "sub_1")
+      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil,
+                    settings: { "billing_provider" => "revenuecat" })
+      create(:admin_user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil)
+
+      result = described_class.call
+
+      expect(result[:manual_paid_users]).to eq(1)
+    end
+
     it "provides a user plan_breakdown from the local database" do
       create(:user, plan_type: "basic")
       create(:user, plan_type: "free")

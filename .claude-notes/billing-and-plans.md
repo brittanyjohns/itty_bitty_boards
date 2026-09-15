@@ -85,8 +85,14 @@ in PR #333 / issue #331.
   Rescues `Stripe::StripeError` gracefully (nil values + error message).
 - **`MissionControl::RevenuecatRevenueSource`** — estimates App Store /
   RevenueCat subscriber revenue **from the local DB, not the RevenueCat API**:
-  paid users (`basic`/`pro`, active/trialing, non-admin) with **no**
-  `stripe_subscription_id`. MRR is estimated from `plan_type` +
+  paid users (`basic`/`pro`, active/trialing, non-admin) in
+  `User.billed_by_app_store` — **no** `stripe_subscription_id` **and**
+  `settings["billing_provider"] == "revenuecat"` (the SQL form of
+  `billing_source == "app_store"`). "Paid with no Stripe subscription" alone is
+  not App Store revenue: an admin comp (`/admin/users/:id/change_plan`) looks
+  identical and bills nobody. A real App Store subscriber missing the stamp
+  (the `billing:stamp_revenuecat_provider` backfill skipped it) drops out of
+  this count and shows up as comped instead. MRR is estimated from `plan_type` +
   `settings["billing_interval"]` using ENV-tunable price fallbacks:
   `RC_ESTIMATED_BASIC_MONTHLY_CENTS` (499), `RC_ESTIMATED_PRO_MONTHLY_CENTS`
   (999), `RC_ESTIMATED_BASIC_YEARLY_CENTS` (4999), and
@@ -94,8 +100,13 @@ in PR #333 / issue #331.
 - **`MissionControl::RevenueMetrics`** — combines both: top-level
   `:active_subscriptions`, `:estimated_mrr_cents`, `:mrr_usd`, with per-source
   breakdowns nested under `:stripe` and `:revenuecat`; `revenue_source` is
-  `"stripe+revenuecat"`. The admin Mission Control view shows the Stripe/App
-  Store sub split, per-source plan breakdowns, and an error state.
+  `"stripe+revenuecat"`. `:manual_paid_users` counts `User.billed_manually`
+  (non-admin paid accounts with no provider — comps); they are included in
+  `:paid_users` and never in MRR. The admin Mission Control view shows the
+  Stripe/App Store sub split, the comped count under "Paid users", per-source
+  plan breakdowns, and an error state. `User.billed_by_app_store` /
+  `.billed_manually` must agree with `User#billing_source`
+  (pinned by `spec/models/user_billing_source_spec.rb`).
 
 ### Trial at signup — no Checkout redirect (`Billing::StartTrial`)
 
