@@ -38,10 +38,12 @@ class SceneTemplate < ApplicationRecord
   # already inlines (Boards::Printables::Fonts.styled_face_css) — a family the
   # render doesn't carry would silently fall back to the system stack — and
   # each weight range is what that vendored file actually covers.
+  # The CSS family stacks live in Boards::Printables::Fonts::SCENE_FONT_FAMILIES
+  # (which emits the .scene-font-<key> rules); this adds what calibration needs.
   TEXT_FONTS = {
-    "nunito" => { css_family: "Nunito, system-ui, sans-serif", weights: 200..1000, default_weight: 800 },
-    "fredoka" => { css_family: "Fredoka, Nunito, system-ui, sans-serif", weights: 300..600, default_weight: 600 },
-    "caveat" => { css_family: "Caveat, cursive", weights: 400..700, default_weight: 700 },
+    "nunito" => { weights: 200..1000, default_weight: 800 },
+    "fredoka" => { weights: 300..600, default_weight: 600 },
+    "caveat" => { weights: 400..700, default_weight: 700 },
   }.freeze
   TEXT_ALIGNS = %w[left center right].freeze
   TEXT_COLOR_FORMAT = /\A#\h{6}\z/
@@ -107,13 +109,6 @@ class SceneTemplate < ApplicationRecord
   end
 
   def styled_layers? = Array(text_slots).any? || Array(overlay_regions).any?
-
-  # The .scene-font-<key> classes, built from TEXT_FONTS so the render and the
-  # calibrator's preview can't name a family differently. Constants only —
-  # safe to emit unescaped inside <style>.
-  def self.text_font_css
-    TEXT_FONTS.map { |key, font| ".scene-font-#{key} { font-family: #{font[:css_family]}; }" }.join("\n")
-  end
 
   def aspect
     return nil unless width.to_i.positive? && height.to_i.positive?

@@ -90,7 +90,8 @@
             emitted when a text slot or overlay is drawn, so a plain scene render
             doesn't carry ~140 KB of faces it never uses. %>
         <%== Boards::Printables::Fonts.styled_face_css %>
-        <%== SceneTemplate.text_font_css %>
+        <%# Unescaped: escaped CSS inside <style> breaks @font-face and font-family. Allowlist constants only. %>
+        <%== Boards::Printables::Fonts.scene_font_css %>
 <%= render "api/board_printables/styled/component_css" %>
 
       /* Text and overlays sit above the front layer (z-index 2). */

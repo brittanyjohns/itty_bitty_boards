@@ -62,6 +62,26 @@ module Boards
         ].join("\n")
       end
 
+      # The font stacks a scene text slot may name, keyed by the allowlisted key
+      # stored on SceneTemplate#text_slots (SceneTemplate::TEXT_FONTS takes its
+      # keys from here). Every family is one styled_face_css inlines.
+      SCENE_FONT_FAMILIES = {
+        "nunito" => "Nunito, system-ui, sans-serif",
+        "fredoka" => "Fredoka, Nunito, system-ui, sans-serif",
+        "caveat" => "Caveat, cursive",
+      }.freeze
+
+      # `.scene-font-<key>` rules for the scene render and the calibrator
+      # preview, so neither can name a family differently. Built from
+      # SCENE_FONT_FAMILIES only: an unknown key is dropped, never interpolated,
+      # so nothing a template row holds can reach the CSS.
+      def self.scene_font_css(keys = SCENE_FONT_FAMILIES.keys)
+        Array(keys).map(&:to_s).uniq.filter_map do |key|
+          family = SCENE_FONT_FAMILIES[key]
+          ".scene-font-#{key} { font-family: #{family}; }" if family
+        end.join("\n")
+      end
+
       def self.face(file, unicode_range, family: "Nunito", dir: DIR, weight: "200 1000")
         <<~CSS
           @font-face {

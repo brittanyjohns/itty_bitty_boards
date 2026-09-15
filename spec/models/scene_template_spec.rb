@@ -224,6 +224,15 @@ RSpec.describe SceneTemplate, type: :model do
     it "refuses a key a slot already uses" do
       expect(text_errors(template_with(scene_text_slot(key: "fridge")))).to include("unique across slots, text slots and overlays: fridge")
     end
+
+    # The font CSS is emitted unescaped inside <style>, so it must come from the
+    # constant allowlist alone.
+    it "has a CSS family for every allowlisted font, and emits nothing for an unknown key" do
+      expect(described_class::TEXT_FONTS.keys).to eq(Boards::Printables::Fonts::SCENE_FONT_FAMILIES.keys)
+
+      css = Boards::Printables::Fonts.scene_font_css(["fredoka", "x} body { background: url(evil)"])
+      expect(css).to eq(".scene-font-fredoka { font-family: Fredoka, Nunito, system-ui, sans-serif; }")
+    end
   end
 
   describe "overlay regions" do

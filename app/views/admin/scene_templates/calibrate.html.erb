@@ -40,7 +40,8 @@
     from constants and base64 only. %>
 <style>
   <%== Boards::Printables::Fonts.styled_face_css %>
-  <%== SceneTemplate.text_font_css %>
+  <%# Unescaped: escaped CSS inside <style> breaks @font-face and font-family. Allowlist constants only. %>
+  <%== Boards::Printables::Fonts.scene_font_css %>
 </style>
 
 <div data-controller="scene-calibrator"
