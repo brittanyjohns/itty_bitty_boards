@@ -122,8 +122,45 @@ RSpec.describe Boards::Printables::RenderStyledSlides do
 
   def html_for(variant) = slide_html[BoardPrintable::STYLED_IMAGE_VARIANTS.index(variant)]
 
+  describe "hero online claim" do
+    let(:variant) { BoardPrintable::IMAGE_STYLED_HERO }
+
+    it "says free, tap-and-hear only when every board is published" do
+      board.update_columns(published: true)
+      feelings.update_columns(published: true)
+
+      described_class.new(printable: printable, variants: [variant]).call
+
+      expect(slide_html.first).to include("Free online version included", "Tap any word and hear it spoken")
+    end
+
+    it "makes no free or no-sign-in claim when a board is unpublished" do
+      board.update_columns(published: true)
+      feelings.update_columns(published: false)
+
+      described_class.new(printable: printable, variants: [variant]).call
+
+      html = slide_html.first
+      expect(html).to include("Open it online too", "Works in a web browser")
+      # Phrases with a space or hyphen, which base64 font data can't contain.
+      expect(html).not_to include("Free online", "free online", "sign-in", "Tap any word and hear it spoken")
+    end
+  end
+
   describe "color + low-ink" do
     let(:variant) { BoardPrintable::IMAGE_STYLED_COLOR_LOW_INK }
+
+    it "claims trim-ready only when that file ships, and never home printers" do
+      printable.attach_pdf!(filename: "color.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_COLOR)
+      described_class.new(printable: printable, variants: [variant]).call
+      expect(slide_html.last).to include("Print-ready PDF")
+      expect(slide_html.last).not_to include("Trim-ready", "home printers")
+
+      printable.attach_pdf!(filename: "trim.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_TRIM_READY)
+      described_class.new(printable: printable.reload, variants: [variant]).call
+      expect(slide_html.last).to include("Trim-ready version included")
+      expect(slide_html.last).not_to include("home printers")
+    end
 
     it "shows the colour page beside the root re-rendered with hide_colors when a low-ink file ships" do
       printable.attach_pdf!(filename: "color.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_COLOR)

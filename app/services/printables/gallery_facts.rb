@@ -51,6 +51,13 @@ module Printables
       variants.include?(BoardPrintable::VARIANT_LOW_INK) || variants.include?(BoardPrintable::VARIANT_FULL)
     end
 
+    # Same rule as low_ink?: the single-board document carries the trim-ready
+    # pages too.
+    def trim_ready?
+      variants = pdf_variants
+      variants.include?(BoardPrintable::VARIANT_TRIM_READY) || variants.include?(BoardPrintable::VARIANT_FULL)
+    end
+
     def pdf_count = pdf_files.size
 
     def formats_label = pdf_count > 1 ? "#{pdf_count} PDFs" : "PDF"
@@ -83,6 +90,7 @@ module Printables
         board_count: board_count,
         word_count: word_count,
         low_ink: low_ink?,
+        trim_ready: trim_ready?,
         formats_label: formats_label,
         board_names: board_names,
         online_url: online_url,

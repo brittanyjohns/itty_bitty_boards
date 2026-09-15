@@ -674,13 +674,19 @@ is the planned publish path.
   published board (`Board#viewable_by?`), each page's QR opens its own page,
   and nothing in the printable pipeline publishes a board. Unpublished, the
   online slide keeps the tablet and the steps but claims only "No app install"
-  and "Works in a web browser", and the admin card says why. `online_url` and
+  and "Works in a web browser", and the admin card says why. The hero's online
+  feature follows the same gate ("Open it online too" / "Works in a web
+  browser" when unpublished). Any new styled string that says "Free" or
+  implies no account must read `online_public?` too. `online_url` and
   `online_public` are in the digest, so publishing (or a slug change) marks the
   slides stale. The tablet's browser bar shows `online_display_url`, the bare
   `/pb/<slug>` without its scheme. The tablet is CSS, never a photo.
-- **No "no bleed, no trimming" claim.** `layouts/pdf` prints with `@page`
-  margin 0 and 3mm page padding, and a trim-ready PDF ships, so neither half is
-  backed by the files.
+- **No "no bleed, no trimming" and no "great for home printers".**
+  `layouts/pdf` prints with `@page` margin 0 and 3mm page padding, closer to
+  the edge than most home printers reach, and a trim-ready PDF ships. The
+  color slide's pill says "Trim-ready version included" only when
+  `GalleryFacts#trim_ready?` (a `trim_ready` or single-board `full` PDF ships;
+  in the digest), otherwise "Print-ready PDF".
 - **Render passes are shared.** `color_low_ink` and `online_version` show only
   the root page. They reuse the memoized hero pass (header shown) and grid
   pass (header hidden) when those slides render in the same run, and pay for a

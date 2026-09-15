@@ -34,8 +34,18 @@ module Printables
         words_feature(facts),
         ink_feature(facts),
         { icon: "devices", title: "Print at home or use on any device", sub: "For home, school or on the go" },
-        { icon: "sound", title: "Free online version included", sub: "Tap any word and hear it spoken" },
+        online_feature(facts),
       ].compact
+    end
+
+    # Gated exactly like the online slide: "Free" and hearing a word with no
+    # account are only true when every board is published.
+    def online_feature(facts)
+      if facts.online_public?
+        { icon: "sound", title: "Free online version included", sub: "Tap any word and hear it spoken" }
+      else
+        { icon: "sound", title: "Open it online too", sub: "Works in a web browser" }
+      end
     end
 
     def hero_badges(facts)
@@ -95,14 +105,18 @@ module Printables
 
     def low_ink_version_label = "Low-Ink Version"
 
-    # Short pills, one line each. No "no bleed, no trimming": the printed page
-    # runs to within 3mm of the sheet edge (layouts/pdf: @page margin 0, .page
-    # padding 3mm) and a trim-ready PDF exists, so neither half is a claim the
-    # files back.
+    # Short pills, one line each. No "no bleed, no trimming" and no "great for
+    # home printers": the printed page runs to within 3mm of the sheet edge
+    # (layouts/pdf: @page margin 0, .page padding 3mm), closer than most home
+    # printers reach. Trim-ready is claimed only when that file ships.
     def color_low_ink_features(facts)
       [
         { icon: "file", title: "US Letter #{facts.letter_size_label}" },
-        { icon: "printer", title: "Great for home printers" },
+        if facts.trim_ready?
+          { icon: "scissors", title: "Trim-ready version included" }
+        else
+          { icon: "printer", title: "Print-ready PDF" }
+        end,
         if facts.low_ink?
           { icon: "drop", title: "Printer-friendly low-ink version" }
         else

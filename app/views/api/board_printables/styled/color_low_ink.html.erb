@@ -46,14 +46,14 @@
   </div>
 
   <%# White pills, so a green or pink icon circle reads on the green blob. %>
-  <div class="abs" style="left: 30px; top: 806px; width: 1140px; z-index: 3; display: flex; justify-content: center; gap: 12px;">
+  <div class="abs" style="left: 30px; top: 808px; width: 1140px; z-index: 3; display: flex; justify-content: center; gap: 10px;">
     <% @features.each_with_index do |feature, index| %>
-      <div style="flex: none; display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 18px 0 8px;
+      <div style="flex: none; display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 16px 0 7px;
            border-radius: 999px; background: var(--white); box-shadow: var(--shadow-small); white-space: nowrap;">
-        <div class="icon-circle <%= index.even? ? "pink" : "green" %>" style="width: 40px; height: 40px;">
+        <div class="icon-circle <%= index.even? ? "pink" : "green" %>" style="width: 38px; height: 38px;">
           <%= render "api/board_printables/styled/icon", name: feature[:icon] %>
         </div>
-        <div style="font-weight: 800; font-size: 17px; color: var(--navy);"><%= feature[:title] %></div>
+        <div style="font-weight: 800; font-size: 16px; color: var(--navy);"><%= feature[:title] %></div>
       </div>
     <% end %>
   </div>

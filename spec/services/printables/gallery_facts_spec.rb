@@ -89,6 +89,23 @@ RSpec.describe Printables::GalleryFacts do
       expect(scoped.pdf_count).to eq(1)
     end
 
+    it "claims trim-ready only when a trim-ready file ships" do
+      printable.attach_pdf!(filename: "color.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_COLOR)
+      before = facts.digest
+      expect(facts.trim_ready?).to be(false)
+
+      printable.attach_pdf!(filename: "trim.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_TRIM_READY)
+      after = described_class.new(printable.reload)
+      expect(after.trim_ready?).to be(true)
+      expect(after.digest).not_to eq(before)
+    end
+
+    it "treats the single-board document as carrying the trim-ready pages" do
+      printable.attach_pdf!(filename: "core.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_FULL)
+
+      expect(facts.trim_ready?).to be(true)
+    end
+
     it "counts the PDFs and never says PNG" do
       BoardPrintable::DOWNLOAD_VARIANTS.each do |variant|
         printable.attach_pdf!(filename: "#{variant}.pdf", bytes: "%PDF", variant: variant)

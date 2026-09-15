@@ -15,7 +15,9 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   printed page, a drawn tablet with the real `/pb/` address in its browser
   bar, four steps from download to tap, and check pills. "Free" and "No
   sign-in required" appear only when every board in the set is published, and
-  the card warns when they aren't.
+  the card warns when they aren't. The hero slide's online line follows the
+  same rule. The color slide says "Trim-ready version included" only when that
+  PDF ships.
 
 - **Styled 4:3 slides for board printables (admin preview).** A new "Styled
   slides" card on `/admin/board_printables/:id` renders a hero and a "What's
