@@ -187,6 +187,26 @@ Rails.application.routes.draw do
       end
     end
 
+    # Non-board printables (device tags first): artwork, buyer downloads, Canva
+    # links, and scene mockups of the artwork. Archived, never destroyed. Nothing
+    # here reaches a marketplace.
+    resources :printable_products, only: %i[index show new create edit update], as: :dashboard_printable_products do
+      member do
+        post :archive
+        post :upload_artwork
+        delete :remove_artwork
+        post :upload_download
+        delete :remove_download
+      end
+
+      resources :scene_compositions, only: %i[new create edit update destroy],
+                controller: "printable_product_scene_compositions" do
+        member do
+          post :render_scene
+        end
+      end
+    end
+
     # The shared scene template library (base photo + front layer + calibrated
     # slots). A template in use is archived rather than destroyed.
     resources :scene_templates, only: %i[index new create edit update destroy], as: :dashboard_scene_templates do

@@ -70,17 +70,12 @@ class KitPage < ApplicationRecord
 
   # An editable Canva design a visitor gets their own copy of. The link is
   # checked against an ALLOWLIST of host and path, the same rule
-  # DOCUMENT_CONTENT_TYPES and KIT_IMAGE_ORDER keep: a new Canva URL shape has
-  # to be opted in, never merely "not excluded".
-  #
-  # Canva's Share menu hands out TWO shapes and both are legitimate — the full
-  # design URL, and a `canva.link` short link that 301s to one. Neither is
-  # rewritten on the way in: the shortener is Canva's own, a visitor following
-  # it lands in the same place, and resolving it here would make saving the
-  # admin form depend on a third-party request that can hang or fail.
-  CANVA_DESIGN_HOSTS = ["canva.com", "www.canva.com"].freeze
-  CANVA_DESIGN_PATH_PREFIX = "/design/".freeze
-  CANVA_SHORT_HOSTS = ["canva.link"].freeze
+  # DOCUMENT_CONTENT_TYPES and KIT_IMAGE_ORDER keep. The allowlist itself lives
+  # in CanvaTemplatesValidator, shared with PrintableProduct; these aliases keep
+  # the names callers already read.
+  CANVA_DESIGN_HOSTS = CanvaTemplatesValidator::DESIGN_HOSTS
+  CANVA_DESIGN_PATH_PREFIX = CanvaTemplatesValidator::DESIGN_PATH_PREFIX
+  CANVA_SHORT_HOSTS = CanvaTemplatesValidator::SHORT_HOSTS
   MAX_TEMPLATES = 5
 
   # What one rendered page may be. `hidden` is not "deleted" — the render still
@@ -150,7 +145,7 @@ class KitPage < ApplicationRecord
   validates :title, presence: true
   validates :printable_variant, inclusion: { in: VARIANTS }
   validate :content_shape
-  validate :canva_templates_shape
+  validates :canva_templates, canva_templates: { max: MAX_TEMPLATES }
 
   scope :published, -> { where(published: true) }
 
@@ -723,52 +718,5 @@ class KitPage < ApplicationRecord
   # Rows a visitor can actually be sent to. A row missing its link is dropped
   # rather than published as a dead button — the same reasoning
   # #preview_images_view uses for a blank URL.
-  def usable_canva_templates
-    Array(canva_templates).select { |row| row.is_a?(Hash) && row["url"].present? }
-  end
-
-  def canva_templates_shape
-    return errors.add(:canva_templates, "must be a list") unless canva_templates.is_a?(Array)
-
-    if canva_templates.size > MAX_TEMPLATES
-      errors.add(:canva_templates, "can have at most #{MAX_TEMPLATES} templates")
-    end
-
-    canva_templates.each_with_index do |row, index|
-      position = index + 1
-
-      unless row.is_a?(Hash)
-        errors.add(:canva_templates, "template #{position} must be an object")
-        next
-      end
-
-      errors.add(:canva_templates, "template #{position} needs a label") if row["label"].blank?
-
-      if row["url"].blank?
-        errors.add(:canva_templates, "template #{position} needs a Canva link")
-      elsif !canva_template_url?(row["url"])
-        errors.add(
-          :canva_templates,
-          "template #{position} must be an https canva.com/design/… or canva.link/… link",
-        )
-      end
-    end
-  end
-
-  def canva_template_url?(value)
-    uri = URI.parse(value.to_s)
-    return false unless uri.scheme == "https"
-
-    if CANVA_DESIGN_HOSTS.include?(uri.host)
-      uri.path.to_s.start_with?(CANVA_DESIGN_PATH_PREFIX)
-    elsif CANVA_SHORT_HOSTS.include?(uri.host)
-      # The shortener's entire path IS the id, so there is no prefix to check —
-      # only that the link names something rather than the bare domain.
-      uri.path.to_s.delete_prefix("/").present?
-    else
-      false
-    end
-  rescue URI::InvalidURIError
-    false
-  end
+  def usable_canva_templates = CanvaTemplatesValidator.usable(canva_templates)
 end

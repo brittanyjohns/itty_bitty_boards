@@ -1,21 +1,29 @@
 module Admin
-  # A board printable's scene mockups: pick a calibrated template, pick the art
-  # for each slot, render. Nothing here reaches Etsy — the curated gallery
-  # (#953) is what will reference a composition from a listing.
+  # Scene mockups for one OWNER: pick a calibrated template in the owner's
+  # category, pick the art for each slot, render. Nothing here reaches Etsy — the
+  # curated gallery (#953) is what will reference a composition from a listing.
+  #
+  # This controller serves a board printable. PrintableProductSceneCompositionsController
+  # subclasses it for a printable product, overriding only how the owner is found
+  # and where its routes live; the views are shared (Rails falls back to
+  # admin/scene_compositions for the subclass).
   class SceneCompositionsController < Admin::ApplicationController
-    before_action :set_printable
+    before_action :set_owner
     before_action :set_composition, only: %i[edit update destroy render_scene]
+
+    helper_method :owner_heading, :owner_path, :compositions_path_for_owner, :composition_path_for,
+                  :edit_composition_path_for, :new_composition_path_for, :render_composition_path_for
 
     def new
       @templates = available_templates
-      @composition = @printable.scene_compositions.build(
+      @composition = @owner.scene_compositions.build(
         scene_template: @templates.find_by(id: params[:scene_template_id]),
       )
     end
 
     def create
       @templates = available_templates
-      @composition = @printable.scene_compositions.build(
+      @composition = @owner.scene_compositions.build(
         scene_template: @templates.find_by(id: params.dig(:scene_composition, :scene_template_id)),
         board_printable_listing: listing_param,
       )
@@ -27,7 +35,7 @@ module Admin
 
       if save_composition(@composition)
         @composition.enqueue_render! if render_requested?
-        redirect_to edit_admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
+        redirect_to edit_composition_path_for(@composition),
                     notice: render_requested? ? "Saved. Rendering… refresh in a moment." : "Saved."
       else
         render :new, status: :unprocessable_entity
@@ -41,7 +49,7 @@ module Admin
 
       if save_composition(@composition)
         @composition.enqueue_render! if render_requested?
-        redirect_to edit_admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
+        redirect_to edit_composition_path_for(@composition),
                     notice: render_requested? ? "Saved. Rendering… refresh in a moment." : "Saved."
       else
         render :edit, status: :unprocessable_entity
@@ -51,35 +59,54 @@ module Admin
     def render_scene
       @composition.update_columns(error: nil)
       @composition.enqueue_render!
-      redirect_to edit_admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
-                  notice: "Rendering… refresh in a moment."
+      redirect_to edit_composition_path_for(@composition), notice: "Rendering… refresh in a moment."
     end
 
     def destroy
       @composition.destroy!
-      redirect_to admin_dashboard_board_printable_path(@printable), notice: "Deleted the scene mockup."
+      redirect_to owner_path, notice: "Deleted the scene mockup."
     end
 
     private
 
-    def set_printable
-      @printable = BoardPrintable.find(params[:dashboard_board_printable_id])
+    def set_owner
+      @owner = @printable = BoardPrintable.find(params[:dashboard_board_printable_id])
     end
 
     def set_composition
-      @composition = @printable.scene_compositions.find(params[:id])
+      @composition = @owner.scene_compositions.find(params[:id])
     end
 
-    def available_templates
-      SceneTemplate.calibrated.for_category("board").ordered.with_attached_base_image
+    # --- Owner-specific routing. The subclass overrides these. ---
+
+    def owner_heading
+      "#{@owner.board&.name || "Board ##{@owner.board_id}"} · printable ##{@owner.id}"
     end
 
-    def render_requested? = params[:render].present?
+    def owner_path = admin_dashboard_board_printable_path(@owner)
+    def compositions_path_for_owner = admin_dashboard_board_printable_scene_compositions_path(@owner)
+    def composition_path_for(composition) = admin_dashboard_board_printable_scene_composition_path(@owner, composition)
+    def edit_composition_path_for(composition) = edit_admin_dashboard_board_printable_scene_composition_path(@owner, composition)
+    def new_composition_path_for(**query) = new_admin_dashboard_board_printable_scene_composition_path(@owner, query)
+    def render_composition_path_for(composition) = render_scene_admin_dashboard_board_printable_scene_composition_path(@owner, composition)
 
     def listing_param
       id = params.dig(:scene_composition, :board_printable_listing_id).presence
-      id && @printable.etsy_listings.find_by(id: id)
+      id && @owner.etsy_listings.find_by(id: id)
     end
+
+    # --- Shared. ---
+
+    # Only calibrated templates in the owner's own category: a device tag in a
+    # board scene, or a board in a device-tag scene, is the wrong product.
+    def available_templates
+      SceneTemplate.calibrated
+                   .for_category(SceneComposition.template_category_for(@owner))
+                   .ordered
+                   .with_attached_base_image
+    end
+
+    def render_requested? = params[:render].present?
 
     # slot_art from the form, limited to the template's own slot keys.
     def submitted_art(template)
@@ -88,7 +115,12 @@ module Admin
         entry = raw[slot.key]
         next unless entry.respond_to?(:permit)
 
-        out[slot.key] = entry.permit(:source, :board_id, :ink, :header, :blob_id).to_h
+        picked = entry.permit(:source, :board_id, :ink, :header, :blob_id, :artwork_blob_id).to_h
+        # The artwork picker posts its own field so it never collides with the
+        # uploaded-picture select; it names the blob only for that source.
+        artwork = picked.delete("artwork_blob_id")
+        picked["blob_id"] = artwork if picked["source"] == SceneComposition::SOURCE_PRODUCT_ARTWORK
+        out[slot.key] = picked
       end
     end
 
@@ -124,7 +156,7 @@ module Admin
       files.each do |key, file|
         slot = template.slot_for(key)
         name = slot.label.presence || key
-        if !slot.accepts.include?(SceneComposition::SOURCE_UPLOAD)
+        if !slot.accepts.include?(SceneComposition::SOURCE_UPLOAD) || !composition.allowed_sources.include?(SceneComposition::SOURCE_UPLOAD)
           composition.errors.add(:slot_uploads, "#{name}: this slot doesn't take uploads")
         elsif !SceneComposition::UPLOAD_CONTENT_TYPES.include?(file.content_type)
           composition.errors.add(:slot_uploads, "#{name}: upload a PNG, JPEG or WebP")

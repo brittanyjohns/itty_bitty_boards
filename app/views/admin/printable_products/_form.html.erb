@@ -1,0 +1,73 @@
+<% input_class = "admin-input border rounded px-2 py-1.5 text-sm w-full" %>
+<% url = @product.persisted? ? admin_dashboard_printable_product_path(@product) : admin_dashboard_printable_products_path %>
+
+<% if @product.errors.any? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm mb-4">
+    <ul class="list-disc pl-4">
+      <% @product.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%= form_with model: @product, url: url, scope: :printable_product, data: { turbo: false } do |f| %>
+  <div class="admin-card border rounded-xl p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <%= f.label :name, class: "block text-xs font-medium text-t2 mb-1" %>
+      <%= f.text_field :name, placeholder: "AAC Device Tags", class: input_class %>
+    </div>
+    <div>
+      <%= f.label :slug, class: "block text-xs font-medium text-t2 mb-1" %>
+      <%= f.text_field :slug, placeholder: "Left blank, it's made from the name", class: "#{input_class} font-mono text-xs" %>
+    </div>
+    <div>
+      <%= f.label :category, class: "block text-xs font-medium text-t2 mb-1" %>
+      <%= f.select :category, PrintableProduct::CATEGORIES.map { |c| [c.humanize, c] }, {}, class: input_class %>
+    </div>
+    <div>
+      <%= f.label :size_label, "Size", class: "block text-xs font-medium text-t2 mb-1" %>
+      <%= f.text_field :size_label, placeholder: "2.5 x 2 in", class: input_class %>
+    </div>
+    <div>
+      <%= f.label :status, class: "block text-xs font-medium text-t2 mb-1" %>
+      <%= f.select :status, PrintableProduct::STATUSES.map { |s| [s.humanize, s] }, {}, class: input_class %>
+    </div>
+    <div class="md:col-span-2">
+      <%= f.label :description, class: "block text-xs font-medium text-t2 mb-1" %>
+      <%= f.text_area :description, rows: 4, class: input_class %>
+    </div>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <h2 class="text-sm font-medium text-t1 mb-1">Canva template links</h2>
+    <p class="text-[11px] text-t3 mb-4">
+      The editable designs a buyer copies. An https <code>canva.com/design/…</code> or <code>canva.link/…</code> link.
+    </p>
+    <% rows = @product.canva_templates.presence || [] %>
+    <% rows = rows + Array.new(rows.any? ? 1 : 4) { {} } %>
+    <% rows.first(PrintableProduct::MAX_TEMPLATES + 1).each_with_index do |row, index| %>
+      <% row = row.is_a?(Hash) ? row : {} %>
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
+        <div class="md:col-span-3">
+          <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_label_<%= index %>">Label</label>
+          <%= text_field_tag "canva_templates[][label]", row["label"], id: "canva_template_label_#{index}",
+                placeholder: "Voice Tag 1", class: input_class %>
+        </div>
+        <div class="md:col-span-5">
+          <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_url_<%= index %>">Canva template link</label>
+          <%= text_field_tag "canva_templates[][url]", row["url"], id: "canva_template_url_#{index}",
+                placeholder: "https://canva.link/... or https://www.canva.com/design/...", class: "#{input_class} font-mono text-xs" %>
+        </div>
+        <div class="md:col-span-4">
+          <label class="block text-xs font-medium text-t2 mb-1" for="canva_template_description_<%= index %>">Description</label>
+          <%= text_field_tag "canva_templates[][description]", row["description"], id: "canva_template_description_#{index}",
+                class: input_class %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <%= f.submit @product.persisted? ? "Save" : "Create product",
+        class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer" %>
+<% end %>

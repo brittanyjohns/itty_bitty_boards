@@ -232,6 +232,12 @@ module Boards
       end
 
       def art_for(slot, entry)
+        # Re-asserted here, not only on save: which owner a composition belongs
+        # to decides which sources exist for it at all.
+        unless composition.allowed_sources.include?(entry["source"])
+          raise Error, "#{entry["source"].to_s.humanize} art isn't available for this #{composition.owner_type.underscore.humanize.downcase}."
+        end
+
         case entry["source"]
         when SceneComposition::SOURCE_PAGE_THUMBNAIL
           board = board_for!(entry)
@@ -245,6 +251,8 @@ module Boards
           ).call
         when SceneComposition::SOURCE_UPLOAD
           data_uri_for(upload_blob_for!(entry))
+        when SceneComposition::SOURCE_PRODUCT_ARTWORK
+          data_uri_for(product_artwork_blob_for!(entry))
         else
           raise Error, "Unknown art source #{entry["source"].inspect}."
         end
@@ -267,6 +275,18 @@ module Boards
         raise Error, "That upload doesn't belong to this composition." unless attachment
 
         attachment.blob
+      end
+
+      # Re-asserted at render time against the owner's artworks as they are NOW:
+      # an artwork removed (or a blob id from another product) must never be
+      # inlined into this product's mockup.
+      def product_artwork_blob_for!(entry)
+        blob_id = entry["blob_id"]
+        unless composition.owner_artwork_blob_ids.include?(blob_id)
+          raise Error, "That artwork doesn't belong to this product."
+        end
+
+        ActiveStorage::Blob.find_by(id: blob_id) || raise(Error, "That artwork no longer exists.")
       end
 
       def boards_by_id

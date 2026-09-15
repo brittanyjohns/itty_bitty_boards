@@ -3,9 +3,9 @@
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight">Scene mockup #<%= @composition.id %></h1>
-    <p class="text-sm text-t3 mt-0.5"><%= @printable.board&.name || "Board ##{@printable.board_id}" %> · printable #<%= @printable.id %></p>
+    <p class="text-sm text-t3 mt-0.5"><%= owner_heading %></p>
   </div>
-  <%= link_to "← Back to the printable", admin_dashboard_board_printable_path(@printable), class: "text-xs text-t2 hover:text-t1" %>
+  <%= link_to "← Back", owner_path, class: "text-xs text-t2 hover:text-t1" %>
 </div>
 
 <div class="admin-card border rounded-xl p-5 mb-6">
@@ -14,8 +14,12 @@
     <% if @composition.render.attached? && @composition.stale? %>
       <span class="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">Out of date</span>
     <% end %>
-    <%= button_to "Render now", render_scene_admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
+    <%= button_to "Render now", render_composition_path_for(@composition),
           method: :post, class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+    <% if @composition.render.attached? %>
+      <%= link_to "Download JPEG", rails_blob_path(@composition.render, disposition: "attachment"),
+            class: "text-xs text-accent hover:underline" %>
+    <% end %>
   </div>
 
   <% if @composition.error.present? %>
@@ -36,10 +40,10 @@
   <% end %>
 </div>
 
-<%= render "form" %>
+<%= render "admin/scene_compositions/form" %>
 
 <div class="mt-6">
-  <%= button_to "Delete this mockup", admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
+  <%= button_to "Delete this mockup", composition_path_for(@composition),
         method: :delete,
         class: "text-xs font-medium px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white cursor-pointer",
         form: { data: { turbo_confirm: "Delete this scene mockup and its render?" } } %>

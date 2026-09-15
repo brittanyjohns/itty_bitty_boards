@@ -1,0 +1,50 @@
+<% content_for :page_title, "Printable products" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Printable products</h1>
+    <p class="text-sm text-t3 mt-0.5">
+      Printables that aren't boards — device tags first. Each holds its design artwork, buyer downloads and Canva links.
+    </p>
+  </div>
+  <%= link_to "New product", new_admin_dashboard_printable_product_path,
+        class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+</div>
+
+<div class="flex gap-2 mb-4 text-xs">
+  <%= link_to "Active", admin_dashboard_printable_products_path,
+        class: "px-2.5 py-1 rounded #{@status.nil? ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+  <% PrintableProduct::STATUSES.each do |status| %>
+    <%= link_to status.humanize, admin_dashboard_printable_products_path(status: status),
+          class: "px-2.5 py-1 rounded #{@status == status ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+  <% end %>
+</div>
+
+<% if @products.empty? %>
+  <div class="admin-card border rounded-xl p-5 text-sm text-t2">No products here.</div>
+<% else %>
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <% @products.each do |product| %>
+      <% cover = product.ordered_artworks.first %>
+      <%= link_to admin_dashboard_printable_product_path(product), class: "admin-card border rounded-xl p-4 block hover:border-indigo-500" do %>
+        <% if cover %>
+          <%= image_tag url_for(cover), alt: product.artwork_label(cover),
+                class: "w-full h-40 object-contain rounded-lg border bg-white mb-3", style: "border-color: var(--border);" %>
+        <% else %>
+          <div class="w-full h-40 rounded-lg border admin-card-alt mb-3 flex items-center justify-center text-[11px] text-t3"
+               style="border-color: var(--border);">No artwork yet</div>
+        <% end %>
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-sm font-medium text-t1 truncate"><%= product.name %></div>
+          <span class="text-[11px] px-2 py-0.5 rounded admin-badge text-t2"><%= product.status %></span>
+        </div>
+        <div class="text-[11px] text-t3 mt-1">
+          <code><%= product.slug %></code> · <%= product.category.humanize.downcase %>
+          <%= "· #{product.size_label}" if product.size_label.present? %> ·
+          <%= pluralize(product.artworks.size, "artwork") %> ·
+          <%= pluralize(@usage.fetch(product.id, 0), "mockup") %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

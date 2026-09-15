@@ -1,11 +1,18 @@
+<%# Shared by board-printable and printable-product mockups. Which art sources a
+    slot offers is the intersection of what the slot was calibrated to take and
+    what this OWNER may use (SceneComposition::SOURCES_FOR_OWNER). %>
 <% template = @composition.scene_template %>
-<% boards = @printable.ordered_boards %>
+<% allowed_sources = @composition.allowed_sources %>
+<% boards = @owner.respond_to?(:ordered_boards) ? @owner.ordered_boards : [] %>
+<% artworks = @owner.respond_to?(:ordered_artworks) ? @owner.ordered_artworks : [] %>
+<% listings = @owner.respond_to?(:etsy_listings) ? @owner.etsy_listings.to_a : [] %>
 <% uploads = @composition.persisted? ? @composition.slot_uploads.includes(:blob).to_a : [] %>
-<% url = @composition.persisted? ? admin_dashboard_board_printable_scene_composition_path(@printable, @composition) : admin_dashboard_board_printable_scene_compositions_path(@printable) %>
+<% url = @composition.persisted? ? composition_path_for(@composition) : compositions_path_for_owner %>
 <% source_labels = {
      SceneComposition::SOURCE_PAGE_THUMBNAIL => "Printed page",
      SceneComposition::SOURCE_DEVICE_SCREEN => "App screen",
      SceneComposition::SOURCE_UPLOAD => "Uploaded picture",
+     SceneComposition::SOURCE_PRODUCT_ARTWORK => "Product artwork",
    } %>
 
 <% if @composition.errors.any? %>
@@ -30,11 +37,11 @@
     <div class="text-xs text-t2 space-y-1">
       <div class="text-sm font-medium text-t1"><%= template.name %></div>
       <div><%= template.width %>×<%= template.height %> · <%= pluralize(template.slots.size, "slot") %></div>
-      <% if @printable.etsy_listings.any? %>
+      <% if listings.any? %>
         <label class="block mt-2">For listing (optional)
           <select name="scene_composition[board_printable_listing_id]" class="admin-input border rounded px-2 py-1 text-xs block mt-1">
             <option value="">— Any —</option>
-            <% @printable.etsy_listings.each do |listing| %>
+            <% listings.each do |listing| %>
               <option value="<%= listing.id %>" <%= "selected" if @composition.board_printable_listing_id == listing.id %>>
                 Listing #<%= listing.id %> (<%= listing.state %>)
               </option>
@@ -45,66 +52,90 @@
     </div>
   </div>
 
+  <% if allowed_sources.include?(SceneComposition::SOURCE_PRODUCT_ARTWORK) && artworks.empty? %>
+    <div class="admin-flash-err border rounded-lg px-4 py-3 text-xs">
+      This product has no artwork yet. <%= link_to "Upload some", owner_path, class: "text-accent hover:underline" %> first.
+    </div>
+  <% end %>
+
   <% template.slot_objects.each do |slot| %>
     <% entry = @composition.slot_art.to_h[slot.key] || {} %>
+    <% offered = slot.accepts & allowed_sources %>
     <fieldset class="border rounded-lg p-4" style="border-color: var(--border);">
       <legend class="text-xs font-medium text-t1 px-1">
         <%= slot.label.presence || slot.key %>
         <span class="text-t3 font-normal">· <%= slot.kind %> · <%= slot.orientation %> · <%= slot.target_width %>×<%= slot.target_height %></span>
       </legend>
 
-      <div class="grid gap-3 sm:grid-cols-2 text-xs text-t2">
-        <label>Art
-          <select name="slot_art[<%= slot.key %>][source]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
-            <option value="">— Leave blank (show the base image) —</option>
-            <% slot.accepts.each do |source| %>
-              <option value="<%= source %>" <%= "selected" if entry["source"] == source %>><%= source_labels.fetch(source, source) %></option>
-            <% end %>
-          </select>
-        </label>
-
-        <% if (slot.accepts & SceneComposition::BOARD_SOURCES).any? %>
-          <label>Board
-            <select name="slot_art[<%= slot.key %>][board_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
-              <% boards.each_with_index do |board, index| %>
-                <option value="<%= board.id %>" <%= "selected" if entry["board_id"] == board.id %>>
-                  <%= index + 1 %>. <%= board.name.presence || "Board ##{board.id}" %>
-                </option>
+      <% if offered.empty? %>
+        <p class="text-xs text-t3">This slot takes <%= slot.accepts.map(&:humanize).join(", ").downcase %>, none of which this owner has. Recalibrate the template to accept another source.</p>
+      <% else %>
+        <div class="grid gap-3 sm:grid-cols-2 text-xs text-t2">
+          <label>Art
+            <select name="slot_art[<%= slot.key %>][source]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+              <option value="">— Leave blank (show the base image) —</option>
+              <% offered.each do |source| %>
+                <option value="<%= source %>" <%= "selected" if entry["source"] == source %>><%= source_labels.fetch(source, source) %></option>
               <% end %>
             </select>
           </label>
-        <% end %>
 
-        <% if slot.accepts.include?(SceneComposition::SOURCE_PAGE_THUMBNAIL) %>
-          <label>Printed page ink
-            <select name="slot_art[<%= slot.key %>][ink]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
-              <option value="color" <%= "selected" if entry["ink"] != SceneComposition::INK_LOW %>>Colour</option>
-              <option value="low_ink" <%= "selected" if entry["ink"] == SceneComposition::INK_LOW %>>Low ink</option>
-            </select>
-          </label>
-          <label class="flex items-center gap-2 mt-5">
-            <input type="hidden" name="slot_art[<%= slot.key %>][header]" value="0" />
-            <input type="checkbox" name="slot_art[<%= slot.key %>][header]" value="1" <%= "checked" unless entry["header"] == false %> />
-            Printed page shows its header (title + QR)
-          </label>
-        <% end %>
-
-        <% if slot.accepts.include?(SceneComposition::SOURCE_UPLOAD) %>
-          <% if uploads.any? %>
-            <label>Uploaded picture
-              <select name="slot_art[<%= slot.key %>][blob_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
-                <% uploads.each do |upload| %>
-                  <option value="<%= upload.blob_id %>" <%= "selected" if entry["blob_id"] == upload.blob_id %>><%= upload.filename %></option>
+          <% if offered.include?(SceneComposition::SOURCE_PRODUCT_ARTWORK) && artworks.any? %>
+            <%# Its own param: the controller maps it onto blob_id only when the
+                slot's source is product_artwork, so it can't collide with the
+                uploaded-picture select below. %>
+            <label>Product artwork
+              <select name="slot_art[<%= slot.key %>][artwork_blob_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+                <% artworks.each do |artwork| %>
+                  <option value="<%= artwork.blob_id %>" <%= "selected" if entry["blob_id"] == artwork.blob_id %>><%= @owner.artwork_label(artwork) %></option>
                 <% end %>
               </select>
             </label>
           <% end %>
-          <label>Upload a picture for this slot
-            <input type="file" name="slot_files[<%= slot.key %>]" accept="<%= SceneComposition::UPLOAD_CONTENT_TYPES.join(",") %>" class="block mt-1" />
-            <span class="text-[11px] text-t3">Choosing a file sets this slot to it. PNG, JPEG or WebP under <%= number_to_human_size(SceneComposition::MAX_UPLOAD_BYTES) %>.</span>
-          </label>
-        <% end %>
-      </div>
+
+          <% if (offered & SceneComposition::BOARD_SOURCES).any? %>
+            <label>Board
+              <select name="slot_art[<%= slot.key %>][board_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+                <% boards.each_with_index do |board, index| %>
+                  <option value="<%= board.id %>" <%= "selected" if entry["board_id"] == board.id %>>
+                    <%= index + 1 %>. <%= board.name.presence || "Board ##{board.id}" %>
+                  </option>
+                <% end %>
+              </select>
+            </label>
+          <% end %>
+
+          <% if offered.include?(SceneComposition::SOURCE_PAGE_THUMBNAIL) %>
+            <label>Printed page ink
+              <select name="slot_art[<%= slot.key %>][ink]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+                <option value="color" <%= "selected" if entry["ink"] != SceneComposition::INK_LOW %>>Colour</option>
+                <option value="low_ink" <%= "selected" if entry["ink"] == SceneComposition::INK_LOW %>>Low ink</option>
+              </select>
+            </label>
+            <label class="flex items-center gap-2 mt-5">
+              <input type="hidden" name="slot_art[<%= slot.key %>][header]" value="0" />
+              <input type="checkbox" name="slot_art[<%= slot.key %>][header]" value="1" <%= "checked" unless entry["header"] == false %> />
+              Printed page shows its header (title + QR)
+            </label>
+          <% end %>
+
+          <% if offered.include?(SceneComposition::SOURCE_UPLOAD) %>
+            <% if uploads.any? %>
+              <label>Uploaded picture
+                <select name="slot_art[<%= slot.key %>][blob_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+                  <% uploads.each do |upload| %>
+                    <option value="<%= upload.blob_id %>" <%= "selected" if entry["blob_id"] == upload.blob_id %>><%= upload.filename %></option>
+                  <% end %>
+                </select>
+              </label>
+            <% end %>
+            <label>Upload a picture for this slot
+              <input type="file" name="slot_files[<%= slot.key %>]" accept="<%= SceneComposition::UPLOAD_CONTENT_TYPES.join(",") %>" class="block mt-1" />
+              <span class="text-[11px] text-t3">Choosing a file sets this slot to it. PNG, JPEG or WebP under <%= number_to_human_size(SceneComposition::MAX_UPLOAD_BYTES) %>.</span>
+            </label>
+          <% end %>
+        </div>
+      <% end %>
     </fieldset>
   <% end %>
 
