@@ -92,6 +92,19 @@ module Admin
       end
     end
 
+    # The words for each text slot, limited to the template's own text slot
+    # keys. nil when the form didn't send the field at all, so a request that
+    # only changes art leaves the words alone.
+    def submitted_text(template)
+      return nil unless params.key?(:text_values)
+
+      raw = params.fetch(:text_values, {})
+      Array(template.text_slots).each_with_object({}) do |slot, out|
+        value = raw[slot["key"]]
+        out[slot["key"]] = value if value.is_a?(String)
+      end
+    end
+
     def submitted_files(template)
       raw = params.fetch(:slot_files, {})
       template.slot_objects.each_with_object({}) do |slot, out|
@@ -121,6 +134,8 @@ module Admin
       end
       return false if composition.errors.any?
 
+      text = submitted_text(template)
+      composition.text_values = text unless text.nil?
       composition.slot_art = art.reject { |key, _| files.key?(key) }
       return false unless composition.save
 

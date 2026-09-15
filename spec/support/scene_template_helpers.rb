@@ -20,6 +20,28 @@ module SceneTemplateHelpers
     }.merge(overrides.transform_keys(&:to_s))
   end
 
+  # A 360x60 text box along the bottom of a 400x300 base.
+  def scene_text_slot(key: "headline", box: [20, 210, 360, 60], **overrides)
+    {
+      "key" => key,
+      "label" => key.humanize,
+      "box" => box,
+      "rotation" => 0,
+      "font" => "fredoka",
+      "weight" => 600,
+      "color" => "#17385c",
+      "align" => "center",
+      "max_px" => 48,
+      "min_px" => 16,
+      "max_chars" => 60,
+      "default" => "Printable AAC",
+    }.merge(overrides.transform_keys(&:to_s))
+  end
+
+  def scene_overlay(key: "facts", partial: "feature_list", box: [200, 20, 180, 170])
+    { "key" => key, "partial" => partial, "box" => box }
+  end
+
   def build_scene_template(slots: [scene_slot], width: 400, height: 300, front_layer: false, **attrs)
     template = SceneTemplate.new(
       {

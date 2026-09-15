@@ -1,0 +1,76 @@
+<%# Fits text slots and overlays, then tells Grover it may screenshot
+    (RenderSceneComposition::FIT_READY_FUNCTION).
+
+    Everything it reads comes from the DOM — sizes from data-* attributes, words
+    from escaped text nodes — so no user input is ever interpolated into this
+    script. The calibrator carries a JS twin (app/javascript/src/scene/text_fit.js)
+    so its preview shrinks text the same way; change both together.
+
+    Order matters: faces first. A fit measured against the fallback stack would
+    size Caveat's condensed glyphs as if they were system-ui's wide ones. %>
+<script>
+  (function () {
+    function fits(box, inner) {
+      return inner.scrollWidth <= box.clientWidth + 0.5 && inner.offsetHeight <= box.clientHeight + 0.5;
+    }
+
+    // Largest size from max_px down to min_px at which the words fit, by
+    // bisection to half a pixel. If even min_px overflows, the words may break
+    // mid-word rather than spill out of the box, and the box is marked.
+    function fitText(box) {
+      var inner = box.querySelector(".scene-text-inner");
+      var max = parseFloat(box.getAttribute("data-max-px"));
+      var min = parseFloat(box.getAttribute("data-min-px"));
+      if (!inner || !(max > 0) || !(min > 0)) return;
+
+      inner.style.fontSize = max + "px";
+      if (fits(box, inner)) return;
+
+      var lo = min, hi = max, best = min;
+      while (hi - lo > 0.5) {
+        var mid = (lo + hi) / 2;
+        inner.style.fontSize = mid + "px";
+        if (fits(box, inner)) { best = mid; lo = mid; } else { hi = mid; }
+      }
+      inner.style.fontSize = best + "px";
+      if (!fits(box, inner)) box.setAttribute("data-overflow", "true");
+    }
+
+    // Scales an overlay's natural layout to CONTAIN in its box, centred.
+    function fitOverlay(region) {
+      var content = region.querySelector(".scene-overlay-content");
+      if (!content) return;
+      content.style.transform = "none";
+      var w = content.offsetWidth, h = content.offsetHeight;
+      if (!w || !h) return;
+      var bw = region.clientWidth, bh = region.clientHeight;
+      var s = Math.min(bw / w, bh / h);
+      content.style.transform = "translate(" + (bw - w * s) / 2 + "px, " + (bh - h * s) / 2 + "px) scale(" + s + ")";
+    }
+
+    function run() {
+      document.querySelectorAll(".scene-text").forEach(fitText);
+      document.querySelectorAll(".scene-overlay").forEach(fitOverlay);
+      window.__scene_fit = true;
+    }
+
+    if (!document.fonts || !document.fonts.load) { run(); return; }
+
+    var loads = [];
+    document.querySelectorAll(".scene-text").forEach(function (box) {
+      var inner = box.querySelector(".scene-text-inner");
+      if (!inner) return;
+      var style = getComputedStyle(inner);
+      loads.push(document.fonts.load(style.fontWeight + " 32px " + style.fontFamily, inner.textContent));
+    });
+    if (document.querySelector(".scene-overlay")) {
+      ["600 24px Nunito", "700 24px Nunito", "800 24px Nunito", "600 24px Fredoka"].forEach(function (font) {
+        loads.push(document.fonts.load(font));
+      });
+    }
+
+    Promise.all(loads)
+      .then(function () { return document.fonts.ready; })
+      .then(run, run);
+  })();
+</script>

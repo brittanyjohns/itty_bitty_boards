@@ -29,25 +29,9 @@
           base64, never from user input. %>
       <%== Boards::Printables::Fonts.styled_face_css %>
 
-      :root {
-        --cream: #FBF6EC;
-        --pink: #E589B3;
-        --pink-deep: #B8407A;
-        --pink-soft: #F9D8E6;
-        --green: #56B58C;
-        --green-deep: #2F7D5B;
-        --green-soft: #CFEBDA;
-        --navy: #17385C;
-        --ink-soft: #4A5B6C;
-        --white: #FFFFFF;
-
-        --shadow-page: 0 18px 40px rgba(23, 56, 92, 0.20);
-        --shadow-small: 0 10px 22px rgba(23, 56, 92, 0.18);
-
-        --font-body: Nunito, system-ui, sans-serif;
-        --font-head: Fredoka, Nunito, system-ui, sans-serif;
-        --font-hand: Caveat, cursive;
-      }
+      <%# Brand tokens, feature list and badges: shared with the scene render's
+          fact overlays so one partial can't look two ways. %>
+<%= render "api/board_printables/styled/component_css" %>
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -104,22 +88,6 @@
       .hand { font-family: var(--font-hand); font-weight: 600; color: var(--navy); line-height: 1.05; z-index: 3; }
       .hand.pill { background: var(--pink-soft); border-radius: 999px; padding: 6px 26px 10px; }
       .hand.pill.green { background: var(--green-soft); }
-
-      /* ── Feature list ───────────────────────────────────────────────── */
-      .features { display: flex; flex-direction: column; z-index: 2; }
-      .feature { display: flex; align-items: center; gap: 20px; }
-      .icon-circle { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-      .icon-circle svg { width: 50%; height: 50%; fill: currentColor; }
-      .icon-circle.pink { background: var(--pink-soft); color: var(--pink-deep); }
-      .icon-circle.green { background: var(--green-soft); color: var(--green-deep); }
-      .feature .title { font-weight: 800; color: var(--navy); line-height: 1.15; }
-      .feature .sub { font-weight: 600; color: var(--ink-soft); line-height: 1.2; margin-top: 2px; }
-
-      /* ── Badges ─────────────────────────────────────────────────────── */
-      .badges { display: flex; gap: 14px; z-index: 2; }
-      .badge { display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 999px; font-weight: 700; color: var(--navy); line-height: 1.1; white-space: nowrap; }
-      .badge.pink { background: var(--pink-soft); }
-      .badge.green { background: var(--green-soft); }
 
       /* ── Paper ──────────────────────────────────────────────────────── */
       .page-card { background: var(--white); border-radius: 6px; box-shadow: var(--shadow-page); overflow: hidden; }

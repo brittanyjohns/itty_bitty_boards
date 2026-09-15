@@ -108,6 +108,38 @@
     </fieldset>
   <% end %>
 
+  <% if template.text_slots.any? %>
+    <fieldset class="border rounded-lg p-4" style="border-color: var(--border);">
+      <legend class="text-xs font-medium text-t1 px-1">Words <span class="text-t3 font-normal">· the template sets the look; you set the words</span></legend>
+      <div class="grid gap-3 sm:grid-cols-2 text-xs text-t2">
+        <% template.text_slots.each do |text_slot| %>
+          <label><%= text_slot["label"].presence || text_slot["key"] %>
+            <input type="text" name="text_values[<%= text_slot["key"] %>]"
+                   value="<%= @composition.text_values.to_h[text_slot["key"]] %>"
+                   maxlength="<%= text_slot["max_chars"] %>"
+                   placeholder="<%= text_slot["default"] %>"
+                   class="admin-input border rounded px-2 py-1 block mt-1 w-full" />
+            <span class="text-[11px] text-t3">
+              Up to <%= text_slot["max_chars"] %> characters.
+              <% if text_slot["default"].present? %>
+                Leave blank for the default (“<%= text_slot["default"] %>”).
+              <% else %>
+                Leave blank to show nothing.
+              <% end %>
+            </span>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+  <% end %>
+
+  <% if template.overlay_regions.any? %>
+    <p class="text-[11px] text-t3">
+      Also drawn from this printable's own facts (counts, formats, low-ink):
+      <%= template.overlay_regions.map { |region| region["partial"].humanize.downcase }.to_sentence %>.
+    </p>
+  <% end %>
+
   <div class="flex items-center gap-3">
     <button type="submit" name="render" value="1"
             class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">Save &amp; render</button>

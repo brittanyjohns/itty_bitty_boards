@@ -29,19 +29,43 @@
   front layer drawn over it: if the checkerboard sits right, the art will. Numbers should read left-to-right, top-to-bottom.
 </p>
 
+<p class="text-[11px] text-t3 mb-3">
+  <strong>Text boxes</strong> set the look (font, weight, colour, sizes); each mockup supplies only the words, which shrink
+  from max to min px to fit. Boxes are dragged and resized unrotated; the text rotates about the box's centre.
+  <strong>Overlays</strong> are filled from the printable's own facts, never typed text. Both draw above the front layer.
+</p>
+
+<%# The styled faces, so the preview measures the same glyphs the render will.
+    Unescaped because it is CSS inside <style> (see listing_image_styled); built
+    from constants and base64 only. %>
+<style>
+  <%== Boards::Printables::Fonts.styled_face_css %>
+  <%== SceneTemplate.text_font_css %>
+</style>
+
 <div data-controller="scene-calibrator"
      data-scene-calibrator-slots-value="<%= @template.slots.to_json %>"
+     data-scene-calibrator-text-slots-value="<%= @template.text_slots.to_json %>"
+     data-scene-calibrator-overlay-regions-value="<%= @template.overlay_regions.to_json %>"
      data-scene-calibrator-width-value="<%= @template.width %>"
      data-scene-calibrator-height-value="<%= @template.height %>"
      data-scene-calibrator-kinds-value="<%= Boards::Printables::SceneSlot::KINDS.to_json %>"
      data-scene-calibrator-orientations-value="<%= Boards::Printables::SceneSlot::ORIENTATIONS.to_json %>"
      data-scene-calibrator-accepts-value="<%= Boards::Printables::SceneSlot::ACCEPTS.to_json %>"
      data-scene-calibrator-finishes-value="<%= Boards::Printables::SceneSlot::FINISHES.to_json %>"
+     data-scene-calibrator-fonts-value="<%= SceneTemplate::TEXT_FONTS.transform_values { |font| { min: font[:weights].min, max: font[:weights].max, default_weight: font[:default_weight] } }.to_json %>"
+     data-scene-calibrator-aligns-value="<%= SceneTemplate::TEXT_ALIGNS.to_json %>"
+     data-scene-calibrator-partials-value="<%= SceneTemplate::OVERLAY_PARTIALS.to_json %>"
+     data-scene-calibrator-max-chars-value="<%= SceneTemplate::MAX_TEXT_CHARS %>"
      class="grid gap-6 lg:grid-cols-3">
   <div class="lg:col-span-2">
     <div class="flex items-center gap-4 mb-2 text-xs">
       <button type="button" data-action="scene-calibrator#addSlot"
               class="font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Add slot</button>
+      <button type="button" data-action="scene-calibrator#addText"
+              class="font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Add text</button>
+      <button type="button" data-action="scene-calibrator#addOverlay"
+              class="font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Add overlay</button>
       <label class="text-t2">
         <input type="checkbox" checked data-scene-calibrator-target="preview" data-action="change->scene-calibrator#togglePreview" />
         Live preview
@@ -63,6 +87,8 @@
           <img src="<%= url_for(@template.front_layer) %>" alt="" draggable="false" data-scene-calibrator-target="front"
                style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;" />
         <% end %>
+        <%# Above the front layer, as in the render. %>
+        <div data-scene-calibrator-target="textLayer" style="position: absolute; inset: 0; pointer-events: none;"></div>
         <svg data-scene-calibrator-target="svg" viewBox="0 0 <%= @template.width %> <%= @template.height %>"
              style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;"></svg>
       </div>
@@ -75,6 +101,8 @@
     <%= form_with url: save_calibration_admin_dashboard_scene_template_path(@template), method: :patch,
                   data: { turbo: false }, class: "admin-card border rounded-xl p-4" do %>
       <input type="hidden" name="slots_json" value="<%= @template.slots.to_json %>" data-scene-calibrator-target="output" />
+      <input type="hidden" name="text_slots_json" value="<%= @template.text_slots.to_json %>" data-scene-calibrator-target="textOutput" />
+      <input type="hidden" name="overlay_regions_json" value="<%= @template.overlay_regions.to_json %>" data-scene-calibrator-target="overlayOutput" />
       <label class="block text-xs text-t2 mb-3">
         <input type="checkbox" name="mark_calibrated" value="1" <%= "checked" if @template.calibrated? || @template.draft? %> />
         Mark calibrated (offered for new mockups)

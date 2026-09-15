@@ -142,6 +142,130 @@ RSpec.describe Boards::Printables::RenderSceneComposition do
     expect(composition).not_to be_stale
   end
 
+  describe "text slots and overlays" do
+    let(:styled_template) do
+      create_scene_template(
+        slots: [fridge],
+        front_layer: true,
+        text_slots: [scene_text_slot(key: "headline", max_chars: 80)],
+        overlay_regions: [scene_overlay(key: "facts", partial: "feature_list")],
+      )
+    end
+
+    # Positional, not keyword: a string-keyed hash passed to a method that takes
+    # keywords is read as keywords.
+    def styled_composition(text_values = {}, template = styled_template)
+      SceneComposition.create!(owner: printable, scene_template: template,
+                               slot_art: slot_art.slice("fridge"), text_values: text_values)
+    end
+
+    it "escapes the words, which are user input" do
+      described_class.new(composition: styled_composition("headline" => "<script>alert(1)</script> & co")).call
+
+      expect(scene_body).to include("&lt;script&gt;alert(1)&lt;/script&gt; &amp; co")
+      expect(scene_body).not_to include("<script>alert(1)")
+    end
+
+    it "draws base, art, front layer, then text, then overlays" do
+      described_class.new(composition: styled_composition("headline" => "Core Words")).call
+
+      order = ['class="scene-base"', 'class="scene-art', 'class="scene-front"', 'class="scene-text', 'class="scene-overlay"']
+                .map { |marker| scene_body.index(marker) }
+      expect(order).to all(be_present)
+      expect(order).to eq(order.sort)
+    end
+
+    it "styles the words from the template, with the font from the allowlist" do
+      described_class.new(composition: styled_composition("headline" => "Core Words")).call
+
+      expect(scene_body).to include('class="scene-text scene-font-fredoka"', 'data-max-px="48"', 'data-min-px="16"')
+      expect(scene_body).to include("font-weight: 600; color: #17385c; text-align: center;")
+      expect(scene_html).to include("font-family: 'Fredoka'", ".scene-font-fredoka { font-family: Fredoka")
+    end
+
+    it "falls back to the slot's default, and draws nothing for an empty default" do
+      described_class.new(composition: styled_composition).call
+      expect(scene_body).to include(">Printable AAC</div>")
+
+      rendered_html.clear
+      silent = create_scene_template(slots: [fridge], text_slots: [scene_text_slot(default: "")])
+      described_class.new(composition: styled_composition({},silent)).call
+      expect(scene_body).not_to include('class="scene-text')
+    end
+
+    it "seeds a smaller font size for longer words, before the in-page fit refines it" do
+      described_class.new(composition: styled_composition("headline" => "Hi")).call
+      short = scene_body[/scene-text-inner"\s+style="font-size: (\d+)px/, 1].to_i
+
+      rendered_html.clear
+      described_class.new(composition: styled_composition("headline" => "A much longer headline that needs to wrap")).call
+      long = scene_body[/scene-text-inner"\s+style="font-size: (\d+)px/, 1].to_i
+
+      expect(short).to eq(48)
+      expect(long).to be < short
+      expect(long).to be >= 16
+    end
+
+    it "waits for the in-page fit before the screenshot" do
+      described_class.new(composition: styled_composition("headline" => "Core Words")).call
+
+      expect(scene_opts[:wait_for_function]).to eq("window.__scene_fit === true")
+      expect(scene_opts[:wait_for_function_options]).to eq(timeout: described_class::FIT_TIMEOUT_MS)
+      expect(scene_body).to include("window.__scene_fit = true", "document.fonts")
+    end
+
+    it "carries no fonts, fit script or wait for a scene with no text or overlays" do
+      described_class.new(composition: composition).call
+
+      expect(scene_opts).not_to have_key(:wait_for_function)
+      expect(scene_html).not_to include("@font-face")
+      expect(scene_body).not_to include("__scene_fit")
+    end
+
+    it "renders every allowlisted overlay from the printable's facts" do
+      overlays = SceneTemplate::OVERLAY_PARTIALS.each_with_index.map do |partial, index|
+        scene_overlay(key: "o#{index}", partial: partial, box: [200, 10 + (index * 70), 180, 60])
+      end
+      template = create_scene_template(slots: [fridge], overlay_regions: overlays)
+
+      described_class.new(composition: styled_composition({},template)).call
+
+      expect(scene_body).to include('data-partial="feature_list"', 'data-partial="badges"',
+                                    'data-partial="steps_row"', 'data-partial="check_pills"')
+      expect(scene_body).to include("2 printable communication boards") # feature_list
+      expect(scene_body).to include("2 boards, one book")                # steps_row: a set
+      expect(scene_body).to include(">2 boards</span>")                  # check_pills
+      expect(scene_body).to include(Printables::GalleryFacts::LETTER_SIZE_LABEL) # badges
+      expect(scene_body).not_to match(/free|no sign-in/i)
+    end
+
+    describe "re-asserted at render time" do
+      it "refuses an overlay partial that isn't on the allowlist" do
+        composition = styled_composition
+        styled_template.update_columns(overlay_regions: [scene_overlay(partial: "free_text")])
+
+        expect { described_class.new(composition: composition.reload).call }
+          .to raise_error(described_class::Error, /Unknown overlay "free_text"/)
+      end
+
+      it "refuses a font that isn't on the allowlist" do
+        composition = styled_composition
+        styled_template.update_columns(text_slots: [scene_text_slot(key: "headline", font: "comic-sans")])
+
+        expect { described_class.new(composition: composition.reload).call }
+          .to raise_error(described_class::Error, /font the render doesn't carry/)
+      end
+
+      it "refuses words longer than a max_chars lowered since they were saved" do
+        composition = styled_composition("headline" => "Core Words")
+        styled_template.update_columns(text_slots: [scene_text_slot(key: "headline", max_chars: 4)])
+
+        expect { described_class.new(composition: composition.reload).call }
+          .to raise_error(described_class::Error, /4-character limit/)
+      end
+    end
+  end
+
   describe "re-asserted at render time" do
     it "refuses an upload blob that belongs to another composition" do
       elsewhere = SceneComposition.create!(owner: printable, scene_template: template)

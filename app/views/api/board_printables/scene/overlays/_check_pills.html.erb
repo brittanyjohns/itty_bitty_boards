@@ -1,0 +1,10 @@
+<%# Ticked pills that wrap, from GalleryFacts via
+    StyledSlideCopy.overlay_check_pills. %>
+<div class="check-pills">
+  <% pills.each_with_index do |pill, index| %>
+    <div class="check-pill <%= index.even? ? "green" : "pink" %>">
+      <span class="check-dot"><%= render "api/board_printables/styled/icon", name: "check" %></span>
+      <span><%= pill %></span>
+    </div>
+  <% end %>
+</div>

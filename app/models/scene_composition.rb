@@ -23,7 +23,8 @@ class SceneComposition < ApplicationRecord
 
   # Bump when the composition template or its CSS changes what a render looks
   # like: it feeds the digest, so every existing render reads stale.
-  RENDER_SPEC_VERSION = 1
+  # 2: text slots and fact overlays drawn above the front layer (#955).
+  RENDER_SPEC_VERSION = 2
 
   SOURCE_PAGE_THUMBNAIL = "page_thumbnail".freeze
   SOURCE_DEVICE_SCREEN = "device_screen".freeze
@@ -52,9 +53,11 @@ class SceneComposition < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
 
   before_validation :normalize_slot_art
+  before_validation :normalize_text_values
 
   validate :template_usable, on: :create
   validate :slot_art_valid
+  validate :text_values_valid
   validate :listing_belongs_to_owner
 
   # One slot_art entry, normalized. nil means "leave this slot empty".
@@ -104,9 +107,24 @@ class SceneComposition < ApplicationRecord
 
   def filled_slot_keys = slot_art.to_h.keys
 
+  # The words a text slot renders: this composition's own, or the slot's
+  # default when it left the field blank. "" means the slot draws nothing.
+  def resolved_text(text_slot)
+    text_values.to_h[text_slot["key"]].presence || text_slot["default"].to_s
+  end
+
+  # The facts an overlay region renders from, narrowed to the listing when the
+  # composition is for one. nil for an owner GalleryFacts can't describe.
+  def overlay_facts
+    return nil unless owner.is_a?(BoardPrintable)
+
+    @overlay_facts ||= ::Printables::GalleryFacts.new(owner, listing: board_printable_listing)
+  end
+
   # SHA of everything a render is a picture of: the template and the version of
-  # its calibration, every slot's art choice, and the updated_at of each board
-  # a slot draws. A change to any of them makes the attached render stale.
+  # its calibration, every slot's art choice, the words in each text slot, the
+  # facts an overlay quotes, and the updated_at of each board a slot draws. A
+  # change to any of them makes the attached render stale.
   #
   # Board updated_at is a proxy — a tile edit that doesn't touch the board row
   # won't move it — the same trade the listing gallery makes.
@@ -114,9 +132,11 @@ class SceneComposition < ApplicationRecord
     boards = Board.where(id: referenced_board_ids).order(:id).pluck(:id, :updated_at)
                   .map { |id, at| [id, at&.utc&.iso8601(6)] }
     art = slot_art.to_h.sort.map { |key, entry| [key, entry.to_h.sort.to_h] }
+    texts = text_values.to_h.sort
+    facts = Array(scene_template&.overlay_regions).any? ? overlay_facts&.digest : nil
 
     Digest::SHA256.hexdigest(
-      [RENDER_SPEC_VERSION, scene_template_id, scene_template&.calibration_version, art, boards].to_json,
+      [RENDER_SPEC_VERSION, scene_template_id, scene_template&.calibration_version, art, boards, texts, facts].to_json,
     )
   end
 
@@ -192,6 +212,34 @@ class SceneComposition < ApplicationRecord
     self.slot_art = raw.each_with_object({}) do |(key, entry), out|
       normalized = self.class.normalize_entry(entry)
       out[key.to_s] = normalized if normalized
+    end
+  end
+
+  # Blank means "use the slot's default", so a blank value isn't stored at all.
+  # Whitespace is squished: a text slot is one run of words, and a stray
+  # newline pasted into the field would otherwise defeat the fit.
+  def normalize_text_values
+    raw = text_values.is_a?(Hash) ? text_values : {}
+    self.text_values = raw.each_with_object({}) do |(key, value), out|
+      words = value.to_s.squish
+      out[key.to_s] = words if words.present?
+    end
+  end
+
+  def text_values_valid
+    return unless scene_template
+
+    text_values.each do |key, value|
+      slot = scene_template.text_slot_for(key)
+      unless slot
+        errors.add(:text_values, "names a text slot this template doesn't have (#{key})")
+        next
+      end
+
+      max = slot["max_chars"].to_i
+      next if value.length <= max
+
+      errors.add(:text_values, "#{slot["label"].presence || key}: #{value.length} characters is over the #{max}-character limit")
     end
   end
 
