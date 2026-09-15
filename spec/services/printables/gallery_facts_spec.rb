@@ -89,6 +89,23 @@ RSpec.describe Printables::GalleryFacts do
       expect(scoped.pdf_count).to eq(1)
     end
 
+    it "claims trim-ready only when a trim-ready file ships" do
+      printable.attach_pdf!(filename: "color.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_COLOR)
+      before = facts.digest
+      expect(facts.trim_ready?).to be(false)
+
+      printable.attach_pdf!(filename: "trim.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_TRIM_READY)
+      after = described_class.new(printable.reload)
+      expect(after.trim_ready?).to be(true)
+      expect(after.digest).not_to eq(before)
+    end
+
+    it "treats the single-board document as carrying the trim-ready pages" do
+      printable.attach_pdf!(filename: "core.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_FULL)
+
+      expect(facts.trim_ready?).to be(true)
+    end
+
     it "counts the PDFs and never says PNG" do
       BoardPrintable::DOWNLOAD_VARIANTS.each do |variant|
         printable.attach_pdf!(filename: "#{variant}.pdf", bytes: "%PDF", variant: variant)
@@ -101,6 +118,34 @@ RSpec.describe Printables::GalleryFacts do
   it "counts boards from the printable, never fewer than one" do
     expect(facts.board_count).to eq(2)
     expect(facts.set?).to be(true)
+  end
+
+  describe "online facts" do
+    it "points at the root's bare /pb/<slug>, and shows it without the scheme" do
+      core.update_columns(slug: "core-60")
+
+      expect(facts.online_url).to eq("https://app.speakanyway.com/pb/core-60")
+      expect(facts.online_display_url).to eq("app.speakanyway.com/pb/core-60")
+    end
+
+    it "is public only when every board in the set is published" do
+      core.update_columns(published: true)
+      food.update_columns(published: false)
+      expect(facts.online_public?).to be(false)
+
+      food.update_columns(published: true)
+      expect(facts.online_public?).to be(true)
+    end
+
+    it "goes stale when a board is published" do
+      core.update_columns(published: true)
+      food.update_columns(published: false)
+      before = facts.digest
+
+      food.update_columns(published: true)
+
+      expect(facts.digest).not_to eq(before)
+    end
   end
 
   it "changes its digest when a fact changes" do

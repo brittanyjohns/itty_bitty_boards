@@ -1,0 +1,104 @@
+<%# The online version, styled. Left: the REAL printed root page, header and QR
+    included. Right: a CSS-drawn tablet (no photo) showing the same page without
+    its header, under a browser bar carrying the REAL /pb/<slug> the QR opens.
+    Below: the four steps, then check pills — "Free" and "No sign-in required"
+    only when every board is published (GalleryFacts#online_public?). %>
+<div class="styled-slide">
+  <div class="blob green bottom-left"></div>
+  <div class="blob pink top-right"></div>
+  <div class="blob green bottom-right"></div>
+
+  <%= render "api/board_printables/styled/brand", logo: @logo, size: "small", style: "left: 30px; top: 28px;" %>
+
+  <%# Right of the brand lockup and never wraps (a wrapped line lands on the
+      subline). The longest headline is ~650px at this size. %>
+  <div class="headline abs" style="left: 340px; top: 30px; width: 830px; text-align: center; font-size: 54px; white-space: nowrap;">
+    <%= @headline %>
+    <svg class="swoosh" viewBox="0 0 400 20" preserveAspectRatio="none" style="width: 480px; margin: 4px auto 0;">
+      <path d="M4 12 C 120 4, 280 4, 396 12" />
+    </svg>
+  </div>
+
+  <div class="hand abs" style="left: 340px; top: 122px; width: 830px; text-align: center; font-size: 34px; color: var(--green-deep);">
+    <%= @subline %>
+  </div>
+
+  <%# ── The printed page ─────────────────────────────────────────────── %>
+  <div class="abs" style="left: 60px; top: 186px; width: 430px; height: 440px; z-index: 2; display: flex; align-items: center; justify-content: center;">
+    <% if @paper_page %>
+      <div class="page-card" style="transform: rotate(-3deg);">
+        <img src="<%= @paper_page[:data_uri] %>" alt="" style="max-width: 420px; max-height: 420px;" />
+      </div>
+    <% end %>
+  </div>
+
+  <div class="hand pill abs" style="left: 60px; top: 170px; font-size: 30px; transform: rotate(-8deg);">
+    <%= @paper_accent %>
+  </div>
+
+  <%# A dotted arrow from paper to screen. %>
+  <svg class="abs" viewBox="0 0 120 60" style="left: 478px; top: 330px; width: 120px; height: 60px; z-index: 3;">
+    <path d="M6 44 C 36 6, 80 6, 106 32" stroke="var(--pink)" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 11" fill="none" />
+    <path d="M92 30 L 108 34 L 104 17" stroke="var(--pink)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  </svg>
+
+  <%# ── The tablet ───────────────────────────────────────────────────────
+      Landscape for a landscape page, portrait otherwise, so the page fills
+      the screen instead of floating in white. %>
+  <% landscape = @screen_page && @screen_page[:width] > @screen_page[:height] %>
+  <% tablet_w, tablet_h = landscape ? [540, 400] : [380, 450] %>
+  <% bezel = 18 %>
+  <% bar_h = 38 %>
+  <% screen_w = tablet_w - 2 * bezel %>
+  <% screen_h = tablet_h - 2 * bezel - bar_h %>
+  <div class="abs" style="left: <%= 600 + (560 - tablet_w) / 2 %>px; top: <%= 186 + (440 - tablet_h) / 2 %>px; width: <%= tablet_w %>px; height: <%= tablet_h %>px; z-index: 2;
+       background: #1F2A37; border-radius: 34px; padding: <%= bezel %>px; box-shadow: var(--shadow-page); transform: rotate(2deg);">
+    <div style="width: 100%; height: 100%; border-radius: 14px; overflow: hidden; background: var(--white); display: flex; flex-direction: column;">
+      <div style="flex: none; height: <%= bar_h %>px; background: #EEF1F5; display: flex; align-items: center; gap: 8px; padding: 0 12px;">
+        <div style="display: flex; gap: 5px;">
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: var(--pink);"></span>
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: #F2C14E;"></span>
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: var(--green);"></span>
+        </div>
+        <div style="flex: 1; min-width: 0; height: 24px; border-radius: 999px; background: var(--white); display: flex; align-items: center; gap: 6px; padding: 0 10px;">
+          <svg viewBox="0 0 24 24" style="flex: none; width: 12px; height: 12px; fill: var(--ink-soft);" aria-hidden="true"><path fill-rule="evenodd" d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1zm2 0h6V8a3 3 0 0 0-6 0z"/></svg>
+          <span style="font-size: 13px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><%= @url %></span>
+        </div>
+      </div>
+      <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 6px;">
+        <% if @screen_page %>
+          <img src="<%= @screen_page[:data_uri] %>" alt="" style="max-width: <%= screen_w - 12 %>px; max-height: <%= screen_h - 12 %>px;" />
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Steps ─────────────────────────────────────────────────────────── %>
+  <div class="abs" style="left: 40px; top: 650px; width: 1120px; height: 116px; z-index: 3; display: flex; justify-content: center; gap: 18px;">
+    <% @steps.each_with_index do |step, index| %>
+      <div style="flex: none; width: 260px; height: 116px; position: relative; border-radius: 22px; background: var(--white);
+           box-shadow: var(--shadow-small); display: flex; align-items: center; gap: 14px; padding: 0 16px 0 18px;">
+        <div class="icon-circle <%= index.even? ? "pink" : "green" %>" style="width: 60px; height: 60px; position: relative;">
+          <%= render "api/board_printables/styled/icon", name: step[:icon] %>
+          <span style="position: absolute; left: -8px; top: -10px; width: 30px; height: 30px; border-radius: 50%;
+                background: var(--navy); color: var(--white); font-family: var(--font-head); font-weight: 600; font-size: 18px;
+                display: flex; align-items: center; justify-content: center;"><%= index + 1 %></span>
+        </div>
+        <div style="font-weight: 800; font-size: 21px; line-height: 1.15; color: var(--navy);"><%= step[:title] %></div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Check pills ───────────────────────────────────────────────────── %>
+  <div class="abs" style="left: 30px; top: 800px; width: 1140px; z-index: 3; display: flex; justify-content: center; gap: 14px;">
+    <% @checks.each_with_index do |check, index| %>
+      <div style="flex: none; display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 22px 0 10px;
+           border-radius: 999px; background: var(--white); box-shadow: var(--shadow-small); white-space: nowrap;">
+        <div class="icon-circle green" style="width: 38px; height: 38px;">
+          <%= render "api/board_printables/styled/icon", name: "check" %>
+        </div>
+        <div style="font-weight: 800; font-size: 19px; color: var(--navy);"><%= check %></div>
+      </div>
+    <% end %>
+  </div>
+</div>

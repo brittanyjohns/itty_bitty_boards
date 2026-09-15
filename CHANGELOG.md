@@ -7,6 +7,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Two more styled slides for board printables: color + low-ink, and the
+  online version.** The admin "Styled slides" card now renders four slides.
+  "Color + low-ink options" shows the real main page in colour beside its
+  low-ink print. When no low-ink file ships, it shows the colour page alone
+  and never mentions low ink. "Free online version included" shows the
+  printed page, a drawn tablet with the real `/pb/` address in its browser
+  bar, four steps from download to tap, and check pills. "Free" and "No
+  sign-in required" appear only when every board in the set is published, and
+  the card warns when they aren't. The hero slide's online line follows the
+  same rule. The color slide says "Trim-ready version included" only when that
+  PDF ships.
+
 - **Styled 4:3 slides for board printables (admin preview).** A new "Styled
   slides" card on `/admin/board_printables/:id` renders a hero and a "What's
   included" slide in the cream, pink and green design, built from the

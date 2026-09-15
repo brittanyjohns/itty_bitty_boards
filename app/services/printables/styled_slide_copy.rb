@@ -34,8 +34,18 @@ module Printables
         words_feature(facts),
         ink_feature(facts),
         { icon: "devices", title: "Print at home or use on any device", sub: "For home, school or on the go" },
-        { icon: "sound", title: "Free online version included", sub: "Tap any word and hear it spoken" },
+        online_feature(facts),
       ].compact
+    end
+
+    # Gated exactly like the online slide: "Free" and hearing a word with no
+    # account are only true when every board is published.
+    def online_feature(facts)
+      if facts.online_public?
+        { icon: "sound", title: "Free online version included", sub: "Tap any word and hear it spoken" }
+      else
+        { icon: "sound", title: "Open it online too", sub: "Works in a web browser" }
+      end
     end
 
     def hero_badges(facts)
@@ -81,6 +91,72 @@ module Printables
 
       "Start on #{root_title}, then open the linked pages."
     end
+
+    # ── Color + low-ink ─────────────────────────────────────────────────────
+    #
+    # With no low-ink file there is no "options" to speak of, and the slide
+    # shows the colour page alone; nothing on it may mention low ink.
+
+    def color_low_ink_headline(facts) = facts.low_ink? ? "Color + low-ink options" : "Bright full-color pages"
+
+    def color_low_ink_subline = "Print at home or at school"
+
+    def color_version_label = "Full Color Version"
+
+    def low_ink_version_label = "Low-Ink Version"
+
+    # Short pills, one line each. No "no bleed, no trimming" and no "great for
+    # home printers": the printed page runs to within 3mm of the sheet edge
+    # (layouts/pdf: @page margin 0, .page padding 3mm), closer than most home
+    # printers reach. Trim-ready is claimed only when that file ships.
+    def color_low_ink_features(facts)
+      [
+        { icon: "file", title: "US Letter #{facts.letter_size_label}" },
+        if facts.trim_ready?
+          { icon: "scissors", title: "Trim-ready version included" }
+        else
+          { icon: "printer", title: "Print-ready PDF" }
+        end,
+        if facts.low_ink?
+          { icon: "drop", title: "Printer-friendly low-ink version" }
+        else
+          { icon: "palette", title: "Bright, full-color pages" }
+        end,
+        { icon: "shield", title: "Laminate for extra durability" },
+      ]
+    end
+
+    # ── Online version ──────────────────────────────────────────────────────
+    #
+    # "Free" and "No sign-in required" are claims about a buyer with no
+    # account, so they need every board published (GalleryFacts#online_public?).
+    # Without it the slide still shows the tablet and the steps, and says only
+    # what holds for anyone: it is a web page, so there is no app to install.
+
+    def online_headline(facts) = facts.online_public? ? "Free online version included" : "Print it or open it online"
+
+    def online_subline(facts)
+      facts.set? ? "Every page's QR code opens that page" : "The QR code on the page opens the board"
+    end
+
+    def online_steps
+      [
+        { icon: "download", title: "Download" },
+        { icon: "devices", title: "Print or open on any device" },
+        { icon: "qr", title: "Scan the QR code" },
+        { icon: "sound", title: "Tap a word and it speaks" },
+      ]
+    end
+
+    def online_checks(facts)
+      if facts.online_public?
+        ["Free online version included", "No app install", "No sign-in required", "Use in your browser anytime"]
+      else
+        ["No app install", "Works in a web browser"]
+      end
+    end
+
+    def online_paper_accent = "Scan me!"
 
     def accents
       {

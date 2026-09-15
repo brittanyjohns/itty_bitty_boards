@@ -1,0 +1,60 @@
+<%# Color + low-ink, styled. The REAL root page twice: in colour, and the same
+    render with hide_colors — the page the low-ink PDF prints. With no low-ink
+    file the colour page stands alone and nothing on the slide mentions low
+    ink. Every claim is Printables::StyledSlideCopy over GalleryFacts. %>
+<div class="styled-slide">
+  <div class="blob green bottom-left"></div>
+  <div class="blob pink top-right"></div>
+  <div class="blob green bottom-right"></div>
+
+  <%= render "api/board_printables/styled/brand", logo: @logo, size: "small", style: "left: 30px; top: 28px;" %>
+
+  <%# Starts right of the brand lockup (which ends near x=320) and never wraps:
+      the longest headline is ~610px at this size. %>
+  <div class="headline abs" style="left: 340px; top: 30px; width: 830px; text-align: center; font-size: 60px; white-space: nowrap;">
+    <%= @headline %>
+    <svg class="swoosh" viewBox="0 0 400 20" preserveAspectRatio="none" style="width: 460px; margin: 4px auto 0;">
+      <path d="M4 12 C 120 4, 280 4, 396 12" />
+    </svg>
+  </div>
+
+  <div class="hand abs" style="left: 340px; top: 128px; width: 830px; text-align: center; font-size: 36px; color: var(--green-deep);">
+    <%= @subline %>
+  </div>
+
+  <% pages = [@color_page, @low_ink_page].compact %>
+  <% box_w = pages.size > 1 ? 520 : 640 %>
+  <% box_h = 500 %>
+  <%# Centred vertically as a whole — card plus its pill — so a short landscape
+      page doesn't leave a band of empty cream under the subline. %>
+  <div class="abs" style="left: 40px; top: 190px; width: 1120px; height: 590px; z-index: 2;
+       display: flex; align-items: center; justify-content: center; gap: 50px;">
+    <% pages.each_with_index do |page, index| %>
+      <div style="flex: none; width: <%= box_w %>px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+        <div class="page-card" style="transform: rotate(<%= index.zero? ? -1.5 : 1.5 %>deg);">
+          <img src="<%= page[:data_uri] %>" alt=""
+               style="max-width: <%= box_w - 10 %>px; max-height: <%= box_h %>px;" />
+        </div>
+        <div style="padding: 6px 30px 8px; border-radius: 999px;
+             font-family: var(--font-head); font-weight: 600; font-size: 28px; color: var(--navy);
+             background: var(--<%= index.zero? ? "pink-soft" : "green-soft" %>); white-space: nowrap;
+             box-shadow: 0 6px 14px rgba(23, 56, 92, 0.10);">
+          <%= page[:label] %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# White pills, so a green or pink icon circle reads on the green blob. %>
+  <div class="abs" style="left: 30px; top: 808px; width: 1140px; z-index: 3; display: flex; justify-content: center; gap: 10px;">
+    <% @features.each_with_index do |feature, index| %>
+      <div style="flex: none; display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 16px 0 7px;
+           border-radius: 999px; background: var(--white); box-shadow: var(--shadow-small); white-space: nowrap;">
+        <div class="icon-circle <%= index.even? ? "pink" : "green" %>" style="width: 38px; height: 38px;">
+          <%= render "api/board_printables/styled/icon", name: feature[:icon] %>
+        </div>
+        <div style="font-weight: 800; font-size: 16px; color: var(--navy);"><%= feature[:title] %></div>
+      </div>
+    <% end %>
+  </div>
+</div>

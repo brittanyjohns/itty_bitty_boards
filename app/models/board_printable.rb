@@ -164,7 +164,20 @@ class BoardPrintable < ApplicationRecord
   # yet; a per-listing curated gallery is what will.
   IMAGE_STYLED_HERO = "styled_hero".freeze
   IMAGE_STYLED_WHATS_INCLUDED = "styled_whats_included".freeze
-  STYLED_IMAGE_VARIANTS = [IMAGE_STYLED_HERO, IMAGE_STYLED_WHATS_INCLUDED].freeze
+  IMAGE_STYLED_COLOR_LOW_INK = "styled_color_low_ink".freeze
+  IMAGE_STYLED_ONLINE_VERSION = "styled_online_version".freeze
+  # FIXED, whatever a printable ships: styled_slides_current? requires every
+  # variant, so a slide that came and went with the facts (no low-ink file,
+  # say) would badge a complete set stale. A slide degrades its copy instead.
+  # There is deliberately no separate "how it works" slide — its four steps
+  # are the online-version slide's steps row, and the legacy gallery already
+  # retired `how_it_works` for being the same slide twice.
+  STYLED_IMAGE_VARIANTS = [
+    IMAGE_STYLED_HERO,
+    IMAGE_STYLED_WHATS_INCLUDED,
+    IMAGE_STYLED_COLOR_LOW_INK,
+    IMAGE_STYLED_ONLINE_VERSION,
+  ].freeze
 
   # Bumped when the styled design changes, marking every styled slide stale —
   # the same job VIDEO_SPEC_VERSION does for the clip.

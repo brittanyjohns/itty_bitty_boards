@@ -636,8 +636,9 @@ option because the failure is invisible: the render still succeeds, just small.
 ### Styled slides (4:3, admin preview)
 
 `Boards::Printables::RenderStyledSlides` renders a second, separate set of
-slides in the warm cream / soft pink / gentle green design: `styled_hero` and
-`styled_whats_included`, 1200x900 CSS px at scale 2 (2400x1800), through
+slides in the warm cream / soft pink / gentle green design: `styled_hero`,
+`styled_whats_included`, `styled_color_low_ink` and `styled_online_version`,
+1200x900 CSS px at scale 2 (2400x1800), through
 `layouts/listing_image_styled.html.erb` and `api/board_printables/styled/*`.
 Triggered from the admin "Styled slides" card (`render_styled_slides`), not by
 publishing: **nothing uploads them to Etsy yet**. A per-listing curated gallery
@@ -661,6 +662,36 @@ is the planned publish path.
 - **Staleness** is blob metadata: `spec_version` (`STYLED_SPEC_VERSION`) plus
   `facts_digest` (`GalleryFacts#digest`). `styled_slides_current?` is false when
   either moves, so a slide can't keep quoting a word count that changed.
+- **The variant set is FIXED.** `styled_slides_current?` requires every
+  variant, so a slide must never appear or disappear with the facts. It
+  degrades its copy instead: with no low-ink file, `color_low_ink` shows the
+  colour page alone as "Bright full-color pages" and says nothing about low
+  ink. There is no separate "how it works" slide: its four steps are the
+  online-version slide's steps row, and the legacy gallery already retired
+  `how_it_works` for being the same slide twice.
+- **"Free" and "No sign-in required" need every board PUBLISHED**
+  (`GalleryFacts#online_public?`). `/pb/<slug>` resolves anonymously only for a
+  published board (`Board#viewable_by?`), each page's QR opens its own page,
+  and nothing in the printable pipeline publishes a board. Unpublished, the
+  online slide keeps the tablet and the steps but claims only "No app install"
+  and "Works in a web browser", and the admin card says why. The hero's online
+  feature follows the same gate ("Open it online too" / "Works in a web
+  browser" when unpublished). Any new styled string that says "Free" or
+  implies no account must read `online_public?` too. `online_url` and
+  `online_public` are in the digest, so publishing (or a slug change) marks the
+  slides stale. The tablet's browser bar shows `online_display_url`, the bare
+  `/pb/<slug>` without its scheme. The tablet is CSS, never a photo.
+- **No "no bleed, no trimming" and no "great for home printers".**
+  `layouts/pdf` prints with `@page` margin 0 and 3mm page padding, closer to
+  the edge than most home printers reach, and a trim-ready PDF ships. The
+  color slide's pill says "Trim-ready version included" only when
+  `GalleryFacts#trim_ready?` (a `trim_ready` or single-board `full` PDF ships;
+  in the digest), otherwise "Print-ready PDF".
+- **Render passes are shared.** `color_low_ink` and `online_version` show only
+  the root page. They reuse the memoized hero pass (header shown) and grid
+  pass (header hidden) when those slides render in the same run, and pay for a
+  one-page pass only when rendered alone. The low-ink page is the existing
+  `hide_colors` pass, which runs only when `facts.low_ink?`.
 - **Fonts:** Nunito, Fredoka (read through `Images::TextTile::Fonts`) and
   Caveat (`app/assets/fonts/caveat`, OFL), inlined by
   `Fonts.styled_face_css`. The layout emits that CSS with `<%==`: an
