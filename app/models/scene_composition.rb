@@ -5,17 +5,20 @@
 # SOURCE, and every source is something this app RENDERS or an admin uploaded;
 # none of them is ever produced by, or sent to, an image model:
 #
-#   page_thumbnail — {"source", "board_id", "ink" => color|low_ink, "header" => bool}
-#                    the printed page, via RenderPageThumbnails
-#   device_screen  — {"source", "board_id"}
-#                    the board inside the app chrome, via RenderDeviceScreen
-#   upload         — {"source", "blob_id"}
-#                    a picture attached to THIS composition's slot_uploads
+#   page_thumbnail  — {"source", "board_id", "ink" => color|low_ink, "header" => bool}
+#                     the printed page, via RenderPageThumbnails
+#   device_screen   — {"source", "board_id"}
+#                     the board inside the app chrome, via RenderDeviceScreen
+#   upload          — {"source", "blob_id"}
+#                     a picture attached to THIS composition's slot_uploads
+#   product_artwork — {"source", "blob_id"}
+#                     one of the owning PrintableProduct's `artworks`
 #
 # A slot with no entry renders the base image untouched.
 #
-# The owner is polymorphic because device tags (#957) reuse the engine; today it
-# is always a BoardPrintable, and a board_id must be one of its board_ids.
+# The owner is polymorphic: a BoardPrintable (whose board_ids a board source must
+# name) or a PrintableProduct (whose artworks a product_artwork must name). Which
+# sources an owner may use at all is SOURCES_FOR_OWNER.
 #
 # Details: .claude-notes/scene-engine.md
 class SceneComposition < ApplicationRecord
@@ -29,8 +32,17 @@ class SceneComposition < ApplicationRecord
   SOURCE_PAGE_THUMBNAIL = "page_thumbnail".freeze
   SOURCE_DEVICE_SCREEN = "device_screen".freeze
   SOURCE_UPLOAD = "upload".freeze
-  SOURCES = [SOURCE_PAGE_THUMBNAIL, SOURCE_DEVICE_SCREEN, SOURCE_UPLOAD].freeze
+  SOURCE_PRODUCT_ARTWORK = "product_artwork".freeze
+  SOURCES = [SOURCE_PAGE_THUMBNAIL, SOURCE_DEVICE_SCREEN, SOURCE_UPLOAD, SOURCE_PRODUCT_ARTWORK].freeze
   BOARD_SOURCES = [SOURCE_PAGE_THUMBNAIL, SOURCE_DEVICE_SCREEN].freeze
+
+  # An ALLOWLIST per owner type. A board printable has no product artwork and a
+  # product has no boards, so neither may name the other's sources — on save or
+  # at render. An owner type missing from this hash may use nothing.
+  SOURCES_FOR_OWNER = {
+    "BoardPrintable" => [SOURCE_PAGE_THUMBNAIL, SOURCE_DEVICE_SCREEN, SOURCE_UPLOAD].freeze,
+    "PrintableProduct" => [SOURCE_PRODUCT_ARTWORK, SOURCE_UPLOAD].freeze,
+  }.freeze
 
   INK_COLOR = "color".freeze
   INK_LOW = "low_ink".freeze
@@ -40,8 +52,15 @@ class SceneComposition < ApplicationRecord
   MAX_UPLOAD_BYTES = 10.megabytes
 
   # Which template category an owner may composite into. A board printable in a
-  # device-tag scene would be a picture of the wrong product.
+  # device-tag scene would be a picture of the wrong product. A PrintableProduct
+  # carries its own category (see .template_category_for).
   CATEGORY_FOR_OWNER = { "BoardPrintable" => "board" }.freeze
+
+  def self.template_category_for(owner)
+    return nil unless owner
+
+    owner.respond_to?(:scene_template_category) ? owner.scene_template_category : CATEGORY_FOR_OWNER[owner.class.name]
+  end
 
   belongs_to :owner, polymorphic: true
   belongs_to :scene_template
@@ -77,7 +96,7 @@ class SceneComposition < ApplicationRecord
       }
     when SOURCE_DEVICE_SCREEN
       { "source" => source, "board_id" => integer_or_nil(h["board_id"]) }
-    when SOURCE_UPLOAD
+    when SOURCE_UPLOAD, SOURCE_PRODUCT_ARTWORK
       { "source" => source, "blob_id" => integer_or_nil(h["blob_id"]) }
     else
       # Kept so validation can name it, rather than silently emptying the slot.
@@ -90,15 +109,30 @@ class SceneComposition < ApplicationRecord
     str.match?(/\A\d+\z/) ? str.to_i : nil
   end
 
+  # The art sources this composition's owner may use.
+  def allowed_sources = SOURCES_FOR_OWNER.fetch(owner_type.to_s, [])
+
   # The boards this composition may render. A printable that walked no tree
-  # still has its root.
+  # still has its root. A product has none.
   def owner_board_ids
-    ids = Array(owner.try(:board_ids)).map(&:to_i)
-    ids.presence || Array(owner.try(:board_id)).compact.map(&:to_i)
+    return [] unless owner.is_a?(BoardPrintable)
+
+    ids = Array(owner.board_ids).map(&:to_i)
+    ids.presence || Array(owner.board_id).compact.map(&:to_i)
+  end
+
+  # The artwork blobs this composition may render. Read fresh from the owner, so
+  # an artwork removed since the save is refused at render time.
+  def owner_artwork_blob_ids
+    owner.respond_to?(:artwork_blob_ids) ? owner.artwork_blob_ids : []
   end
 
   def referenced_board_ids
     slot_art.to_h.values.filter_map { |entry| entry["board_id"] if BOARD_SOURCES.include?(entry["source"]) }.uniq
+  end
+
+  def referenced_artwork_blob_ids
+    slot_art.to_h.values.filter_map { |entry| entry["blob_id"] if entry["source"] == SOURCE_PRODUCT_ARTWORK }.uniq
   end
 
   def upload_blob_ids
@@ -123,20 +157,23 @@ class SceneComposition < ApplicationRecord
 
   # SHA of everything a render is a picture of: the template and the version of
   # its calibration, every slot's art choice, the words in each text slot, the
-  # facts an overlay quotes, and the updated_at of each board a slot draws. A
-  # change to any of them makes the attached render stale.
+  # facts an overlay quotes, the updated_at of each board a slot draws, and the
+  # checksum of each product artwork a slot draws. A change to any of them
+  # makes the attached render stale.
   #
   # Board updated_at is a proxy — a tile edit that doesn't touch the board row
-  # won't move it — the same trade the listing gallery makes.
+  # won't move it — the same trade the listing gallery makes. Artwork is exact:
+  # a blob's checksum is its bytes.
   def current_render_digest
     boards = Board.where(id: referenced_board_ids).order(:id).pluck(:id, :updated_at)
                   .map { |id, at| [id, at&.utc&.iso8601(6)] }
     art = slot_art.to_h.sort.map { |key, entry| [key, entry.to_h.sort.to_h] }
     texts = text_values.to_h.sort
     facts = Array(scene_template&.overlay_regions).any? ? overlay_facts&.digest : nil
+    artworks = ActiveStorage::Blob.where(id: referenced_artwork_blob_ids).order(:id).pluck(:id, :checksum)
 
     Digest::SHA256.hexdigest(
-      [RENDER_SPEC_VERSION, scene_template_id, scene_template&.calibration_version, art, boards, texts, facts].to_json,
+      [RENDER_SPEC_VERSION, scene_template_id, scene_template&.calibration_version, art, boards, texts, facts, artworks].to_json,
     )
   end
 
@@ -174,7 +211,8 @@ class SceneComposition < ApplicationRecord
   end
 
   # Purges uploads no slot points at any more — switching a slot to a page
-  # render shouldn't leave its old picture in the bucket forever.
+  # render shouldn't leave its old picture in the bucket forever. Only this
+  # composition's own slot_uploads: a product's artworks are never touched.
   def prune_unused_uploads!
     in_use = slot_art.to_h.values.filter_map { |entry| entry["blob_id"] if entry["source"] == SOURCE_UPLOAD }
     slot_uploads.reject { |upload| in_use.include?(upload.blob_id) }.each(&:purge)
@@ -248,7 +286,7 @@ class SceneComposition < ApplicationRecord
 
     errors.add(:scene_template, "must be calibrated before it can be used") unless scene_template.calibrated?
 
-    expected = CATEGORY_FOR_OWNER[owner_type]
+    expected = self.class.template_category_for(owner)
     if expected && scene_template.category != expected
       errors.add(:scene_template, "is a #{scene_template.category} scene, not a #{expected} scene")
     end
@@ -264,7 +302,9 @@ class SceneComposition < ApplicationRecord
   def slot_art_valid
     return unless scene_template
 
+    allowed = allowed_sources
     allowed_boards = owner_board_ids
+    allowed_artworks = owner_artwork_blob_ids
     uploads = upload_blob_ids
 
     slot_art.each do |key, entry|
@@ -280,6 +320,10 @@ class SceneComposition < ApplicationRecord
         errors.add(:slot_art, "#{name}: unknown art source #{source.inspect}")
         next
       end
+      unless allowed.include?(source)
+        errors.add(:slot_art, "#{name}: #{source.humanize.downcase} isn't available here")
+        next
+      end
       errors.add(:slot_art, "#{name}: this slot doesn't take #{source.humanize.downcase}") unless slot.accepts.include?(source)
 
       case source
@@ -292,6 +336,8 @@ class SceneComposition < ApplicationRecord
         end
       when SOURCE_UPLOAD
         errors.add(:slot_art, "#{name}: upload a picture for this slot") unless uploads.include?(entry["blob_id"])
+      when SOURCE_PRODUCT_ARTWORK
+        errors.add(:slot_art, "#{name}: pick one of this product's artworks") unless allowed_artworks.include?(entry["blob_id"])
       end
     end
   end

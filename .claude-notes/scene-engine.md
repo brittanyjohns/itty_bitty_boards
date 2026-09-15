@@ -23,7 +23,7 @@ sees, redraws or "improves" the product.
 | | |
 |---|---|
 | `SceneTemplate` | `slug` (unique), `name`, `category` (`board`/`device_tag`), `source` (`canva`/`ai`/`vendored`), `status` (`draft`/`calibrated`/`archived`), `width`/`height` (read from the base image with libvips), `calibration_version`, `slots` jsonb, `notes`/`prompt`. Named attachments `base_image`, `front_layer`. |
-| `SceneComposition` | polymorphic `owner` (a `BoardPrintable` today), optional `board_printable_listing`, `scene_template`, `slot_art` jsonb, `render_digest`, `rendered_at`, `error`. Named attachments `slot_uploads` (many), `render` (one JPEG). |
+| `SceneComposition` | polymorphic `owner` (a `BoardPrintable`, or a `PrintableProduct`, see `printable-products.md`), optional `board_printable_listing` (board printables only), `scene_template`, `slot_art` jsonb, `render_digest`, `rendered_at`, `error`. Named attachments `slot_uploads` (many), `render` (one JPEG). |
 
 Both use **named attachments** and **versioned storage keys**
 (`scene_templates/<hex>/<file>`, `scene_compositions/<id>/<hex>/<file>`), same
@@ -189,8 +189,19 @@ The composition form has one text input per text slot (`maxlength` =
 | `page_thumbnail` | `{board_id, ink: color\|low_ink, header: bool}` | `RenderPageThumbnails`, one pass per distinct `(ink, header)`, covering only the boards that ask for it |
 | `device_screen` | `{board_id}` | the colour header-LESS thumbnail wrapped in `RenderDeviceScreen`, shell sized to the slot's aspect |
 | `upload` | `{blob_id}` | a blob in THIS composition's `slot_uploads` (png/jpeg/webp ≤ 10 MB) |
+| `product_artwork` | `{blob_id}` | one of the owning `PrintableProduct`'s `artworks` |
 
-A `board_id` must be in the owner's `board_ids`, and a `blob_id` must be one of
+**Which sources an owner may use is an allowlist**
+(`SceneComposition::SOURCES_FOR_OWNER`). A `BoardPrintable` gets
+`page_thumbnail`, `device_screen` and `upload`. A `PrintableProduct` gets
+`product_artwork` and `upload`. A slot's `accepts` is what the *photo* can hold,
+and the owner list is what the *product* has. The form offers the intersection,
+and both lists are enforced on save and at render. The `accepts` default for a
+new slot includes `product_artwork`. A slot calibrated before it existed has to be
+recalibrated to take one.
+
+A `board_id` must be in the owner's `board_ids`, a `product_artwork` `blob_id`
+must be one of the owner's artworks, and an `upload` `blob_id` must be one of
 the composition's own uploads. Both are validated on save and **re-asserted at
 render time**, because a Regenerate re-walks the printable's tree after the
 composition was saved. A filled slot whose art can't be produced raises
@@ -212,7 +223,8 @@ the template or its CSS changes what a render looks like.
 ## Lifecycle
 
 - A new composition needs a **calibrated** template in its owner's category
-  (`SceneComposition::CATEGORY_FOR_OWNER`).
+  (`SceneComposition.template_category_for`: `CATEGORY_FOR_OWNER` for a board
+  printable, and the product's own `category` for a `PrintableProduct`).
 - `SceneTemplate` `has_many :scene_compositions, dependent: :restrict_with_error`.
   **Archive, don't destroy, a template in use.** `retire!` destroys an unused
   template and archives a used one, and an archived template keeps rendering for
@@ -239,6 +251,11 @@ the template or its CSS changes what a render looks like.
   template, then per slot pick blank / printed page (board × ink × header) /
   app screen (board) / upload. "Save & render" enqueues. The printable's show
   page has a "Scene mockups" card.
+- `/admin/printable_products/:id/scene_compositions/...`: the same controller,
+  subclassed as `PrintableProductSceneCompositionsController` (it overrides only
+  owner lookup and path helpers) with the **same views**. The picker shows
+  templates in the product's category, and each slot picks one of the product's
+  artworks by label. See `printable-products.md`.
 - Nothing uploads to Etsy. The curated gallery (#953) will add a
   `composition:<id>` ref.
 

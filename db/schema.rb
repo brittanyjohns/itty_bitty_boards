@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_15_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_15_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -961,6 +961,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_15_130000) do
     t.string "resource_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "printable_products", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "category", default: "device_tag", null: false
+    t.text "description"
+    t.string "size_label"
+    t.string "status", default: "draft", null: false
+    t.jsonb "canva_templates", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_printable_products_on_slug", unique: true
+    t.index ["status"], name: "index_printable_products_on_status"
   end
 
   create_table "processed_webhook_events", force: :cascade do |t|

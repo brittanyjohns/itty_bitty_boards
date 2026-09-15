@@ -1,0 +1,160 @@
+<% content_for :page_title, @product.name %>
+<% input_class = "admin-input border rounded px-2 py-1 text-xs" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @product.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <code><%= @product.slug %></code> · <%= @product.category.humanize.downcase %>
+      <%= "· #{@product.size_label}" if @product.size_label.present? %> · <%= @product.status %>
+    </p>
+  </div>
+  <div class="flex items-center gap-3">
+    <%= link_to "Edit", edit_admin_dashboard_printable_product_path(@product), class: "text-xs text-accent hover:underline" %>
+    <% unless @product.archived? %>
+      <%= button_to "Archive", archive_admin_dashboard_printable_product_path(@product), method: :post,
+            class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+            form: { data: { turbo_confirm: "Archive this product? Its artwork and mockups are kept." } } %>
+    <% end %>
+    <%= link_to "← All products", admin_dashboard_printable_products_path, class: "text-xs text-t2 hover:text-t1" %>
+  </div>
+</div>
+
+<% if @product.description.present? %>
+  <div class="admin-card border rounded-xl p-5 mb-6 text-sm text-t2 whitespace-pre-line"><%= @product.description %></div>
+<% end %>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Artwork</h2>
+  <p class="text-[11px] text-t3 mb-4">
+    The product's own designs (PNG, JPEG or WebP under <%= number_to_human_size(PrintableProduct::MAX_ARTWORK_BYTES) %>).
+    Scene mockups warp these into a photo; they are never sent to an image model and never handed to a buyer.
+  </p>
+
+  <% artworks = @product.ordered_artworks %>
+  <% if artworks.any? %>
+    <div class="flex flex-wrap gap-4 mb-4">
+      <% artworks.each do |artwork| %>
+        <div class="w-40">
+          <%= image_tag url_for(artwork), alt: @product.artwork_label(artwork),
+                class: "w-40 h-32 object-contain rounded-lg border bg-white", style: "border-color: var(--border);" %>
+          <div class="text-xs text-t1 mt-1 truncate"><%= @product.artwork_label(artwork) %></div>
+          <%= button_to "Remove", remove_artwork_admin_dashboard_printable_product_path(@product),
+                method: :delete, params: { signed_id: artwork.signed_id },
+                class: "text-[11px] text-red-500 hover:underline cursor-pointer",
+                form: { data: { turbo_confirm: "Remove this artwork?" } } %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3 mb-4">No artwork yet.</p>
+  <% end %>
+
+  <%= form_with url: upload_artwork_admin_dashboard_printable_product_path(@product), method: :post, multipart: true,
+                data: { turbo: false }, class: "flex flex-wrap items-end gap-3" do %>
+    <label class="text-xs text-t2">Label
+      <input type="text" name="label" placeholder="Voice Tag 1" maxlength="<%= PrintableProduct::MAX_LABEL_LENGTH %>" class="<%= input_class %> block mt-1" />
+    </label>
+    <input type="file" name="artwork" accept="<%= PrintableProduct::ARTWORK_CONTENT_TYPES.join(",") %>" class="text-xs" />
+    <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">Upload artwork</button>
+  <% end %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-medium text-t1 mb-1">Downloads</h2>
+  <p class="text-[11px] text-t3 mb-4">
+    What a buyer receives: PDF or PNG under <%= number_to_human_size(PrintableProduct::MAX_DOWNLOAD_BYTES) %>, up to <%= PrintableProduct::MAX_DOWNLOADS %> files.
+  </p>
+
+  <% downloads = @product.ordered_downloads %>
+  <% if downloads.any? %>
+    <ul class="text-xs text-t2 space-y-2 mb-4">
+      <% downloads.each do |download| %>
+        <li class="flex items-center gap-3">
+          <span class="text-t1"><%= @product.download_label(download) %></span>
+          <span class="text-t3"><%= download.filename %> · <%= number_to_human_size(download.byte_size) %></span>
+          <%= link_to "Open", url_for(download), target: "_blank", rel: "noopener", class: "text-accent hover:underline" %>
+          <%= button_to "Remove", remove_download_admin_dashboard_printable_product_path(@product),
+                method: :delete, params: { signed_id: download.signed_id },
+                class: "text-[11px] text-red-500 hover:underline cursor-pointer",
+                form: { data: { turbo_confirm: "Remove this file?" } } %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-xs text-t3 mb-4">No downloads yet.</p>
+  <% end %>
+
+  <%= form_with url: upload_download_admin_dashboard_printable_product_path(@product), method: :post, multipart: true,
+                data: { turbo: false }, class: "flex flex-wrap items-end gap-3" do %>
+    <label class="text-xs text-t2">Label
+      <input type="text" name="label" placeholder="Instructions" maxlength="<%= PrintableProduct::MAX_LABEL_LENGTH %>" class="<%= input_class %> block mt-1" />
+    </label>
+    <input type="file" name="download" accept="<%= PrintableProduct::DOWNLOAD_CONTENT_TYPES.join(",") %>" class="text-xs" />
+    <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">Upload file</button>
+  <% end %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Canva template links</h2>
+    <%= link_to "Edit links", edit_admin_dashboard_printable_product_path(@product), class: "text-xs text-accent hover:underline" %>
+  </div>
+  <% templates = @product.usable_canva_templates %>
+  <% if templates.any? %>
+    <ul class="text-xs text-t2 space-y-2 mt-3">
+      <% templates.each do |row| %>
+        <li>
+          <span class="text-t1"><%= row["label"] %></span>
+          <%= "— #{row["description"]}" if row["description"].present? %>
+          · <%= link_to row["url"], row["url"], target: "_blank", rel: "noopener", class: "text-accent hover:underline font-mono" %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-xs text-t3 mt-3">No Canva links yet.</p>
+  <% end %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Scene mockups</h2>
+    <%= link_to "New scene mockup", new_admin_dashboard_printable_product_scene_composition_path(@product),
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+  </div>
+  <p class="text-[11px] text-t3 mb-4">
+    Pick a <%= @product.category.humanize.downcase %> scene from the
+    <%= link_to "template library", admin_dashboard_scene_templates_path, class: "text-accent hover:underline" %>
+    and choose an artwork for each blank surface. Nothing here is sent to Etsy yet.
+  </p>
+
+  <% if @compositions.any? %>
+    <div class="flex flex-wrap gap-4">
+      <% @compositions.each do |composition| %>
+        <div class="w-48">
+          <%= link_to edit_admin_dashboard_printable_product_scene_composition_path(@product, composition) do %>
+            <% if composition.render.attached? %>
+              <%= image_tag url_for(composition.render), alt: composition.scene_template.name,
+                    class: "w-48 h-36 object-contain rounded-lg border bg-white", style: "border-color: var(--border);" %>
+            <% else %>
+              <div class="w-48 h-36 rounded-lg border admin-card-alt flex items-center justify-center text-[11px] text-t3"
+                   style="border-color: var(--border);">Not rendered yet</div>
+            <% end %>
+          <% end %>
+          <div class="text-xs text-t1 mt-1 truncate"><%= composition.scene_template.name %></div>
+          <div class="text-[11px] text-t3">
+            <% if composition.error.present? %>
+              <span class="text-red-500">Render failed</span>
+            <% elsif composition.render.attached? && composition.stale? %>
+              <span class="text-amber-600">Out of date</span>
+            <% elsif composition.render.attached? %>
+              Rendered <%= time_ago_in_words(composition.rendered_at) if composition.rendered_at %> ago
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3">No scene mockups yet.</p>
+  <% end %>
+</div>

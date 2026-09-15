@@ -68,6 +68,32 @@ module SceneTemplateHelpers
     build_scene_template(**kwargs).tap(&:save!)
   end
 
+  # A device-tag product with `artwork_count` labelled PNG designs.
+  def create_printable_product(artwork_count: 0, **attrs)
+    product = PrintableProduct.create!({ name: "Device Tags #{SecureRandom.hex(3)}", size_label: "2.5 x 2 in" }.merge(attrs))
+    artwork_count.times do |index|
+      product.attach_artwork!(
+        io: StringIO.new(scene_png(250, 200, ChunkyPNG::Color.rgb(40 * index, 120, 200))),
+        filename: "tag-#{index + 1}.png",
+        content_type: "image/png",
+        label: "Voice Tag #{index + 1}",
+      )
+    end
+    product
+  end
+
+  # Two landscape tag slots side by side in a 400x300 base.
+  def device_tag_slots
+    [
+      scene_slot(key: "tag_a", kind: "tag", accepts: %w[product_artwork upload], quad: [[20, 60], [190, 60], [190, 200], [20, 200]]),
+      scene_slot(key: "tag_b", kind: "tag", accepts: %w[product_artwork upload], quad: [[210, 60], [380, 60], [380, 200], [210, 200]]),
+    ]
+  end
+
+  def create_device_tag_template(**kwargs)
+    create_scene_template(category: "device_tag", slots: device_tag_slots, **kwargs)
+  end
+
   def uploaded_scene_png(width = 400, height = 300, filename: "scene.png", content_type: "image/png")
     Rack::Test::UploadedFile.new(StringIO.new(scene_png(width, height)), content_type, original_filename: filename)
   end

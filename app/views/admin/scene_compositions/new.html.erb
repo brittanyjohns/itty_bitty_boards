@@ -3,13 +3,13 @@
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight">New scene mockup</h1>
-    <p class="text-sm text-t3 mt-0.5"><%= @printable.board&.name || "Board ##{@printable.board_id}" %> · printable #<%= @printable.id %></p>
+    <p class="text-sm text-t3 mt-0.5"><%= owner_heading %></p>
   </div>
-  <%= link_to "← Back to the printable", admin_dashboard_board_printable_path(@printable), class: "text-xs text-t2 hover:text-t1" %>
+  <%= link_to "← Back", owner_path, class: "text-xs text-t2 hover:text-t1" %>
 </div>
 
 <% if @composition.scene_template %>
-  <%= render "form" %>
+  <%= render "admin/scene_compositions/form" %>
 <% else %>
   <% if @composition.errors.any? %>
     <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm mb-4"><%= @composition.errors.full_messages.to_sentence %></div>
@@ -17,13 +17,14 @@
 
   <% if @templates.empty? %>
     <div class="admin-card border rounded-xl p-5 text-sm text-t2">
-      No calibrated board templates yet. <%= link_to "Add one to the library", admin_dashboard_scene_templates_path, class: "text-accent hover:underline" %>.
+      No calibrated <%= SceneComposition.template_category_for(@owner).to_s.humanize.downcase %> templates yet.
+      <%= link_to "Add one to the library", admin_dashboard_scene_templates_path, class: "text-accent hover:underline" %>.
     </div>
   <% else %>
     <p class="text-xs text-t2 mb-3">Pick a scene:</p>
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <% @templates.each do |template| %>
-        <%= link_to new_admin_dashboard_board_printable_scene_composition_path(@printable, scene_template_id: template.id),
+        <%= link_to new_composition_path_for(scene_template_id: template.id),
               class: "admin-card border rounded-xl p-3 block hover:border-indigo-500" do %>
           <% if template.base_image.attached? %>
             <%= image_tag url_for(template.base_image), alt: template.name,

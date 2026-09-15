@@ -12,7 +12,10 @@ module Boards
     class SceneSlot
       KINDS = %w[paper tablet frame clipboard stack tag].freeze
       ORIENTATIONS = %w[portrait landscape any].freeze
-      ACCEPTS = %w[page_thumbnail device_screen upload].freeze
+      # Every art source a slot can be calibrated to take. Which of these an
+      # OWNER may use is SceneComposition::SOURCES_FOR_OWNER's call, not the
+      # slot's: a board printable has no product artwork, a product no boards.
+      ACCEPTS = %w[page_thumbnail device_screen upload product_artwork].freeze
       FINISHES = %w[shadow glare none].freeze
 
       # The finish a slot gets when calibration didn't pick one: a screen reads

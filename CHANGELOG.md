@@ -16,6 +16,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   gallery can't be fully rendered. Listings nobody curates publish exactly as
   before. Styled items carry a reminder to check Etsy's crop on a test draft
   first.
+- **Printable products (admin), starting with device tags.**
+  `/admin/printable_products` holds printables that aren't boards. Each
+  product has a name, size, status, its design artwork (one label per
+  design), the files a buyer downloads, and its Canva template links. "Scene
+  mockups" on a product warps its artwork into a calibrated device-tag scene,
+  one design per slot, and renders a JPEG you can preview and download. An
+  artwork a mockup uses can't be removed until that slot changes. Nothing is
+  sent to Etsy yet.
 - **Scene mockup library (admin).** `/admin/scene_templates` holds blank
   scene photos from Canva, each with an optional transparent front layer
   (rings, clips, a hand) and any number of placeholder slots. A calibrator
