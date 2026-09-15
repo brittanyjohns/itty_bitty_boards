@@ -5,4 +5,82 @@
   <%= link_to "← All templates", admin_dashboard_scene_templates_path, class: "text-xs text-t2 hover:text-t1" %>
 </div>
 
+<h2 class="text-sm font-semibold text-t1 mb-2">Upload a blank scene</h2>
 <%= render "form" %>
+
+<div class="grid gap-6 lg:grid-cols-2 mt-8">
+  <div>
+    <h2 class="text-sm font-semibold text-t1 mb-2">Upload magenta-marked PNG</h2>
+    <%= form_with url: upload_marked_admin_dashboard_scene_templates_path, method: :post, multipart: true,
+                  data: { turbo: false }, class: "admin-card border rounded-xl p-5 space-y-4" do %>
+      <% if @upload_error %>
+        <div class="admin-flash-err border rounded-lg px-3 py-2 text-sm"><%= @upload_error %></div>
+      <% end %>
+      <p class="text-[11px] text-t3">
+        Paint every surface the art goes on flat <strong>#FF00FF</strong> (Canva: a magenta rectangle over each one,
+        with any clip or magnet left on top) and export a PNG. The slots are detected for you, anything sitting over
+        a surface becomes the front layer, and the calibrator opens with the corners in place. No OpenAI call.
+      </p>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-xs text-t2">Name
+          <input type="text" name="marked_scene[name]" class="admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" />
+        </label>
+        <label class="block text-xs text-t2">Slug (optional)
+          <input type="text" name="marked_scene[slug]" pattern="[a-z0-9][a-z0-9\-]*" placeholder="made from the name"
+                 class="admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" />
+        </label>
+        <label class="block text-xs text-t2">Category
+          <%= select_tag "marked_scene[category]", options_for_select(SceneTemplate::CATEGORIES),
+                class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+        </label>
+      </div>
+      <label class="block text-xs text-t2">Marked scene
+        <input type="file" name="marked_image" accept="image/png" required class="block text-xs mt-1" />
+      </label>
+      <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">
+        Upload and detect slots
+      </button>
+    <% end %>
+  </div>
+
+  <div>
+    <h2 class="text-sm font-semibold text-t1 mb-2">Generate scene with AI</h2>
+    <%= form_with url: generate_admin_dashboard_scene_templates_path, method: :post,
+                  data: { turbo_confirm: "This is a PAID OpenAI call: one image generation, plus one image edit to take the magenta out (quality: #{Scenes::GenerateTemplate.quality}). It isn't retried automatically. Generate?" },
+                  class: "admin-card border rounded-xl p-5 space-y-4" do %>
+      <% if @generate_error %>
+        <div class="admin-flash-err border rounded-lg px-3 py-2 text-sm"><%= @generate_error %></div>
+      <% end %>
+      <p class="text-[11px] text-t3">
+        Only this description goes to the image model. It draws the scene with every placeholder surface in flat
+        magenta; the product's real art is warped in later and is never sent to it.
+      </p>
+      <label class="block text-xs text-t2">Scene description
+        <textarea name="scene_generation[description]" rows="3" required maxlength="<%= Scenes::GenerateTemplate::MAX_DESCRIPTION_LENGTH %>"
+                  placeholder="A sunny family kitchen with a white fridge; a tablet leaning on a fruit bowl on the counter"
+                  class="admin-input border rounded px-3 py-1.5 text-sm w-full mt-1"></textarea>
+      </label>
+      <label class="block text-xs text-t2">Slot hints
+        <input type="text" name="scene_generation[slot_hints]" maxlength="<%= Scenes::GenerateTemplate::MAX_SLOT_HINTS_LENGTH %>"
+               placeholder="one letter-size sheet on the fridge; the tablet screen"
+               class="admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" />
+      </label>
+      <div class="grid gap-4 sm:grid-cols-3">
+        <label class="block text-xs text-t2">Name (optional)
+          <input type="text" name="scene_generation[name]" class="admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" />
+        </label>
+        <label class="block text-xs text-t2">Orientation
+          <%= select_tag "scene_generation[orientation]", options_for_select(Scenes::GenerateTemplate::ORIENTATIONS),
+                class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+        </label>
+        <label class="block text-xs text-t2">Category
+          <%= select_tag "scene_generation[category]", options_for_select(SceneTemplate::CATEGORIES),
+                class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+        </label>
+      </div>
+      <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">
+        Generate scene (paid)
+      </button>
+    <% end %>
+  </div>
+</div>

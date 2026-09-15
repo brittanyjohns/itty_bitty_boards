@@ -115,6 +115,43 @@ RSpec.describe OpenAiClient do
         expect(result[:quality]).to eq(described_class::DEFAULT_IMAGE_QUALITY)
         expect(result[:model]).to eq(described_class::IMAGE_MODEL)
       end
+
+      # Every existing caller (tile art) sends no size and must keep 1024x1024.
+      it "keeps sending 1024x1024 for a caller that passes no size" do
+        expect(images).to receive(:generate) do |parameters:|
+          expect(parameters[:size]).to eq("1024x1024")
+          success
+        end
+
+        expect(client.create_image[:size]).to eq("1024x1024")
+      end
+
+      it "sends an allowlisted size when one is asked for" do
+        wide = described_class.new(prompt: "a kitchen", size: "1536x1024")
+        allow(wide).to receive(:openai_client).and_return(openai)
+
+        expect(images).to receive(:generate) do |parameters:|
+          expect(parameters[:size]).to eq("1536x1024")
+          success
+        end
+
+        expect(wide.create_image[:size]).to eq("1536x1024")
+      end
+
+      it "refuses a size outside the allowlist before any call" do
+        odd = described_class.new(prompt: "a kitchen", size: "4096x4096")
+        allow(odd).to receive(:openai_client).and_return(openai)
+        expect(images).not_to receive(:generate)
+
+        expect { odd.create_image }.to raise_error(ArgumentError, /not one of/)
+      end
+    end
+
+    it "validates the size on staging too, and reports it on the placeholder" do
+      allow(AppEnv).to receive(:staging?).and_return(true)
+
+      expect(described_class.new(prompt: "x", size: "1024x1536").create_image[:size]).to eq("1024x1536")
+      expect { described_class.new(prompt: "x", size: "12x12").create_image }.to raise_error(ArgumentError)
     end
   end
 

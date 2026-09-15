@@ -23,6 +23,17 @@
   </div>
 <% end %>
 
+<% if @template.generation_tracked? && (Array(@template.generation["notes"]).any? || @template.generation["slot_errors"].present?) %>
+  <div class="admin-flash-warn border rounded-lg px-4 py-3 text-sm mb-4">
+    <% if @template.slots.blank? && @template.calibrator_slots.any? %>
+      <p>These slots were detected but not saved yet: <%= Array(@template.generation["slot_errors"]).to_sentence %></p>
+    <% end %>
+    <% Array(@template.generation["notes"]).each do |note| %>
+      <p><%= note %></p>
+    <% end %>
+  </div>
+<% end %>
+
 <p class="text-[11px] text-t3 mb-3">
   Add a slot per blank surface, then drag its corners onto that surface — <strong>clockwise from top-left</strong>.
   Drag inside a slot to move it. The numbered checkerboard is warped by the same maths the render uses, with the
@@ -45,7 +56,7 @@
 </style>
 
 <div data-controller="scene-calibrator"
-     data-scene-calibrator-slots-value="<%= @template.slots.to_json %>"
+     data-scene-calibrator-slots-value="<%= @template.calibrator_slots.to_json %>"
      data-scene-calibrator-text-slots-value="<%= @template.text_slots.to_json %>"
      data-scene-calibrator-overlay-regions-value="<%= @template.overlay_regions.to_json %>"
      data-scene-calibrator-width-value="<%= @template.width %>"
@@ -101,7 +112,7 @@
 
     <%= form_with url: save_calibration_admin_dashboard_scene_template_path(@template), method: :patch,
                   data: { turbo: false }, class: "admin-card border rounded-xl p-4" do %>
-      <input type="hidden" name="slots_json" value="<%= @template.slots.to_json %>" data-scene-calibrator-target="output" />
+      <input type="hidden" name="slots_json" value="<%= @template.calibrator_slots.to_json %>" data-scene-calibrator-target="output" />
       <input type="hidden" name="text_slots_json" value="<%= @template.text_slots.to_json %>" data-scene-calibrator-target="textOutput" />
       <input type="hidden" name="overlay_regions_json" value="<%= @template.overlay_regions.to_json %>" data-scene-calibrator-target="overlayOutput" />
       <label class="block text-xs text-t2 mb-3">

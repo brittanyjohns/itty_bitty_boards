@@ -34,7 +34,7 @@
         <% end %>
         <div class="flex items-center justify-between gap-2">
           <div class="text-sm font-medium text-t1 truncate"><%= template.name %></div>
-          <span class="text-[11px] px-2 py-0.5 rounded admin-badge text-t2"><%= template.status %></span>
+          <span class="text-[11px] px-2 py-0.5 rounded admin-badge text-t2"><%= template.generation_pending? ? "building…" : template.status %></span>
         </div>
         <div class="text-[11px] text-t3 mt-1">
           <code><%= template.slug %></code> · <%= template.category %> · <%= template.source %> ·
@@ -44,7 +44,12 @@
           used by <%= @usage.fetch(template.id, 0) %>
         </div>
         <div class="flex gap-3 mt-3 text-xs">
-          <%= link_to "Calibrate", calibrate_admin_dashboard_scene_template_path(template), class: "text-accent hover:underline" %>
+          <% if template.base_image.attached? %>
+            <%= link_to "Calibrate", calibrate_admin_dashboard_scene_template_path(template), class: "text-accent hover:underline" %>
+          <% end %>
+          <% if template.generation_tracked? %>
+            <%= link_to "Build status", generation_admin_dashboard_scene_template_path(template), class: "text-accent hover:underline" %>
+          <% end %>
           <%= link_to "Edit", edit_admin_dashboard_scene_template_path(template), class: "text-accent hover:underline" %>
         </div>
       </div>

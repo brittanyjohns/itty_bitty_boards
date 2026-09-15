@@ -1,0 +1,76 @@
+<% content_for :page_title, "Building #{@template.name}" %>
+<% gen = @template.generation.to_h %>
+<% request_info = gen["request"].to_h %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @template.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= gen["kind"] == SceneTemplate::GENERATION_KIND_AI ? "AI-generated scene" : "Magenta-marked upload" %> ·
+      <%= @template.category %> · <code><%= @template.slug %></code>
+    </p>
+  </div>
+  <%= link_to "← All templates", admin_dashboard_scene_templates_path, class: "text-xs text-t2 hover:text-t1" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 space-y-3"
+     <% if @template.generation_pending? %>data-controller="auto-refresh" data-auto-refresh-interval-value="4000"<% end %>>
+  <% if @template.generation_pending? %>
+    <p class="text-sm text-t1 font-medium">
+      <%= gen["state"] == SceneTemplate::GENERATION_QUEUED ? "Queued…" : (gen["kind"] == SceneTemplate::GENERATION_KIND_AI ? "Generating the scene and detecting its slots…" : "Detecting the slots…") %>
+    </p>
+    <p class="text-[11px] text-t3">This page refreshes itself and opens the calibrator when the slots are found.</p>
+  <% elsif !@template.generation_tracked? %>
+    <p class="text-sm text-t2">This template wasn't built from a marked scene.</p>
+  <% else %>
+    <p class="text-sm text-t1 font-medium">
+      <%= gen["state"] == SceneTemplate::GENERATION_FAILED ? "Finished with a problem" : "Done" %> ·
+      <%= pluralize(gen["detected_slots"].to_i, "slot") %> detected
+      <%= "· magenta removed" if gen["inpainted"] %>
+    </p>
+  <% end %>
+
+  <% if gen["error"].present? %>
+    <div class="admin-flash-err border rounded-lg px-3 py-2 text-sm"><%= gen["error"] %></div>
+  <% end %>
+  <% Array(gen["notes"]).each do |note| %>
+    <div class="admin-flash-warn border rounded-lg px-3 py-2 text-sm"><%= note %></div>
+  <% end %>
+  <% if gen["slot_errors"].present? %>
+    <div class="admin-flash-warn border rounded-lg px-3 py-2 text-sm">
+      The detected slots need fixing before they can be saved: <%= Array(gen["slot_errors"]).to_sentence %>
+    </div>
+  <% end %>
+
+  <% if request_info["description"].present? %>
+    <dl class="text-xs text-t2 grid gap-1">
+      <div><dt class="inline text-t3">Description:</dt> <dd class="inline"><%= request_info["description"] %></dd></div>
+      <% if request_info["slot_hints"].present? %>
+        <div><dt class="inline text-t3">Slot hints:</dt> <dd class="inline"><%= request_info["slot_hints"] %></dd></div>
+      <% end %>
+      <div><dt class="inline text-t3">Orientation:</dt> <dd class="inline"><%= request_info["orientation"] %></dd></div>
+    </dl>
+  <% end %>
+  <% if @template.prompt.present? %>
+    <details class="text-xs text-t2">
+      <summary class="cursor-pointer">Prompt sent</summary>
+      <pre class="whitespace-pre-wrap mt-2 text-[11px]"><%= @template.prompt %></pre>
+    </details>
+  <% end %>
+
+  <div class="flex flex-wrap gap-3 text-xs">
+    <% if @template.base_image.attached? %>
+      <%= link_to "Open calibrator", calibrate_admin_dashboard_scene_template_path(@template), class: "text-accent hover:underline" %>
+    <% end %>
+    <%= link_to "Edit details", edit_admin_dashboard_scene_template_path(@template), class: "text-accent hover:underline" %>
+    <%= link_to "Start another", new_admin_dashboard_scene_template_path, class: "text-accent hover:underline" %>
+  </div>
+</div>
+
+<% if @template.source_image.attached? %>
+  <div class="admin-card border rounded-xl p-5 mt-6">
+    <div class="text-xs text-t2 mb-2">Marked scene</div>
+    <%= image_tag url_for(@template.source_image), alt: "", class: "w-full max-h-96 object-contain rounded-lg border bg-white",
+          style: "border-color: var(--border);" %>
+  </div>
+<% end %>
