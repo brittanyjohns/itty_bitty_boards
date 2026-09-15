@@ -167,7 +167,8 @@ Two traps when editing a nav row:
 - **Don't author the same label twice with the same kind** (word vs folder) on
   one board — `Boards::TileDeduper` collapses those on seed, keeping the
   lowest-position copy, which silently deletes the nav-row one. That's why
-  `more.obf` carries `this`/`that` only in the nav row, and why `food.obf`'s
+  `more.obf` carries its nav-row words (`to`/`a` on Core 60, `this`/`that` on
+  Core 84) only in the nav row, and why `food.obf`'s
   `Drinks` link lives in the nav row rather than in the content grid.
 
 **Authoring covers the admin templates; the build enforces the rule.** These

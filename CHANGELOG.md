@@ -5,6 +5,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Core 60's bottom row now starts with "to" and ends with "a".** The Board
+  Builder's Core 60 template swaps the "this" / "that" corner words for "to"
+  and "a" on the home board and on every category page, so the bottom row
+  stays identical wherever you are in the set. Core 84 is unchanged.
+
 ### Fixed
 
 - **The app can tell who bills a paid plan.** `User#api_view` now publishes
