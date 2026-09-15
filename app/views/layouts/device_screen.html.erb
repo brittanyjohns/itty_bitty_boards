@@ -28,7 +28,11 @@
     <title>Device screen</title>
 
     <style>
-      <%= Boards::Printables::Fonts.face_css %>
+      <%# `<%==`, never `<%=`: the CSS quotes 'Nunito', and an escaped &#39; is
+          never decoded inside <style>, so Chrome drops the @font-face and
+          silently falls back to system-ui. Constant-built CSS only — never
+          user input. %>
+      <%== Boards::Printables::Fonts.face_css %>
 
       html, body {
         margin: 0;

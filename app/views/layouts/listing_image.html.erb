@@ -56,7 +56,11 @@
     <title>Listing image</title>
 
     <style>
-      <%= Boards::Printables::Fonts.face_css %>
+      <%# `<%==`, never `<%=`: the CSS quotes 'Nunito', and an escaped &#39; is
+          never decoded inside <style>, so Chrome drops the @font-face and
+          silently falls back to system-ui. Constant-built CSS only — never
+          user input. %>
+      <%== Boards::Printables::Fonts.face_css %>
 
       <%# The fixed half of the palette: the colours that carry contrast on
           every slide and therefore never rotate. Every OTHER brand colour lives
@@ -92,8 +96,10 @@
       }
 
       <%# Emitted after the defaults so it wins on cascade order — no rule below
-          needs to know a palette exists, they all read the tokens. %>
-      <%= @palette_css %>
+          needs to know a palette exists, they all read the tokens. Unescaped
+          for the same reason as the font above; Palette::PALETTES is
+          constants. %>
+      <%== @palette_css %>
 
       * {
         box-sizing: border-box;
