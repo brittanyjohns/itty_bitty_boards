@@ -1,0 +1,70 @@
+<%# The styled hero. Left: headline, feature list, badges. Right: the REAL root
+    page, header and printed QR included, with the rest of the set fanned below
+    it and the low-ink page at the end of the fan when the listing ships one.
+    Every number is Printables::GalleryFacts. %>
+<div class="styled-slide">
+  <div class="blob green bottom-left"></div>
+  <div class="blob green bottom-right"></div>
+
+  <%= render "api/board_printables/styled/brand", logo: @logo, style: "left: 40px; top: 34px;" %>
+
+  <div class="headline abs" style="left: 40px; top: 136px; width: 560px;">
+    <div style="font-size: 62px;"><%= @headline[0] %></div>
+    <div style="font-size: <%= @headline[1].length > 18 ? 48 : 62 %>px;"><%= @headline[1] %></div>
+    <svg class="swoosh" viewBox="0 0 400 20" preserveAspectRatio="none" style="width: 470px; margin-top: 8px;">
+      <path d="M4 13 C 120 4, 280 4, 396 11" />
+    </svg>
+  </div>
+
+  <%= render "api/board_printables/styled/features",
+        features: @features, style: "left: 40px; top: 326px; width: 540px;",
+        gap_px: 16, icon_px: 62, title_px: 23, sub_px: 16 %>
+
+  <%= render "api/board_printables/styled/badges",
+        badges: @badges, style: "left: 40px; top: 752px;", height_px: 54, font_px: 21 %>
+
+  <div class="hand abs" style="left: 44px; top: 838px; font-size: 30px; transform: rotate(-4deg);">
+    <%= @accents[:bottom_left] %>
+  </div>
+
+  <div class="hand pill abs" style="right: 44px; top: 30px; font-size: 34px; transform: rotate(-3deg);">
+    <%= @accents[:top_right] %>
+  </div>
+
+  <% main_box_h = @fan_pages.any? ? 470 : 640 %>
+  <div class="abs" style="left: 600px; top: 104px; width: 570px; height: <%= main_box_h %>px; display: flex; align-items: center; justify-content: center; z-index: 2;">
+    <% if @main_page %>
+      <div class="page-card" style="transform: rotate(1.5deg);">
+        <img src="<%= @main_page[:data_uri] %>" alt=""
+             style="max-width: 560px; max-height: <%= main_box_h - 10 %>px;" />
+      </div>
+    <% end %>
+  </div>
+
+  <% if @fan_pages.any? %>
+    <%# Cards overlap only as much as they must to fit the 580px row, so a
+        two-page set spreads out and a seven-card fan stacks. %>
+    <% card_w = 200 %>
+    <% count = @fan_pages.size %>
+    <% overlap = count > 1 ? ((count * card_w - 580).fdiv(count - 1).ceil).clamp(24, card_w - 40) : 0 %>
+    <div class="abs" style="left: 590px; top: 596px; width: 590px; height: 210px; display: flex; align-items: center; justify-content: center; z-index: 3;">
+      <% @fan_pages.each_with_index do |page, index| %>
+        <div class="page-card" style="flex: none; transform: rotate(<%= page[:rotation] %>deg); margin-left: <%= index.zero? ? 0 : -overlap %>px; box-shadow: var(--shadow-small);">
+          <img src="<%= page[:data_uri] %>" alt="" style="max-width: <%= card_w %>px; max-height: 180px;" />
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @set_accent %>
+    <div class="hand pill abs" style="left: 700px; top: 826px; font-size: 30px; z-index: 3;">
+      <%= @set_accent %>
+    </div>
+  <% end %>
+
+  <div class="hand abs" style="right: 30px; bottom: 26px; font-size: 30px; text-align: center; transform: rotate(-10deg); color: var(--green-deep);">
+    <% @accents[:bottom_right].each do |word| %>
+      <div><%= word %></div>
+    <% end %>
+  </div>
+</div>

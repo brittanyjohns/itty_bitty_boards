@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- **Styled 4:3 slides for board printables (admin preview).** A new "Styled
+  slides" card on `/admin/board_printables/:id` renders a hero and a "What's
+  included" slide in the cream, pink and green design, built from the
+  printable's real pages (real QR codes, real board names). Board, word and
+  PDF counts and the low-ink claim come from the boards and the files that
+  ship. The slides are not uploaded to Etsy yet, and a legacy "Regenerate" no
+  longer deletes them.
+
 - **Write your own "Also include" item for people in pictures.** A
   communicator's likeness (and a board's custom look) accepts up to 3 short
   `custom_extras` — e.g. "cochlear implant" — alongside the preset extras. Each

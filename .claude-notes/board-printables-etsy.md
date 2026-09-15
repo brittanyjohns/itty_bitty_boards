@@ -633,6 +633,40 @@ instead of 2040 until it was caught. `width:`/`height:` are PDF-only keys, and
 `to_png`/`to_jpeg` set the screenshot type themselves. Specs pin the nested
 option because the failure is invisible: the render still succeeds, just small.
 
+### Styled slides (4:3, admin preview)
+
+`Boards::Printables::RenderStyledSlides` renders a second, separate set of
+slides in the warm cream / soft pink / gentle green design: `styled_hero` and
+`styled_whats_included`, 1200x900 CSS px at scale 2 (2400x1800), through
+`layouts/listing_image_styled.html.erb` and `api/board_printables/styled/*`.
+Triggered from the admin "Styled slides" card (`render_styled_slides`), not by
+publishing: **nothing uploads them to Etsy yet**. A per-listing curated gallery
+is the planned publish path.
+
+- **They are not in `LISTING_IMAGE_ORDER`**, which stays the ten legacy slides
+  and Etsy's cap. `STYLED_IMAGE_VARIANTS` lists them, and
+  `KNOWN_IMAGE_VARIANTS` (legacy + styled) is what
+  `purge_legacy_listing_images!` keys on. Keying the purge on
+  `LISTING_IMAGE_ORDER` deletes every styled slide on the next legacy
+  Regenerate.
+- **Every number and claim comes from `Printables::GalleryFacts`**, never from a
+  template. The design was copied from image-model output that printed whatever
+  counts it was prompted with, and also redrew symbols and invented QR codes.
+  That is why the pages here are real `RenderPageThumbnails` renders and product
+  art is never sent to an image model. Word count is DISTINCT
+  symbol-supported words across the set: hidden, folder, way-back and keyboard
+  tiles excluded, and the picture resolved with a bare `||`, so a blanked
+  `display_image_url` does not count. Low-ink is claimed only when a low-ink
+  (or single-board `full`) PDF ships. **Never claim PNG**: only PDFs download.
+- **Staleness** is blob metadata: `spec_version` (`STYLED_SPEC_VERSION`) plus
+  `facts_digest` (`GalleryFacts#digest`). `styled_slides_current?` is false when
+  either moves, so a slide can't keep quoting a word count that changed.
+- **Fonts:** Nunito, Fredoka (read through `Images::TextTile::Fonts`) and
+  Caveat (`app/assets/fonts/caveat`, OFL), inlined by
+  `Fonts.styled_face_css`. The layout emits that CSS with `<%==`: an
+  HTML-escaped `'Caveat'` inside `<style>` is an invalid `@font-face` that
+  Chrome drops silently.
+
 ## Regenerating and deleting a printable
 
 `POST /admin/board_printables/:id/regenerate` re-runs `GenerateBoardPrintableJob`

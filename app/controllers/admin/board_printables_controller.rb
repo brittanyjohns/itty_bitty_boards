@@ -163,6 +163,20 @@ module Admin
                   notice: "Rendering listing images… refresh in a moment."
     end
 
+    def render_styled_slides
+      printable = BoardPrintable.find(params[:id])
+
+      unless printable.complete?
+        redirect_to admin_dashboard_board_printable_path(printable),
+                    alert: "This printable isn't finished generating yet."
+        return
+      end
+
+      RenderBoardPrintableStyledSlidesJob.perform_async(printable.id)
+      redirect_to admin_dashboard_board_printable_path(printable),
+                  notice: "Rendering styled slides… refresh in a moment."
+    end
+
     def regenerate_listing_video
       printable = BoardPrintable.find(params[:id])
 

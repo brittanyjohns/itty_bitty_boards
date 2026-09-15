@@ -613,6 +613,27 @@ RSpec.describe "Admin::BoardPrintables (dashboard)", type: :request do
       end
     end
 
+    describe "POST render_styled_slides" do
+      it "enqueues the styled render job" do
+        sign_in admin
+
+        expect(RenderBoardPrintableStyledSlidesJob).to receive(:perform_async).with(printable.id)
+
+        post render_styled_slides_admin_dashboard_board_printable_path(printable)
+        expect(response).to redirect_to(admin_dashboard_board_printable_path(printable))
+      end
+
+      it "refuses a printable that is still generating" do
+        sign_in admin
+        printable.update_columns(status: "generating")
+
+        expect(RenderBoardPrintableStyledSlidesJob).not_to receive(:perform_async)
+
+        post render_styled_slides_admin_dashboard_board_printable_path(printable)
+        expect(flash[:alert]).to be_present
+      end
+    end
+
     describe "POST regenerate_listing_video" do
       it "enqueues the render job" do
         sign_in admin

@@ -1,0 +1,132 @@
+<%# Layout for the STYLED gallery slides (Boards::Printables::RenderStyledSlides):
+    4:3, warm cream with soft pink and gentle green accents, a rounded navy
+    headline and handwritten corner notes.
+
+    Its own layout rather than a variant of listing_image.html.erb: that one is
+    shared with the listing video's frames and binds every accent colour to the
+    per-listing Palette rotation. This design is one fixed brand look, so its
+    colours are fixed tokens here.
+
+    The rails listing_image.html.erb documents still hold:
+    1. Nothing is fetched over the network by the chrome. Nunito, Fredoka and
+       Caveat are inlined by Boards::Printables::Fonts.styled_face_css; the logo
+       is a data URI. The board symbol art inside a page render is the one
+       exception, exactly as it is on the printed page.
+    2. No emoji and no glyph outside the fonts. Icons are inline SVG.
+    3. Every box is fixed and the copy that fills it is bounded
+       (Printables::StyledSlideCopy). %>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Styled listing image</title>
+
+    <style>
+      <%# Unescaped: this is CSS inside <style>, where HTML entities are never
+          decoded — an escaped `'Caveat'` arrives as `&#39;Caveat&#39;`, the
+          @font-face is dropped as invalid, and the slide renders in the fallback
+          with no error anywhere. The string is built from constants and
+          base64, never from user input. %>
+      <%== Boards::Printables::Fonts.styled_face_css %>
+
+      :root {
+        --cream: #FBF6EC;
+        --pink: #E589B3;
+        --pink-deep: #B8407A;
+        --pink-soft: #F9D8E6;
+        --green: #56B58C;
+        --green-deep: #2F7D5B;
+        --green-soft: #CFEBDA;
+        --navy: #17385C;
+        --ink-soft: #4A5B6C;
+        --white: #FFFFFF;
+
+        --shadow-page: 0 18px 40px rgba(23, 56, 92, 0.20);
+        --shadow-small: 0 10px 22px rgba(23, 56, 92, 0.18);
+
+        --font-body: Nunito, system-ui, sans-serif;
+        --font-head: Fredoka, Nunito, system-ui, sans-serif;
+        --font-hand: Caveat, cursive;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      body {
+        font-family: var(--font-body);
+        color: var(--navy);
+        background: var(--cream);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .styled-slide {
+        position: relative;
+        width: 1200px;
+        height: 900px;
+        overflow: hidden;
+        background: var(--cream);
+      }
+
+      .abs { position: absolute; }
+
+      /* ── Decoration ─────────────────────────────────────────────────── */
+      .blob { position: absolute; z-index: 0; }
+      .blob.green { background: var(--green-soft); }
+      .blob.pink { background: var(--pink-soft); }
+      /* Low enough that the badge row above it sits on cream: a green badge on
+         the green blob disappears. */
+      .blob.bottom-left { left: -120px; bottom: -140px; width: 540px; height: 230px; border-radius: 50% 60% 40% 50%; }
+      .blob.bottom-right { right: -110px; bottom: -120px; width: 330px; height: 290px; border-radius: 60% 40% 50% 50%; }
+      .blob.top-right { right: -90px; top: -110px; width: 300px; height: 260px; border-radius: 40% 50% 60% 50%; }
+
+      .sparks { width: 34px; height: 34px; }
+      .sparks path { stroke: var(--pink); stroke-width: 4; stroke-linecap: round; fill: none; }
+
+      .swoosh { display: block; height: 18px; }
+      .swoosh path { stroke: var(--pink); stroke-width: 7; stroke-linecap: round; fill: none; }
+
+      /* ── Brand lockup ───────────────────────────────────────────────── */
+      .brand { display: flex; align-items: center; gap: 14px; z-index: 2; }
+      .brand img { width: 66px; height: 66px; object-fit: contain; }
+      .brand .wordmark { font-family: var(--font-head); font-weight: 600; font-size: 38px; line-height: 1; letter-spacing: -0.5px; }
+      .brand .tagline { margin-top: 6px; font-size: 12px; font-weight: 700; letter-spacing: 2.4px; text-transform: uppercase; color: var(--ink-soft); }
+      .brand.small img { width: 54px; height: 54px; }
+      .brand.small .wordmark { font-size: 30px; }
+      .brand.small .tagline { font-size: 10px; letter-spacing: 2px; }
+
+      /* ── Type ───────────────────────────────────────────────────────── */
+      .headline { font-family: var(--font-head); font-weight: 600; line-height: 1.02; letter-spacing: -1.5px; color: var(--navy); z-index: 2; }
+
+      .hand { font-family: var(--font-hand); font-weight: 600; color: var(--navy); line-height: 1.05; z-index: 3; }
+      .hand.pill { background: var(--pink-soft); border-radius: 999px; padding: 6px 26px 10px; }
+      .hand.pill.green { background: var(--green-soft); }
+
+      /* ── Feature list ───────────────────────────────────────────────── */
+      .features { display: flex; flex-direction: column; z-index: 2; }
+      .feature { display: flex; align-items: center; gap: 20px; }
+      .icon-circle { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+      .icon-circle svg { width: 50%; height: 50%; fill: currentColor; }
+      .icon-circle.pink { background: var(--pink-soft); color: var(--pink-deep); }
+      .icon-circle.green { background: var(--green-soft); color: var(--green-deep); }
+      .feature .title { font-weight: 800; color: var(--navy); line-height: 1.15; }
+      .feature .sub { font-weight: 600; color: var(--ink-soft); line-height: 1.2; margin-top: 2px; }
+
+      /* ── Badges ─────────────────────────────────────────────────────── */
+      .badges { display: flex; gap: 14px; z-index: 2; }
+      .badge { display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 999px; font-weight: 700; color: var(--navy); line-height: 1.1; white-space: nowrap; }
+      .badge.pink { background: var(--pink-soft); }
+      .badge.green { background: var(--green-soft); }
+
+      /* ── Paper ──────────────────────────────────────────────────────── */
+      .page-card { background: var(--white); border-radius: 6px; box-shadow: var(--shadow-page); overflow: hidden; }
+      .page-card img { display: block; }
+    </style>
+  </head>
+  <body>
+    <%= yield %>
+  </body>
+</html>

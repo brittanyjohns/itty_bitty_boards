@@ -1,0 +1,9 @@
+<%# Rounded pills along the bottom. Colours run pink, green, pink. %>
+<div class="badges abs" style="<%= style %>">
+  <% badges.each_with_index do |badge, index| %>
+    <div class="badge <%= index.odd? ? "green" : "pink" %>"
+         style="height: <%= height_px %>px; padding: 0 <%= (height_px * 0.5).round %>px; font-size: <%= font_px %>px;">
+      <%= badge %>
+    </div>
+  <% end %>
+</div>
