@@ -1,0 +1,40 @@
+<%# The styled 4:3 slides. Rendered on demand and previewed here only — they
+    are not uploaded to Etsy yet; a per-listing curated gallery is what will
+    publish them. %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Styled slides <span class="text-t3">(preview)</span></h2>
+    <%= button_to "Render styled slides", render_styled_slides_admin_dashboard_board_printable_path(@printable),
+          method: :post,
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+  </div>
+  <p class="text-[11px] text-t3 mb-4">
+    4:3 slides in the cream, pink and green design, built from this printable's
+    real pages. Word counts, versions and file counts come from the boards and
+    the files that ship. Not sent to Etsy yet.
+  </p>
+
+  <% images = @printable.styled_images_view %>
+  <% if images.any? && !@printable.styled_slides_current? %>
+    <p class="text-xs mb-4 px-3 py-2 rounded border"
+       style="border-color: var(--border); color: var(--t1);">
+      These are out of date — the design or the boards have changed since they were rendered.
+    </p>
+  <% end %>
+
+  <% if images.any? %>
+    <div class="flex flex-wrap gap-4">
+      <% images.each do |image| %>
+        <div>
+          <%= link_to image[:url], target: "_blank", rel: "noopener" do %>
+            <%= image_tag image[:url], alt: image[:variant],
+                  class: "object-contain rounded-lg border bg-white", style: "width: 240px; height: 180px; border-color: var(--border);" %>
+          <% end %>
+          <p class="text-[11px] text-t3 mt-1"><%= image[:variant].delete_prefix("styled_").humanize %></p>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3">None rendered yet.</p>
+  <% end %>
+</div>

@@ -1,0 +1,10 @@
+<%# Logo + wordmark + tagline, top-left on every styled slide. %>
+<div class="brand abs <%= local_assigns[:size] %>" style="<%= local_assigns[:style] %>">
+  <% if logo %>
+    <img src="<%= logo %>" alt="" />
+  <% end %>
+  <div>
+    <div class="wordmark">SpeakAnyWay</div>
+    <div class="tagline"><%= Printables::StyledSlideCopy::TAGLINE %></div>
+  </div>
+</div>

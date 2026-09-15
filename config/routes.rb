@@ -157,6 +157,7 @@ Rails.application.routes.draw do
         patch :update_listing
         post :regenerate_listing_copy
         post :regenerate_listing_images
+        post :render_styled_slides
         post :regenerate_listing_video
         post :upload_listing_video
         post :regenerate

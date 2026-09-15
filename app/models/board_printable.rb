@@ -156,6 +156,25 @@ class BoardPrintable < ApplicationRecord
   IMAGE_HOW_IT_WORKS = "how_it_works".freeze
   IMAGE_WHATS_INCLUDED_LOW_INK = "whats_included_low_ink".freeze
 
+  # The STYLED gallery: 4:3 slides in the warm cream/pink/green design,
+  # rendered by Boards::Printables::RenderStyledSlides. They sit BESIDE
+  # LISTING_IMAGE_ORDER rather than in it — that list is Etsy's cap exactly and
+  # the definition of a current legacy gallery, so adding these there would
+  # overflow the cap and badge every printable stale. Nothing publishes them
+  # yet; a per-listing curated gallery is what will.
+  IMAGE_STYLED_HERO = "styled_hero".freeze
+  IMAGE_STYLED_WHATS_INCLUDED = "styled_whats_included".freeze
+  STYLED_IMAGE_VARIANTS = [IMAGE_STYLED_HERO, IMAGE_STYLED_WHATS_INCLUDED].freeze
+
+  # Bumped when the styled design changes, marking every styled slide stale —
+  # the same job VIDEO_SPEC_VERSION does for the clip.
+  STYLED_SPEC_VERSION = 1
+
+  # Every image variant this code still renders. An ALLOWLIST, and the one
+  # #purge_legacy_listing_images! keys on: it used to test LISTING_IMAGE_ORDER,
+  # which would have deleted every styled slide on the next legacy Regenerate.
+  KNOWN_IMAGE_VARIANTS = (LISTING_IMAGE_ORDER + STYLED_IMAGE_VARIANTS).freeze
+
   belongs_to :board
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :protection_waived_by, class_name: "User", optional: true
@@ -226,7 +245,10 @@ class BoardPrintable < ApplicationRecord
   # this variant", which the moment a listing had its own gallery would have
   # meant rendering a listing's hero deleted the shared hero — and rendering the
   # shared one deleted every listing's.
-  def attach_image!(bytes:, variant:, listing: nil)
+  #
+  # `metadata` adds extra stamps (a styled slide's spec version and facts
+  # digest). It can never override the three keys the partition reads.
+  def attach_image!(bytes:, variant:, listing: nil, metadata: {})
     image_files
       .select { |f| f.metadata["variant"] == variant && f.metadata["listing_id"] == listing&.id }
       .each(&:purge)
@@ -238,7 +260,9 @@ class BoardPrintable < ApplicationRecord
       filename: filename,
       bytes: bytes,
       content_type: "image/png",
-      metadata: { "variant" => variant, "kind" => KIND_IMAGE, "listing_id" => listing&.id },
+      metadata: metadata.to_h.stringify_keys.merge(
+        "variant" => variant, "kind" => KIND_IMAGE, "listing_id" => listing&.id,
+      ),
     )
   end
 
@@ -384,11 +408,37 @@ class BoardPrintable < ApplicationRecord
     reload_files_association
   end
 
+  # The shared styled slides, in STYLED_IMAGE_VARIANTS order.
+  def styled_image_files
+    image_files
+      .select { |f| STYLED_IMAGE_VARIANTS.include?(f.metadata["variant"]) }
+      .sort_by { |f| STYLED_IMAGE_VARIANTS.index(f.metadata["variant"]) }
+  end
+
+  def styled_images_view = view_for(styled_image_files)
+
+  # Every styled slide present, rendered by the current design, from the facts
+  # the boards give today. The digest is what catches a board gaining words or
+  # a download dropping its low-ink file: the slide would otherwise keep
+  # quoting a number that is no longer true.
+  def styled_slides_current?
+    digest = Printables::GalleryFacts.new(self).digest
+    files = styled_image_files
+
+    STYLED_IMAGE_VARIANTS.all? do |variant|
+      file = files.find { |f| f.metadata["variant"] == variant }
+      file &&
+        file.metadata["spec_version"].to_i == STYLED_SPEC_VERSION &&
+        file.metadata["facts_digest"] == digest
+    end
+  end
+
   # Blobs from a retired gallery design. Purged after a re-render rather than
   # before it, so a render that fails leaves the old images in place instead of
-  # emptying the gallery.
+  # emptying the gallery. Keyed on KNOWN_IMAGE_VARIANTS so the styled slides,
+  # which are not in LISTING_IMAGE_ORDER, survive a legacy re-render.
   def purge_legacy_listing_images!
-    stale = all_image_files.reject { |f| LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
+    stale = all_image_files.reject { |f| KNOWN_IMAGE_VARIANTS.include?(f.metadata["variant"]) }
     return if stale.empty?
 
     stale.each(&:purge)

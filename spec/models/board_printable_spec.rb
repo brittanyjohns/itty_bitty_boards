@@ -151,6 +151,61 @@ RSpec.describe BoardPrintable do
       end
     end
 
+    describe "styled slides" do
+      def attach_styled(**metadata)
+        described_class::STYLED_IMAGE_VARIANTS.each do |variant|
+          printable.attach_image!(bytes: "png", variant: variant, metadata: metadata)
+        end
+        printable.reload
+      end
+
+      # They are not in LISTING_IMAGE_ORDER, which is exactly what the legacy
+      # purge used to key on — every legacy Regenerate would have deleted them.
+      it "survive a legacy gallery purge" do
+        attach_styled
+
+        printable.purge_legacy_listing_images!
+
+        expect(printable.reload.styled_image_files.map { |f| f.metadata["variant"] })
+          .to eq(described_class::STYLED_IMAGE_VARIANTS)
+      end
+
+      it "stay out of the legacy gallery and the buyer downloads" do
+        attach_styled
+
+        expect(printable.listing_images_view.map { |i| i[:variant] }).to eq([described_class::IMAGE_HERO])
+        expect(printable.files_view.map { |f| f[:filename] }).to eq(["core.pdf"])
+        expect(printable.listing_images_current?).to be(false)
+      end
+
+      it "cannot overwrite the partition keys through extra metadata" do
+        printable.attach_image!(
+          bytes: "png", variant: described_class::IMAGE_STYLED_HERO,
+          metadata: { kind: described_class::KIND_PDF, variant: "full" },
+        )
+
+        file = printable.reload.styled_image_files.first
+        expect(file.metadata["kind"]).to eq(described_class::KIND_IMAGE)
+        expect(file.metadata["variant"]).to eq(described_class::IMAGE_STYLED_HERO)
+        expect(printable.pdf_files.size).to eq(1)
+      end
+
+      it "are current only when rendered by this design from today's facts" do
+        digest = Printables::GalleryFacts.new(printable).digest
+        attach_styled(spec_version: described_class::STYLED_SPEC_VERSION, facts_digest: digest)
+        expect(printable.styled_slides_current?).to be(true)
+
+        stub_const("#{described_class}::STYLED_SPEC_VERSION", described_class::STYLED_SPEC_VERSION + 1)
+        expect(printable.styled_slides_current?).to be(false)
+      end
+
+      it "go stale when the facts change" do
+        attach_styled(spec_version: described_class::STYLED_SPEC_VERSION, facts_digest: "not-today")
+
+        expect(printable.styled_slides_current?).to be(false)
+      end
+    end
+
     it "treats a blob written before the kind metadata existed as a PDF" do
       legacy = printable.pdf_files.first
       legacy.blob.update!(metadata: legacy.metadata.except("kind"))

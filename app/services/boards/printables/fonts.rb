@@ -31,6 +31,15 @@ module Boards
           "U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
       }.freeze
 
+      # Caveat, the handwritten face the styled gallery slides use for their
+      # corner accents ("Words within reach"). Same subsets and ranges as Nunito;
+      # variable, so one file per subset carries 400-700.
+      CAVEAT_DIR = Rails.root.join("app/assets/fonts/caveat").freeze
+      CAVEAT_SUBSETS = {
+        "caveat-latin.woff2" => SUBSETS.fetch("nunito-latin.woff2"),
+        "caveat-latin-ext.woff2" => SUBSETS.fetch("nunito-latin-ext.woff2"),
+      }.freeze
+
       # Memoized for the life of the process. RenderWrappers does four or five
       # renders per printable and a bundle regenerates often; re-reading and
       # re-encoding ~75 KB of woff2 every time is pure waste.
@@ -38,22 +47,37 @@ module Boards
         @face_css ||= SUBSETS.map { |file, unicode_range| face(file, unicode_range) }.join("\n")
       end
 
-      def self.face(file, unicode_range)
+      # Every face the styled gallery slides draw with: Nunito for body copy,
+      # Fredoka for the rounded headlines (already vendored for text tiles — one
+      # copy of the file, read through the module that owns it), Caveat for the
+      # handwritten accents. Kept apart from #face_css so the print layouts don't
+      # inline ~140 KB of faces they never use.
+      def self.styled_face_css
+        @styled_face_css ||= [
+          face_css,
+          Images::TextTile::Fonts.face_css("fredoka"),
+          CAVEAT_SUBSETS.map do |file, unicode_range|
+            face(file, unicode_range, family: "Caveat", dir: CAVEAT_DIR, weight: "400 700")
+          end.join("\n"),
+        ].join("\n")
+      end
+
+      def self.face(file, unicode_range, family: "Nunito", dir: DIR, weight: "200 1000")
         <<~CSS
           @font-face {
-            font-family: 'Nunito';
+            font-family: '#{family}';
             font-style: normal;
-            font-weight: 200 1000;
+            font-weight: #{weight};
             font-display: block;
-            src: url(data:font/woff2;base64,#{encoded(file)}) format('woff2');
+            src: url(data:font/woff2;base64,#{encoded(dir, file)}) format('woff2');
             unicode-range: #{unicode_range};
           }
         CSS
       end
       private_class_method :face
 
-      def self.encoded(file)
-        Base64.strict_encode64(DIR.join(file).binread)
+      def self.encoded(dir, file)
+        Base64.strict_encode64(dir.join(file).binread)
       end
       private_class_method :encoded
     end

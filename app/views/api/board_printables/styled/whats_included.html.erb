@@ -1,0 +1,59 @@
+<%# What's included, styled. A grid of every real page (up to 3x3; the rest are
+    counted), each under a pill title in place of the print header, beside the
+    feature list. Every number is Printables::GalleryFacts. %>
+<div class="styled-slide">
+  <div class="blob green bottom-left"></div>
+  <div class="blob pink top-right"></div>
+  <div class="blob green bottom-right"></div>
+
+  <%= render "api/board_printables/styled/brand", logo: @logo, size: "small", style: "left: 30px; top: 28px;" %>
+
+  <div class="headline abs" style="left: 400px; top: 22px; width: 560px; text-align: center; font-size: 66px;">
+    <%= @title %>
+    <svg class="swoosh" viewBox="0 0 400 20" preserveAspectRatio="none" style="width: 420px; margin: 4px auto 0;">
+      <path d="M4 12 C 120 4, 280 4, 396 12" />
+    </svg>
+  </div>
+
+  <%# Plain text on the pink blob rather than a pill: pink on pink is invisible. %>
+  <div class="hand abs" style="right: 22px; top: 38px; width: 240px; font-size: 30px; text-align: center; transform: rotate(4deg);">
+    <%= @corner_accent %>
+  </div>
+
+  <%= render "api/board_printables/styled/features",
+        features: @features, style: "left: 30px; top: 166px; width: 320px;",
+        gap_px: 22, icon_px: 58, title_px: 20, sub_px: 15 %>
+
+  <div class="abs" style="left: 370px; top: 156px; width: 800px; height: 596px; z-index: 2;
+       display: grid; gap: 18px;
+       grid-template-columns: repeat(<%= @columns %>, minmax(0, 1fr));
+       grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
+    <% @tiles.each_with_index do |tile, index| %>
+      <div class="page-card" style="display: flex; flex-direction: column; padding: 8px; border-radius: 12px; box-shadow: var(--shadow-small); min-height: 0;">
+        <% if tile[:label].present? %>
+          <div style="align-self: center; margin-bottom: 6px; padding: 2px 22px; border-radius: 999px;
+               font-family: var(--font-head); font-weight: 600; font-size: <%= @columns == 3 ? 21 : 26 %>px;
+               background: var(--<%= index.even? ? "pink-soft" : "green-soft" %>); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 92%;">
+            <%= tile[:label] %>
+          </div>
+        <% end %>
+        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;">
+          <img src="<%= tile[:data_uri] %>" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @overflow_note %>
+    <div class="abs" style="left: 370px; top: 756px; width: 800px; text-align: right; font-weight: 800; font-size: 18px; color: var(--ink-soft); z-index: 2;">
+      <%= @overflow_note %>
+    </div>
+  <% end %>
+
+  <%= render "api/board_printables/styled/badges",
+        badges: @badges, style: "left: 370px; top: 800px; width: 800px; justify-content: center;", height_px: 54, font_px: 21 %>
+
+  <div class="hand abs" style="left: 34px; top: 770px; width: 310px; font-size: 30px; transform: rotate(-6deg);">
+    <%= @footer_accent %>
+  </div>
+</div>

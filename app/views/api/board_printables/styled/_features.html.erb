@@ -1,0 +1,15 @@
+<%# The icon-circle feature list. Circles alternate pink and green down the
+    column. `icon_px`, `title_px`, `sub_px` and `gap_px` size it per slide. %>
+<div class="features abs" style="<%= style %> gap: <%= gap_px %>px;">
+  <% features.each_with_index do |feature, index| %>
+    <div class="feature">
+      <div class="icon-circle <%= index.even? ? "pink" : "green" %>" style="width: <%= icon_px %>px; height: <%= icon_px %>px;">
+        <%= render "api/board_printables/styled/icon", name: feature[:icon] %>
+      </div>
+      <div>
+        <div class="title" style="font-size: <%= title_px %>px;"><%= feature[:title] %></div>
+        <div class="sub" style="font-size: <%= sub_px %>px;"><%= feature[:sub] %></div>
+      </div>
+    </div>
+  <% end %>
+</div>

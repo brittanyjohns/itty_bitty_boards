@@ -1881,6 +1881,15 @@ an explicit decision, not a drive-by edit.
   `purge_stale_pdfs!` on every "Regenerate", which is handed only the keys of
   the PDFs that run just wrote. A new kind gets its own reader and stays out of
   `KIND_DOWNLOADABLE`; never widen the partition by negation.
+- **Listing-image product art is RENDERED, never generated, and slide facts
+  come only from `Printables::GalleryFacts`.** Image models redraw AAC symbols,
+  invent QR codes and URLs, and print whatever counts they are prompted with,
+  so board pages on any gallery slide are real `RenderPageThumbnails` renders
+  and no board artwork is sent to an image model. A board, word or file count,
+  or a low-ink claim, typed into a template is true for one product only. The
+  styled slides sit beside `LISTING_IMAGE_ORDER` (`STYLED_IMAGE_VARIANTS`), and
+  the legacy purge keys on `KNOWN_IMAGE_VARIANTS` so it can't delete them.
+  Details: `.claude-notes/board-printables-etsy.md` ("Styled slides").
 - **A communicator's DASHBOARD placement is the frontend's, not the backend's.**
   `child_accounts.layout` is a blob the client authors and `PATCH
   /api/child_accounts/:id` stores verbatim; assigning a board writes the
