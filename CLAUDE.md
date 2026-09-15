@@ -1092,6 +1092,13 @@ an explicit decision, not a drive-by edit.
   reached Etsy is never deletable from the admin. Every per-listing asset is an
   ALLOWLIST over the printable's shared set (empty = all), never an exclusion —
   the same rule `pdf_files` holds.
+  **`gallery_items` is an ORDERED allowlist of refs, and empty means the legacy
+  gallery.** `Printables::GalleryItemRef` accepts only `legacy:`/`styled:` plus a
+  known variant (`composition:` is reserved and refused), at most ten, no
+  duplicates — refused, never trimmed. A never-curated row must keep behaving
+  exactly as before, which is why nothing was backfilled. A curated publish
+  renders what its refs need (`Printables::EnsureGalleryRendered`) and is
+  refused before anything reaches Etsy unless every ref resolves.
 - **Downgrades retain, never delete.** Over-limit boards become read-only;
   over-limit communicators enter fallback mode (public MySpeak page stays
   up). No plan change destroys user content.

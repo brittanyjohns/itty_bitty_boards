@@ -157,9 +157,12 @@ module Etsy
       true
     end
 
-    def upload_image(listing_id, bytes:, filename:, rank: 1)
+    # `content_type` is the blob's own: every slide rendered today is a PNG, but
+    # a curated gallery can hold other image kinds (scene compositions render
+    # JPEG), and declaring the wrong type on the multipart part is a silent lie.
+    def upload_image(listing_id, bytes:, filename:, rank: 1, content_type: "image/png")
       body = {
-        "image" => multipart_part(bytes, "image/png", normalize_filename(filename)),
+        "image" => multipart_part(bytes, content_type.presence || "image/png", normalize_filename(filename)),
         "rank" => rank.to_s,
       }
       request(:post, "/shops/#{shop_id}/listings/#{listing_id}/images", body: body)

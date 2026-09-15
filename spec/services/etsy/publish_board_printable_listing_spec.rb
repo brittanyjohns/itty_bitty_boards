@@ -209,6 +209,82 @@ RSpec.describe Etsy::PublishBoardPrintableListing do
 
   end
 
+  describe "a curated gallery" do
+    def attach_current_styled!(variant = BoardPrintable::IMAGE_STYLED_HERO)
+      printable.attach_image!(
+        bytes: "styled", variant: variant,
+        metadata: { spec_version: BoardPrintable::STYLED_SPEC_VERSION, facts_digest: printable.styled_facts_digest },
+      )
+    end
+
+    it "uploads the curated refs in their own order, with each blob's content type" do
+      BoardPrintable::LISTING_IMAGE_ORDER.each { |v| printable.attach_image!(bytes: "png", variant: v) }
+      attach_current_styled!
+      listing.update!(gallery_items: %w[styled:styled_hero legacy:about legacy:on_paper])
+      uploads = []
+      allow(client).to receive(:upload_image) { |_id, opts| uploads << opts }
+
+      expect(publish.ok?).to be true
+
+      expect(uploads.map { |o| o[:rank] }).to eq([1, 2, 3])
+      expect(uploads.map { |o| o[:filename] }).to match([
+        a_string_starting_with("styled-hero-"), a_string_starting_with("about-"), a_string_starting_with("on-paper-"),
+      ])
+      expect(uploads.map { |o| o[:content_type] }).to all(eq("image/png"))
+      expect(Boards::Printables::RenderListingImages).not_to have_received(:new)
+    end
+
+    it "renders what the gallery is missing before creating the listing" do
+      events = []
+      allow(Boards::Printables::RenderStyledSlides).to receive(:new) do |printable:, variants:|
+        instance_double(Boards::Printables::RenderStyledSlides).tap do |renderer|
+          allow(renderer).to receive(:call) do
+            events << [:render, variants]
+            attach_current_styled!
+          end
+        end
+      end
+      allow(client).to receive(:create_listing) do
+        events << [:create]
+        { listing_id: 987, url: "https://etsy.test/987" }
+      end
+      listing.update!(gallery_items: %w[styled:styled_hero])
+
+      expect(publish.ok?).to be true
+      expect(events).to eq([[:render, [BoardPrintable::IMAGE_STYLED_HERO]], [:create]])
+      expect(client).to have_received(:upload_image).once
+    end
+
+    # Etsy won't let a photo-less draft go live, and nothing may reach Etsy
+    # before this is known.
+    it "fails before touching Etsy when the curated gallery resolves to no images" do
+      allow(Boards::Printables::RenderStyledSlides).to receive(:new)
+        .and_return(instance_double(Boards::Printables::RenderStyledSlides, call: []))
+      listing.update!(gallery_items: %w[styled:styled_hero])
+
+      result = publish
+
+      expect(result.ok?).to be false
+      expect(result.error).to match(/curated gallery has no rendered images/)
+      expect(client).not_to have_received(:assert_known_taxonomy!)
+      expect(client).not_to have_received(:create_listing)
+      expect(listing.reload).to have_attributes(state: "failed", etsy_listing_id: nil)
+    end
+
+    # Five of the six photos an admin picked would change the listing silently.
+    it "fails before touching Etsy when only part of the gallery renders" do
+      printable.attach_image!(bytes: "png", variant: "about")
+      allow(Boards::Printables::RenderStyledSlides).to receive(:new)
+        .and_return(instance_double(Boards::Printables::RenderStyledSlides, call: []))
+      listing.update!(gallery_items: %w[legacy:about styled:styled_hero])
+
+      result = publish
+
+      expect(result.error).to include("styled:styled_hero")
+      expect(client).not_to have_received(:create_listing)
+    end
+  end
+
   describe "guards" do
     it "refuses a printable that hasn't finished generating" do
       printable.update_columns(status: "generating")

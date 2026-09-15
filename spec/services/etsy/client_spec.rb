@@ -179,6 +179,35 @@ RSpec.describe Etsy::Client do
     end
   end
 
+  describe "#upload_image" do
+    before do
+      stub_token_exchange
+      stub_request(:post, "#{api}/shops/42/listings/987/images").to_return(status: 201, body: "{}")
+    end
+
+    def image_request_with(&block) = a_request(:post, "#{api}/shops/42/listings/987/images").with(&block)
+
+    it "declares image/png on the multipart part by default" do
+      client.upload_image(987, bytes: "png-bytes", filename: "hero.png", rank: 2)
+
+      expect(image_request_with { |req|
+        req.headers["Content-Type"].to_s.start_with?("multipart/form-data") &&
+          req.body.include?('name="image"') &&
+          req.body.include?("Content-Type: image/png") &&
+          req.body.include?('name="rank"')
+      }).to have_been_made
+    end
+
+    # A curated gallery can hold images that aren't PNGs.
+    it "declares the content type it is given" do
+      client.upload_image(987, bytes: "jpeg-bytes", filename: "scene.jpg", content_type: "image/jpeg")
+
+      expect(image_request_with { |req|
+        req.body.include?("Content-Type: image/jpeg") && !req.body.include?("image/png")
+      }).to have_been_made
+    end
+  end
+
   describe "#upload_video" do
     before { stub_token_exchange }
 

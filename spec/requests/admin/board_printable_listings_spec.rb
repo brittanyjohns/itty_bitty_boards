@@ -193,6 +193,17 @@ RSpec.describe "Admin::BoardPrintableListings (dashboard)", type: :request do
       expect(replacement.etsy_listing_id).to be_nil
     end
 
+    # `replace` copies fields by name; a missed one is silently lost from the
+    # replacement draft.
+    it "carries the curated gallery to the replacement" do
+      sign_in admin
+      attached.update!(gallery_items: %w[styled:styled_hero legacy:on_paper])
+
+      post replace_admin_dashboard_board_printable_listing_path(printable, attached)
+
+      expect(printable.etsy_listings.reload.last.gallery_items).to eq(%w[styled:styled_hero legacy:on_paper])
+    end
+
     it "touches Etsy not at all" do
       sign_in admin
       expect(Etsy::Client).not_to receive(:new)
@@ -339,6 +350,103 @@ RSpec.describe "Admin::BoardPrintableListings (dashboard)", type: :request do
 
       expect(listing.reload.image_variants).to eq([])
       expect(flash[:alert]).to include("glossy")
+    end
+
+    describe "the gallery composer" do
+      def patch_gallery(items)
+        patch admin_dashboard_board_printable_listing_path(printable, listing),
+              params: { gallery_only: 1, board_printable_listing: { gallery_items: items } }
+      end
+
+      it "saves the ordering exactly as posted" do
+        sign_in admin
+
+        patch_gallery(%w[legacy:about styled:styled_hero legacy:on_paper])
+
+        expect(listing.reload.gallery_items).to eq(%w[legacy:about styled:styled_hero legacy:on_paper])
+        expect(flash[:notice]).to eq("Gallery saved.")
+      end
+
+      # Every composer button posts only the gallery. Treating it as the full
+      # overrides form would blank the title, label and allowlists.
+      it "touches nothing but the gallery" do
+        sign_in admin
+        listing.update!(label: "holiday", listing_copy: { "title" => "Bundle" },
+                        image_variants: [BoardPrintable::IMAGE_HERO], pdf_variants: [BoardPrintable::VARIANT_COLOR])
+
+        patch_gallery(%w[legacy:about])
+
+        expect(listing.reload).to have_attributes(
+          label: "holiday", image_variants: [BoardPrintable::IMAGE_HERO], pdf_variants: [BoardPrintable::VARIANT_COLOR],
+        )
+        expect(listing.listing_copy["title"]).to eq("Bundle")
+      end
+
+      it "clears the curation" do
+        sign_in admin
+        listing.update!(gallery_items: %w[legacy:about])
+
+        patch_gallery([""])
+
+        expect(listing.reload.gallery_items).to eq([])
+      end
+
+      it "refuses a composition ref and keeps the saved gallery" do
+        sign_in admin
+        listing.update!(gallery_items: %w[legacy:about])
+
+        patch_gallery(%w[legacy:about composition:4])
+
+        expect(listing.reload.gallery_items).to eq(%w[legacy:about])
+        expect(flash[:alert]).to match(/can't be used yet/)
+      end
+
+      # The overrides form never sends gallery_items, so saving copy must not
+      # clear a curated gallery.
+      it "leaves the gallery alone when the overrides form is saved" do
+        sign_in admin
+        listing.update!(gallery_items: %w[legacy:about])
+
+        patch admin_dashboard_board_printable_listing_path(printable, listing),
+              params: { board_printable_listing: { title: "New title" } }
+
+        expect(listing.reload.gallery_items).to eq(%w[legacy:about])
+        expect(listing.listing_copy["title"]).to eq("New title")
+      end
+    end
+  end
+
+  describe "GET the printable page with a curated listing" do
+    it "renders the composer in order, with the 4:3 crop note beside styled items" do
+      sign_in admin
+      printable.attach_image!(bytes: "png", variant: "on_paper")
+      listing.update!(gallery_items: %w[styled:styled_hero legacy:on_paper], image_variants: [BoardPrintable::IMAGE_HERO])
+
+      get admin_dashboard_board_printable_path(printable)
+
+      expect(response).to have_http_status(:ok)
+      body = response.body
+      expect(body).to include("curated, 2 of 10")
+      # The selection list renders before the catalogue, so the first hit of
+      # each label is its position in the curated order.
+      expect(body.index("Hero (styled)")).to be < body.index("On paper (legacy)")
+      expect(body).to include("4:3 — confirm crop on a test draft before relying on it")
+      expect(body).to include("Use suggested order", "Clear curation")
+      # The checkbox allowlist is hidden once curated, but its selection is
+      # carried so saving the copy doesn't wipe it.
+      expect(body).to include("Set by this listing's curated gallery below.")
+      expect(body).to include('type="hidden" name="board_printable_listing[image_variants][]" value="hero"')
+    end
+
+    it "renders an uncurated listing with the legacy checkboxes and a way to start curating" do
+      sign_in admin
+      listing
+
+      get admin_dashboard_board_printable_path(printable)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("not curated (legacy slides)", "Start from current slides")
+      expect(response.body).to include('type="checkbox" name="board_printable_listing[image_variants][]"')
     end
   end
 end
