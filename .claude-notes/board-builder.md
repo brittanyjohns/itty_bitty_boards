@@ -207,9 +207,13 @@ Label-only picker catalog. No `Image` resolution.
 - **422 `board_limit_reached`** — *(superseded by #796; this paragraph used to
   say a built tree counts as ONE board and that a Free user with limit 1 could
   build one tree. Neither is true now.)* Every board in a set counts, and the
-  gate reserves `Boards::BuilderSetSize.worst_case(build_key)` slots up front.
-  Free's limit is 5: it fits Quick Start (`level: "home"`, 5) on an account with
-  no boards yet, and never a Starter/Standard/Extended level (23/27/35). See
+  gate reserves `Boards::BuilderSetSize.for_request(build_key, interests:,
+  explicit_categories:)` slots up front: root + the cloned seed pages + the
+  NON-seed pages the planner adds for those interests + My Favorites when any
+  interest was sent. The Phrases layer is not reserved (GLP is admin-only and
+  admins are cap-exempt). Free's limit is 5: it fits Quick Start
+  (`level: "home"`, 5) on an account with no boards yet, and never a
+  Starter/Standard/Extended level (9/9/12 with no interests). See
   `.claude-notes/board-limit-consolidation-handoff.md`.
 
 **Counting now lives in a builder `BoardGroup` (#407).** New builds write a real
@@ -1041,8 +1045,11 @@ Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
   grid_columns, board_cost }`, smallest first: `home` "Quick Start" (a
   `StarterBlueprints` tree, not a `StructurePlanner` level), then
   starter/standard/extended). `board_cost` is
-  `Boards::BuilderSetSize.worst_case(key)` — the exact reservation the create
-  gate makes (5 / 23 / 27 / 35) — so a client pre-check can't disagree with it.
+  `Boards::BuilderSetSize.base_cost(key)` — the size with no interests
+  (5 / 9 / 9 / 12). The create gate sizes the actual request, which interests
+  can only grow, so a client pre-check against it never refuses a build the
+  server would allow; an interest-heavy build that overflows gets the server's
+  422 with the exact `required`.
   A `level` that is a `StarterBlueprints.tree_for` hit is accepted on create and
   takes `BuildBoardSetJob#build_legacy`.
   Also returns `recommended_level` (profile-based — never Quick Start, and
@@ -1092,9 +1099,11 @@ Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
     - `BuildBoardSetJob` receives a **nil** `communicator_id`; it fails the root
       only when an id is **present and unresolvable** (a real dangling ref).
   - **Board-limit gated, and every board in the set counts (#796).** `create`
-    reserves `Boards::BuilderSetSize.worst_case(build_key)` slots up front and
-    returns **422 `board_limit_reached`** when the whole set won't fit
-    (Quick Start 5; starter/standard/extended 23/27/35). `builder_child` still
+    reserves `Boards::BuilderSetSize.for_request(build_key, interests:,
+    explicit_categories:)` slots up front and returns **422
+    `board_limit_reached`** when the whole set won't fit (Quick Start 5;
+    starter/standard/extended 9/9/12 with no interests, plus one per non-seed
+    page the planner adds and one for My Favorites). `builder_child` still
     marks sub-boards but no longer excludes them from
     `User#countable_board_count`, so a built set over the limit is subject to
     the ordinary read-only lock (`editable_slot_count` boards stay editable).

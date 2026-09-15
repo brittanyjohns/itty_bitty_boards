@@ -23,6 +23,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Board Builder no longer reserves far more boards than a set uses.** A build
+  used to reserve every page its level could ever add plus the admin-only
+  Phrases layer, so an Extended set that makes 12 boards needed 35 free and was
+  refused to a user with 34. The reservation is now sized from the request —
+  the root, the core set's pages, the extra pages your interests add, and My
+  Favorites when you list interests. The picker's `board_cost` is now the size
+  with no interests (Starter 9, Standard 9, Extended 12; Quick Start stays 5).
 - **Mission Control no longer counts comped accounts as App Store revenue.**
   The App Store subscriber count and estimated MRR now include only accounts
   RevenueCat stamped (`settings["billing_provider"] = "revenuecat"`), not every
