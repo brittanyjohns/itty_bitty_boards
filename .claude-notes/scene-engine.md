@@ -267,3 +267,133 @@ single-slot template per `TabletScene`/`PaperScene` constant from its JPG
 the task refuses a JPG whose size disagrees with the constant. It is
 **idempotent** and leaves existing templates alone, since an admin may have
 recalibrated one. `FORCE=1` re-syncs name and slots, and never re-uploads the image.
+
+## AI scenes and magenta detection (#956)
+
+A template can be built from a **magenta-marked scene**: a photo where every
+surface art goes on is painted flat `#FF00FF`. Two ways in, one pipeline
+(`Scenes::BuildFromMarkedImage`), so they can't detect differently:
+
+| | "Upload magenta-marked PNG" | "Generate scene with AI" |
+|---|---|---|
+| action | `POST upload_marked` | `POST generate` (form confirms: paid) |
+| job | `DetectSceneSlotsJob` (retry 0) | `GenerateSceneTemplateJob` (retry 0) |
+| OpenAI | **none** | `images.generate` + `images.edit` |
+| `source` | `canva` | `ai` |
+| base image | the upload, magenta left in | magenta inpainted out (falls back to left in) |
+
+Both create the template first (`status: draft`, `generation.state: queued`,
+no base image yet; `base_image_present` allows that while `generation` is
+tracked and the template isn't calibrated) and redirect to
+`GET generation`, a status page that refreshes itself (`auto-refresh`) and
+redirects to the calibrator once the build completes. The marked scene is kept
+as `source_image`; it is never rendered into a composition.
+
+`scene_templates.generation` (jsonb) holds `state`
+(`queued`/`running`/`complete`/`failed`), `kind` (`ai`/`upload`), the AI
+`request` (description, slot hints, orientation), `detected_slots`,
+`inpainted`, `notes`, `error`, and the image model/size/quality used. Human-
+readable notes are also appended to `notes`.
+
+### The rule, restated for this path
+
+**Only text goes to the image model.** `Scenes::GenerateTemplate` accepts a
+template whose `generation.request` holds an admin's description and slot
+hints; it takes no board, printable or image. The one image OpenAI ever
+receives is in `BlankBaseInpainter`'s edit call, and that is the scene the
+model itself just drew. **An upload never reaches the inpainter** (`inpaint:
+false`): a marked PNG could carry product art, so its magenta stays in the base.
+
+### Prompt (`Scenes::GenerateTemplate.build_prompt`)
+
+A photoreal, warmly lit home or classroom scene, the description (run
+through `Images::PromptBuilder.sanitize_user_text`, capped at 600 characters),
+the slot hints (400), and `MAGENTA_RULES`: every placeholder painted flat,
+uniform, pure `#FF00FF`, evenly lit, matte, with no texture, gradient,
+shadow or reflections; fully inside the frame; not touching another
+placeholder; nothing else magenta, pink or purple. Plus `NO_TEXT_RULE`. Size by
+orientation through `OpenAiClient#create_image`'s new `size:` option
+(allowlist `1024x1024`/`1536x1024`/`1024x1536`, `ArgumentError` for anything
+else before any call; callers that send no size keep `1024x1024`).
+`output_format: "png"`.
+
+### Detection (`Scenes::MagentaMask`, `Scenes::SlotDetector`)
+
+- **Mask score** (0..1): a quick reject (magenta needs red AND blue above
+  green), then a hue window (full within 285-315°, zero by ±40°) times a
+  saturation ramp (0 at 0.2, 1 at 0.7). Brightness is ignored, so a sheet in
+  shadow still counts; an antialiased edge scores partially. `THRESHOLD` 0.5.
+- **Components**: scanline union-find, 4-connected, on a stride-2 grid. Any
+  component under 0.5% of the image area is dropped.
+- **Boundary**: at full resolution inside each component's box, the leftmost
+  and rightmost magenta pixel edge per row (pixel-edge coordinates: pixels
+  40..159 span 40..160).
+- **Convex hull** (monotone chain), which fills the notch an occluder leaves.
+- **Reduce to 4 vertices** by collapsing the edge that adds the least area
+  (its neighbours extended to meet). Vertex deletion is the fallback. Deleting
+  the smallest-triangle vertex was tried first and rounds real corners off:
+  the pixel staircase leaves a chamfer, and a true corner flanked by close
+  hull points has the smallest triangle (4px off on a skewed quad).
+- **Order**: TL, TR, BR, BL, clockwise, starting from the edge with the
+  highest midpoint.
+- **Slot hash**: `slotN` in reading order, `bleed_px: 3`. `kind` is `tag` for
+  the device_tag category, `tablet` when the aspect is > 1.1, else `paper`.
+  `orientation` comes from the aspect (with an `any` band 0.95-1.05, so it
+  always agrees with the model's validation).
+
+If the model's slot validation still refuses the detected slots, the images
+save and the slots go to `generation.unsaved_slots`. `calibrator_slots` opens
+the calibrator with them.
+
+### Front layer (`Scenes::FrontLayerExtractor`)
+
+A transparent PNG the size of the scene, covering each slot's quad pushed out
+by `bleed_px + OVERLAP_PX (2)`. Inside that: score ≤ 0.02 → the scene pixel,
+opaque (occluders, and the scene beside an edge); score ≥ 0.98 → transparent;
+in between → alpha `1 - score`, colour **despilled** (the amount red and blue
+both exceed green comes off both, with the lost luminance added back evenly).
+The art ends up clipped to exactly where the magenta was, with occluders on
+top. The overlap exists because Chrome antialiases the warped art's edge while
+the layer's edge is per pixel: without it, a hairline of the art's white rim
+showed through a magnet and along a card's edge in a dev render.
+
+### Inpainting (`Scenes::BlankBaseInpainter`)
+
+- **Mask**: the magenta pixels (within the detected regions, grown by 4px),
+  dilated 4px with a separable square max filter.
+- **The call**: one `images.edit` (`SCENE_INPAINT_MODEL`, default
+  `ImageEditService::MODEL`) with the scene and a PNG mask that is transparent
+  over the dilated magenta. `size` is the scene's own size when it's in the
+  allowlist, else `auto`; a result at a different size is resampled.
+- **Copy-back**: edited pixels are copied back **only inside the mask**. gpt-image
+  edits drift the whole frame, and everything else must stay byte-identical to
+  the scene the slots and front layer were measured on.
+- **Fails soft**: disabled (`SCENE_INPAINT_ENABLED=false`), on staging, with an
+  empty mask, or on any error, the base keeps its magenta and a note says so.
+
+### Staging
+
+`OpenAiClient#create_image` returns the placeholder JPEG without a call and
+the inpainter skips on `AppEnv.staging?`. The placeholder has no magenta, so
+the template ends `failed` with `BuildFromMarkedImage::NO_SLOTS_ERROR` plus
+`GenerateTemplate::STAGING_NOTE` pointing at the upload path, instead of
+raising. The upload path works on staging as it does everywhere.
+
+### Cost and knobs
+
+Each AI template costs one generation and (unless inpainting is off or skipped)
+one edit, both at `SCENE_IMAGE_QUALITY` (default `high`). Check OpenAI's current
+pricing for the configured models. `retry: 0` plus
+`SceneTemplate#claim_generation!` (queued → running under a row lock) mean a
+failure or a duplicate enqueue never pays twice. Env: `SCENE_IMAGE_MODEL`
+(default `OpenAiClient::IMAGE_MODEL`), `SCENE_IMAGE_QUALITY`,
+`SCENE_INPAINT_MODEL`, `SCENE_INPAINT_ENABLED`, and `SCENE_OPENAI_TIMEOUT`
+(240s; edits of a large scene are slow).
+
+### Known risks
+
+- **Touching or overlapping placeholders merge into one component**, so one slot is fitted. The prompt forbids it; the admin splits it in the calibrator.
+- **Glossy or reflective placeholders** desaturate. Highlights score partially and show as a faint haze in the front layer, or cut a hole in the component.
+- **Magenta-ish props** (a purple shirt) become slots if they are big enough, or partial alpha if they overlap a slot.
+- **Model-invented text** can still appear despite `NO_TEXT_RULE`.
+- **Pure Ruby over every pixel** takes about 2s for a 1536x1024 upload locally, and it's why detection runs in a job.

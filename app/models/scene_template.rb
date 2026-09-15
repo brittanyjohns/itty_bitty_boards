@@ -62,8 +62,24 @@ class SceneTemplate < ApplicationRecord
   OVERLAY_PARTIALS = %w[feature_list badges steps_row check_pills].freeze
   MAX_OVERLAY_REGIONS = 4
 
+  # An async build — an AI generation, or a magenta-marked upload going through
+  # slot detection — lives in `generation` (jsonb): its state, what was asked
+  # for, and what detection found. The template exists before its base image
+  # does, so the admin page has something to poll.
+  GENERATION_QUEUED = "queued".freeze
+  GENERATION_RUNNING = "running".freeze
+  GENERATION_COMPLETE = "complete".freeze
+  GENERATION_FAILED = "failed".freeze
+  GENERATION_STATES = [GENERATION_QUEUED, GENERATION_RUNNING, GENERATION_COMPLETE, GENERATION_FAILED].freeze
+  GENERATION_KIND_AI = "ai".freeze
+  GENERATION_KIND_UPLOAD = "upload".freeze
+
   has_one_attached :base_image
   has_one_attached :front_layer
+  # The magenta-marked scene a generated or uploaded template was built from:
+  # kept so detection can be re-run, and so the admin can see what the model
+  # actually drew. Never rendered into a composition.
+  has_one_attached :source_image
 
   # restrict, never cascade: a composition's render is a picture of THIS
   # template. Retiring a template in use is `archive!`, which keeps it
@@ -117,6 +133,49 @@ class SceneTemplate < ApplicationRecord
   end
 
   def in_use? = scene_compositions.exists?
+
+  def generation_state = generation.to_h["state"]
+  def generation_kind = generation.to_h["kind"]
+  def generation_tracked? = generation_state.present?
+  def generation_pending? = [GENERATION_QUEUED, GENERATION_RUNNING].include?(generation_state)
+
+  # What the calibrator opens with: the saved slots, or — when the model's slot
+  # validation refused what detection found — the detected ones, unsaved.
+  def calibrator_slots
+    Array(slots).presence || Array(generation.to_h["unsaved_slots"])
+  end
+
+  # queued → running under a row lock. => true for exactly one caller, so a
+  # duplicate enqueue of a paid generation can't pay twice.
+  def claim_generation!
+    claimed = false
+    with_lock do
+      if generation_state == GENERATION_QUEUED
+        update_columns(generation: generation.to_h.merge("state" => GENERATION_RUNNING,
+                                                         "started_at" => Time.current.iso8601))
+        claimed = true
+      end
+    end
+    claimed
+  end
+
+  def fail_generation!(message)
+    return unless persisted?
+
+    update_columns(
+      generation: generation.to_h.merge("state" => GENERATION_FAILED, "error" => message,
+                                        "finished_at" => Time.current.iso8601),
+      updated_at: Time.current,
+    )
+  end
+
+  # Never from inside the transaction that wrote the row (CLAUDE.md): the
+  # worker would read before the commit.
+  def enqueue_generation!
+    job = generation_kind == GENERATION_KIND_AI ? GenerateSceneTemplateJob : DetectSceneSlotsJob
+    template_id = id
+    ActiveRecord.after_all_transactions_commit { job.perform_async(template_id) }
+  end
 
   def archive!
     update!(status: STATUS_ARCHIVED)
@@ -268,8 +327,14 @@ class SceneTemplate < ApplicationRecord
     @layers_changed = false
   end
 
+  # A template being built asynchronously has no base image yet (or none, if
+  # its build failed before one existed). It can't be calibrated, and
+  # compositions only use calibrated templates, so nothing renders from it.
   def base_image_present
-    errors.add(:base_image, "must be uploaded") unless base_image.attached?
+    return if base_image.attached?
+    return if generation_tracked? && !calibrated?
+
+    errors.add(:base_image, "must be uploaded")
   end
 
   def calibrated_needs_slots

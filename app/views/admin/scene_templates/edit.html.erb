@@ -11,6 +11,13 @@
   <%= link_to "← All templates", admin_dashboard_scene_templates_path, class: "text-xs text-t2 hover:text-t1" %>
 </div>
 
+<% if @template.generation_tracked? %>
+  <p class="text-xs text-t2 mb-3">
+    Built from a magenta-marked scene (<%= @template.generation_state %>).
+    <%= link_to "Build status", generation_admin_dashboard_scene_template_path(@template), class: "text-accent hover:underline" %>
+  </p>
+<% end %>
+
 <%= render "form" %>
 
 <div class="admin-card border rounded-xl p-5 mt-6 flex flex-wrap items-center gap-3">

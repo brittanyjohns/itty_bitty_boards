@@ -7,6 +7,9 @@ class OpenAiClient
   IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "gpt-image-1-mini")
   TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
   DEFAULT_IMAGE_SIZE = "1024x1024".freeze
+  # The sizes gpt-image models generate. An allowlist, checked before any call,
+  # so a typo fails loudly for free instead of as a 400 from a paid endpoint.
+  IMAGE_SIZES = %w[1024x1024 1536x1024 1024x1536].freeze
   DEFAULT_IMAGE_OUTPUT_FORMAT = "webp".freeze
   # Tiles render at 288px (ApplicationRecord::TILE_VARIANT_TRANSFORMATIONS) and
   # are re-encoded to webp q65, so "high" buys nothing visible and costs real
@@ -76,6 +79,7 @@ class OpenAiClient
   end
 
   def create_image
+    size = image_size
     return placeholder_image_response if AppEnv.staging?
 
     client = openai_client
@@ -85,7 +89,7 @@ class OpenAiClient
     params = {
       model: @opts[:model] || IMAGE_MODEL,
       prompt: @prompt,
-      size: DEFAULT_IMAGE_SIZE,
+      size: size,
       output_format: output_format,
       quality: @opts[:quality].presence || DEFAULT_IMAGE_QUALITY,
     }
@@ -124,6 +128,16 @@ class OpenAiClient
     Rails.logger.error("OpenAiClient#create_image failed: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(10).join("\n")) if e.backtrace
     raise
+  end
+
+  # `size:` is opt-in; every tile caller sends none and keeps DEFAULT_IMAGE_SIZE.
+  def image_size
+    return DEFAULT_IMAGE_SIZE if @opts[:size].blank?
+
+    size = @opts[:size].to_s
+    return size if IMAGE_SIZES.include?(size)
+
+    raise ArgumentError, "image size #{size.inspect} is not one of #{IMAGE_SIZES.join(", ")}"
   end
 
   # Not every image model accepts `background` — gpt-image-2, for one, rejects
@@ -779,7 +793,7 @@ class OpenAiClient
       output_format: "jpeg",
       content_type: "image/jpeg",
       model: "staging-placeholder",
-      size: DEFAULT_IMAGE_SIZE,
+      size: image_size,
       quality: nil,
       background: nil,
       raw_response: nil,

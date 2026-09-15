@@ -24,6 +24,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   one design per slot, and renders a JPEG you can preview and download. An
   artwork a mockup uses can't be removed until that slot changes. Nothing is
   sent to Etsy yet.
+- **Build scene templates from magenta-marked scenes (admin).** The new-template
+  page has two more ways in. "Upload magenta-marked PNG": paint each surface
+  the art goes on flat #FF00FF (in Canva, for example) and the slots are
+  detected, anything sitting over a surface (a clip, a magnet) becomes the
+  front layer, and the calibrator opens with the corners already in place. No
+  OpenAI call, so it works on staging. "Generate scene with AI" (a paid call,
+  confirmed first): describe a scene and the image model draws it with magenta
+  placeholders, which are detected the same way and then painted out of the
+  base image. Only the description is sent to the model; board artwork never
+  is.
 - **Scene mockup library (admin).** `/admin/scene_templates` holds blank
   scene photos from Canva, each with an optional transparent front layer
   (rings, clips, a hand) and any number of placeholder slots. A calibrator
