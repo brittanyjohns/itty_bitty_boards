@@ -91,8 +91,8 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
     end
 
     # Quick Start is the smallest option and the only one a Free account can
-    # hold, so it leads the list; every option carries the number of board
-    # slots the create gate will reserve, from the same source as the gate.
+    # hold, so it leads the list; every option carries the board slots that
+    # level takes with no interests — a floor the create gate can only raise.
     it "lists Quick Start first and gives every level a board_cost from BuilderSetSize" do
       get "/api/v1/board_builder/templates", headers: headers
 
@@ -103,11 +103,11 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       expect(levels.first["grid_columns"]).to eq(4)
 
       levels.each do |level|
-        expect(level["board_cost"]).to eq(Boards::BuilderSetSize.worst_case(level["key"])),
+        expect(level["board_cost"]).to eq(Boards::BuilderSetSize.base_cost(level["key"])),
                                        "#{level["key"]} board_cost"
       end
       expect(levels.to_h { |l| [l["key"], l["board_cost"]] })
-        .to eq("home" => 5, "starter" => 23, "standard" => 27, "extended" => 35)
+        .to eq("home" => 5, "starter" => 9, "standard" => 9, "extended" => 12)
     end
 
     it "still recommends by communicator profile, never Quick Start by plan" do
@@ -696,10 +696,39 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
     # Issue #796: one cap, and it is boards. A build has to fit ENTIRELY, since
     # the job has no coherent way to stop halfway — so the gate reserves
-    # Boards::BuilderSetSize.worst_case(level) slots up front.
+    # Boards::BuilderSetSize.for_request(level, interests) slots up front.
     context "board-limit gate (the whole set has to fit)" do
       let(:legacy_required) { Boards::BuilderSetSize.legacy_worst_case }
-      let(:home_required) { Boards::BuilderSetSize.worst_case("home") }
+      let(:home_required) { Boards::BuilderSetSize.base_cost("home") }
+
+      # 66 of 100 boards used leaves 34. An Extended set with no interests is the
+      # root plus the Core 84 seed pages — reserving every page the level could
+      # ever add (and a Phrases layer this user can't turn on) is what refused it.
+      it "fits an Extended build into 34 free boards" do
+        user.update!(settings: (user.settings || {}).merge("board_limit" => 34))
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, level: "extended",
+                       include_phrases: false }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "sizes the reservation from the request, so interests that add pages raise it" do
+        base = Boards::BuilderSetSize.base_cost("extended")
+        user.update!(settings: (user.settings || {}).merge("board_limit" => base))
+        interests = [{ word: "rocket", category: "Vehicles" }, { word: "tractor", category: "Vehicles" }]
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, level: "extended",
+                       interests: interests }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:unprocessable_content)
+        # The Vehicles page plus My Favorites.
+        expect(JSON.parse(response.body)["required"]).to eq(base + 2)
+      end
 
       it "returns 422, builds nothing, and enqueues no job when there isn't room for the set" do
         # A limit of 1 can't hold even the 5-slot Quick Start set — the gate is
@@ -740,14 +769,14 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
       it "is level-sensitive — a starter set fits where an extended one doesn't" do
         user.update!(settings: (user.settings || {})
-          .merge("board_limit" => Boards::BuilderSetSize.worst_case("starter")))
+          .merge("board_limit" => Boards::BuilderSetSize.base_cost("starter")))
 
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, level: "extended" }.to_json,
              headers: headers
         expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["required"])
-          .to eq(Boards::BuilderSetSize.worst_case("extended"))
+          .to eq(Boards::BuilderSetSize.for_request("extended"))
 
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, level: "starter" }.to_json,
@@ -890,14 +919,14 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(body["remaining"]).to eq(4)
       end
 
-      it "refuses a Free user with 0 boards a Starter set, quoting 23" do
+      it "refuses a Free user with 0 boards a Starter set, quoting 9" do
         expect { build_as(free, level: "starter") }.not_to change { Board.count }
 
         expect(response).to have_http_status(:unprocessable_content)
         body = JSON.parse(response.body)
         expect(body["error_code"]).to eq("board_limit_reached")
-        expect(body["required"]).to eq(23)
-        expect(body["message"]).to include("needs room for 23 boards")
+        expect(body["required"]).to eq(9)
+        expect(body["message"]).to include("needs room for 9 boards")
       end
 
       it "lets a Basic user build it" do

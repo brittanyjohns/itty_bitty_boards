@@ -111,7 +111,7 @@ RSpec.describe "board-limit 422 contract", type: :request do
 
     it "reserves room for the WHOLE set, not one board" do
       make_request
-      expect(body["required"]).to eq(Boards::BuilderSetSize.worst_case("home"))
+      expect(body["required"]).to eq(Boards::BuilderSetSize.for_request("home"))
     end
   end
 

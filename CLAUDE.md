@@ -312,14 +312,19 @@ an explicit decision, not a drive-by edit.
   dashboard reported the other, and neither matched `can_create_boards`. Two
   caps for one resource, since a Board Set cannot exist without boards. Board
   Sets are now uncapped and `board_group_limit` is gone. Two corollaries. A
-  builder run has to fit ENTIRELY (`Boards::BuilderSetSize.worst_case(level)`,
+  builder run has to fit ENTIRELY (`Boards::BuilderSetSize.for_request`,
   reserved up front) because the job cannot stop halfway — which is what gates
   the larger builder sets by arithmetic rather than by a flag: Free's cap of 5
   holds the Quick Start set (`StarterBlueprints::HOME`, sized from its own tree
   at 5 including the "My Favorites" page interests can add) and never a
-  23-35-board level. Never add a plan check to the builder; size the set
-  honestly instead (`BuilderSetSize.worst_case` falls back to the roomiest
-  level only for a key it cannot size). And `board_limit` resolves from
+  9-to-12-board level. Size the REQUEST, not the level's maximum: the planner
+  decides which non-seed pages this build adds, so a reservation of every page
+  the level could ever hold (plus the admin-only Phrases layer) refused a
+  12-board Extended set to a user with 34 free. The picker's `board_cost` is
+  `base_cost` (no interests) — a floor the create gate can only raise, so a
+  client pre-check never refuses what the server allows. Never add a plan check
+  to the builder; size the set honestly instead (`legacy_worst_case` is the
+  roomy bound only for a key it cannot size). And `board_limit` resolves from
   `plan_type` at READ time (`User.plan_limits_for`): it used to be stamped into
   `settings` by the five plan setters, so every user who ever changed plans
   carried a frozen copy and moving a constant reached nobody.

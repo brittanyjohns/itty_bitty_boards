@@ -52,10 +52,11 @@ module API
         glp_template, glp_reason = recommend_glp_template
 
         render json: {
-          # board_cost is what the create gate will reserve, from the same
-          # source, so a client pre-check can never disagree with the refusal.
+          # board_cost is what a level takes with no interests. The create gate
+          # sizes the actual request, which interests can only grow, so a client
+          # pre-check against it never refuses a build the server would allow.
           levels: COMPLEXITY_LEVELS.map { |lvl|
-            lvl.merge(board_cost: Boards::BuilderSetSize.worst_case(lvl[:key]))
+            lvl.merge(board_cost: Boards::BuilderSetSize.base_cost(lvl[:key]))
           },
           recommended_level: level_rec&.dig(:key),
           # A GLP-stage communicator gets the gestalt recommendation; otherwise
@@ -146,8 +147,17 @@ module API
         # `communicator_accounts` is keyed on owner_id, so today that always
         # resolves to the acting user — this names the right subject rather than
         # relying on the two staying identical.
+        #
+        # Sized from THIS request's interests (hence parsed first): the planner
+        # decides which pages the job adds, so the reservation is what this
+        # build can create rather than the most any build at the level could.
+        raw_interests = params[:interests]
+        interests  = Boards::InterestWords.normalize_list(raw_interests)
+        categories = Boards::InterestWords.extract_categories(raw_interests)
+
         builder = board_limit_user(owner)
-        required = Boards::BuilderSetSize.worst_case(build_key)
+        required = Boards::BuilderSetSize.for_request(build_key, interests: interests,
+                                                                 explicit_categories: categories)
         if board_limit_exceeded?(builder, required: required)
           remaining = board_limit_remaining(builder)
           render json: board_limit_error_payload(
@@ -164,10 +174,6 @@ module API
           notify_mailchimp_hit_limit(builder)
           return
         end
-
-        raw_interests = params[:interests]
-        interests  = Boards::InterestWords.normalize_list(raw_interests)
-        categories = Boards::InterestWords.extract_categories(raw_interests)
 
         root = nil
         board_group = nil
