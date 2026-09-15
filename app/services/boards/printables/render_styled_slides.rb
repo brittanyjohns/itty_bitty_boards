@@ -36,6 +36,8 @@ module Boards
       TEMPLATES = {
         BoardPrintable::IMAGE_STYLED_HERO => "hero",
         BoardPrintable::IMAGE_STYLED_WHATS_INCLUDED => "whats_included",
+        BoardPrintable::IMAGE_STYLED_COLOR_LOW_INK => "color_low_ink",
+        BoardPrintable::IMAGE_STYLED_ONLINE_VERSION => "online_version",
       }.freeze
 
       def initialize(printable:, variants: BoardPrintable::STYLED_IMAGE_VARIANTS)
@@ -77,6 +79,8 @@ module Boards
         case variant
         when BoardPrintable::IMAGE_STYLED_HERO then hero_assigns
         when BoardPrintable::IMAGE_STYLED_WHATS_INCLUDED then whats_included_assigns
+        when BoardPrintable::IMAGE_STYLED_COLOR_LOW_INK then color_low_ink_assigns
+        when BoardPrintable::IMAGE_STYLED_ONLINE_VERSION then online_version_assigns
         end
       end
 
@@ -116,6 +120,28 @@ module Boards
       def grid_thumbnails
         @grid_thumbnails ||= RenderPageThumbnails.new(boards: grid_plan.boards, hide_header: true).call
       end
+
+      # The root page alone, for color_low_ink and online_version. Both reuse
+      # the memoized hero / grid pass when that slide is rendering too (the
+      # root is always in it), and pay for a one-page pass only when rendered
+      # without it — a seven-page hero pass to show one page would be waste.
+      def root_with_header
+        return nil unless root
+        return hero_thumbnails[root.id] if rendering?(BoardPrintable::IMAGE_STYLED_HERO)
+
+        @root_with_header ||= RenderPageThumbnails.new(boards: [root]).call[root.id]
+      end
+
+      def root_without_header
+        return nil unless root
+        if rendering?(BoardPrintable::IMAGE_STYLED_WHATS_INCLUDED) && grid_plan.boards.include?(root)
+          return grid_thumbnails[root.id]
+        end
+
+        @root_without_header ||= RenderPageThumbnails.new(boards: [root], hide_header: true).call[root.id]
+      end
+
+      def rendering?(variant) = variants.include?(variant)
 
       def page_for(thumbnail, label: nil)
         return nil unless thumbnail
@@ -161,6 +187,35 @@ module Boards
           columns: grid_columns(tiles.size),
           rows: [(tiles.size / grid_columns(tiles.size).to_f).ceil, 1].max,
           overflow_note: grid_plan.overflow_note,
+        )
+      end
+
+      def color_low_ink_assigns
+        copy = ::Printables::StyledSlideCopy
+
+        shared_assigns.merge(
+          headline: copy.color_low_ink_headline(facts),
+          subline: copy.color_low_ink_subline,
+          features: copy.color_low_ink_features(facts),
+          color_page: page_for(root_with_header, label: copy.color_version_label),
+          # low_ink_thumbnail is falsy unless a low-ink file ships, and
+          # page_for turns that into no page at all.
+          low_ink_page: page_for(low_ink_thumbnail, label: copy.low_ink_version_label),
+        )
+      end
+
+      def online_version_assigns
+        copy = ::Printables::StyledSlideCopy
+
+        shared_assigns.merge(
+          headline: copy.online_headline(facts),
+          subline: copy.online_subline(facts),
+          paper_accent: copy.online_paper_accent,
+          steps: copy.online_steps,
+          checks: copy.online_checks(facts),
+          url: facts.online_display_url,
+          paper_page: page_for(root_with_header),
+          screen_page: page_for(root_without_header),
         )
       end
 

@@ -82,6 +82,68 @@ module Printables
       "Start on #{root_title}, then open the linked pages."
     end
 
+    # ── Color + low-ink ─────────────────────────────────────────────────────
+    #
+    # With no low-ink file there is no "options" to speak of, and the slide
+    # shows the colour page alone; nothing on it may mention low ink.
+
+    def color_low_ink_headline(facts) = facts.low_ink? ? "Color + low-ink options" : "Bright full-color pages"
+
+    def color_low_ink_subline = "Print at home or at school"
+
+    def color_version_label = "Full Color Version"
+
+    def low_ink_version_label = "Low-Ink Version"
+
+    # Short pills, one line each. No "no bleed, no trimming": the printed page
+    # runs to within 3mm of the sheet edge (layouts/pdf: @page margin 0, .page
+    # padding 3mm) and a trim-ready PDF exists, so neither half is a claim the
+    # files back.
+    def color_low_ink_features(facts)
+      [
+        { icon: "file", title: "US Letter #{facts.letter_size_label}" },
+        { icon: "printer", title: "Great for home printers" },
+        if facts.low_ink?
+          { icon: "drop", title: "Printer-friendly low-ink version" }
+        else
+          { icon: "palette", title: "Bright, full-color pages" }
+        end,
+        { icon: "shield", title: "Laminate for extra durability" },
+      ]
+    end
+
+    # ── Online version ──────────────────────────────────────────────────────
+    #
+    # "Free" and "No sign-in required" are claims about a buyer with no
+    # account, so they need every board published (GalleryFacts#online_public?).
+    # Without it the slide still shows the tablet and the steps, and says only
+    # what holds for anyone: it is a web page, so there is no app to install.
+
+    def online_headline(facts) = facts.online_public? ? "Free online version included" : "Print it or open it online"
+
+    def online_subline(facts)
+      facts.set? ? "Every page's QR code opens that page" : "The QR code on the page opens the board"
+    end
+
+    def online_steps
+      [
+        { icon: "download", title: "Download" },
+        { icon: "devices", title: "Print or open on any device" },
+        { icon: "qr", title: "Scan the QR code" },
+        { icon: "sound", title: "Tap a word and it speaks" },
+      ]
+    end
+
+    def online_checks(facts)
+      if facts.online_public?
+        ["Free online version included", "No app install", "No sign-in required", "Use in your browser anytime"]
+      else
+        ["No app install", "Works in a web browser"]
+      end
+    end
+
+    def online_paper_accent = "Scan me!"
+
     def accents
       {
         top_right: "Words within reach",

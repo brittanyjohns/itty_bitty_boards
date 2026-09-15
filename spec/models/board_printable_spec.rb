@@ -159,6 +159,15 @@ RSpec.describe BoardPrintable do
         printable.reload
       end
 
+      it "are a fixed set of four, all known to the purge allowlist and none in the legacy order" do
+        expect(described_class::STYLED_IMAGE_VARIANTS).to eq(%w[
+          styled_hero styled_whats_included styled_color_low_ink styled_online_version
+        ])
+        expect(described_class::KNOWN_IMAGE_VARIANTS).to include(*described_class::STYLED_IMAGE_VARIANTS)
+        expect(described_class::LISTING_IMAGE_ORDER & described_class::STYLED_IMAGE_VARIANTS).to be_empty
+        expect(Boards::Printables::RenderStyledSlides::TEMPLATES.keys).to eq(described_class::STYLED_IMAGE_VARIANTS)
+      end
+
       # They are not in LISTING_IMAGE_ORDER, which is exactly what the legacy
       # purge used to key on — every legacy Regenerate would have deleted them.
       it "survive a legacy gallery purge" do

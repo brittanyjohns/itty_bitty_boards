@@ -9,10 +9,21 @@
           class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
   </div>
   <p class="text-[11px] text-t3 mb-4">
-    4:3 slides in the cream, pink and green design, built from this printable's
-    real pages. Word counts, versions and file counts come from the boards and
-    the files that ship. Not sent to Etsy yet.
+    Four 4:3 slides (hero, what's included, color + low-ink, online version) in
+    the cream, pink and green design, built from this printable's real pages.
+    Word counts, versions, file counts and the online URL come from the boards
+    and the files that ship. Not sent to Etsy yet.
   </p>
+
+  <% facts = Printables::GalleryFacts.new(@printable) %>
+  <% unless facts.online_public? %>
+    <p class="text-xs mb-4 px-3 py-2 rounded border"
+       style="border-color: var(--border); color: var(--t1);">
+      Not every board in this set is published, so buyers can't open the online
+      version without signing in. The online-version slide leaves out "Free" and
+      "No sign-in required" until they are published; re-render after publishing.
+    </p>
+  <% end %>
 
   <% images = @printable.styled_images_view %>
   <% if images.any? && !@printable.styled_slides_current? %>

@@ -120,6 +120,89 @@ RSpec.describe Boards::Printables::RenderStyledSlides do
       .to eq([BoardPrintable::IMAGE_STYLED_WHATS_INCLUDED])
   end
 
+  def html_for(variant) = slide_html[BoardPrintable::STYLED_IMAGE_VARIANTS.index(variant)]
+
+  describe "color + low-ink" do
+    let(:variant) { BoardPrintable::IMAGE_STYLED_COLOR_LOW_INK }
+
+    it "shows the colour page beside the root re-rendered with hide_colors when a low-ink file ships" do
+      printable.attach_pdf!(filename: "color.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_COLOR)
+      printable.attach_pdf!(filename: "low-ink.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_LOW_INK)
+      allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
+
+      described_class.new(printable: printable, variants: [variant]).call
+
+      expect(Boards::Printables::RenderPageThumbnails).to have_received(:new)
+        .with(boards: [board], hide_colors: true)
+      html = slide_html.first
+      expect(html).to include("Color + low-ink options", "Full Color Version", "Low-Ink Version",
+                              "Printer-friendly low-ink version", "US Letter 8.5 x 11 in")
+      expect(html.scan("<img src=\"data:image/png").size).to be >= 3 # logo + two pages
+    end
+
+    it "shows the colour page alone and never mentions low ink when none ships" do
+      printable.attach_pdf!(filename: "color.pdf", bytes: "%PDF", variant: BoardPrintable::VARIANT_COLOR)
+      allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
+
+      described_class.new(printable: printable).call
+
+      expect(Boards::Printables::RenderPageThumbnails).not_to have_received(:new).with(hash_including(hide_colors: true))
+      html = html_for(variant)
+      expect(html).to include("Full Color Version", "Bright, full-color pages")
+      # base64 never contains a hyphen, so this can't match font or image data.
+      expect(slide_html.join.downcase).not_to include("low-ink")
+    end
+  end
+
+  describe "online version" do
+    let(:variant) { BoardPrintable::IMAGE_STYLED_ONLINE_VERSION }
+    let(:bare_url) { Boards::Printables::Qr.target_url_for(board) }
+
+    it "puts the bare /pb/<slug> in the tablet's browser bar, without the scheme" do
+      described_class.new(printable: printable, variants: [variant]).call
+
+      html = slide_html.first
+      expect(html).to include(bare_url.delete_prefix("https://"))
+      expect(html).not_to include(bare_url)
+      expect(html).not_to include("utm_")
+      expect(html).to include("Download", "Print or open on any device", "Scan the QR code", "Tap a word and it speaks")
+    end
+
+    # /pb/<slug> only opens anonymously for a published board.
+    it "claims free, no-sign-in access only when every board in the set is published" do
+      board.update_columns(published: true)
+      feelings.update_columns(published: false)
+
+      described_class.new(printable: printable, variants: [variant]).call
+      private_html = slide_html.last
+      expect(private_html).to include("No app install", "Works in a web browser")
+      expect(private_html).not_to include("No sign-in", "Free online version")
+
+      feelings.update_columns(published: true)
+      described_class.new(printable: printable.reload, variants: [variant]).call
+      expect(slide_html.last).to include("Free online version included", "No sign-in required", "Use in your browser anytime")
+    end
+
+    it "renders only the root, once with its header and once without, when rendered alone" do
+      allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
+
+      described_class.new(printable: printable, variants: [variant]).call
+
+      expect(Boards::Printables::RenderPageThumbnails).to have_received(:new).twice
+      expect(Boards::Printables::RenderPageThumbnails).to have_received(:new).with(boards: [board])
+      expect(Boards::Printables::RenderPageThumbnails).to have_received(:new).with(boards: [board], hide_header: true)
+    end
+
+    it "reuses the hero and grid passes when rendered with them" do
+      allow(Boards::Printables::RenderPageThumbnails).to receive(:new).and_call_original
+
+      described_class.new(printable: printable).call
+
+      expect(Boards::Printables::RenderPageThumbnails).not_to have_received(:new).with(boards: [board])
+      expect(Boards::Printables::RenderPageThumbnails).not_to have_received(:new).with(boards: [board], hide_header: true)
+    end
+  end
+
   it "refuses a variant it does not render" do
     expect { described_class.new(printable: printable, variants: ["hero"]) }.to raise_error(ArgumentError)
   end

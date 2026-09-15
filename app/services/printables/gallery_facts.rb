@@ -59,6 +59,25 @@ module Printables
       @board_names ||= printable.ordered_boards.map { |b| Boards::AssetRendering.board_title_for(b) }
     end
 
+    # The address the root page's printed QR opens: the BARE /pb/<slug>, never
+    # a UTM-tagged one, because it is the same URL the paper carries.
+    def online_url = Boards::Printables::Qr.target_url_for(printable.board)
+
+    # What a browser bar shows: no scheme.
+    def online_display_url = online_url.delete_prefix("https://").delete_prefix("http://")
+
+    # Whether a BUYER can open the online version with no account. /pb/<slug>
+    # resolves anonymously only for a published board (Board#viewable_by?), and
+    # every page carries its own QR, so the claim needs every board in the set.
+    # Nothing in the printable pipeline publishes a board, so this is a real
+    # question, not a formality: "Free" and "No sign-in required" are only
+    # printed when it is true.
+    def online_public?
+      return @online_public if defined?(@online_public)
+
+      @online_public = board_ids.any? && !Board.where(id: board_ids).where(published: [false, nil]).exists?
+    end
+
     def to_h
       {
         board_count: board_count,
@@ -66,6 +85,8 @@ module Printables
         low_ink: low_ink?,
         formats_label: formats_label,
         board_names: board_names,
+        online_url: online_url,
+        online_public: online_public?,
       }
     end
 

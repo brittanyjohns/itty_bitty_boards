@@ -103,6 +103,34 @@ RSpec.describe Printables::GalleryFacts do
     expect(facts.set?).to be(true)
   end
 
+  describe "online facts" do
+    it "points at the root's bare /pb/<slug>, and shows it without the scheme" do
+      core.update_columns(slug: "core-60")
+
+      expect(facts.online_url).to eq("https://app.speakanyway.com/pb/core-60")
+      expect(facts.online_display_url).to eq("app.speakanyway.com/pb/core-60")
+    end
+
+    it "is public only when every board in the set is published" do
+      core.update_columns(published: true)
+      food.update_columns(published: false)
+      expect(facts.online_public?).to be(false)
+
+      food.update_columns(published: true)
+      expect(facts.online_public?).to be(true)
+    end
+
+    it "goes stale when a board is published" do
+      core.update_columns(published: true)
+      food.update_columns(published: false)
+      before = facts.digest
+
+      food.update_columns(published: true)
+
+      expect(facts.digest).not_to eq(before)
+    end
+  end
+
   it "changes its digest when a fact changes" do
     tile(core, "want")
     before = facts.digest
