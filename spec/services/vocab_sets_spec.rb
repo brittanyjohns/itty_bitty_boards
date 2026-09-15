@@ -439,7 +439,7 @@ RSpec.describe VocabSets do
     end
   end
 
-  describe "finalized 60-tile root (Drinks wired, this/that added)" do
+  describe "finalized 60-tile root (Drinks wired, to/a added)" do
     it "places exactly 60 tiles on the Core 60 home board" do
       expect(@c60_root.board_images.count).to eq(60)
     end
@@ -451,8 +451,10 @@ RSpec.describe VocabSets do
       expect(Board.find(drinks_tile.predictive_board_id).name).to eq("Drinks")
     end
 
-    it "adds the this/that core word tiles that fill the home grid to 60" do
-      expect(@c60_root.board_images.pluck(:label)).to include("this", "that")
+    it "adds the to/a core word tiles that fill the home grid to 60" do
+      labels = @c60_root.board_images.pluck(:label)
+      expect(labels).to include("to", "a")
+      expect(labels).not_to include("this", "that")
     end
 
     it "links all eight category folders from the home board" do

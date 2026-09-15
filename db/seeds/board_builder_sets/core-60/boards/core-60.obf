@@ -68,7 +68,7 @@
         53
       ],
       [
-        62,
+        48,
         54,
         55,
         56,
@@ -77,7 +77,7 @@
         58,
         59,
         60,
-        63
+        49
       ]
     ]
   },
@@ -389,6 +389,11 @@
       }
     },
     {
+      "id": 48,
+      "label": "to",
+      "part_of_speech": "preposition"
+    },
+    {
       "id": 61,
       "label": "Drinks",
       "part_of_speech": "noun",
@@ -397,13 +402,8 @@
       }
     },
     {
-      "id": 62,
-      "label": "this",
-      "part_of_speech": "determiner"
-    },
-    {
-      "id": 63,
-      "label": "that",
+      "id": 49,
+      "label": "a",
       "part_of_speech": "determiner"
     }
   ],
