@@ -102,6 +102,10 @@ module RevenueCat
       trialing = trial_period?
 
       user.plan_type = plan_type
+      # Who bills this plan. Without it an App Store subscriber is
+      # indistinguishable from an admin comp (paid, no Stripe subscription), and
+      # User#billing_source can't keep them away from web Checkout.
+      user.settings["billing_provider"] = PROVIDER
       # RevenueCat sends period_type=TRIAL/INTRO during a free/intro trial. Mark
       # the user "trialing" (matching the Stripe path) instead of "active" so a
       # trialist is distinguishable from a payer. paid_plan? treats both as paid,
@@ -211,6 +215,7 @@ module RevenueCat
 
         u.plan_type = result.plan_type
         u.plan_status = "active"
+        u.settings["billing_provider"] = PROVIDER
         u.setup_limits
         u.save!
         CreditService.grant_plan!(

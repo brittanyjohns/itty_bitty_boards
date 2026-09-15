@@ -14,9 +14,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   and hyphens; anything else is dropped on save. `GET /api/likeness_options`
   serves the caps as `custom_extras`. If the image model refuses a prompt, the
   retry leaves the write-ins out.
+### Changed
+
+- **Core 60's bottom row now starts with "to" and ends with "a".** The Board
+  Builder's Core 60 template swaps the "this" / "that" corner words for "to"
+  and "a" on the home board and on every category page, so the bottom row
+  stays identical wherever you are in the set. Core 84 is unchanged.
 
 ### Fixed
 
+- **The app can tell who bills a paid plan.** `User#api_view` now publishes
+  `billing_source` (`none` / `stripe` / `app_store` / `manual`), so the pricing
+  page stops offering the in-app plan switch — which can only 422
+  `no_subscription` — to an account with no Stripe subscription, such as one an
+  admin put on a paid plan. RevenueCat purchases and verified App Store upgrades
+  stamp `settings["billing_provider"]`, and a plan that ends clears it. Backfill
+  existing App Store subscribers with `bin/rails billing:stamp_revenuecat_provider`
+  (dry run by default, `APPLY=1` to write).
 - **Picking a gallery picture changes the tile you opened.** When two tiles on
   one board share a picture's word (a "play" word tile and a "Play" folder
   tile), `POST /api/docs/:id/mark_as_current` and

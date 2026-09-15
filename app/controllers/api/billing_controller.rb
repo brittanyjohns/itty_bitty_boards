@@ -40,6 +40,10 @@ class API::BillingController < API::ApplicationController
       current_user.plan_type = normalized_plan_key
       current_user.plan_status = keep_trialing ? "trialing" : "active"
       current_user.settings["purchase_platform"] = purchase_platform
+      # RevenueCat just verified the entitlement, so the App Store bills this
+      # plan (User#billing_source). The webhook stamps it too; whichever lands
+      # first is enough.
+      current_user.settings["billing_provider"] = RevenueCat::WebhookProcessor::PROVIDER
       # setup_limits runs as a before_save callback when plan_type changes.
       current_user.save!
       # Idempotent per plan_type: a retried client call (or a later upgrade that
