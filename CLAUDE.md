@@ -630,7 +630,10 @@ an explicit decision, not a drive-by edit.
   attached to — and nil for anything ambiguous, since a board sits on several
   dashboards and a guess draws one person onto another's board. Such a doc
   carries `data["likeness_fingerprint"]` plus a TAG — `likeness_traits` (the
-  allowlisted tokens) and `likeness_age_band`, never the communicator, served as
+  allowlisted tokens, plus any `custom_extras` write-ins — the one place user
+  words reach a likeness, capped and character-allowlisted in
+  `CommunicatorLikeness` and stripped by the refusal retry; details in
+  `.claude-notes/image-generation.md`) and `likeness_age_band`, never the communicator, served as
   `likeness` on the doc payloads (`Doc#likeness_tag`). Ownership decides who may
   SEE it, exactly as for any doc: an ADMIN-owned likeness doc is shared library
   art (`Doc#library?`), listed for every account, and a user's explicit UserDoc

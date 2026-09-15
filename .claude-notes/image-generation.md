@@ -106,6 +106,20 @@ turban, kippah, braces, AAC device). `CommunicatorLikeness`
   `resolve_style`. Labels live in `config/locales/likeness.{en,es}.yml` and are
   served on `GET /api/likeness_options` (no auth, like `/api/age_bands`); a
   label can change without changing a single generated picture.
+- **The one write-in: `custom_extras`.** Up to `CUSTOM_EXTRAS_MAX_ITEMS` (3)
+  short descriptions for a look the preset extras don't cover ("cochlear
+  implant"). They are the only user words in the clause, appended as their own
+  sentence ("Their look also includes: …") before `PROMPT_GUARD`. Each must be
+  ≤ `CUSTOM_EXTRA_MAX_LENGTH` (40) characters from `CUSTOM_EXTRA_CHARACTERS`
+  (letters, marks, digits, space, apostrophe, period, hyphen — no comma, since
+  the clause joins on one) and contain a letter; a failing value is DROPPED
+  whole, never trimmed. A write-in naming a preset becomes the preset token.
+  The options endpoint serves the caps and the character class verbatim
+  (`custom_extras`), so the picker enforces exactly what the save keeps. They
+  count toward `#fingerprint` and appear in `#label`. The refusal retry in
+  `GenerateImageJob` strips them (`Result#without_custom_extras`) and stamps the
+  doc with the look it actually drew — nil when the write-ins were the whole
+  look.
 - **Where it lives.** `child_accounts.settings["likeness"]` — `settings` merges
   on update, and the picker replaces this one sub-hash whole.
   `boards.settings["likeness"]` is a per-board override: a likeness,
@@ -155,7 +169,8 @@ turban, kippah, braces, AAC device). `CommunicatorLikeness`
   reuse without it.
 - **The prompt layer** sits after the part-of-speech clause and before
   `modifiers` and the style spec (`PromptBuilder.for_image(likeness:)`). The
-  refusal retry in `GenerateImageJob` keeps it.
+  refusal retry in `GenerateImageJob` keeps its server-owned phrases and drops
+  its write-ins.
 - **Only where art is generated anyway.** Library art and the owner's own
   ordinary art are kept; `Images::LikenessArt.art_present?` is the test every
   fill path shares, and it ignores likeness docs.

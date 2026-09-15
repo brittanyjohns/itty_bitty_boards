@@ -8,6 +8,7 @@ es:
       hair_style: Peinado
       gender_presentation: Se ve como
       extras: Incluir también
+      custom_extras: Algo más
     skin_tone:
       light: Clara
       light_medium: Clara media

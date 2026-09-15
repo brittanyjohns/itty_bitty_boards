@@ -25,6 +25,14 @@ module Images
         likeness.prompt_clause(age_band: age_band)
       end
 
+      # The look without its write-ins, for the refusal retry — nil when the
+      # write-ins were the whole look, so the retry draws an ordinary picture
+      # rather than stamping one with a look it didn't draw.
+      def without_custom_extras
+        stripped = likeness.without_custom_extras
+        stripped.blank? ? nil : self.class.new(likeness: stripped, age_band: age_band)
+      end
+
       # Whether this word's picture should look like the communicator at all.
       # The prompt, the doc stamp and reuse all ask this, per image, so they
       # can never disagree about one word.

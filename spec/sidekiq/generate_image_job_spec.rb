@@ -123,6 +123,44 @@ RSpec.describe GenerateImageJob, type: :job do
       expect(image.reload.status).not_to eq("failed")
     end
 
+    describe "with a likeness carrying write-ins" do
+      let(:verb_image) { FactoryBot.create(:image, user: user, label: "eat", part_of_speech: "verb") }
+
+      def result_for(hash)
+        Images::LikenessResolver::Result.new(likeness: CommunicatorLikeness.from_hash(hash), age_band: nil)
+      end
+
+      def retry_with(likeness)
+        calls = []
+        allow_any_instance_of(Image).to receive(:create_image_doc) do |_img, _uid, prompt, **kw|
+          calls << { prompt: prompt, likeness: kw[:likeness] }
+          raise "Your request was rejected by the safety system" if calls.length == 1
+
+          doc
+        end
+        composed = Images::PromptBuilder.for_image(verb_image, likeness: likeness)
+        described_class.new.send(:generate_with_refusal_retry, verb_image, user.id, composed, true, likeness)
+        calls
+      end
+
+      it "retries without the write-ins but keeps the preset look, and stamps what it drew" do
+        calls = retry_with(result_for("skin_tone" => "brown", "custom_extras" => ["cochlear implant"]))
+
+        expect(calls.first[:prompt]).to include("cochlear implant")
+        expect(calls.last[:prompt]).not_to include("cochlear implant")
+        expect(calls.last[:prompt]).to include("brown skin")
+        expect(calls.last[:likeness].likeness.to_h).to eq("skin_tone" => "brown")
+      end
+
+      it "retries with no likeness at all when the write-ins were the whole look" do
+        calls = retry_with(result_for("custom_extras" => ["cochlear implant"]))
+
+        expect(calls.length).to eq(2)
+        expect(calls.last[:prompt]).not_to include("Draw the person")
+        expect(calls.last[:likeness]).to be_nil
+      end
+    end
+
     it "does not retry for unrelated failures" do
       call_count = 0
       allow_any_instance_of(Image).to receive(:create_image_doc) do

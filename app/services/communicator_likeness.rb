@@ -4,11 +4,20 @@
 # a board can look like the person using it.
 #
 # Stored as allowlisted TOKENS (child_accounts.settings["likeness"], and a
-# per-board override in boards.settings["likeness"]). The client never sends
-# prompt text: every sentence that reaches the image model is composed here from
-# phrases this class owns, the same trust boundary Images::TextTile::Options
-# draws for CSS. Unknown tokens are DROPPED rather than rejected, like
-# Images::PromptBuilder.resolve_style, so a stale client can't break a save.
+# per-board override in boards.settings["likeness"]). Every sentence that
+# reaches the image model is composed here, the same trust boundary
+# Images::TextTile::Options draws for CSS. Unknown tokens are DROPPED rather than
+# rejected, like Images::PromptBuilder.resolve_style, so a stale client can't
+# break a save.
+#
+# The ONE exception is `custom_extras`: up to CUSTOM_EXTRAS_MAX_ITEMS short
+# write-ins ("cochlear implant", "red sneakers") for a look the preset EXTRAS
+# don't cover. They are the only user words in the clause, so they are held to
+# a character allowlist (no quotes, colons, commas or newlines — nothing that
+# can close the sentence they sit in), a length cap, and a count cap, and they
+# are dropped — not truncated — when they fail. The refusal retry strips them
+# (#without_custom_extras): a write-in is the one part of a likeness a
+# moderator can object to.
 #
 # A likeness with no usable fields is `blank?`, and callers treat it as "no
 # likeness" — generation behaves exactly as before.
@@ -21,6 +30,15 @@ class CommunicatorLikeness
   }.freeze
 
   EXTRAS = %w[glasses hearing_aids wheelchair walker hijab turban kippah braces aac_device].freeze
+
+  CUSTOM_EXTRAS_MAX_ITEMS = 3
+  CUSTOM_EXTRA_MAX_LENGTH = 40
+  # One character class, served verbatim on GET /api/likeness_options so the
+  # picker tests what the save keeps. Written to mean the same thing as a Ruby
+  # regexp and as a JavaScript one with the `u` flag. Deliberately no comma:
+  # the clause joins write-ins with ", ".
+  CUSTOM_EXTRA_CHARACTERS = "[\\p{L}\\p{M}\\p{N} '’.\\-]".freeze
+  CUSTOM_EXTRA_PATTERN = /\A#{CUSTOM_EXTRA_CHARACTERS}+\z/
 
   # A board override that turns likeness OFF for that board, as distinct from a
   # board with no override (which inherits from its communicator).
@@ -86,7 +104,7 @@ class CommunicatorLikeness
 
   PROMPT_GUARD = "Do not add any other people the subject does not need.".freeze
 
-  attr_reader :skin_tone, :hair_color, :hair_style, :gender_presentation, :extras
+  attr_reader :skin_tone, :hair_color, :hair_style, :gender_presentation, :extras, :custom_extras
 
   # Accepts a Hash, ActionController::Parameters, or anything else (which is
   # treated as empty). Always returns an instance; check `blank?`.
@@ -95,9 +113,25 @@ class CommunicatorLikeness
     value = {} unless value.is_a?(Hash)
     value = value.stringify_keys
 
+    extras = Array(value["extras"]).filter_map { |extra| token(extra, EXTRAS) }
+    custom = []
+    Array(value["custom_extras"]).each do |raw|
+      text = custom_extra(raw)
+      next if text.nil?
+
+      # A write-in that names a preset ("Glasses", "hearing aids") IS the preset,
+      # and takes its server-owned phrase instead of the typed words.
+      preset = token(text.tr(" ", "_"), EXTRAS)
+      next extras << preset if preset
+      next if custom.any? { |kept| kept.casecmp?(text) }
+
+      custom << text
+    end
+
     new(
       **FIELDS.keys.to_h { |field| [field.to_sym, token(value[field], FIELDS[field])] },
-      extras: Array(value["extras"]).filter_map { |extra| token(extra, EXTRAS) }.uniq.sort,
+      extras: extras.uniq.sort,
+      custom_extras: custom.first(CUSTOM_EXTRAS_MAX_ITEMS).sort_by(&:downcase),
     )
   end
 
@@ -118,6 +152,20 @@ class CommunicatorLikeness
   end
   private_class_method :token
 
+  # One write-in, or nil when it fails any rule. Whitespace is collapsed first so
+  # "  red   sneakers " is kept as "red sneakers"; a value that is too long or
+  # carries a character off the allowlist is dropped whole.
+  def self.custom_extra(raw)
+    return nil unless raw.is_a?(String)
+
+    text = raw.unicode_normalize(:nfc).gsub(/\s+/, " ").strip
+    return nil if text.empty? || text.length > CUSTOM_EXTRA_MAX_LENGTH
+    return nil unless text.match?(CUSTOM_EXTRA_PATTERN) && text.match?(/\p{L}/)
+
+    text
+  end
+  private_class_method :custom_extra
+
   # The picker's option lists, labelled for `locale`.
   def self.options(locale: I18n.default_locale)
     fields = FIELDS.to_h do |field, values|
@@ -132,16 +180,23 @@ class CommunicatorLikeness
       label: I18n.t("likeness.fields.extras", locale: locale),
       options: EXTRAS.map { |value| { value: value, label: I18n.t("likeness.extras.#{value}", locale: locale) } },
     }
+    custom_extras = {
+      label: I18n.t("likeness.fields.custom_extras", locale: locale),
+      max_items: CUSTOM_EXTRAS_MAX_ITEMS,
+      max_length: CUSTOM_EXTRA_MAX_LENGTH,
+      allowed_characters: CUSTOM_EXTRA_CHARACTERS,
+    }
 
-    { fields: fields, extras: extras }
+    { fields: fields, extras: extras, custom_extras: custom_extras }
   end
 
-  def initialize(skin_tone: nil, hair_color: nil, hair_style: nil, gender_presentation: nil, extras: [])
+  def initialize(skin_tone: nil, hair_color: nil, hair_style: nil, gender_presentation: nil, extras: [], custom_extras: [])
     @skin_tone = skin_tone
     @hair_color = hair_color
     @hair_style = hair_style
     @gender_presentation = gender_presentation
     @extras = extras
+    @custom_extras = custom_extras
   end
 
   def blank?
@@ -159,7 +214,17 @@ class CommunicatorLikeness
       "hair_style" => hair_style,
       "gender_presentation" => gender_presentation,
       "extras" => extras.presence,
+      "custom_extras" => custom_extras.presence,
     }.compact
+  end
+
+  # The same look with only the server-owned phrases — what the refusal retry
+  # draws. May be blank, when write-ins were all there was.
+  def without_custom_extras
+    self.class.new(
+      skin_tone: skin_tone, hair_color: hair_color, hair_style: hair_style,
+      gender_presentation: gender_presentation, extras: extras,
+    )
   end
 
   # Stable across key and extras order, so two communicators who look the same
@@ -185,13 +250,16 @@ class CommunicatorLikeness
     extra_phrases = extras.filter_map { |extra| EXTRA_PHRASES[extra] }
     description += ", #{extra_phrases.to_sentence}" if extra_phrases.any?
 
-    "Draw the person in this picture as #{description}. #{PROMPT_GUARD}"
+    clause = "Draw the person in this picture as #{description}."
+    clause += " Their look also includes: #{custom_extras.join(", ")}." if custom_extras.any?
+    "#{clause} #{PROMPT_GUARD}"
   end
 
   # A readable tag for a picture drawn with this look, e.g.
   # "Skin tone: Brown · Hair style: Curly · Also include: Glasses · 4–6 years".
   # Built from the picker's own locale labels, never from the prompt phrases, so
-  # it names the look in the words it was chosen in. nil when blank.
+  # it names the look in the words it was chosen in. Write-ins follow the preset
+  # extras as typed. nil when blank.
   def label(locale: I18n.default_locale, age_band: nil)
     return nil if blank?
 
@@ -201,10 +269,8 @@ class CommunicatorLikeness
 
       "#{I18n.t("likeness.fields.#{field}", locale: locale)}: #{I18n.t("likeness.#{field}.#{value}", locale: locale)}"
     end
-    if extras.any?
-      names = extras.map { |extra| I18n.t("likeness.extras.#{extra}", locale: locale) }
-      parts << "#{I18n.t("likeness.fields.extras", locale: locale)}: #{names.join(", ")}"
-    end
+    names = extras.map { |extra| I18n.t("likeness.extras.#{extra}", locale: locale) } + custom_extras
+    parts << "#{I18n.t("likeness.fields.extras", locale: locale)}: #{names.join(", ")}" if names.any?
     band = CommunicatorProfile.age_band_label(age_band, locale: locale) if age_band.present?
     parts << band if band
 
