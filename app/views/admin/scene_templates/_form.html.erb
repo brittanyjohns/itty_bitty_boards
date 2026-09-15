@@ -1,0 +1,65 @@
+<% url = @template.persisted? ? admin_dashboard_scene_template_path(@template) : admin_dashboard_scene_templates_path %>
+
+<% if @template.errors.any? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm mb-4">
+    <ul class="list-disc pl-4">
+      <% @template.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%= form_with model: @template, scope: :scene_template, url: url,
+              method: @template.persisted? ? :patch : :post, multipart: true,
+              data: { turbo: false }, class: "admin-card border rounded-xl p-5 space-y-4" do |f| %>
+  <div class="grid gap-4 sm:grid-cols-2">
+    <label class="block text-xs text-t2">Name
+      <%= f.text_field :name, required: true, class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+    </label>
+    <label class="block text-xs text-t2">Slug
+      <%= f.text_field :slug, required: true, pattern: "[a-z0-9][a-z0-9\\-]*",
+            placeholder: "fridge-two-sheets", class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+    </label>
+    <label class="block text-xs text-t2">Category
+      <%= f.select :category, SceneTemplate::CATEGORIES, {}, class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+    </label>
+    <label class="block text-xs text-t2">Source
+      <%= f.select :source, SceneTemplate::SOURCES, {}, class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+    </label>
+    <% if @template.persisted? %>
+      <label class="block text-xs text-t2">Status
+        <%= f.select :status, SceneTemplate::STATUSES, {}, class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+      </label>
+    <% end %>
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    <label class="block text-xs text-t2">
+      Base image <%= "(replace)" if @template.base_image.attached? %>
+      <input type="file" name="base_image" accept="<%= SceneTemplate::IMAGE_CONTENT_TYPES.join(",") %>"
+             <%= "required" unless @template.base_image.attached? %> class="block text-xs mt-1" />
+      <span class="text-[11px] text-t3">The scene with every placeholder surface left BLANK. Its pixel size is what the slots are measured in.</span>
+    </label>
+    <label class="block text-xs text-t2">
+      Front layer (optional) <%= "(replace)" if @template.front_layer.attached? %>
+      <input type="file" name="front_layer" accept="<%= SceneTemplate::IMAGE_CONTENT_TYPES.join(",") %>" class="block text-xs mt-1" />
+      <span class="text-[11px] text-t3">A transparent PNG the same size as the base — rings, clips, a hand, glare — drawn OVER the art.</span>
+      <% if @template.front_layer.attached? %>
+        <label class="block mt-1"><input type="checkbox" name="remove_front_layer" value="1" /> Remove the front layer</label>
+      <% end %>
+    </label>
+  </div>
+
+  <label class="block text-xs text-t2">Notes
+    <%= f.text_area :notes, rows: 3, class: "admin-input border rounded px-3 py-1.5 text-sm w-full mt-1" %>
+  </label>
+
+  <div class="flex items-center gap-3">
+    <%= f.submit @template.persisted? ? "Save" : "Upload and calibrate",
+          class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer" %>
+    <% if @template.persisted? %>
+      <%= link_to "Calibrate slots", calibrate_admin_dashboard_scene_template_path(@template), class: "text-xs text-accent hover:underline" %>
+    <% end %>
+  </div>
+<% end %>

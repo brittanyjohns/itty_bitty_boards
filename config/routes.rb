@@ -177,6 +177,24 @@ Rails.application.routes.draw do
           post :push_video
         end
       end
+
+      # Scene-engine mockups of this printable's real art. Render-only: nothing
+      # here reaches Etsy.
+      resources :scene_compositions, only: %i[new create edit update destroy] do
+        member do
+          post :render_scene
+        end
+      end
+    end
+
+    # The shared scene template library (base photo + front layer + calibrated
+    # slots). A template in use is archived rather than destroyed.
+    resources :scene_templates, only: %i[index new create edit update destroy], as: :dashboard_scene_templates do
+      member do
+        get :calibrate
+        patch :save_calibration
+        post :archive
+      end
     end
   end
 

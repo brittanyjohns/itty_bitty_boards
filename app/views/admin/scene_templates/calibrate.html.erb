@@ -1,0 +1,88 @@
+<% content_for :page_title, "Calibrate #{@template.name}" %>
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Calibrate: <%= @template.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= @template.width %>×<%= @template.height %> px · calibration v<%= @template.calibration_version %> · <%= @template.status %>
+    </p>
+  </div>
+  <div class="flex gap-3 text-xs">
+    <%= link_to "Edit details", edit_admin_dashboard_scene_template_path(@template), class: "text-accent hover:underline" %>
+    <%= link_to "← All templates", admin_dashboard_scene_templates_path, class: "text-t2 hover:text-t1" %>
+  </div>
+</div>
+
+<% if @template.errors.any? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm mb-4">
+    <ul class="list-disc pl-4">
+      <% @template.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<p class="text-[11px] text-t3 mb-3">
+  Add a slot per blank surface, then drag its corners onto that surface — <strong>clockwise from top-left</strong>.
+  Drag inside a slot to move it. The numbered checkerboard is warped by the same maths the render uses, with the
+  front layer drawn over it: if the checkerboard sits right, the art will. Numbers should read left-to-right, top-to-bottom.
+</p>
+
+<div data-controller="scene-calibrator"
+     data-scene-calibrator-slots-value="<%= @template.slots.to_json %>"
+     data-scene-calibrator-width-value="<%= @template.width %>"
+     data-scene-calibrator-height-value="<%= @template.height %>"
+     data-scene-calibrator-kinds-value="<%= Boards::Printables::SceneSlot::KINDS.to_json %>"
+     data-scene-calibrator-orientations-value="<%= Boards::Printables::SceneSlot::ORIENTATIONS.to_json %>"
+     data-scene-calibrator-accepts-value="<%= Boards::Printables::SceneSlot::ACCEPTS.to_json %>"
+     data-scene-calibrator-finishes-value="<%= Boards::Printables::SceneSlot::FINISHES.to_json %>"
+     class="grid gap-6 lg:grid-cols-3">
+  <div class="lg:col-span-2">
+    <div class="flex items-center gap-4 mb-2 text-xs">
+      <button type="button" data-action="scene-calibrator#addSlot"
+              class="font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Add slot</button>
+      <label class="text-t2">
+        <input type="checkbox" checked data-scene-calibrator-target="preview" data-action="change->scene-calibrator#togglePreview" />
+        Live preview
+      </label>
+    </div>
+
+    <div data-scene-calibrator-target="stage"
+         data-action="pointerdown->scene-calibrator#pointerDown"
+         class="relative w-full overflow-hidden rounded-lg border bg-white select-none"
+         style="aspect-ratio: <%= @template.width %> / <%= @template.height %>; border-color: var(--border); touch-action: none;">
+      <div data-scene-calibrator-target="scaler"
+           style="position: absolute; top: 0; left: 0; width: <%= @template.width %>px; height: <%= @template.height %>px; transform-origin: 0 0;">
+        <% if @template.base_image.attached? %>
+          <img src="<%= url_for(@template.base_image) %>" alt="" draggable="false"
+               style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;" />
+        <% end %>
+        <div data-scene-calibrator-target="art" style="position: absolute; inset: 0; pointer-events: none;"></div>
+        <% if @template.front_layer.attached? %>
+          <img src="<%= url_for(@template.front_layer) %>" alt="" draggable="false" data-scene-calibrator-target="front"
+               style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;" />
+        <% end %>
+        <svg data-scene-calibrator-target="svg" viewBox="0 0 <%= @template.width %> <%= @template.height %>"
+             style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;"></svg>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div data-scene-calibrator-target="list" class="mb-4"></div>
+
+    <%= form_with url: save_calibration_admin_dashboard_scene_template_path(@template), method: :patch,
+                  data: { turbo: false }, class: "admin-card border rounded-xl p-4" do %>
+      <input type="hidden" name="slots_json" value="<%= @template.slots.to_json %>" data-scene-calibrator-target="output" />
+      <label class="block text-xs text-t2 mb-3">
+        <input type="checkbox" name="mark_calibrated" value="1" <%= "checked" if @template.calibrated? || @template.draft? %> />
+        Mark calibrated (offered for new mockups)
+      </label>
+      <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">
+        Save slots
+      </button>
+      <p class="text-[11px] text-t3 mt-2">Saving changed slots bumps the calibration version, which marks existing mockups out of date.</p>
+    <% end %>
+  </div>
+</div>

@@ -3,6 +3,30 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Curated Etsy gallery per listing.** Each listing on
+  `/admin/board_printables/:id` has a gallery composer: pick up to 10 images
+  from the square slides and the styled 4:3 slides, put them in order
+  (up/down/remove), or start from a suggested order led by the paper mockup.
+  Creating the Etsy draft renders anything the chosen gallery is missing and
+  uploads the images in that order, and stops before contacting Etsy if the
+  gallery can't be fully rendered. Listings nobody curates publish exactly as
+  before. Styled items carry a reminder to check Etsy's crop on a test draft
+  first.
+- **Scene mockup library (admin).** `/admin/scene_templates` holds blank
+  scene photos from Canva, each with an optional transparent front layer
+  (rings, clips, a hand) and any number of placeholder slots. A calibrator
+  shows a live warped checkerboard to line each slot up. On a board printable,
+  "Scene mockups" lets you choose the art for each slot: a printed page
+  (colour or low ink, with or without its header), the board in the app, or
+  an uploaded picture. The mockup is rendered as a JPEG at the template's own
+  shape. The art is the real render warped into place, never redrawn by an
+  image model. `bin/rails scenes:import_vendored` seeds the library with the
+  existing tablet and paper mockups. Nothing is sent to Etsy yet.
+
 ## [1.13.0] — 2026-09-15
 
 ### Added
@@ -18,16 +42,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the card warns when they aren't. The hero slide's online line follows the
   same rule. The color slide says "Trim-ready version included" only when that
   PDF ships.
-- **Curated Etsy gallery per listing.** Each listing on
-  `/admin/board_printables/:id` has a gallery composer: pick up to 10 images
-  from the square slides and the styled 4:3 slides, put them in order
-  (up/down/remove), or start from a suggested order led by the paper mockup.
-  Creating the Etsy draft renders anything the chosen gallery is missing and
-  uploads the images in that order, and stops before contacting Etsy if the
-  gallery can't be fully rendered. Listings nobody curates publish exactly as
-  before. Styled items carry a reminder to check Etsy's crop on a test draft
-  first.
-
 - **Styled 4:3 slides for board printables (admin preview).** A new "Styled
   slides" card on `/admin/board_printables/:id` renders a hero and a "What's
   included" slide in the cream, pink and green design, built from the
@@ -35,7 +49,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   PDF counts and the low-ink claim come from the boards and the files that
   ship. The slides are not uploaded to Etsy yet, and a legacy "Regenerate" no
   longer deletes them.
-
 - **Write your own "Also include" item for people in pictures.** A
   communicator's likeness (and a board's custom look) accepts up to 3 short
   `custom_extras` — e.g. "cochlear implant" — alongside the preset extras. Each

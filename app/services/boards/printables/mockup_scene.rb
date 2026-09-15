@@ -74,31 +74,20 @@ module Boards
         }
       end
 
-      # The flat rectangle that gets warped onto the placeholder, sized to the
-      # quad's own proportions — the average of its two horizontal edges and its
-      # two vertical ones.
-      #
-      # The artwork is letterboxed inside THIS rather than being handed straight
-      # to the homography at its own aspect. A homography maps a rectangle onto
-      # the quad whatever its shape, so feeding it a portrait board would fit the
-      # board to the placeholder by stretching it — a squashed board that a buyer
-      # reads as "the product is distorted".
-      def target_width
-        tl, tr, br, bl = quad
-        ((distance(tl, tr) + distance(bl, br)) / 2.0).round
+      # The quad maths — the letterbox rectangle (target_width/target_height)
+      # and the homography — lives in SceneSlot, shared with the multi-slot
+      # SceneTemplate library. See that class for why the art is letterboxed
+      # inside a quad-shaped rectangle rather than warped at its own aspect.
+      def slot
+        @slot ||= SceneSlot.new(
+          quad: quad,
+          kind: kind,
+          orientation: orientation.to_s,
+          finish: kind == KIND_TABLET ? "glare" : "shadow",
+        )
       end
 
-      def target_height
-        tl, tr, br, bl = quad
-        ((distance(tl, bl) + distance(tr, br)) / 2.0).round
-      end
-
-      # The matrix3d that warps that rectangle onto the placeholder. Solved in
-      # the SCENE's pixel space, which is also the space the stage lays out in,
-      # so the maths never has to know how big the slide is.
-      def matrix3d
-        Homography.matrix3d(target_width, target_height, quad)
-      end
+      delegate :target_width, :target_height, :matrix3d, to: :slot
 
       private
 
@@ -110,8 +99,6 @@ module Boards
 
         centred.clamp(canvas_px - (extent * scale), 0.0)
       end
-
-      def distance(a, b) = Math.hypot(b[0] - a[0], b[1] - a[1])
     end
   end
 end

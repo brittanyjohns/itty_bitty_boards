@@ -1,0 +1,8 @@
+<% content_for :page_title, "New scene template" %>
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold text-t1 tracking-tight">New scene template</h1>
+  <%= link_to "← All templates", admin_dashboard_scene_templates_path, class: "text-xs text-t2 hover:text-t1" %>
+</div>
+
+<%= render "form" %>

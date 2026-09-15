@@ -2207,6 +2207,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/word-packs.md` | Quick-add word packs: the static catalog, the "client names a key / server owns the vocabulary" rule, why a pack costs no OpenAI (authored part_of_speech + `max_generate: 0`), the OVERRIDES-wins colour rule, and the read-only catalog endpoint |
 | `.claude-notes/writing-suggestions.md` | Contextual writing suggestions (`POST /api/suggestions`): field registry + context allow-list, the no-safety-keys privacy invariant, OpenAI generator + fixtures, free/no-credit contract, user opt-out toggle |
 | `.claude-notes/kit-landing-pages-handoff.md` | Kit landing pages (`/kit/:slug`): the `KitPage` model, the public read/download contract, the `kit_<slug>` lead source and its dynamic Mailchimp tag, the `/admin/kit_pages` CRUD and its Etsy give-away guard |
+| `.claude-notes/scene-engine.md` | Scene engine: the `SceneTemplate` library (base image + front layer + calibrated slots) and `SceneComposition` (per-slot art for a printable), the slot shape, layer order (base, warped slots, front layer), `calibration_version` + render digest, the three art sources and their render-time ownership checks, the Stimulus calibrator, `rake scenes:import_vendored`, and why product art is never sent to an image model |
 
 Related tracked docs: `docs/rds-migration-runbook.md`, `docs/stripe-setup.md`,
 `docs/credits-handoff.md`, `.claude-notes/artifact-generation-services.md`,

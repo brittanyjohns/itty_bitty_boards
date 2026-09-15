@@ -1,0 +1,46 @@
+<%# Scene-engine mockups: this printable's real pages composited into a template
+    from the shared library. Render-only for now — the curated gallery (#953) is
+    what will put one on a listing. %>
+<% compositions = @printable.scene_compositions.recent.includes(:scene_template).with_attached_render %>
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-1">
+    <h2 class="text-sm font-medium text-t1">Scene mockups</h2>
+    <%= link_to "New scene mockup", new_admin_dashboard_board_printable_scene_composition_path(@printable),
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+  </div>
+  <p class="text-[11px] text-t3 mb-4">
+    Pick a scene from the <%= link_to "template library", admin_dashboard_scene_templates_path, class: "text-accent hover:underline" %>
+    and choose the page, app screen or picture for each blank surface. The art is this printable's own
+    render, warped into place — never redrawn. Nothing here is sent to Etsy yet.
+  </p>
+
+  <% if compositions.any? %>
+    <div class="flex flex-wrap gap-4">
+      <% compositions.each do |composition| %>
+        <div class="w-48">
+          <%= link_to edit_admin_dashboard_board_printable_scene_composition_path(@printable, composition) do %>
+            <% if composition.render.attached? %>
+              <%= image_tag url_for(composition.render), alt: composition.scene_template.name,
+                    class: "w-48 h-36 object-contain rounded-lg border bg-white", style: "border-color: var(--border);" %>
+            <% else %>
+              <div class="w-48 h-36 rounded-lg border admin-card-alt flex items-center justify-center text-[11px] text-t3"
+                   style="border-color: var(--border);">Not rendered yet</div>
+            <% end %>
+          <% end %>
+          <div class="text-xs text-t1 mt-1 truncate"><%= composition.scene_template.name %></div>
+          <div class="text-[11px] text-t3">
+            <% if composition.error.present? %>
+              <span class="text-red-500">Render failed</span>
+            <% elsif composition.render.attached? && composition.stale? %>
+              <span class="text-amber-600">Out of date</span>
+            <% elsif composition.render.attached? %>
+              Rendered <%= time_ago_in_words(composition.rendered_at) if composition.rendered_at %> ago
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-xs text-t3">No scene mockups yet.</p>
+  <% end %>
+</div>

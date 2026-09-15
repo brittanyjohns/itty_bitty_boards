@@ -1,0 +1,53 @@
+<% content_for :page_title, "Scene templates" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Scene templates</h1>
+    <p class="text-sm text-t3 mt-0.5">
+      Blank scene photos with calibrated slots. A product's real art is warped into each slot — it is never sent to an image model.
+    </p>
+  </div>
+  <%= link_to "New template", new_admin_dashboard_scene_template_path,
+        class: "text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white" %>
+</div>
+
+<div class="flex gap-2 mb-4 text-xs">
+  <%= link_to "Active", admin_dashboard_scene_templates_path,
+        class: "px-2.5 py-1 rounded #{@status.nil? ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+  <% SceneTemplate::STATUSES.each do |status| %>
+    <%= link_to status.humanize, admin_dashboard_scene_templates_path(status: status),
+          class: "px-2.5 py-1 rounded #{@status == status ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+  <% end %>
+</div>
+
+<% if @templates.empty? %>
+  <div class="admin-card border rounded-xl p-5 text-sm text-t2">
+    No templates here. Upload a blank scene from Canva, or run <code>bin/rails scenes:import_vendored</code> to add the built-in mockups.
+  </div>
+<% else %>
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <% @templates.each do |template| %>
+      <div class="admin-card border rounded-xl p-4">
+        <% if template.base_image.attached? %>
+          <%= image_tag url_for(template.base_image), alt: template.name,
+                class: "w-full h-40 object-contain rounded-lg border bg-white mb-3", style: "border-color: var(--border);" %>
+        <% end %>
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-sm font-medium text-t1 truncate"><%= template.name %></div>
+          <span class="text-[11px] px-2 py-0.5 rounded admin-badge text-t2"><%= template.status %></span>
+        </div>
+        <div class="text-[11px] text-t3 mt-1">
+          <code><%= template.slug %></code> · <%= template.category %> · <%= template.source %> ·
+          <%= template.width %>×<%= template.height %> ·
+          <%= pluralize(template.slots.size, "slot") %> · v<%= template.calibration_version %> ·
+          <%= template.front_layer.attached? ? "front layer" : "no front layer" %> ·
+          used by <%= @usage.fetch(template.id, 0) %>
+        </div>
+        <div class="flex gap-3 mt-3 text-xs">
+          <%= link_to "Calibrate", calibrate_admin_dashboard_scene_template_path(template), class: "text-accent hover:underline" %>
+          <%= link_to "Edit", edit_admin_dashboard_scene_template_path(template), class: "text-accent hover:underline" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>

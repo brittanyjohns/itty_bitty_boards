@@ -1,0 +1,116 @@
+<% template = @composition.scene_template %>
+<% boards = @printable.ordered_boards %>
+<% uploads = @composition.persisted? ? @composition.slot_uploads.includes(:blob).to_a : [] %>
+<% url = @composition.persisted? ? admin_dashboard_board_printable_scene_composition_path(@printable, @composition) : admin_dashboard_board_printable_scene_compositions_path(@printable) %>
+<% source_labels = {
+     SceneComposition::SOURCE_PAGE_THUMBNAIL => "Printed page",
+     SceneComposition::SOURCE_DEVICE_SCREEN => "App screen",
+     SceneComposition::SOURCE_UPLOAD => "Uploaded picture",
+   } %>
+
+<% if @composition.errors.any? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm mb-4">
+    <ul class="list-disc pl-4">
+      <% @composition.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%= form_with url: url, method: @composition.persisted? ? :patch : :post, multipart: true,
+              data: { turbo: false }, class: "admin-card border rounded-xl p-5 space-y-4" do %>
+  <input type="hidden" name="scene_composition[scene_template_id]" value="<%= template.id %>" />
+
+  <div class="flex flex-wrap gap-6 items-start">
+    <% if template.base_image.attached? %>
+      <%= image_tag url_for(template.base_image), alt: template.name,
+            class: "w-56 rounded-lg border bg-white", style: "border-color: var(--border);" %>
+    <% end %>
+    <div class="text-xs text-t2 space-y-1">
+      <div class="text-sm font-medium text-t1"><%= template.name %></div>
+      <div><%= template.width %>×<%= template.height %> · <%= pluralize(template.slots.size, "slot") %></div>
+      <% if @printable.etsy_listings.any? %>
+        <label class="block mt-2">For listing (optional)
+          <select name="scene_composition[board_printable_listing_id]" class="admin-input border rounded px-2 py-1 text-xs block mt-1">
+            <option value="">— Any —</option>
+            <% @printable.etsy_listings.each do |listing| %>
+              <option value="<%= listing.id %>" <%= "selected" if @composition.board_printable_listing_id == listing.id %>>
+                Listing #<%= listing.id %> (<%= listing.state %>)
+              </option>
+            <% end %>
+          </select>
+        </label>
+      <% end %>
+    </div>
+  </div>
+
+  <% template.slot_objects.each do |slot| %>
+    <% entry = @composition.slot_art.to_h[slot.key] || {} %>
+    <fieldset class="border rounded-lg p-4" style="border-color: var(--border);">
+      <legend class="text-xs font-medium text-t1 px-1">
+        <%= slot.label.presence || slot.key %>
+        <span class="text-t3 font-normal">· <%= slot.kind %> · <%= slot.orientation %> · <%= slot.target_width %>×<%= slot.target_height %></span>
+      </legend>
+
+      <div class="grid gap-3 sm:grid-cols-2 text-xs text-t2">
+        <label>Art
+          <select name="slot_art[<%= slot.key %>][source]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+            <option value="">— Leave blank (show the base image) —</option>
+            <% slot.accepts.each do |source| %>
+              <option value="<%= source %>" <%= "selected" if entry["source"] == source %>><%= source_labels.fetch(source, source) %></option>
+            <% end %>
+          </select>
+        </label>
+
+        <% if (slot.accepts & SceneComposition::BOARD_SOURCES).any? %>
+          <label>Board
+            <select name="slot_art[<%= slot.key %>][board_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+              <% boards.each_with_index do |board, index| %>
+                <option value="<%= board.id %>" <%= "selected" if entry["board_id"] == board.id %>>
+                  <%= index + 1 %>. <%= board.name.presence || "Board ##{board.id}" %>
+                </option>
+              <% end %>
+            </select>
+          </label>
+        <% end %>
+
+        <% if slot.accepts.include?(SceneComposition::SOURCE_PAGE_THUMBNAIL) %>
+          <label>Printed page ink
+            <select name="slot_art[<%= slot.key %>][ink]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+              <option value="color" <%= "selected" if entry["ink"] != SceneComposition::INK_LOW %>>Colour</option>
+              <option value="low_ink" <%= "selected" if entry["ink"] == SceneComposition::INK_LOW %>>Low ink</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2 mt-5">
+            <input type="hidden" name="slot_art[<%= slot.key %>][header]" value="0" />
+            <input type="checkbox" name="slot_art[<%= slot.key %>][header]" value="1" <%= "checked" unless entry["header"] == false %> />
+            Printed page shows its header (title + QR)
+          </label>
+        <% end %>
+
+        <% if slot.accepts.include?(SceneComposition::SOURCE_UPLOAD) %>
+          <% if uploads.any? %>
+            <label>Uploaded picture
+              <select name="slot_art[<%= slot.key %>][blob_id]" class="admin-input border rounded px-2 py-1 block mt-1 w-full">
+                <% uploads.each do |upload| %>
+                  <option value="<%= upload.blob_id %>" <%= "selected" if entry["blob_id"] == upload.blob_id %>><%= upload.filename %></option>
+                <% end %>
+              </select>
+            </label>
+          <% end %>
+          <label>Upload a picture for this slot
+            <input type="file" name="slot_files[<%= slot.key %>]" accept="<%= SceneComposition::UPLOAD_CONTENT_TYPES.join(",") %>" class="block mt-1" />
+            <span class="text-[11px] text-t3">Choosing a file sets this slot to it. PNG, JPEG or WebP under <%= number_to_human_size(SceneComposition::MAX_UPLOAD_BYTES) %>.</span>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+  <% end %>
+
+  <div class="flex items-center gap-3">
+    <button type="submit" name="render" value="1"
+            class="text-xs font-medium px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">Save &amp; render</button>
+    <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Save</button>
+  </div>
+<% end %>
