@@ -1,10 +1,16 @@
 require "rails_helper"
 
 RSpec.describe MissionControl::RevenuecatRevenueSource do
+  # An App Store subscriber is a paid user RevenueCat stamped, not merely a paid
+  # user with no Stripe subscription.
+  def rc_settings(extra = {})
+    { "billing_provider" => RevenueCat::WebhookProcessor::PROVIDER }.merge(extra)
+  end
+
   describe ".call" do
-    it "counts paid users without a stripe_subscription_id" do
-      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil)
-      create(:user, plan_type: "pro", plan_status: "trialing", stripe_subscription_id: nil)
+    it "counts stamped RevenueCat subscribers without a stripe_subscription_id" do
+      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
+      create(:user, plan_type: "pro", plan_status: "trialing", stripe_subscription_id: nil, settings: rc_settings)
       create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: "sub_stripe")
 
       result = described_class.call
@@ -12,10 +18,27 @@ RSpec.describe MissionControl::RevenuecatRevenueSource do
       expect(result[:active_subscriptions]).to eq(2)
     end
 
+    it "does not count a comped paid account as App Store revenue" do
+      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil, settings: {})
+      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: "", settings: { "billing_interval" => "monthly" })
+
+      result = described_class.call
+
+      expect(result[:active_subscriptions]).to eq(0)
+      expect(result[:estimated_mrr_cents]).to eq(0)
+      expect(result[:plan_breakdown]).to eq({})
+    end
+
+    it "does not count a stamped user who also has a Stripe subscription" do
+      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: "sub_stripe", settings: rc_settings)
+
+      expect(described_class.call[:active_subscriptions]).to eq(0)
+    end
+
     it "excludes canceled and free users" do
-      create(:user, plan_type: "basic", plan_status: "canceled", stripe_subscription_id: nil)
-      create(:user, plan_type: "free", plan_status: "active", stripe_subscription_id: nil)
-      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil)
+      create(:user, plan_type: "basic", plan_status: "canceled", stripe_subscription_id: nil, settings: rc_settings)
+      create(:user, plan_type: "free", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
+      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
 
       result = described_class.call
 
@@ -23,8 +46,8 @@ RSpec.describe MissionControl::RevenuecatRevenueSource do
     end
 
     it "excludes admin users" do
-      create(:admin_user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil)
-      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil)
+      create(:admin_user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
+      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
 
       result = described_class.call
 
@@ -33,9 +56,9 @@ RSpec.describe MissionControl::RevenuecatRevenueSource do
 
     it "estimates MRR from plan type and billing interval" do
       create(:user, plan_type: "basic", plan_status: "active",
-             stripe_subscription_id: nil, settings: { "billing_interval" => "monthly" })
+             stripe_subscription_id: nil, settings: rc_settings("billing_interval" => "monthly"))
       create(:user, plan_type: "pro", plan_status: "active",
-             stripe_subscription_id: nil, settings: { "billing_interval" => "yearly" })
+             stripe_subscription_id: nil, settings: rc_settings("billing_interval" => "yearly"))
 
       result = described_class.call
 
@@ -46,7 +69,7 @@ RSpec.describe MissionControl::RevenuecatRevenueSource do
 
     it "defaults to monthly price when billing_interval is absent" do
       create(:user, plan_type: "basic", plan_status: "active",
-             stripe_subscription_id: nil, settings: {})
+             stripe_subscription_id: nil, settings: rc_settings)
 
       result = described_class.call
 
@@ -54,9 +77,9 @@ RSpec.describe MissionControl::RevenuecatRevenueSource do
     end
 
     it "returns plan breakdown" do
-      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil)
-      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil)
-      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil)
+      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
+      create(:user, plan_type: "basic", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
+      create(:user, plan_type: "pro", plan_status: "active", stripe_subscription_id: nil, settings: rc_settings)
 
       result = described_class.call
 

@@ -39,11 +39,14 @@ module MissionControl
 
     private
 
+    # Only accounts RevenueCat stamped. "Paid with no Stripe subscription" also
+    # matches admin comps, which bill nobody — those are counted separately as
+    # RevenueMetrics#manual_paid_users.
     def revenuecat_paid_users
       User.non_admin
+          .billed_by_app_store
           .where(plan_type: %w[basic pro])
           .where(plan_status: ACTIVE_STATUSES)
-          .where(stripe_subscription_id: [nil, ""])
     end
 
     def estimated_monthly_cents(plan_type, billing_interval)

@@ -23,6 +23,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Mission Control no longer counts comped accounts as App Store revenue.**
+  The App Store subscriber count and estimated MRR now include only accounts
+  RevenueCat stamped (`settings["billing_provider"] = "revenuecat"`), not every
+  paid account without a Stripe subscription. Accounts an admin put on a paid
+  plan are shown on their own as "Comped (no billing)" under Paid users.
+
 - **The app can tell who bills a paid plan.** `User#api_view` now publishes
   `billing_source` (`none` / `stripe` / `app_store` / `manual`), so the pricing
   page stops offering the in-app plan switch — which can only 422

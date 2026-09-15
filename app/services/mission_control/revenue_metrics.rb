@@ -36,6 +36,8 @@ module MissionControl
           plan_breakdown:       rc[:plan_breakdown],
         },
         paid_users:             User.non_admin.paid.count,
+        # Paid plans nobody bills (admin comps): in paid_users, never in MRR.
+        manual_paid_users:      User.non_admin.billed_manually.count,
         free_users:             User.non_admin.where(plan_type: "free").count,
         plan_breakdown:         plan_breakdown,
       }
