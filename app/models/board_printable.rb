@@ -160,8 +160,8 @@ class BoardPrintable < ApplicationRecord
   # rendered by Boards::Printables::RenderStyledSlides. They sit BESIDE
   # LISTING_IMAGE_ORDER rather than in it — that list is Etsy's cap exactly and
   # the definition of a current legacy gallery, so adding these there would
-  # overflow the cap and badge every printable stale. Nothing publishes them
-  # yet; a per-listing curated gallery is what will.
+  # overflow the cap and badge every printable stale. They reach Etsy only
+  # through a listing's curated `gallery_items` (Printables::GalleryItemRef).
   IMAGE_STYLED_HERO = "styled_hero".freeze
   IMAGE_STYLED_WHATS_INCLUDED = "styled_whats_included".freeze
   IMAGE_STYLED_COLOR_LOW_INK = "styled_color_low_ink".freeze
@@ -435,16 +435,27 @@ class BoardPrintable < ApplicationRecord
   # a download dropping its low-ink file: the slide would otherwise keep
   # quoting a number that is no longer true.
   def styled_slides_current?
-    digest = Printables::GalleryFacts.new(self).digest
+    digest = styled_facts_digest
     files = styled_image_files
 
     STYLED_IMAGE_VARIANTS.all? do |variant|
-      file = files.find { |f| f.metadata["variant"] == variant }
-      file &&
-        file.metadata["spec_version"].to_i == STYLED_SPEC_VERSION &&
-        file.metadata["facts_digest"] == digest
+      styled_image_current?(files.find { |f| f.metadata["variant"] == variant }, digest: digest)
     end
   end
+
+  # One styled slide, judged the way #styled_slides_current? judges the set.
+  # Takes the digest so a caller checking several slides computes it once.
+  def styled_image_current?(file, digest: styled_facts_digest)
+    file.present? &&
+      file.metadata["spec_version"].to_i == STYLED_SPEC_VERSION &&
+      file.metadata["facts_digest"] == digest
+  end
+
+  def styled_facts_digest = Printables::GalleryFacts.new(self).digest
+
+  # A preview URL for one of this printable's image blobs, for the admin
+  # gallery composer. Never raises (see AttachedFileUrls#url_for_file).
+  def image_url_for(file) = url_for_file(file)
 
   # Blobs from a retired gallery design. Purged after a re-render rather than
   # before it, so a render that fails leaves the old images in place instead of

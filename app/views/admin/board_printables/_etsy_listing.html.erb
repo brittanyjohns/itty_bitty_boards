@@ -115,15 +115,25 @@
           <%# Empty means "all of them". Rank 1 is Etsy's search thumbnail and
               belongs to a photoreal mockup, so the order here is fixed. %>
           <label class="block text-[11px] text-t2 mb-1">Gallery slides (none ticked = all)</label>
-          <div class="space-y-1">
-            <% BoardPrintable::LISTING_IMAGE_ORDER.each do |variant| %>
-              <label class="flex items-center gap-2 text-[11px] text-t2">
-                <%= check_box_tag "board_printable_listing[image_variants][]", variant,
-                      etsy_listing.selected_image_variants.include?(variant) %>
-                <%= variant.humanize %>
-              </label>
+          <% if etsy_listing.curated_gallery? %>
+            <%# A curated gallery replaces this allowlist. The selection is
+                carried as hidden fields so saving the copy doesn't wipe it —
+                clearing the curation restores exactly what was ticked. %>
+            <% etsy_listing.selected_image_variants.each do |variant| %>
+              <%= hidden_field_tag "board_printable_listing[image_variants][]", variant, id: nil %>
             <% end %>
-          </div>
+            <p class="text-[11px] text-t3">Set by this listing's curated gallery below.</p>
+          <% else %>
+            <div class="space-y-1">
+              <% BoardPrintable::LISTING_IMAGE_ORDER.each do |variant| %>
+                <label class="flex items-center gap-2 text-[11px] text-t2">
+                  <%= check_box_tag "board_printable_listing[image_variants][]", variant,
+                        etsy_listing.selected_image_variants.include?(variant) %>
+                  <%= variant.humanize %>
+                </label>
+              <% end %>
+            </div>
+          <% end %>
         </div>
         <div>
           <%# Intersected with the printable's PDFs — never a fresh selection
@@ -152,6 +162,8 @@
             class: "text-xs font-medium px-3 py-2 rounded admin-card text-t2 hover:text-t1 cursor-pointer" %>
     <% end %>
   </details>
+
+  <%= render "admin/board_printables/etsy_listing_gallery", etsy_listing: etsy_listing %>
 
   <div class="flex flex-wrap items-center gap-2">
     <% if etsy_listing.superseded? %>

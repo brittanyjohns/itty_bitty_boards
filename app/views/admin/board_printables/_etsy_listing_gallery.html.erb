@@ -1,0 +1,149 @@
+<%# The curated gallery composer for ONE listing.
+
+    `gallery_items` is an ordered allowlist of refs, at most ten (Etsy's cap).
+    Empty means "never curated": the listing publishes the legacy slides in
+    LISTING_IMAGE_ORDER, narrowed by the checkboxes in the overrides form.
+
+    Every button posts the WHOLE resulting list with `gallery_only`, so the
+    composer needs no JavaScript and can never touch the listing's copy.
+    Buttons are their own forms, which is why this sits outside the overrides
+    form rather than inside it. %>
+<% listing_path = admin_dashboard_board_printable_listing_path(@printable, etsy_listing) %>
+<% items = Array(etsy_listing.gallery_items) %>
+<% max_items = Printables::GalleryItemRef::MAX_ITEMS %>
+<% full = items.size >= max_items %>
+<% small_button = "text-[11px] px-2 py-1 rounded admin-card text-t2 hover:text-t1 cursor-pointer disabled:opacity-40" %>
+<% catalogue_entries = etsy_listing.gallery_entries(Printables::GalleryItemRef.catalogue) %>
+<% entry_for = catalogue_entries.index_by { |entry| entry.ref.to_s } %>
+
+<details class="mb-3" <%= "open" if etsy_listing.curated_gallery? %>>
+  <summary class="text-[11px] text-t2 cursor-pointer">
+    Gallery —
+    <%= etsy_listing.curated_gallery? ? "curated, #{items.size} of #{max_items}" : "not curated (legacy slides)" %>
+  </summary>
+
+  <div class="mt-3 space-y-3">
+    <%# Existing rules for a row that reached Etsy apply: its fields stay
+        editable, but this app implements no call that changes a listing's
+        photos, so edits here reach Etsy only through Replace. %>
+    <% if etsy_listing.reached_etsy? %>
+      <p class="text-[11px] text-t3">
+        Changes here don't reach draft <%= etsy_listing.etsy_listing_id %> — this app can't change a listing's photos.
+        Replace carries this gallery to a new draft.
+      </p>
+    <% end %>
+
+    <% if etsy_listing.curated_gallery? %>
+      <% if !etsy_listing.listing_images_current? %>
+        <p class="text-[11px] text-amber-600">
+          Some images below aren't rendered or are out of date. Creating the draft renders them first.
+        </p>
+      <% end %>
+
+      <ol class="space-y-2">
+        <% items.each_with_index do |raw, index| %>
+          <% entry = entry_for[raw] %>
+          <% ref = entry&.ref %>
+          <li class="flex flex-wrap items-center gap-3">
+            <span class="text-[11px] text-t3 w-12">Rank <%= index + 1 %></span>
+            <% url = entry&.file && @printable.image_url_for(entry.file) %>
+            <% if url.present? %>
+              <%= image_tag url, alt: raw, class: "object-contain rounded border bg-white",
+                    style: "width: 64px; height: 48px; border-color: var(--border);" %>
+            <% else %>
+              <span class="text-[10px] text-t3 inline-flex items-center justify-center rounded border"
+                    style="width: 64px; height: 48px; border-color: var(--border);">none</span>
+            <% end %>
+            <div class="min-w-0">
+              <div class="text-[11px] text-t1"><%= ref ? ref.label : raw %></div>
+              <% if ref.nil? %>
+                <div class="text-[11px] text-amber-600">No longer a known image — remove it.</div>
+              <% elsif entry.file.nil? %>
+                <div class="text-[11px] text-t3">Not rendered yet — rendered when the draft is created.</div>
+              <% elsif !entry.current %>
+                <div class="text-[11px] text-amber-600">Out of date — re-rendered when the draft is created.</div>
+              <% end %>
+              <% if ref&.styled? %>
+                <div class="text-[11px] text-amber-600">4:3 — confirm crop on a test draft before relying on it</div>
+              <% end %>
+            </div>
+            <div class="flex items-center gap-1 ml-auto">
+              <%= button_to "↑", listing_path, method: :patch,
+                    params: gallery_button_params(gallery_items_moved(items, index, -1)),
+                    disabled: index.zero?, class: small_button, title: "Move up" %>
+              <%= button_to "↓", listing_path, method: :patch,
+                    params: gallery_button_params(gallery_items_moved(items, index, 1)),
+                    disabled: index == items.size - 1, class: small_button, title: "Move down" %>
+              <%= button_to "Remove", listing_path, method: :patch,
+                    params: gallery_button_params(items.reject.with_index { |_, i| i == index }),
+                    class: small_button %>
+            </div>
+          </li>
+        <% end %>
+      </ol>
+    <% else %>
+      <p class="text-[11px] text-t3">
+        Not curated: this listing publishes the square legacy slides in their fixed order, narrowed by the
+        "Gallery slides" boxes above. Pick images below, or start from a preset, to choose and order up to
+        <%= max_items %> yourself.
+      </p>
+    <% end %>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <%# Rank 1 is the photoreal paper mockup; the styled hero and
+          what's-included replace their legacy twins rather than repeating them. %>
+      <%= button_to "Use suggested order", listing_path, method: :patch,
+            params: gallery_button_params(Printables::GalleryItemRef::SUGGESTED),
+            class: small_button,
+            form: { data: { turbo_confirm: etsy_listing.curated_gallery? ? "Replace this gallery with the suggested order?" : nil } } %>
+      <% unless etsy_listing.curated_gallery? %>
+        <%= button_to "Start from current slides", listing_path, method: :patch,
+              params: gallery_button_params(
+                (etsy_listing.selected_image_variants.presence || BoardPrintable::LISTING_IMAGE_ORDER)
+                  .map { |variant| "legacy:#{variant}" },
+              ),
+              class: small_button %>
+      <% end %>
+      <% if etsy_listing.curated_gallery? %>
+        <%= button_to "Clear curation", listing_path, method: :patch,
+              params: gallery_button_params([]),
+              class: small_button,
+              form: { data: { turbo_confirm: "Clear this gallery? The listing goes back to the legacy slides." } } %>
+      <% end %>
+    </div>
+
+    <div>
+      <div class="text-[11px] text-t2 mb-2">Available images</div>
+      <div class="flex flex-wrap gap-3">
+        <% catalogue_entries.each do |entry| %>
+          <% ref = entry.ref %>
+          <% included = items.include?(ref.to_s) %>
+          <div class="w-28">
+            <% url = entry.file && @printable.image_url_for(entry.file) %>
+            <% if url.present? %>
+              <%= link_to url, target: "_blank", rel: "noopener" do %>
+                <%= image_tag url, alt: ref.to_s, class: "object-contain rounded border bg-white",
+                      style: "width: 112px; height: #{ref.styled? ? 84 : 112}px; border-color: var(--border);" %>
+              <% end %>
+            <% else %>
+              <div class="text-[10px] text-t3 flex items-center justify-center rounded border text-center px-1"
+                   style="width: 112px; height: <%= ref.styled? ? 84 : 112 %>px; border-color: var(--border);">
+                Not rendered yet
+              </div>
+            <% end %>
+            <p class="text-[11px] text-t2 mt-1"><%= ref.label %></p>
+            <% if entry.file && !entry.current %>
+              <p class="text-[10px] text-amber-600">Out of date</p>
+            <% end %>
+            <% if ref.styled? %>
+              <p class="text-[10px] text-amber-600">4:3 — confirm crop on a test draft before relying on it</p>
+            <% end %>
+            <%= button_to included ? "Added" : "Add", listing_path, method: :patch,
+                  params: gallery_button_params(items + [ref.to_s]),
+                  disabled: included || full, class: "#{small_button} mt-1" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</details>

@@ -40,6 +40,7 @@ class BoardPrintableListing < ApplicationRecord
   validates :state, inclusion: { in: STATES }
   validates :purpose, inclusion: { in: PURPOSES }
   validate :allowlists_are_known
+  validate :gallery_items_are_valid
 
   scope :ordered, -> { order(:created_at, :id) }
 
@@ -95,7 +96,43 @@ class BoardPrintableListing < ApplicationRecord
   # doing nothing at all.
   def own_gallery_required? = topic_override.present?
 
+  # ---- Curated gallery ----------------------------------------------------
+  #
+  # `gallery_items` is an ORDERED allowlist of refs (Printables::GalleryItemRef)
+  # — "legacy:on_paper", "styled:styled_hero" — at most ten. EMPTY means "never
+  # curated", and a never-curated listing behaves exactly as it did before the
+  # column existed: legacy slides, LISTING_IMAGE_ORDER, narrowed by
+  # `image_variants`. That equivalence is the backward-compatibility rail, and
+  # it is why nothing was backfilled.
+
+  def curated_gallery? = Array(gallery_items).any?
+
+  # The stored refs that parse. A ref outside the allowlist can't be saved, but
+  # one could name a variant retired later — #listing_images_current? counts
+  # the raw list, so such a gallery reads stale rather than silently shrinking.
+  def gallery_refs
+    Array(gallery_items).filter_map { |raw| Printables::GalleryItemRef.parse(raw) }
+  end
+
+  # Each curated ref with the blob it resolves to (nil when unrendered) and
+  # whether that blob is the one this code would ship today.
+  GalleryEntry = Struct.new(:ref, :file, :current, keyword_init: true)
+
+  def gallery_entries(refs = gallery_refs)
+    digest = nil
+    refs.map do |ref|
+      file = ref.resolve(self)
+      digest ||= board_printable.styled_facts_digest if ref.styled? && file
+      GalleryEntry.new(ref: ref, file: file, current: gallery_ref_current?(ref, file, digest))
+    end
+  end
+
+  # The curated refs a publish would have to render first.
+  def stale_gallery_refs = gallery_entries.reject(&:current).map(&:ref)
+
   def image_files
+    return gallery_entries.filter_map(&:file) if curated_gallery?
+
     files = own_image_files.presence || board_printable.current_image_files
     files = files.select { |f| BoardPrintable::LISTING_IMAGE_ORDER.include?(f.metadata["variant"]) }
     files = files.select { |f| selected_image_variants.include?(f.metadata["variant"]) } if
@@ -127,7 +164,19 @@ class BoardPrintableListing < ApplicationRecord
   # Whether this listing's gallery is the one this code ships today. Only its
   # SELECTED variants have to be there — a listing that deliberately ships six
   # slides is not stale for missing the other four.
+  #
+  # A CURATED gallery is current only when every stored ref resolves and is
+  # current — a styled slide by spec version and facts digest (styled slides are
+  # shared, never per-listing), a legacy slide by existing (and, for a listing
+  # with a topic override, by being its own render).
   def listing_images_current?
+    if curated_gallery?
+      refs = gallery_refs
+      return false if refs.size != Array(gallery_items).size
+
+      return gallery_entries(refs).all?(&:current)
+    end
+
     return false if own_gallery_required? && own_image_files.empty?
 
     have = image_files.map { |f| f.metadata["variant"] }
@@ -183,5 +232,35 @@ class BoardPrintableListing < ApplicationRecord
 
     errors.add(:image_variants, "has unknown variants: #{unknown_images.join(", ")}") if unknown_images.any?
     errors.add(:pdf_variants, "has unknown variants: #{unknown_pdfs.join(", ")}") if unknown_pdfs.any?
+  end
+
+  # Ten is Etsy's photo cap; a duplicate would upload the same photo twice; an
+  # unknown ref would silently drop a slide. Every one is refused, not trimmed.
+  def gallery_items_are_valid
+    unless gallery_items.is_a?(Array)
+      errors.add(:gallery_items, "must be a list")
+      return
+    end
+
+    max = Printables::GalleryItemRef::MAX_ITEMS
+    errors.add(:gallery_items, "can hold at most #{max} images (Etsy's cap)") if gallery_items.size > max
+
+    dupes = gallery_items.tally.select { |_, n| n > 1 }.keys
+    errors.add(:gallery_items, "lists #{dupes.join(", ")} more than once") if dupes.any?
+
+    gallery_items.uniq.each do |raw|
+      reason = Printables::GalleryItemRef.error_for(raw)
+      errors.add(:gallery_items, reason) if reason
+    end
+  end
+
+  # nil file: unrendered. Styled: spec + digest. Legacy under a topic override:
+  # must be this listing's own render, or the override would do nothing.
+  def gallery_ref_current?(ref, file, digest)
+    return false if file.nil?
+    return board_printable.styled_image_current?(file, digest: digest) if ref.styled?
+    return file.metadata["listing_id"] == id if ref.legacy? && own_gallery_required?
+
+    true
   end
 end

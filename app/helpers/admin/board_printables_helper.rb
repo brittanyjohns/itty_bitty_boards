@@ -105,6 +105,22 @@ module Admin
       "#{base} This printable already has #{pluralize(existing, "listing")}."
     end
 
+    # The params one gallery-composer button posts: the WHOLE resulting list,
+    # so every button (add, up, down, remove, suggested, clear) is the same
+    # plain form with no JavaScript. `gallery_only` tells #update to touch
+    # nothing else. An empty list is sent as [""] so the key still arrives.
+    def gallery_button_params(items)
+      { gallery_only: 1, board_printable_listing: { gallery_items: items.presence || [""] } }
+    end
+
+    # `items` with the element at `index` moved by `offset` (-1 up, +1 down).
+    def gallery_items_moved(items, index, offset)
+      target = index + offset
+      return items if target.negative? || target >= items.size
+
+      items.dup.tap { |list| list[index], list[target] = list[target], list[index] }
+    end
+
     # The confirm on "Create Etsy draft" / "Retry". Names the title going out,
     # because the row's copy may differ from the printable's.
     def publish_listing_confirm(listing)

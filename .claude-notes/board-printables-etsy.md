@@ -640,9 +640,9 @@ slides in the warm cream / soft pink / gentle green design: `styled_hero`,
 `styled_whats_included`, `styled_color_low_ink` and `styled_online_version`,
 1200x900 CSS px at scale 2 (2400x1800), through
 `layouts/listing_image_styled.html.erb` and `api/board_printables/styled/*`.
-Triggered from the admin "Styled slides" card (`render_styled_slides`), not by
-publishing: **nothing uploads them to Etsy yet**. A per-listing curated gallery
-is the planned publish path.
+Triggered from the admin "Styled slides" card (`render_styled_slides`), or by
+publishing a listing whose **curated gallery** names one (below) — that is the
+only way a styled slide reaches Etsy.
 
 - **They are not in `LISTING_IMAGE_ORDER`**, which stays the ten legacy slides
   and Etsy's cap. `STYLED_IMAGE_VARIANTS` lists them, and
@@ -697,6 +697,55 @@ is the planned publish path.
   `Fonts.styled_face_css`. The layout emits that CSS with `<%==`: an
   HTML-escaped `'Caveat'` inside `<style>` is an invalid `@font-face` that
   Chrome drops silently.
+
+### Curated gallery (per listing)
+
+`board_printable_listings.gallery_items` lets an admin pick AND order up to ten
+gallery images for one listing, from the legacy slides and the styled slides.
+It is an **ordered allowlist of refs** — `legacy:<variant in
+LISTING_IMAGE_ORDER>`, `styled:<variant in STYLED_IMAGE_VARIANTS>` — parsed by
+`Printables::GalleryItemRef`, which checks both halves against an allowlist and
+never widens by negation. `composition:` is reserved for the scene engine and
+refused until it lands (one line in `GalleryItemRef::PREFIXES`).
+
+- **Empty means "never curated", and behaves exactly as before**: the legacy
+  slides in `LISTING_IMAGE_ORDER`, narrowed by `image_variants`. No backfill,
+  and the pre-existing listing/publish specs pass unchanged — that is the
+  compatibility rail. Once curated, `image_variants` is ignored (the admin form
+  hides the checkboxes but carries their values, so clearing the curation
+  restores them).
+- **Validation refuses, never trims**: more than ten (Etsy's cap), a duplicate,
+  or any ref outside the allowlist.
+- **Resolution** (`GalleryItemRef#resolve`): the listing's own blob
+  (`listing_id` metadata) first, then the shared one. `image_files` returns the
+  resolved blobs in stored order, so rank 1 is whatever the admin put first.
+- **Currency** (`listing_images_current?`): every stored ref must parse and
+  resolve; a styled ref must match `STYLED_SPEC_VERSION` and
+  `GalleryFacts#digest` (styled slides are SHARED, never per-listing, so they
+  don't honour `topic_override`); a legacy ref on a listing with a topic
+  override must be the listing's own render, the same rule the uncurated path
+  holds.
+- **Publishing** calls `Printables::EnsureGalleryRendered` instead of the legacy
+  renderer, BEFORE anything reaches Etsy (the taxonomy read included). It
+  renders only the stale styled variants, and the whole legacy set only when a
+  legacy ref is stale. The publish is then refused — row `failed`, nothing sent
+  — if the gallery resolves to zero images, or if any ref still doesn't
+  resolve: uploading five of six chosen photos changes a listing silently.
+  `retry: 0`, the claim and drafts-only are untouched.
+- `Etsy::Client#upload_image` takes `content_type:` (default `image/png`) and
+  publishing passes the blob's own, because compositions will be JPEG.
+- **Suggested order** (`GalleryItemRef::SUGGESTED`) leads with `legacy:on_paper`
+  (rank 1 is a photograph, above) and uses the styled hero and what's-included
+  IN PLACE of their legacy twins — never both, the duplicate-slide rule again.
+- **The composer** (`_etsy_listing_gallery.html.erb`) is plain `button_to`
+  forms: every button posts the whole resulting list with `gallery_only`, and
+  `#update` then assigns `gallery_items` and nothing else. Without that flag a
+  button press would run the overrides path and blank the listing's copy.
+  `#replace` copies `gallery_items` by name, like every other field.
+- **4:3 gate.** Etsy crops listing photos and nobody has yet checked what it does
+  to a 4:3 slide. Every styled item in the composer carries "4:3 — confirm crop
+  on a test draft before relying on it". Hand-upload one styled slide to a test
+  draft before shipping a curated gallery that leads with one.
 
 ## Regenerating and deleting a printable
 
@@ -1034,7 +1083,8 @@ while there were two kinds of blob.
 | Column | Over | Note |
 |---|---|---|
 | `listing_copy` | the printable's `listing_copy` | overrides only; blanks dropped so a cleared field falls back rather than publishing an empty title |
-| `image_variants` | `LISTING_IMAGE_ORDER` | rank 1 is Etsy's search thumbnail, so order is fixed regardless of selection |
+| `image_variants` | `LISTING_IMAGE_ORDER` | rank 1 is Etsy's search thumbnail, so order is fixed regardless of selection. Ignored once `gallery_items` is non-empty |
+| `gallery_items` | `GalleryItemRef` prefixes × variants | ORDERED refs, max 10; empty = the `image_variants` path above. See "Curated gallery" |
 | `pdf_variants` | `BoardPrintable#pdf_files` | **intersected**, never a fresh selection over `files` — that is what keeps a gallery image or the video out of a buyer's download. Variants, not ActiveStorage keys: a key is versioned per run, so a key allowlist empties itself on the first Regenerate |
 
 Blobs rendered for one listing are stamped `listing_id` in metadata; a blob with

@@ -34,9 +34,13 @@ module Etsy
       guard = guard_failure
       return failure(guard) if guard
 
-      client.assert_known_taxonomy!(Client::DEFAULT_TAXONOMY_ID)
+      # The gallery is settled BEFORE anything reaches Etsy — even the taxonomy
+      # read — so a curated gallery that can't be rendered stops here with
+      # nothing sent, and the row stays retryable.
+      gallery_problem = prepare_gallery
+      return failure(gallery_problem) if gallery_problem
 
-      render_listing_images_if_missing
+      client.assert_known_taxonomy!(Client::DEFAULT_TAXONOMY_ID)
 
       created = client.create_listing(
         title: copy["title"],
@@ -144,7 +148,7 @@ module Etsy
     # was redesigned still HAS images — the retired cover/what's-included pair —
     # and publishing those would put a retired gallery design on a live listing.
     def render_listing_images_if_missing
-      return if listing.listing_images_current?
+      return nil if listing.listing_images_current?
 
       # Rendered for THIS listing when it carries a topic override, so its
       # slides say what its own copy says; otherwise the shared gallery every
@@ -154,6 +158,34 @@ module Etsy
       ).call
       printable.reload
       listing.reload
+      nil
+    end
+
+    # => nil when the gallery is ready to upload, else a message for the admin.
+    #
+    # An uncurated listing takes the legacy path exactly as before. A CURATED
+    # one renders only what its refs need, and is then refused unless every ref
+    # resolves: uploading five of the six photos an admin picked would change
+    # the listing silently, and a gallery of zero is a draft Etsy won't let go
+    # live.
+    def prepare_gallery
+      return render_listing_images_if_missing unless listing.curated_gallery?
+
+      Printables::EnsureGalleryRendered.new(listing).call
+
+      if listing.image_files.empty?
+        return "This listing's curated gallery has no rendered images. Render its slides, or clear the " \
+               "curation, before creating the draft."
+      end
+
+      if listing.gallery_refs.size != Array(listing.gallery_items).size
+        return "This listing's curated gallery names images that no longer exist. Edit its gallery first."
+      end
+
+      stale = listing.stale_gallery_refs
+      return nil if stale.empty?
+
+      "These curated gallery images couldn't be rendered: #{stale.map(&:to_s).join(", ")}."
     end
 
     # A failure here leaves the row `published` with its id set, because the
@@ -179,14 +211,18 @@ module Etsy
 
     # This LISTING's assets, not the printable's: its own rendered gallery if it
     # has one, its own PDF subset, its own clip — each falling back to the
-    # shared set. Already in LISTING_IMAGE_ORDER.
+    # shared set. Already in rank order: LISTING_IMAGE_ORDER, or the curated
+    # gallery's own order.
     def image_files = listing.image_files
 
     def pdf_files = listing.pdf_files
 
     def upload_images(listing_id)
       image_files.each_with_index do |file, index|
-        client.upload_image(listing_id, bytes: file.download, filename: file.filename.to_s, rank: index + 1)
+        client.upload_image(
+          listing_id,
+          bytes: file.download, filename: file.filename.to_s, rank: index + 1, content_type: file.content_type,
+        )
       end
     end
 

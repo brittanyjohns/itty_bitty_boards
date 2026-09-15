@@ -209,5 +209,120 @@ RSpec.describe BoardPrintableListing do
         expect(listing(image_variants: [BoardPrintable::IMAGE_HERO]).listing_images_current?).to be true
       end
     end
+
+    # `gallery_items` is an ordered allowlist of refs. Empty means "never
+    # curated", which must be exactly the behaviour above.
+    describe "a curated gallery" do
+      def attach_styled!(variant = BoardPrintable::IMAGE_STYLED_HERO, digest: printable.styled_facts_digest,
+                         spec_version: BoardPrintable::STYLED_SPEC_VERSION)
+        printable.attach_image!(
+          bytes: "styled", variant: variant,
+          metadata: { spec_version: spec_version, facts_digest: digest },
+        )
+        printable.reload
+      end
+
+      def variants_of(row) = row.image_files.map { |f| f.metadata["variant"] }
+
+      it "is not curated while gallery_items is empty, and keeps the legacy gallery" do
+        row = listing
+
+        expect(row.gallery_items).to eq([])
+        expect(row.curated_gallery?).to be false
+        expect(variants_of(row)).to eq(BoardPrintable::LISTING_IMAGE_ORDER)
+      end
+
+      it "resolves refs in the stored order, styled and legacy mixed" do
+        attach_styled!
+        row = listing(gallery_items: %w[styled:styled_hero legacy:about legacy:on_paper])
+
+        expect(variants_of(row)).to eq([BoardPrintable::IMAGE_STYLED_HERO, "about", "on_paper"])
+        expect(row.first_image_variant).to eq(BoardPrintable::IMAGE_STYLED_HERO)
+        expect(row.listing_images_current?).to be true
+      end
+
+      # A curated gallery replaces the checkbox allowlist rather than being
+      # narrowed by it.
+      it "ignores image_variants once curated" do
+        row = listing(gallery_items: %w[legacy:about], image_variants: [BoardPrintable::IMAGE_HERO])
+
+        expect(variants_of(row)).to eq(["about"])
+      end
+
+      it "prefers the listing's own blob over the shared one" do
+        row = listing(gallery_items: %w[legacy:on_paper legacy:about])
+        printable.attach_image!(bytes: "own", variant: "on_paper", listing: row)
+
+        expect(row.reload.image_files.map(&:download)).to eq(%w[own png])
+      end
+
+      it "is not current when a ref has no blob" do
+        row = listing(gallery_items: %w[legacy:about styled:styled_hero])
+
+        expect(variants_of(row)).to eq(["about"])
+        expect(row.listing_images_current?).to be false
+        expect(row.stale_gallery_refs.map(&:to_s)).to eq(["styled:styled_hero"])
+      end
+
+      it "is not current when a styled slide's facts or design moved" do
+        attach_styled!(digest: "an-older-digest")
+        expect(listing(gallery_items: %w[styled:styled_hero]).listing_images_current?).to be false
+
+        attach_styled!(spec_version: BoardPrintable::STYLED_SPEC_VERSION - 1)
+        expect(listing(gallery_items: %w[styled:styled_hero]).listing_images_current?).to be false
+      end
+
+      # Same rule as the uncurated path: an override is doing nothing until the
+      # listing has slides of its own.
+      it "is not current when a topic override is served the shared legacy slide" do
+        row = listing(gallery_items: %w[legacy:about], topic_override: "school morning")
+        expect(row.listing_images_current?).to be false
+
+        printable.attach_image!(bytes: "own", variant: "about", listing: row)
+        expect(row.reload.listing_images_current?).to be true
+      end
+
+      # A variant retired after it was saved must read stale, not quietly
+      # shrink the gallery.
+      it "is not current when a stored ref no longer parses" do
+        row = listing(gallery_items: %w[legacy:about])
+        row.update_column(:gallery_items, %w[legacy:about legacy:cover])
+
+        expect(row.reload.listing_images_current?).to be false
+      end
+
+      describe "validation" do
+        def build(items) = described_class.new(board_printable: printable, gallery_items: items)
+
+        it "accepts up to ten known, unique refs" do
+          expect(build(Printables::GalleryItemRef::SUGGESTED)).to be_valid
+        end
+
+        it "refuses an eleventh image" do
+          eleven = Printables::GalleryItemRef.catalogue.map(&:to_s).first(11)
+          row = build(eleven)
+
+          expect(row).not_to be_valid
+          expect(row.errors[:gallery_items].join).to match(/at most 10/)
+        end
+
+        it "refuses a duplicate" do
+          row = build(%w[legacy:about legacy:about])
+
+          expect(row).not_to be_valid
+          expect(row.errors[:gallery_items].join).to include("more than once")
+        end
+
+        it "refuses an unknown prefix, an unknown variant, and a composition ref" do
+          expect(build(%w[photo:on_paper]).tap(&:valid?).errors[:gallery_items].join).to match(/unknown kind/)
+          expect(build(%w[legacy:glossy]).tap(&:valid?).errors[:gallery_items].join).to include("legacy:glossy")
+          expect(build(%w[composition:3]).tap(&:valid?).errors[:gallery_items].join).to match(/can't be used yet/)
+        end
+
+        it "refuses a non-list" do
+          expect(build("legacy:about")).not_to be_valid
+        end
+      end
+    end
   end
 end

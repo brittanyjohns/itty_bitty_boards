@@ -25,18 +25,29 @@ module Admin
                   notice: "Added a listing. Edit its copy, then create the Etsy draft."
     end
 
+    # Two forms post here. The overrides form sends every field, so it assigns
+    # every field (an unticked checkbox list arrives as no key, and has to mean
+    # "none"). The gallery composer's buttons send ONLY `gallery_items` plus
+    # `gallery_only`, and must touch nothing else — otherwise pressing "up"
+    # would blank the listing's title and label.
     def update
-      @listing.assign_attributes(
-        purpose: listing_params[:purpose].presence_in(BoardPrintableListing::PURPOSES) || @listing.purpose,
-        label: listing_params[:label],
-        topic_override: listing_params[:topic_override],
-        listing_copy: copy_overrides,
-        image_variants: Array(listing_params[:image_variants]).compact_blank,
-        pdf_variants: Array(listing_params[:pdf_variants]).compact_blank,
-      )
+      if params[:gallery_only].present?
+        @listing.gallery_items = gallery_items_param
+      else
+        @listing.assign_attributes(
+          purpose: listing_params[:purpose].presence_in(BoardPrintableListing::PURPOSES) || @listing.purpose,
+          label: listing_params[:label],
+          topic_override: listing_params[:topic_override],
+          listing_copy: copy_overrides,
+          image_variants: Array(listing_params[:image_variants]).compact_blank,
+          pdf_variants: Array(listing_params[:pdf_variants]).compact_blank,
+        )
+        @listing.gallery_items = gallery_items_param if listing_params.key?(:gallery_items)
+      end
 
       if @listing.save
-        redirect_to admin_dashboard_board_printable_path(@printable), notice: "Listing saved."
+        redirect_to admin_dashboard_board_printable_path(@printable),
+                    notice: params[:gallery_only].present? ? "Gallery saved." : "Listing saved."
       else
         redirect_to admin_dashboard_board_printable_path(@printable),
                     alert: @listing.errors.full_messages.to_sentence
@@ -119,6 +130,9 @@ module Admin
           topic_override: @listing.topic_override,
           image_variants: @listing.image_variants,
           pdf_variants: @listing.pdf_variants,
+          # Copied by name like everything above: a field missed here is
+          # silently lost from the replacement draft.
+          gallery_items: @listing.gallery_items,
           created_by: current_user,
         )
       end
@@ -164,9 +178,13 @@ module Admin
     def listing_params
       params.fetch(:board_printable_listing, {}).permit(
         :purpose, :label, :topic_override, :title, :summary, :description, :tags, :price_cents,
-        image_variants: [], pdf_variants: [],
+        image_variants: [], pdf_variants: [], gallery_items: [],
       )
     end
+
+    # Order is the point, so it is kept exactly as posted; validation refuses
+    # duplicates and unknown refs rather than quietly fixing them.
+    def gallery_items_param = Array(listing_params[:gallery_items]).compact_blank
 
     # Overrides only. A blank field means "use the printable's copy", never
     # "publish an empty one", so blanks are dropped rather than stored.

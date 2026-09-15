@@ -18,6 +18,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the card warns when they aren't. The hero slide's online line follows the
   same rule. The color slide says "Trim-ready version included" only when that
   PDF ships.
+- **Curated Etsy gallery per listing.** Each listing on
+  `/admin/board_printables/:id` has a gallery composer: pick up to 10 images
+  from the square slides and the styled 4:3 slides, put them in order
+  (up/down/remove), or start from a suggested order led by the paper mockup.
+  Creating the Etsy draft renders anything the chosen gallery is missing and
+  uploads the images in that order, and stops before contacting Etsy if the
+  gallery can't be fully rendered. Listings nobody curates publish exactly as
+  before. Styled items carry a reminder to check Etsy's crop on a test draft
+  first.
 
 - **Styled 4:3 slides for board printables (admin preview).** A new "Styled
   slides" card on `/admin/board_printables/:id` renders a hero and a "What's
