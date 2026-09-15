@@ -94,6 +94,94 @@ the stage a plain `scale()` of the base image's pixels.
 inlined as data URIs; the only network fetches are board symbol art inside page
 renders, as for the listing gallery.
 
+Then, on top of all three: **text slots**, then **overlay regions** (#955),
+z-index 3, **above the front layer**. A front layer is rings, clips and hands
+over the product; words the scene prints are meant to be read, not tucked under
+a ring. A template that wants words behind something draws that into the base
+image.
+
+## Text slots and overlay regions (#955)
+
+The template sets the **look**; a composition supplies only the **words**.
+
+```json
+{"key":"headline","label":"Headline","box":[x,y,w,h],"rotation":-2,"font":"fredoka","weight":600,
+ "color":"#17385c","align":"center","max_px":110,"min_px":28,"max_chars":80,"default":"Printable AAC"}
+{"key":"facts","box":[x,y,w,h],"partial":"feature_list"}
+```
+
+- `box` is in base-image px and must sit wholly inside the image. `rotation` is
+  in degrees (±180), about the box's centre.
+- `font` is an allowlist (`SceneTemplate::TEXT_FONTS`: `nunito`, `fredoka`,
+  `caveat`), exactly the faces `Fonts.styled_face_css` inlines, and `weight`
+  must be a multiple of 100 inside the range that font's vendored file covers
+  (Fredoka stops at 600). `color` is a `#rrggbb` hex. `align` is
+  left/center/right. `min_px` ≤ `max_px`, both 6–400. `max_chars` is 1–280, and
+  the default must fit it.
+- Keys are **one namespace** across `slots`, `text_slots` and
+  `overlay_regions`. At most 8 text slots and 4 overlays.
+- Text and overlay changes bump `calibration_version`, as a quad change does.
+- `SceneComposition#text_values` is `{key => words}`. Words are squished, and a
+  blank value is **not stored**: blank means the slot's default, and an empty
+  default draws nothing. Validated against the template's keys and
+  `max_chars` on save, and `max_chars` is re-asserted at render time (a limit
+  lowered since the words were saved raises `RenderSceneComposition::Error`).
+- **Words are user input.** They reach the page only through ERB's escaping
+  output tag; never `raw`/`html_safe`, never interpolated into the script.
+- `partial` is an allowlist (`OVERLAY_PARTIALS`: `feature_list`, `badges`,
+  `steps_row`, `check_pills`, in `api/board_printables/scene/overlays/`). Each
+  renders from `Printables::GalleryFacts` for the composition's printable
+  (narrowed to its listing when it has one) via `StyledSlideCopy.overlay_*`.
+  There is no free text in an overlay. The partials claim nothing GalleryFacts
+  doesn't back: no "free", no "no sign-in" until a fact supports them.
+  `feature_list` and `badges` reuse the styled slides' partials, and their CSS is
+  the shared `styled/_component_css` partial so the two can't drift.
+- The digest includes the sorted `text_values`, and `GalleryFacts#digest` when
+  the template has overlays, so a changed word count marks the render stale.
+  `RENDER_SPEC_VERSION` is 2.
+
+### Fitting
+
+Grover 1.2.3 forwards `wait_for_function` to Puppeteer's `page.waitForFunction`
+(checked in the gem's `processor.cjs`). When anything styled is drawn, the page
+carries `scene/_fit_script`: it loads each face with `document.fonts.load`,
+awaits `document.fonts.ready`, bisects each text box's font size from `max_px`
+down to `min_px` until the words fit (normal word wrapping, so a long word
+overflows and shrinks rather than breaking at max size), scales each overlay's
+natural layout to contain in its box, then sets `window.__scene_fit = true`.
+Grover waits on that flag (`FIT_TIMEOUT_MS`, 15 s) before the screenshot, so a
+stuck fit fails the render instead of shipping unfitted text.
+
+If even `min_px` overflows, the box gets `data-overflow` and the words may break
+mid-word. `max_chars` is what keeps that rare. Ruby also seeds a pre-script
+size (`estimate_font_px`, an average-glyph estimate) and an overlay scale, so
+the markup is close even before the script runs.
+
+Fonts, the component CSS and the script are emitted **only** when a text slot
+has words or a template has an overlay. A plain scene render carries none of
+them. The faces are emitted with `<%==` (see "Styled slides" in
+`board-printables-etsy.md`).
+
+The calibrator's `app/javascript/src/scene/text_fit.js` is the JS twin of the
+fit. Change both together.
+
+### Calibrator and form
+
+The calibrator adds, removes, drags (move) and resizes (bottom-right handle)
+text and overlay boxes. The handles edit the **unrotated** box; the preview
+rotates the text about the box centre. Each box has a small form (font, weight,
+colour, align, sizes, max_chars, rotation, default, or partial). The preview
+draws the default words in the chosen face, fitted as the render fits them,
+above the checkerboard warp and the front layer. An overlay previews as a
+labelled placeholder, because a template has no printable to take facts from.
+The page inlines the styled faces so it measures real glyphs. The documents
+save as `text_slots_json` and `overlay_regions_json`; a request that omits one
+leaves that column alone.
+
+The composition form has one text input per text slot (`maxlength` =
+`max_chars`, the default as placeholder), saved with the art. A request without
+`text_values` leaves the words alone.
+
 ## Art sources (`slot_art` entries)
 
 | source | entry | rendered by |

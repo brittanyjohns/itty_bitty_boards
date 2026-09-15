@@ -1,0 +1,10 @@
+<%# Numbered steps in a row, from GalleryFacts via StyledSlideCopy.overlay_steps. %>
+<div class="steps-row">
+  <% steps.each_with_index do |step, index| %>
+    <div class="step">
+      <div class="step-number <%= index.even? ? "pink" : "green" %>"><%= index + 1 %></div>
+      <div class="step-title"><%= step[:title] %></div>
+      <div class="step-sub"><%= step[:sub] %></div>
+    </div>
+  <% end %>
+</div>

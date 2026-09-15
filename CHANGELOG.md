@@ -26,6 +26,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   shape. The art is the real render warped into place, never redrawn by an
   image model. `bin/rails scenes:import_vendored` seeds the library with the
   existing tablet and paper mockups. Nothing is sent to Etsy yet.
+- **Words and fact panels on scene mockups (admin).** A scene template can now
+  have text boxes and overlay boxes, placed in the calibrator. A text box's
+  font (Nunito, Fredoka or Caveat), weight, colour, alignment, size range and
+  character limit are set once on the template. Each mockup types only the
+  words, which shrink to fit their box. An overlay box shows a feature list,
+  badges, steps or check pills built from the printable's real counts and
+  files, never typed text. Both draw above the front layer.
 
 ## [1.13.0] — 2026-09-15
 

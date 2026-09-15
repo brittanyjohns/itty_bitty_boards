@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_15_120600) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_15_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -1085,6 +1085,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_15_120600) do
     t.text "error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "text_values", default: {}, null: false
     t.index ["board_printable_listing_id"], name: "index_scene_compositions_on_board_printable_listing_id"
     t.index ["owner_type", "owner_id"], name: "index_scene_compositions_on_owner"
     t.index ["scene_template_id"], name: "index_scene_compositions_on_scene_template_id"
@@ -1104,6 +1105,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_15_120600) do
     t.text "prompt"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "text_slots", default: [], null: false
+    t.jsonb "overlay_regions", default: [], null: false
     t.index ["category", "status"], name: "index_scene_templates_on_category_and_status"
     t.index ["slug"], name: "index_scene_templates_on_slug", unique: true
   end

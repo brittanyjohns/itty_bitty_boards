@@ -126,6 +126,65 @@ RSpec.describe "Admin::SceneTemplates (dashboard)", type: :request do
     end
   end
 
+  describe "calibrating text slots and overlays" do
+    let(:template) { create_scene_template(status: "draft", slots: []) }
+
+    it "hands the calibrator the text slots, overlays, fonts and partials" do
+      sign_in admin
+      template.update!(text_slots: [scene_text_slot], overlay_regions: [scene_overlay])
+
+      get calibrate_admin_dashboard_scene_template_path(template)
+
+      expect(response.body).to include("data-scene-calibrator-text-slots-value=", "data-scene-calibrator-overlay-regions-value=")
+      expect(response.body).to include("&quot;headline&quot;", "&quot;feature_list&quot;")
+      expect(response.body).to include('data-scene-calibrator-target="textLayer"', 'name="text_slots_json"', 'name="overlay_regions_json"')
+      expect(response.body).to include("font-family: 'Caveat'")
+    end
+
+    it "saves text slots and overlays with the slots and bumps the version once" do
+      sign_in admin
+
+      patch save_calibration_admin_dashboard_scene_template_path(template), params: {
+        slots_json: [scene_slot].to_json,
+        text_slots_json: [scene_text_slot].to_json,
+        overlay_regions_json: [scene_overlay].to_json,
+        mark_calibrated: "1",
+      }
+
+      expect(response).to redirect_to(calibrate_admin_dashboard_scene_template_path(template))
+      template.reload
+      expect(template.text_slots.map { |slot| slot["key"] }).to eq(%w[headline])
+      expect(template.overlay_regions.map { |region| region["partial"] }).to eq(%w[feature_list])
+      expect(template.calibration_version).to eq(1)
+    end
+
+    it "refuses an unknown font and keeps what was saved" do
+      sign_in admin
+      template.update!(text_slots: [scene_text_slot])
+
+      patch save_calibration_admin_dashboard_scene_template_path(template), params: {
+        slots_json: "[]",
+        text_slots_json: [scene_text_slot(font: "papyrus")].to_json,
+        overlay_regions_json: "[]",
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("font must be one of")
+      expect(template.reload.text_slots.first["font"]).to eq("fredoka")
+    end
+
+    it "leaves text slots and overlays alone when the request doesn't carry them" do
+      sign_in admin
+      template.update!(text_slots: [scene_text_slot], overlay_regions: [scene_overlay])
+
+      patch save_calibration_admin_dashboard_scene_template_path(template), params: { slots_json: [scene_slot].to_json }
+
+      template.reload
+      expect(template.text_slots.size).to eq(1)
+      expect(template.overlay_regions.size).to eq(1)
+    end
+  end
+
   describe "PATCH update" do
     it "renames and adds a front layer" do
       sign_in admin

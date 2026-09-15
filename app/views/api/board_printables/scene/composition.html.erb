@@ -1,7 +1,12 @@
 <%# Layer order is the contract: base, then each filled slot warped onto its
-    quad, then the front layer. DOM order and z-index agree on purpose, so
-    neither can be changed alone into a render where the art covers the hand
-    that's meant to be holding it. %>
+    quad, then the front layer, then text slots and fact overlays. DOM order and
+    z-index agree on purpose, so neither can be changed alone into a render where
+    the art covers the hand that's meant to be holding it.
+
+    Text sits ABOVE the front layer: a Canva front layer is rings, clips and
+    hands over the product, and words a scene prints are meant to be read, not
+    tucked under a ring. A template that wants words behind something draws that
+    something into the base image instead. %>
 <div class="scene-stage"
      style="width: <%= @width %>px; height: <%= @height %>px; transform: scale(<%= @stage_scale.round(6) %>);">
   <img class="scene-base" src="<%= @base_data_uri %>" alt="" />
@@ -17,5 +22,30 @@
 
   <% if @front_data_uri %>
     <img class="scene-front" src="<%= @front_data_uri %>" alt="" />
+  <% end %>
+
+  <%# The words are user input. The escaping output tag is what makes them
+      safe; nothing here may ever use raw or html_safe on layer[:text]. %>
+  <% Array(@text_layers).each do |layer| %>
+    <div class="scene-text scene-font-<%= layer[:font] %>"
+         data-text-slot="<%= layer[:key] %>"
+         data-max-px="<%= layer[:max_px] %>"
+         data-min-px="<%= layer[:min_px] %>"
+         style="left: <%= layer[:left] %>px; top: <%= layer[:top] %>px; width: <%= layer[:width] %>px; height: <%= layer[:height] %>px;<% if layer[:rotation].nonzero? %> transform: rotate(<%= layer[:rotation] %>deg);<% end %>">
+      <div class="scene-text-inner"
+           style="font-size: <%= layer[:initial_px] %>px; font-weight: <%= layer[:weight] %>; color: <%= layer[:color] %>; text-align: <%= layer[:align] %>;"><%= layer[:text] %></div>
+    </div>
+  <% end %>
+
+  <% Array(@overlay_layers).each do |layer| %>
+    <div class="scene-overlay"
+         data-overlay="<%= layer[:key] %>"
+         data-partial="<%= layer[:partial] %>"
+         style="left: <%= layer[:left] %>px; top: <%= layer[:top] %>px; width: <%= layer[:width] %>px; height: <%= layer[:height] %>px;">
+      <div class="scene-overlay-content"
+           style="<% if layer[:layout_width] %>width: <%= layer[:layout_width] %>px; <% end %>transform: scale(<%= layer[:initial_scale] %>);">
+        <%= render "api/board_printables/scene/overlays/#{layer[:partial]}", **layer[:locals] %>
+      </div>
+    </div>
   <% end %>
 </div>

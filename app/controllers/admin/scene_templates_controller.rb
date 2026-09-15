@@ -60,16 +60,23 @@ module Admin
 
     def calibrate; end
 
-    # The slots arrive as one JSON document from the calibrator. Validation is
-    # the model's — the page's own warnings are a convenience, not the gate.
+    # The slots, text slots and overlays arrive as JSON documents from the
+    # calibrator. Validation is the model's — the page's own warnings are a
+    # convenience, not the gate. A text/overlay document the request doesn't
+    # carry leaves that column alone.
     def save_calibration
       parsed = JSON.parse(params[:slots_json].to_s)
-      unless parsed.is_a?(Array)
+      text_slots = params.key?(:text_slots_json) ? JSON.parse(params[:text_slots_json].to_s) : nil
+      overlay_regions = params.key?(:overlay_regions_json) ? JSON.parse(params[:overlay_regions_json].to_s) : nil
+
+      unless parsed.is_a?(Array) && [text_slots, overlay_regions].all? { |doc| doc.nil? || doc.is_a?(Array) }
         @template.errors.add(:slots, "must be a list")
         return render(:calibrate, status: :unprocessable_entity)
       end
 
       @template.slots = parsed
+      @template.text_slots = text_slots unless text_slots.nil?
+      @template.overlay_regions = overlay_regions unless overlay_regions.nil?
       if ActiveModel::Type::Boolean.new.cast(params[:mark_calibrated])
         @template.status = SceneTemplate::STATUS_CALIBRATED
       elsif @template.calibrated? && parsed.empty?

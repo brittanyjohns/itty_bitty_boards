@@ -31,6 +31,37 @@ class SceneTemplate < ApplicationRecord
   SLUG_FORMAT = /\A[a-z0-9][a-z0-9-]{0,79}\z/
   SLOT_KEY_FORMAT = /\A[a-z0-9_-]{1,40}\z/
 
+  # ── Text slots ─────────────────────────────────────────────────────────────
+  #
+  # A text slot's LOOK is set here, at calibration; a composition supplies only
+  # the words. So the font is an allowlist of the three faces the styled gallery
+  # already inlines (Boards::Printables::Fonts.styled_face_css) — a family the
+  # render doesn't carry would silently fall back to the system stack — and
+  # each weight range is what that vendored file actually covers.
+  # The CSS family stacks live in Boards::Printables::Fonts::SCENE_FONT_FAMILIES
+  # (which emits the .scene-font-<key> rules); this adds what calibration needs.
+  TEXT_FONTS = {
+    "nunito" => { weights: 200..1000, default_weight: 800 },
+    "fredoka" => { weights: 300..600, default_weight: 600 },
+    "caveat" => { weights: 400..700, default_weight: 700 },
+  }.freeze
+  TEXT_ALIGNS = %w[left center right].freeze
+  TEXT_COLOR_FORMAT = /\A#\h{6}\z/
+  DEFAULT_TEXT_COLOR = "#17385c".freeze # the styled slides' navy
+  TEXT_PX_RANGE = 6..400
+  MAX_TEXT_CHARS = 280
+  MAX_TEXT_SLOTS = 8
+  MAX_ROTATION = 180
+
+  # ── Overlay regions ────────────────────────────────────────────────────────
+  #
+  # A box a styled partial is scaled into. The partial is an ALLOWLIST and every
+  # one renders from Printables::GalleryFacts for the composition's printable —
+  # there is no free text here, so a scene can't print a count or a claim the
+  # product doesn't back.
+  OVERLAY_PARTIALS = %w[feature_list badges steps_row check_pills].freeze
+  MAX_OVERLAY_REGIONS = 4
+
   has_one_attached :base_image
   has_one_attached :front_layer
 
@@ -44,6 +75,8 @@ class SceneTemplate < ApplicationRecord
   scope :for_category, ->(category) { where(category: category) }
 
   before_validation :normalize_slots
+  before_validation :normalize_text_slots
+  before_validation :normalize_overlay_regions
   before_save :bump_calibration_version
 
   validates :slug, presence: true, uniqueness: true, format: { with: SLUG_FORMAT }
@@ -54,6 +87,9 @@ class SceneTemplate < ApplicationRecord
   validates :width, :height, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :base_image_present
   validate :slots_are_valid
+  validate :text_slots_are_valid
+  validate :overlay_regions_are_valid
+  validate :keys_unique_across_layers
   validate :calibrated_needs_slots
 
   def draft? = status == STATUS_DRAFT
@@ -67,6 +103,12 @@ class SceneTemplate < ApplicationRecord
   def slot_for(key)
     slot_objects.find { |slot| slot.key == key.to_s }
   end
+
+  def text_slot_for(key)
+    Array(text_slots).find { |slot| slot["key"] == key.to_s }
+  end
+
+  def styled_layers? = Array(text_slots).any? || Array(overlay_regions).any?
 
   def aspect
     return nil unless width.to_i.positive? && height.to_i.positive?
@@ -139,6 +181,36 @@ class SceneTemplate < ApplicationRecord
     }
   end
 
+  # One text slot in the stored shape. Box is [x, y, w, h] in base-image px.
+  def self.normalize_text_slot(raw)
+    h = raw.to_h.transform_keys(&:to_s)
+    font = h["font"].to_s.strip.downcase.presence || "nunito"
+
+    {
+      "key" => h["key"].to_s.strip,
+      "label" => h["label"].to_s.strip.presence || h["key"].to_s.strip.humanize,
+      "box" => Array(h["box"]).map { |n| number_or_nil(n) },
+      "rotation" => number_or_nil(h["rotation"]) || 0,
+      "font" => font,
+      "weight" => number_or_nil(h["weight"]) || TEXT_FONTS.dig(font, :default_weight) || 700,
+      "color" => h["color"].to_s.strip.downcase.presence || DEFAULT_TEXT_COLOR,
+      "align" => h["align"].to_s.strip.presence || "center",
+      "max_px" => number_or_nil(h["max_px"]) || 48,
+      "min_px" => number_or_nil(h["min_px"]) || 16,
+      "max_chars" => number_or_nil(h["max_chars"]) || 60,
+      "default" => h["default"].to_s.squish,
+    }
+  end
+
+  def self.normalize_overlay_region(raw)
+    h = raw.to_h.transform_keys(&:to_s)
+    {
+      "key" => h["key"].to_s.strip,
+      "box" => Array(h["box"]).map { |n| number_or_nil(n) },
+      "partial" => h["partial"].to_s.strip,
+    }
+  end
+
   def self.number_or_nil(value)
     return value if value.is_a?(Integer)
     return (value.to_f == value.to_f.round ? value.to_i : value.to_f.round(2)) if value.is_a?(Float)
@@ -176,11 +248,21 @@ class SceneTemplate < ApplicationRecord
     self.slots = Array(slots).map { |slot| self.class.normalize_slot(slot) }
   end
 
+  def normalize_text_slots
+    self.text_slots = Array(text_slots).map { |slot| self.class.normalize_text_slot(slot) }
+  end
+
+  def normalize_overlay_regions
+    self.overlay_regions = Array(overlay_regions).map { |region| self.class.normalize_overlay_region(region) }
+  end
+
+  # Text slots and overlays change what a render looks like exactly as a quad
+  # does, so they mark every composition's render stale the same way.
   def bump_calibration_version
     return if new_record?
 
     layer_change = @layers_changed || attachment_changes.key?("base_image") || attachment_changes.key?("front_layer")
-    return unless slots_changed? || layer_change
+    return unless slots_changed? || text_slots_changed? || overlay_regions_changed? || layer_change
 
     self.calibration_version = calibration_version.to_i + 1
     @layers_changed = false
@@ -209,6 +291,96 @@ class SceneTemplate < ApplicationRecord
     end
 
     list.each_with_index { |slot, index| validate_slot(slot, index) }
+  end
+
+  def text_slots_are_valid
+    list = Array(text_slots)
+    errors.add(:text_slots, "can have at most #{MAX_TEXT_SLOTS} text slots") if list.size > MAX_TEXT_SLOTS
+    list.each_with_index { |slot, index| validate_text_slot(slot, index) }
+  end
+
+  def overlay_regions_are_valid
+    list = Array(overlay_regions)
+    errors.add(:overlay_regions, "can have at most #{MAX_OVERLAY_REGIONS} overlays") if list.size > MAX_OVERLAY_REGIONS
+
+    list.each_with_index do |region, index|
+      name = region["key"].presence || "##{index + 1}"
+      add = ->(message) { errors.add(:overlay_regions, "overlay #{name}: #{message}") }
+
+      add.call("key must be lowercase letters, digits, - or _") unless region["key"].to_s.match?(SLOT_KEY_FORMAT)
+      add.call("partial must be one of #{OVERLAY_PARTIALS.join(", ")}") unless OVERLAY_PARTIALS.include?(region["partial"])
+      validate_box(region["box"], add)
+    end
+  end
+
+  # Slot, text slot and overlay keys share one namespace: the calibrator, the
+  # composition form and the render's data-* hooks all address a box by key,
+  # and two boxes answering to one name is a form field that fills both.
+  def keys_unique_across_layers
+    slot_keys = Array(slots).map { |slot| slot["key"] }
+    other_keys = Array(text_slots).map { |slot| slot["key"] } + Array(overlay_regions).map { |region| region["key"] }
+    all_keys = slot_keys + other_keys
+    slot_dupes = slot_keys.select { |key| slot_keys.count(key) > 1 }
+    dupes = (all_keys.select { |key| all_keys.count(key) > 1 }.uniq - slot_dupes).reject(&:blank?)
+
+    errors.add(:text_slots, "keys must be unique across slots, text slots and overlays: #{dupes.join(", ")}") if dupes.any?
+  end
+
+  def validate_text_slot(slot, index)
+    name = slot["key"].presence || "##{index + 1}"
+    add = ->(message) { errors.add(:text_slots, "text slot #{name}: #{message}") }
+
+    add.call("key must be lowercase letters, digits, - or _") unless slot["key"].to_s.match?(SLOT_KEY_FORMAT)
+    validate_box(slot["box"], add)
+
+    font = TEXT_FONTS[slot["font"]]
+    if font.nil?
+      add.call("font must be one of #{TEXT_FONTS.keys.join(", ")}")
+    else
+      weight = slot["weight"]
+      unless weight.is_a?(Integer) && (weight % 100).zero? && font[:weights].cover?(weight)
+        add.call("weight for #{slot["font"]} must be a multiple of 100 from #{font[:weights].min} to #{font[:weights].max}")
+      end
+    end
+
+    add.call("color must be a hex colour like #17385c") unless slot["color"].to_s.match?(TEXT_COLOR_FORMAT)
+    add.call("align must be one of #{TEXT_ALIGNS.join(", ")}") unless TEXT_ALIGNS.include?(slot["align"])
+
+    rotation = slot["rotation"]
+    unless rotation.is_a?(Numeric) && rotation.abs <= MAX_ROTATION
+      add.call("rotation must be between -#{MAX_ROTATION} and #{MAX_ROTATION} degrees")
+    end
+
+    max_px = slot["max_px"]
+    min_px = slot["min_px"]
+    sizes_ok = [max_px, min_px].all? { |px| px.is_a?(Integer) && TEXT_PX_RANGE.cover?(px) }
+    if !sizes_ok
+      add.call("max_px and min_px must be whole numbers from #{TEXT_PX_RANGE.min} to #{TEXT_PX_RANGE.max}")
+    elsif min_px > max_px
+      add.call("min_px (#{min_px}) can't be larger than max_px (#{max_px})")
+    end
+
+    max_chars = slot["max_chars"]
+    if !(max_chars.is_a?(Integer) && max_chars.between?(1, MAX_TEXT_CHARS))
+      add.call("max_chars must be a whole number from 1 to #{MAX_TEXT_CHARS}")
+    elsif slot["default"].to_s.length > max_chars
+      add.call("default text is longer than max_chars (#{max_chars})")
+    end
+  end
+
+  # [x, y, w, h] in base-image px, wholly inside the image.
+  def validate_box(box, add)
+    unless box.is_a?(Array) && box.size == 4 && box.all?(Numeric)
+      add.call("box must be [x, y, width, height]")
+      return
+    end
+
+    x, y, w, h = box
+    add.call("box width and height must be positive") unless w.positive? && h.positive?
+    return unless width && height
+    return if x >= 0 && y >= 0 && x + w <= width && y + h <= height
+
+    add.call("box must be inside the #{width}x#{height} base image")
   end
 
   def validate_slot(slot, index)

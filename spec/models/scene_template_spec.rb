@@ -170,6 +170,121 @@ RSpec.describe SceneTemplate, type: :model do
     end
   end
 
+  describe "text slots" do
+    def template_with(*text_slots, slots: [scene_slot])
+      build_scene_template(slots: slots, text_slots: text_slots)
+    end
+
+    def text_errors(template)
+      template.valid?
+      template.errors[:text_slots].join(" | ")
+    end
+
+    it "accepts a text slot inside the image in an allowlisted font" do
+      expect(template_with(scene_text_slot)).to be_valid
+    end
+
+    it "normalizes form strings, drops unknown keys and fills defaults by font" do
+      template = template_with({ "key" => "note", "box" => %w[10 20 200 40], "font" => "Caveat", "color" => "#ABCDEF",
+                                 "max_px" => "40", "min_px" => "12", "max_chars" => "30", "onclick" => "x" })
+      template.valid?
+
+      expect(template.text_slots.first).to eq(
+        "key" => "note", "label" => "Note", "box" => [10, 20, 200, 40], "rotation" => 0, "font" => "caveat",
+        "weight" => 700, "color" => "#abcdef", "align" => "center", "max_px" => 40, "min_px" => 12,
+        "max_chars" => 30, "default" => "",
+      )
+      expect(template).to be_valid
+    end
+
+    it "refuses a box outside the base image" do
+      expect(text_errors(template_with(scene_text_slot(box: [300, 250, 200, 80])))).to include("inside the 400x300")
+    end
+
+    it "refuses a font that isn't on the list" do
+      expect(text_errors(template_with(scene_text_slot(font: "comic-sans")))).to include("font must be one of nunito, fredoka, caveat")
+    end
+
+    it "refuses a weight the font's vendored file doesn't carry" do
+      expect(text_errors(template_with(scene_text_slot(font: "fredoka", weight: 800)))).to include("weight for fredoka")
+    end
+
+    it "refuses a colour that isn't a hex" do
+      expect(text_errors(template_with(scene_text_slot(color: "red; background: url(x)")))).to include("hex colour")
+    end
+
+    it "refuses min_px larger than max_px" do
+      expect(text_errors(template_with(scene_text_slot(min_px: 50, max_px: 40)))).to include("min_px (50) can't be larger than max_px (40)")
+    end
+
+    it "refuses a default longer than max_chars" do
+      expect(text_errors(template_with(scene_text_slot(max_chars: 5, default: "Too long")))).to include("longer than max_chars")
+    end
+
+    it "refuses a key a slot already uses" do
+      expect(text_errors(template_with(scene_text_slot(key: "fridge")))).to include("unique across slots, text slots and overlays: fridge")
+    end
+
+    # The font CSS is emitted unescaped inside <style>, so it must come from the
+    # constant allowlist alone.
+    it "has a CSS family for every allowlisted font, and emits nothing for an unknown key" do
+      expect(described_class::TEXT_FONTS.keys).to eq(Boards::Printables::Fonts::SCENE_FONT_FAMILIES.keys)
+
+      css = Boards::Printables::Fonts.scene_font_css(["fredoka", "x} body { background: url(evil)"])
+      expect(css).to eq(".scene-font-fredoka { font-family: Fredoka, Nunito, system-ui, sans-serif; }")
+    end
+  end
+
+  describe "overlay regions" do
+    it "accepts an allowlisted partial in a box inside the image" do
+      expect(build_scene_template(overlay_regions: [scene_overlay])).to be_valid
+    end
+
+    it "refuses a partial that isn't on the allowlist" do
+      template = build_scene_template(overlay_regions: [scene_overlay(partial: "free_text")])
+
+      expect(template).not_to be_valid
+      expect(template.errors[:overlay_regions].join).to include("partial must be one of feature_list, badges, steps_row, check_pills")
+    end
+
+    it "refuses a box outside the base image" do
+      template = build_scene_template(overlay_regions: [scene_overlay(box: [0, 0, 401, 10])])
+
+      expect(template).not_to be_valid
+      expect(template.errors[:overlay_regions].join).to include("inside the 400x300")
+    end
+
+    it "refuses a key a text slot already uses" do
+      template = build_scene_template(text_slots: [scene_text_slot(key: "same")], overlay_regions: [scene_overlay(key: "same")])
+
+      expect(template).not_to be_valid
+      expect(template.errors[:text_slots].join).to include("unique across")
+    end
+  end
+
+  describe "calibration_version and the text layers" do
+    it "bumps when a text slot changes" do
+      template = create_scene_template(text_slots: [scene_text_slot])
+      template.update!(text_slots: [scene_text_slot(color: "#e589b3")])
+
+      expect(template.reload.calibration_version).to eq(1)
+    end
+
+    it "bumps when an overlay is added" do
+      template = create_scene_template
+      template.update!(overlay_regions: [scene_overlay])
+
+      expect(template.reload.calibration_version).to eq(1)
+    end
+
+    it "does not bump for a no-op text save" do
+      template = create_scene_template(text_slots: [scene_text_slot], overlay_regions: [scene_overlay])
+      template.update!(text_slots: template.text_slots.deep_dup, overlay_regions: template.overlay_regions.deep_dup)
+
+      expect(template.reload.calibration_version).to eq(0)
+    end
+  end
+
   describe "#retire!" do
     let(:owner) { create(:user) }
     let(:board) { create(:board, user: owner) }

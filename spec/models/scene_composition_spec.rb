@@ -155,6 +155,68 @@ RSpec.describe SceneComposition, type: :model do
     end
   end
 
+  describe "text values" do
+    let(:worded) do
+      create_scene_template(slots: [scene_slot(key: "fridge")],
+                            text_slots: [scene_text_slot(key: "headline", max_chars: 12, default: "Core AAC")])
+    end
+
+    def worded_composition(text_values)
+      described_class.new(owner: printable, scene_template: worded, text_values: text_values)
+    end
+
+    it "accepts words within max_chars" do
+      expect(worded_composition("headline" => "Core Words")).to be_valid
+    end
+
+    it "refuses words over max_chars" do
+      composition = worded_composition("headline" => "Far too many words")
+
+      expect(composition).not_to be_valid
+      expect(composition.errors[:text_values].join).to include("18 characters is over the 12-character limit")
+    end
+
+    it "refuses a key the template has no text slot for" do
+      composition = worded_composition("fridge" => "Hi")
+
+      expect(composition).not_to be_valid
+      expect(composition.errors[:text_values].join).to include("doesn't have (fridge)")
+    end
+
+    it "stores nothing for a blank value, so the slot falls back to its default" do
+      composition = worded_composition("headline" => "   ")
+      composition.valid?
+
+      expect(composition.text_values).to eq({})
+      expect(composition.resolved_text(worded.text_slot_for("headline"))).to eq("Core AAC")
+    end
+
+    it "squishes whitespace" do
+      composition = worded_composition("headline" => "  Core \n Words ")
+      composition.valid?
+
+      expect(composition.text_values).to eq("headline" => "Core Words")
+    end
+
+    it "changes the render digest when the words change" do
+      composition = described_class.create!(owner: printable, scene_template: worded, text_values: { "headline" => "Core" })
+      before = composition.current_render_digest
+      composition.update!(text_values: { "headline" => "Feelings" })
+
+      expect(composition.current_render_digest).not_to eq(before)
+    end
+
+    it "changes the render digest when the facts an overlay quotes change" do
+      template = create_scene_template(overlay_regions: [scene_overlay])
+      composition = described_class.create!(owner: printable, scene_template: template)
+      before = composition.current_render_digest
+
+      printable.update!(board_ids: [board.id])
+
+      expect(described_class.find(composition.id).current_render_digest).not_to eq(before)
+    end
+  end
+
   describe "#attach_render!" do
     it "attaches a JPEG at a versioned key and stamps the render" do
       composition = described_class.create!(owner: printable, scene_template: template)

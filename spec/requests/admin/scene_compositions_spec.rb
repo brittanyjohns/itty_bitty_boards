@@ -108,6 +108,63 @@ RSpec.describe "Admin::SceneCompositions (dashboard)", type: :request do
     end
   end
 
+  describe "the words in a template's text slots" do
+    let(:worded) do
+      create_scene_template(name: "Worded", slots: [scene_slot(key: "fridge")],
+                            text_slots: [scene_text_slot(key: "headline", label: "Headline", max_chars: 20)],
+                            overlay_regions: [scene_overlay])
+    end
+
+    it "offers one input per text slot, capped at max_chars" do
+      sign_in admin
+
+      get new_admin_dashboard_board_printable_scene_composition_path(printable, scene_template_id: worded.id)
+
+      expect(response.body).to include('name="text_values[headline]"', 'maxlength="20"', 'placeholder="Printable AAC"')
+      expect(response.body).to include("Up to 20 characters")
+      expect(response.body).to include("feature list")
+    end
+
+    it "saves the words with the art" do
+      sign_in admin
+
+      post admin_dashboard_board_printable_scene_compositions_path(printable), params: {
+        scene_composition: { scene_template_id: worded.id },
+        slot_art: page_art(board.id),
+        text_values: { "headline" => "Core Words", "not_a_slot" => "ignored" },
+      }
+
+      composition = printable.scene_compositions.last
+      expect(composition.text_values).to eq("headline" => "Core Words")
+      expect(composition.slot_art["fridge"]["board_id"]).to eq(board.id)
+    end
+
+    it "refuses words over the limit" do
+      sign_in admin
+
+      post admin_dashboard_board_printable_scene_compositions_path(printable), params: {
+        scene_composition: { scene_template_id: worded.id },
+        text_values: { "headline" => "x" * 21 },
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("over the 20-character limit")
+      expect(SceneComposition.count).to eq(0)
+    end
+
+    it "clears the words back to the default when the field is blanked, and keeps them when it isn't sent" do
+      sign_in admin
+      composition = SceneComposition.create!(owner: printable, scene_template: worded, text_values: { "headline" => "Core" })
+
+      patch admin_dashboard_board_printable_scene_composition_path(printable, composition), params: { slot_art: page_art(board.id) }
+      expect(composition.reload.text_values).to eq("headline" => "Core")
+
+      patch admin_dashboard_board_printable_scene_composition_path(printable, composition),
+            params: { slot_art: page_art(board.id), text_values: { "headline" => "" } }
+      expect(composition.reload.text_values).to eq({})
+    end
+  end
+
   describe "an existing composition" do
     let!(:composition) do
       SceneComposition.create!(owner: printable, scene_template: template, slot_art: page_art(board.id))

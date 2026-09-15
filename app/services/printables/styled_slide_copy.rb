@@ -158,6 +158,43 @@ module Printables
 
     def online_paper_accent = "Scan me!"
 
+    # ── Scene overlays (SceneTemplate#overlay_regions) ──────────────────────
+    #
+    # A scene overlay sits on somebody's Canva photo next to the product, so it
+    # carries only what the facts back. Nothing here says "free" or "no
+    # sign-in": those claims belong to the online-version slide, gated there on
+    # GalleryFacts#online_public?, and an overlay has no room to explain the gate.
+
+    def overlay_features(facts) = whats_included_features(facts)
+
+    def overlay_badges(facts) = hero_badges(facts)
+
+    def overlay_check_pills(facts)
+      count = facts.word_count
+      [
+        "#{facts.board_count} #{facts.board_count == 1 ? "board" : "boards"}",
+        (count.positive? ? "#{count} symbol-supported #{count == 1 ? "word" : "words"}" : nil),
+        facts.low_ink? ? "Color + low-ink" : "Full color",
+        facts.formats_label,
+        facts.letter_size_label,
+      ].compact
+    end
+
+    # Download, print, put it together. The last step is advice about the
+    # product in hand (a set is several sheets; a single board is one), never a
+    # claim about something that ships with it.
+    def overlay_steps(facts)
+      [
+        { title: "Download", sub: facts.formats_label },
+        { title: "Print", sub: facts.low_ink? ? "Color or low-ink" : facts.letter_size_label },
+        if facts.set?
+          { title: "Hole-punch & ring", sub: "#{facts.board_count} boards, one book" }
+        else
+          { title: "Laminate", sub: "Ready for every day" }
+        end,
+      ]
+    end
+
     def accents
       {
         top_right: "Words within reach",

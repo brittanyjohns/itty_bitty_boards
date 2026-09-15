@@ -81,9 +81,94 @@
       .scene-art.finish-shadow {
         filter: drop-shadow(0 6px 18px rgba(19, 38, 55, 0.28));
       }
+
+      <% if @styled %>
+        <%# Unescaped on purpose, for the reason listing_image_styled documents:
+            HTML entities are never decoded inside <style>, so an escaped
+            'Caveat' is an invalid @font-face Chrome drops silently. Both strings
+            are built from constants and base64, never from user input. Only
+            emitted when a text slot or overlay is drawn, so a plain scene render
+            doesn't carry ~140 KB of faces it never uses. %>
+        <%== Boards::Printables::Fonts.styled_face_css %>
+        <%# Unescaped: escaped CSS inside <style> breaks @font-face and font-family. Allowlist constants only. %>
+        <%== Boards::Printables::Fonts.scene_font_css %>
+<%= render "api/board_printables/styled/component_css" %>
+
+      /* Text and overlays sit above the front layer (z-index 2). */
+      .scene-text,
+      .scene-overlay {
+        position: absolute;
+        z-index: 3;
+        box-sizing: border-box;
+      }
+
+      .scene-text *,
+      .scene-overlay * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Rotates about its own centre. The words are vertically centred in the
+         box; the fit script sizes them to it. Normal wrapping only — a word too
+         long for the box must overflow so the fit can SEE it and shrink, rather
+         than being broken mid-word at max_px. */
+      .scene-text {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        transform-origin: 50% 50%;
+      }
+
+      .scene-text-inner {
+        display: block;
+        width: 100%;
+        line-height: 1.2;
+        white-space: normal;
+        overflow-wrap: normal;
+        word-break: normal;
+      }
+
+      /* Still too long at min_px: break mid-word rather than spill. */
+      .scene-text[data-overflow] .scene-text-inner { overflow-wrap: anywhere; }
+
+      .scene-overlay {
+        font-family: var(--font-body);
+        color: var(--navy);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .scene-overlay-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+      }
+
+      .check-pills { display: flex; flex-wrap: wrap; gap: 14px; }
+      .check-pill { display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 24px 0 10px; border-radius: 999px; font-weight: 800; font-size: 22px; white-space: nowrap; color: var(--navy); }
+      .check-pill.green { background: var(--green-soft); }
+      .check-pill.pink { background: var(--pink-soft); }
+      .check-dot { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--white); color: var(--green-deep); }
+      .check-pill.pink .check-dot { color: var(--pink-deep); }
+      .check-dot svg { width: 22px; height: 22px; fill: currentColor; }
+
+      .steps-row { display: flex; gap: 28px; width: max-content; }
+      .step { display: flex; flex-direction: column; align-items: center; text-align: center; width: 200px; }
+      .step-number { display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; font-family: var(--font-head); font-weight: 600; font-size: 38px; color: var(--navy); }
+      .step-number.pink { background: var(--pink-soft); }
+      .step-number.green { background: var(--green-soft); }
+      .step-title { margin-top: 12px; font-weight: 800; font-size: 24px; line-height: 1.15; color: var(--navy); }
+      .step-sub { margin-top: 4px; font-weight: 600; font-size: 17px; line-height: 1.2; color: var(--ink-soft); }
+
+      .scene-overlay .badges { width: max-content; }
+      <% end %>
     </style>
   </head>
   <body>
     <%= yield %>
+    <% if @styled %>
+      <%= render "api/board_printables/scene/fit_script" %>
+    <% end %>
   </body>
 </html>
