@@ -247,6 +247,18 @@ an explicit decision, not a drive-by edit.
   A feature gets its own predicate (`User#can_lend?`), published on the
   api_view so the frontend gates on the same answer instead of re-deriving it
   from `pro`; the slot math stays exactly where it was.
+- **A paid plan is not a Stripe subscription — `User#billing_source` says who
+  BILLS it** (`none` / `stripe` / `app_store` / `manual`), and self-serve plan
+  changes gate on that, never on `plan_type`. An admin comp read as a Stripe
+  subscriber, so Upgrade opened the in-app switch and `preview_plan_change`
+  could only 422 `no_subscription`. "Paid, no Stripe subscription" can't simply
+  mean Checkout either: an App Store subscriber looks identical there and would
+  be billed twice. `settings["billing_provider"]` is the stamp — written by
+  `RevenueCat::WebhookProcessor` and `API::BillingController#update_subscription`,
+  cleared by `Billing::PlanTransitions.apply_free_plan` — and
+  `settings["purchase_platform"]` must not stand in for it, because nothing
+  clears it. Backfill: `rake billing:stamp_revenuecat_provider` (dry run by
+  default). Details: `.claude-notes/billing-and-plans.md`.
 - **A clinician application's license number is required only where one EXISTS,
   and the check is `on: :create`.** `LICENSE_REQUIRED_CREDENTIALS` is `slp`/`ot`;
   for `at_specialist` (RESNA ATP is optional, and the apply page recruits them

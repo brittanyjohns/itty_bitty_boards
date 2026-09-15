@@ -718,6 +718,38 @@ generic (not Google-specific column names) so Phase 2 (Apple) and Phase 3
 If you're adding a new paid-feature gate, call `current_user.paid_plan?`
 rather than reading `plan_type` directly.
 
+### Who bills a plan (`billing_source`)
+
+`paid_plan?` answers what an account may DO; `User#billing_source` answers who
+BILLS it. It is published on `api_view`, and the pricing page gates self-serve
+plan changes on it — never on `plan_type`:
+
+| value | meaning | pricing page |
+|---|---|---|
+| `none` | not `paid_plan?` | Checkout |
+| `stripe` | `stripe_subscription_id` present | in-app switch (`preview_plan_change` / `change_plan`) |
+| `app_store` | `settings["billing_provider"] == "revenuecat"` | contact support — never web Checkout (bills twice) |
+| `manual` | paid with no provider, e.g. `/admin/users/:id/change_plan` | Checkout |
+
+- Before this, a comped account read as a Stripe subscriber, so Upgrade opened
+  the plan-change modal and `preview_plan_change` 422'd `no_subscription` — a
+  dead end. "Paid, no Stripe subscription" could not simply mean Checkout,
+  because that is also exactly what an App Store subscriber looks like.
+- The stamp is written by `RevenueCat::WebhookProcessor` (purchase, renewal,
+  product change, TRANSFER) and `API::BillingController#update_subscription`,
+  and cleared by `Billing::PlanTransitions.apply_free_plan`.
+  `settings["purchase_platform"]` is deliberately not read: it is never
+  cleared, so a lapsed IAP user an admin later comps would be kept from
+  Checkout for good.
+- Rows from before the stamp: `bin/rails billing:stamp_revenuecat_provider`
+  (dry run; `APPLY=1` writes). It reads the credit ledger: the newest
+  `plan_grant` that is not a `refresh_credits_job` refresh (those carry no
+  provider) must say `metadata.provider == "revenuecat"`. A lapsed-then-comped
+  account has a newer free-plan grant, so it correctly stays `manual`.
+- `stripe` is only as fresh as the column. A subscription Stripe canceled while
+  the row still names it reads `stripe` and still 422s `no_subscription`; the
+  frontend modal offers Checkout on that code (never for `app_store`).
+
 ### Soft-trial assignment (`set_soft_trial_plan`)
 
 Soft-trial users start as `plan_type=basic_trial` for 14 days post-signup.

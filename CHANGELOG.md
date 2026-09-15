@@ -7,6 +7,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **The app can tell who bills a paid plan.** `User#api_view` now publishes
+  `billing_source` (`none` / `stripe` / `app_store` / `manual`), so the pricing
+  page stops offering the in-app plan switch — which can only 422
+  `no_subscription` — to an account with no Stripe subscription, such as one an
+  admin put on a paid plan. RevenueCat purchases and verified App Store upgrades
+  stamp `settings["billing_provider"]`, and a plan that ends clears it. Backfill
+  existing App Store subscribers with `bin/rails billing:stamp_revenuecat_provider`
+  (dry run by default, `APPLY=1` to write).
 - **Picking a gallery picture changes the tile you opened.** When two tiles on
   one board share a picture's word (a "play" word tile and a "Play" folder
   tile), `POST /api/docs/:id/mark_as_current` and
