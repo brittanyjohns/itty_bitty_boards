@@ -65,6 +65,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Printables, listing images, device-screen mockups and care plans now
+  actually render in Nunito.** The inlined `@font-face` was HTML-escaped
+  (`font-family: &#39;Nunito&#39;;`), which Chrome rejects inside `<style>`, so
+  every Grover render had been silently falling back to the system sans-serif.
+  Expect a visible typeface change in newly generated board PDFs, Etsy gallery
+  images and videos, and care plan PDFs — slightly different letterforms and
+  line lengths. Files generated earlier keep the fallback font until they are
+  regenerated.
+
 - **Board Builder no longer reserves far more boards than a set uses.** A build
   used to reserve every page its level could ever add plus the admin-only
   Phrases layer, so an Extended set that makes 12 boards needed 35 free and was

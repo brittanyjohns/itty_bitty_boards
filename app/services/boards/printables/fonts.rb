@@ -6,6 +6,11 @@
 # *silently* — the page renders in the fallback and nobody notices until it's on
 # Etsy. Vendoring the woff2 makes the render hermetic.
 #
+# Layouts must emit `face_css` with `<%==`, not `<%=`. It's a plain String, so
+# `<%=` escapes 'Nunito' to &#39;Nunito&#39;, entities are never decoded inside
+# <style>, and the @font-face is dropped — the same silent fallback as above.
+# Pinned by spec/views/layouts/vendored_font_face_spec.rb.
+#
 # One file per subset, not per weight: Google serves Nunito as a variable font,
 # so the same woff2 backs 400/600/800 and the @font-face just declares the whole
 # axis. latin-ext is here so an accented board name doesn't fall back to the
