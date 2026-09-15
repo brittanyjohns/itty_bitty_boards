@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_15_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_15_120600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -1074,6 +1074,40 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_15_120000) do
     t.index ["user_id"], name: "index_scenarios_on_user_id"
   end
 
+  create_table "scene_compositions", force: :cascade do |t|
+    t.string "owner_type", null: false
+    t.bigint "owner_id", null: false
+    t.bigint "board_printable_listing_id"
+    t.bigint "scene_template_id", null: false
+    t.jsonb "slot_art", default: {}, null: false
+    t.string "render_digest"
+    t.datetime "rendered_at"
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_printable_listing_id"], name: "index_scene_compositions_on_board_printable_listing_id"
+    t.index ["owner_type", "owner_id"], name: "index_scene_compositions_on_owner"
+    t.index ["scene_template_id"], name: "index_scene_compositions_on_scene_template_id"
+  end
+
+  create_table "scene_templates", force: :cascade do |t|
+    t.string "slug", null: false
+    t.string "name", null: false
+    t.string "category", default: "board", null: false
+    t.string "source", default: "canva", null: false
+    t.string "status", default: "draft", null: false
+    t.integer "width"
+    t.integer "height"
+    t.integer "calibration_version", default: 0, null: false
+    t.jsonb "slots", default: [], null: false
+    t.text "notes"
+    t.text "prompt"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category", "status"], name: "index_scene_templates_on_category_and_status"
+    t.index ["slug"], name: "index_scene_templates_on_slug", unique: true
+  end
+
   create_table "subscriptions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "stripe_subscription_id"
@@ -1324,6 +1358,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_15_120000) do
   add_foreign_key "products", "product_categories"
   add_foreign_key "profile_views", "profiles"
   add_foreign_key "scenarios", "users"
+  add_foreign_key "scene_compositions", "board_printable_listings", on_delete: :nullify
+  add_foreign_key "scene_compositions", "scene_templates"
   add_foreign_key "subscriptions", "users"
   add_foreign_key "team_accounts", "child_accounts"
   add_foreign_key "team_accounts", "teams"

@@ -52,6 +52,9 @@ application.register("pwa--sync", Pwa__SyncController)
 import ResizeController from "./resize_controller"
 application.register("resize", ResizeController)
 
+import SceneCalibratorController from "./scene_calibrator_controller"
+application.register("scene-calibrator", SceneCalibratorController)
+
 import SearchFormController from "./search_form_controller"
 application.register("search-form", SearchFormController)
 

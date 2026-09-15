@@ -1,0 +1,21 @@
+<%# Layer order is the contract: base, then each filled slot warped onto its
+    quad, then the front layer. DOM order and z-index agree on purpose, so
+    neither can be changed alone into a render where the art covers the hand
+    that's meant to be holding it. %>
+<div class="scene-stage"
+     style="width: <%= @width %>px; height: <%= @height %>px; transform: scale(<%= @stage_scale.round(6) %>);">
+  <img class="scene-base" src="<%= @base_data_uri %>" alt="" />
+
+  <% @layers.each do |layer| %>
+    <% slot = layer[:slot] %>
+    <div class="scene-art finish-<%= slot.finish %>"
+         data-slot="<%= slot.key %>"
+         style="width: <%= slot.target_width %>px; height: <%= slot.target_height %>px; transform: <%= slot.matrix3d %>;">
+      <img src="<%= layer[:data_uri] %>" alt="" />
+    </div>
+  <% end %>
+
+  <% if @front_data_uri %>
+    <img class="scene-front" src="<%= @front_data_uri %>" alt="" />
+  <% end %>
+</div>

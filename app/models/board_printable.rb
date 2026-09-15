@@ -199,6 +199,10 @@ class BoardPrintable < ApplicationRecord
   has_many :etsy_listings, -> { ordered },
            class_name: "BoardPrintableListing", dependent: :destroy
 
+  # Scene-engine mockups of this printable's real art (SceneComposition). Their
+  # renders are their own named attachment — never one of `files` below.
+  has_many :scene_compositions, as: :owner, dependent: :destroy
+
   has_many_attached :files
 
   validates :status, inclusion: { in: STATUSES }

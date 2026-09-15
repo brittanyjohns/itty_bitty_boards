@@ -1,0 +1,26 @@
+<% content_for :page_title, @template.name %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @template.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= @template.width %>×<%= @template.height %> · calibration v<%= @template.calibration_version %> ·
+      used by <%= pluralize(@template.scene_compositions.count, "mockup") %>
+    </p>
+  </div>
+  <%= link_to "← All templates", admin_dashboard_scene_templates_path, class: "text-xs text-t2 hover:text-t1" %>
+</div>
+
+<%= render "form" %>
+
+<div class="admin-card border rounded-xl p-5 mt-6 flex flex-wrap items-center gap-3">
+  <% unless @template.archived? %>
+    <%= button_to "Archive", archive_admin_dashboard_scene_template_path(@template), method: :post,
+          class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+          form: { data: { turbo_confirm: "Archive this template? It stops being offered for new mockups; existing ones still render." } } %>
+  <% end %>
+  <%= button_to "Delete", admin_dashboard_scene_template_path(@template), method: :delete,
+        class: "text-xs font-medium px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white cursor-pointer",
+        form: { data: { turbo_confirm: "Delete this template? If a mockup uses it, it will be archived instead." } } %>
+  <span class="text-[11px] text-t3">A template that a mockup uses is archived rather than deleted, so its renders keep working.</span>
+</div>

@@ -141,6 +141,7 @@
                ["Builder Templates", admin_dashboard_board_builder_templates_path, "/admin/board_builder_templates"],
                ["Board Printables", admin_dashboard_board_printables_path, "/admin/board_printables"],
                ["Kit Pages",        admin_dashboard_kit_pages_path,        "/admin/kit_pages"],
+               ["Scene Templates",  admin_dashboard_scene_templates_path,  "/admin/scene_templates"],
              ] %>
           <% content_active = content_items.any? { |_, _, prefix| request.path.start_with?(prefix) } %>
           <details class="admin-menu relative">

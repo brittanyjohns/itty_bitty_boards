@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<%# The canvas for Boards::Printables::RenderSceneComposition. Its own layout:
+    listing_image is square, palette-bound and carries slide chrome, none of
+    which a scene render wants. Everything is inlined — no network fetches — so
+    the screenshot is exactly the bytes the render was handed. %>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: <%= @canvas_width %>px;
+        height: <%= @canvas_height %>px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+
+      /* Lays out in the base image's own pixels and is scaled as one unit, so
+         every slot's quad — which is in those pixels — stays in lockstep with
+         the photo. The output keeps the template's aspect, so this is a plain
+         scale with no cover offset. */
+      .scene-stage {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+      }
+
+      .scene-base,
+      .scene-front {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .scene-base { z-index: 0; }
+
+      /* Above every slot, so a ring, clip or hand in the photo covers the art. */
+      .scene-front { z-index: 2; pointer-events: none; }
+
+      /* transform-origin MUST be 0 0 — the homography maps the element's own
+         top-left corner to the quad's, and a centred origin offsets the solve.
+         The white fill backs the letterbox bars: on a blank sheet it reads as
+         the sheet's own margin rather than a gap. */
+      .scene-art {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+        transform-origin: 0 0;
+        background: #ffffff;
+        overflow: hidden;
+      }
+
+      /* contain, never fill: a stretched board reads as a distorted product. */
+      .scene-art img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #ffffff;
+      }
+
+      .scene-art.finish-glare::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          115deg,
+          rgba(255, 255, 255, 0.20) 0%,
+          rgba(255, 255, 255, 0.06) 38%,
+          rgba(255, 255, 255, 0) 62%
+        );
+      }
+
+      /* Same value as the listing mockups' paper finish. */
+      .scene-art.finish-shadow {
+        filter: drop-shadow(0 6px 18px rgba(19, 38, 55, 0.28));
+      }
+    </style>
+  </head>
+  <body>
+    <%= yield %>
+  </body>
+</html>

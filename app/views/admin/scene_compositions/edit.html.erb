@@ -1,0 +1,46 @@
+<% content_for :page_title, "Scene mockup ##{@composition.id}" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Scene mockup #<%= @composition.id %></h1>
+    <p class="text-sm text-t3 mt-0.5"><%= @printable.board&.name || "Board ##{@printable.board_id}" %> · printable #<%= @printable.id %></p>
+  </div>
+  <%= link_to "← Back to the printable", admin_dashboard_board_printable_path(@printable), class: "text-xs text-t2 hover:text-t1" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-center gap-3 mb-3">
+    <h2 class="text-sm font-medium text-t1">Render</h2>
+    <% if @composition.render.attached? && @composition.stale? %>
+      <span class="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">Out of date</span>
+    <% end %>
+    <%= button_to "Render now", render_scene_admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
+          method: :post, class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1" %>
+  </div>
+
+  <% if @composition.error.present? %>
+    <div class="admin-flash-err border rounded-lg px-4 py-3 text-sm mb-3"><%= @composition.error %></div>
+  <% end %>
+
+  <% if @composition.render.attached? %>
+    <%= link_to url_for(@composition.render), target: "_blank", rel: "noopener" do %>
+      <%= image_tag url_for(@composition.render), alt: "Rendered scene mockup",
+            class: "max-w-full w-[720px] rounded-lg border bg-white", style: "border-color: var(--border);" %>
+    <% end %>
+    <p class="text-[11px] text-t3 mt-2">
+      Rendered <%= l(@composition.rendered_at, format: :long) if @composition.rendered_at %>.
+      Keeps the template's own shape (<%= @composition.scene_template.width %>×<%= @composition.scene_template.height %>).
+    </p>
+  <% else %>
+    <p class="text-xs text-t3">Not rendered yet. Save &amp; render below, then refresh this page in a moment.</p>
+  <% end %>
+</div>
+
+<%= render "form" %>
+
+<div class="mt-6">
+  <%= button_to "Delete this mockup", admin_dashboard_board_printable_scene_composition_path(@printable, @composition),
+        method: :delete,
+        class: "text-xs font-medium px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white cursor-pointer",
+        form: { data: { turbo_confirm: "Delete this scene mockup and its render?" } } %>
+</div>

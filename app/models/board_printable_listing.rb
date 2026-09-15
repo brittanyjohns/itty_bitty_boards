@@ -37,6 +37,10 @@ class BoardPrintableListing < ApplicationRecord
   belongs_to :board_printable
   belongs_to :created_by, class_name: "User", optional: true
 
+  # A composition made for this listing survives the listing (the FK nullifies
+  # too) — it is still a picture of the printable.
+  has_many :scene_compositions, dependent: :nullify
+
   validates :state, inclusion: { in: STATES }
   validates :purpose, inclusion: { in: PURPOSES }
   validate :allowlists_are_known
