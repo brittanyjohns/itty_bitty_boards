@@ -29,6 +29,9 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     expect(response).to have_http_status(:ok)
     expect(user.plan_status).to eq("active")
     expect(user.settings["purchase_platform"]).to eq("ios")
+    # RevenueCat verified the entitlement, so the App Store bills this plan —
+    # which keeps the pricing page from offering this user web Checkout.
+    expect(user.settings["billing_provider"]).to eq("revenuecat")
     expect(JSON.parse(response.body)).to eq("success" => true, "plan_key" => "basic")
   end
 

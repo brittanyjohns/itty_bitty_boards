@@ -24,6 +24,9 @@ module Billing
       user.stripe_subscription_id = nil
       user.settings.delete("trial_ends_at")
       user.settings.delete("has_payment_method")
+      # A plan that ended has no provider. A leftover RevenueCat stamp would mark
+      # a later admin comp as App-Store-billed and hide Checkout from it.
+      user.settings.delete("billing_provider")
       # Pro-only extra-communicator add-on slots don't survive a downgrade: a
       # cancelled subscription or an expired license takes its extras with it.
       # (Over-limit communicators are retained in fallback by the reconciler.)

@@ -312,6 +312,36 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
     end
   end
 
+  # User#billing_source reads this stamp to tell an App Store subscriber from an
+  # admin comp — both are "paid, no Stripe subscription". Without it the pricing
+  # page would send an IAP subscriber to web Checkout and bill them twice.
+  describe "billing_provider stamp" do
+    it "stamps revenuecat on a purchase" do
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id))
+
+      user.reload
+      expect(user.settings["billing_provider"]).to eq("revenuecat")
+      expect(user.billing_source).to eq("app_store")
+    end
+
+    it "stamps the account an entitlement is transferred to" do
+      allow_any_instance_of(RevenueCat::Client).to receive(:verified_plan_for)
+        .and_return(RevenueCat::Client::Result.new(ok?: true, plan_type: "pro"))
+
+      post_rc_webhook(rc_event(type: "TRANSFER", app_user_id: user.id,
+                               transferred_from: [], transferred_to: [user.id.to_s]))
+
+      expect(user.reload.settings["billing_provider"]).to eq("revenuecat")
+    end
+
+    it "clears the stamp when the subscription expires" do
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id))
+      post_rc_webhook(rc_event(type: "EXPIRATION", app_user_id: user.id))
+
+      expect(user.reload.settings).not_to have_key("billing_provider")
+    end
+  end
+
   describe "sandbox gating" do
     it "ignores SANDBOX events when running as real production" do
       allow_any_instance_of(RevenueCat::WebhookProcessor).to receive(:production_live?).and_return(true)

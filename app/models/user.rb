@@ -2048,6 +2048,25 @@ class User < ApplicationRecord
     stripe_subscription_id.present? ? "stripe" : "revenuecat"
   end
 
+  # Who bills this account's plan — the server's answer to "may the pricing
+  # page offer web Checkout, or the in-app Stripe plan switch?". A paid
+  # plan_type is not a subscription: an admin comp has nothing at Stripe to
+  # switch (preview_plan_change can only 422 no_subscription), and an App Store
+  # subscriber must never be sold a second, web subscription.
+  #   none      — not on a paid plan
+  #   stripe    — a Stripe subscription backs it
+  #   app_store — RevenueCat bills it (stamped by RevenueCat::WebhookProcessor)
+  #   manual    — paid with no provider behind it, e.g. an admin comp
+  # settings["purchase_platform"] is deliberately not read: it is never cleared,
+  # so a lapsed IAP user an admin later comps would be kept from Checkout.
+  def billing_source
+    return "none" unless paid_plan?
+    return "stripe" if stripe_subscription_id.present?
+    return "app_store" if (settings || {})["billing_provider"] == RevenueCat::WebhookProcessor::PROVIDER
+
+    "manual"
+  end
+
   # Should the client show trial UI at all? partner_pro pilots ride a 3-month
   # no-card trial managed outside the app, so a persistent 90-day countdown
   # strip is noise for them.
@@ -2661,6 +2680,9 @@ class User < ApplicationRecord
       plus: plus?,
       premium: premium?,
       paid_plan: paid_plan?,
+      # Gate self-serve plan changes on this, never on plan_type — see
+      # #billing_source.
+      billing_source: billing_source,
       myspeak: has_myspeak_feature?,
       professional: professional?,
       basic_vendor: vendor? && basic?,
